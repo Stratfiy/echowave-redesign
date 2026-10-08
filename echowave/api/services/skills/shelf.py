@@ -9,14 +9,17 @@ three bots at once from the card.
 
 from __future__ import annotations
 
+import re
+import secrets
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any, Iterable, Optional
 
 from loguru import logger
 
 from api.db import db_client
 from api.services.skills import catalogue
-from api.services.skills.document import prompt_block
+from api.services.skills.document import PortableSkill, prompt_block
 
 #: How many skills one bot may carry. Each one is a body of prompt text on
 #: every turn, so this is a cost ceiling as much as a sanity one.
@@ -192,9 +195,106 @@ async def prompt_for_workflow(
         skill = catalogue.get(slug)
         if skill is not None:
             blocks.append(prompt_block(skill.skill))
+            continue
+        # One of the workspace's own: written on the agent's page, or
+        # imported. Only a reviewed one reaches a prompt -- an import waits
+        # for its review, and a skill somebody wrote here is reviewed by
+        # the person who wrote it.
+        own = await db_client.get_skill_document(
+            organization_id=organization_id, slug=slug
+        )
+        if own is not None and own.reviewed_at is not None:
+            blocks.append(
+                prompt_block(
+                    PortableSkill(
+                        name=own.title, description=own.description, body=own.body
+                    )
+                )
+            )
     if not blocks:
         return ""
     return (
         "The procedures this agent has been taught. Follow them when the "
         "situation they describe comes up.\n\n" + "\n\n".join(blocks)
     )
+
+
+# --- skills a person writes on the agent's page ------------------------------
+
+#: Slugs of skills written here, so they never collide with the catalogue's.
+OWN_PREFIX = "own-"
+
+
+def _own_slug(title: str) -> str:
+    words = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")[:40].strip("-")
+    return f"{OWN_PREFIX}{words or 'skill'}-{secrets.token_hex(3)}"
+
+
+async def write_own(
+    organization_id: int,
+    workflow_id: int,
+    *,
+    title: str,
+    description: str,
+    user_id: int | None = None,
+) -> str:
+    """A skill described in plain words ("check stock in my Google Sheet
+    before quoting"), kept on the shelf and put on this one agent.
+
+    Stored as the workspace's own skill document, the way an imported skill
+    is, so it lists, attaches and comes off like any other. Reviewed on
+    write: the person describing it is the reviewer an import waits for.
+    """
+    title = (title or "").strip()
+    description = (description or "").strip()
+    if not title or not description:
+        raise SkillError("Say what the skill is called and what it should do.")
+    workflow = await db_client.get_workflow(
+        workflow_id, organization_id=organization_id
+    )
+    if workflow is None:
+        raise SkillError("That agent is not in this workspace.")
+    count = await db_client.count_skills_on_workflow(
+        organization_id=organization_id, workflow_id=workflow_id
+    )
+    if count >= MAX_PER_BOT:
+        raise SkillError(
+            f"An agent can carry {MAX_PER_BOT} skills. Take one off first."
+        )
+
+    slug = _own_slug(title)
+    now = datetime.now(UTC)
+    await db_client.upsert_skill_document(
+        organization_id=organization_id,
+        slug=slug,
+        title=title[:200],
+        description=description[:2000],
+        body=description,
+        metadata_={},
+        source_repo="",
+        source_ref="",
+        source_path="",
+        licence="",
+        concerns=[],
+        created_by=user_id,
+        reviewed_by=user_id,
+        reviewed_at=now,
+    )
+    await db_client.add_organisation_skill(
+        organization_id=organization_id, slug=slug, workflow_id=None, user_id=user_id
+    )
+    await db_client.add_organisation_skill(
+        organization_id=organization_id,
+        slug=slug,
+        workflow_id=workflow_id,
+        user_id=user_id,
+    )
+    return slug
+
+
+async def take_off(organization_id: int, slug: str, workflow_id: int) -> bool:
+    """Take one skill off one agent; it stays on the shelf and on the others."""
+    removed = await db_client.remove_organisation_skill(
+        organization_id=organization_id, slug=slug, workflow_id=workflow_id
+    )
+    return removed > 0

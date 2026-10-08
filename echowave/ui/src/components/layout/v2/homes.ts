@@ -1,51 +1,30 @@
 import type { LucideIcon } from "lucide-react";
-import {
-  Activity,
-  Bot,
-  Building2,
-  CalendarClock,
-  Database,
-  Home,
-  Settings,
-  Users,
-  Wand2,
-} from "lucide-react";
+import { CalendarCheck, MessageCircle, Wand2 } from "lucide-react";
 
 import type { Feature } from "@/lib/features";
 
 /**
  * The homes of the v2 shell (KAN-208, UI-1), the app's only shell.
  *
- * Every home maps onto a page that already exists; none is a new route. The
- * rail's copy lives here, in one place, for copy review.
+ * Two, as the product handoff decides (section 19): Chat and Today. Decibyl
+ * is one assistant, so the rail answers two questions -- "talk to it" and
+ * "what needs my attention" -- and everything else is a secondary view:
  *
- * Mapping, and why:
- * - My Decibyl -> /overview: the current Decibyl home (greeting + composer).
- * - Company    -> /company: the agents as a company (Paperclip-style): org
- *                 chart, what needs you, spend, heartbeats and activity.
- * - Tasks      -> /tasks, with its tabs: schedules, contacts, handed over.
- * - Agents     -> /workflow: the list of every agent, folders and archive.
- * - Studio     -> /studio, only with the `studio` flag: agents and a site
- *                 for them from one chat.
- * - Knowledge  -> /files.
- * - Activity   -> /usage: calls, with campaigns, reports, review, analytics
- *                 and missed calls lighting it too.
- * - Team       -> /settings#team: the people live in a card on Settings;
- *                 there is no page of their own yet.
- * - Settings   -> /settings, which also lights for the manage pages
- *                 (billing, apps & tools, deploy, compliance, marketplace).
+ * - Chat   -> /overview: Decibyl's home (composer, starters, history). The
+ *             Recents list under the homes reopens any conversation, with
+ *             Decibyl or with an agent.
+ * - Today  -> /tasks, with its tabs: routines, contacts, what was handed
+ *             over, and Activity (calls, missed calls, review, analytics,
+ *             usage), which lights it too.
+ * - Studio -> /studio, only with the `studio` flag.
+ *
+ * Agents and Settings are in the profile menu (AccountMenu). Agents are
+ * helpers reached from Chat -- an @mention, or a recent conversation -- and
+ * their list stays one click away for whoever manages them. Every page the
+ * rail used to name still lights a home or a Settings section.
  */
 
-export type HomeId =
-  | "home"
-  | "company"
-  | "tasks"
-  | "agents"
-  | "studio"
-  | "knowledge"
-  | "activity"
-  | "team"
-  | "settings";
+export type HomeId = "chat" | "today" | "studio";
 
 export type Home = {
   id: HomeId;
@@ -56,52 +35,47 @@ export type Home = {
   activePaths?: string[];
   /** Shown only while this feature is on for the workspace. */
   flag?: Feature;
+  /** Pages one tap away on this home's tab strip -- reachable, so the
+   *  navigation test counts them, without each needing a rail row. */
+  reaches?: string[];
 };
 
 export const HOMES: readonly Home[] = [
-  { id: "home", title: "My Decibyl", url: "/overview", icon: Home },
-  { id: "company", title: "Company", url: "/company", icon: Building2 },
+  // Learning progress (/learning) opens from its conversation (screen 14).
+  { id: "chat", title: "Chat", url: "/overview", icon: MessageCircle, activePaths: ["/workflow", "/channels", "/learning"] },
   {
-    id: "tasks",
-    title: "Tasks",
+    id: "today",
+    title: "Today",
     url: "/tasks",
-    icon: CalendarClock,
-    activePaths: ["/schedules", "/contacts", "/deliverables"],
-  },
-  { id: "agents", title: "Agents", url: "/workflow", icon: Bot, activePaths: ["/channels"] },
-  { id: "studio", title: "Studio", url: "/studio", icon: Wand2, flag: "studio" },
-  { id: "knowledge", title: "Knowledge", url: "/files", icon: Database },
-  {
-    id: "activity",
-    title: "Activity",
-    url: "/usage",
-    icon: Activity,
-    activePaths: ["/campaigns", "/reports", "/review", "/analytics", "/missed-calls", "/recordings"],
-  },
-  { id: "team", title: "Team", url: "/settings#team", icon: Users },
-  {
-    id: "settings",
-    title: "Settings",
-    url: "/settings",
-    icon: Settings,
+    icon: CalendarCheck,
+    reaches: ["/schedules", "/contacts", "/deliverables", "/usage"],
     activePaths: [
-      "/billing",
-      "/tools",
-      "/marketplace",
-      "/privacy",
-      "/api-keys",
-      "/deploy",
-      "/telephony-configurations",
+      "/schedules",
+      "/contacts",
+      "/deliverables",
+      "/usage",
+      "/activity",
+      "/campaigns",
+      "/reports",
+      "/review",
+      "/analytics",
+      "/missed-calls",
     ],
   },
+  { id: "studio", title: "Studio", url: "/studio", icon: Wand2, flag: "studio" },
 ];
 
-/** Customer copy for the rail, in one place. Agents are "colleagues" here. */
+/** Where Settings and the agent list live now: the profile menu. Paths here
+ *  light no home; the menu is how they are reached. */
+export const PROFILE_LINKS = [
+  { title: "Agents", url: "/workflow" },
+  { title: "Settings", url: "/settings" },
+] as const;
+
+/** Customer copy for the rail, in one place. */
 export const RAIL_COPY = {
   navLabel: "Homes",
-  colleagues: "Colleagues",
-  addColleague: "Add a colleague",
-  moreColleagues: (n: number) => `${n} more`,
+  recents: "Recents",
   trialLabel: "Trial · invite-only",
   daysLeft: (n: number) => (n === 1 ? "1 day left" : `${n} days left`),
   trialEnded: "Trial ended",
@@ -120,13 +94,11 @@ function matches(pathname: string, path: string): boolean {
 
 /**
  * The home a pathname belongs to: the longest matching prefix wins, so
- * /workflow/12/thread is still Agents and /settings is Settings, not Team
- * (Team is a card on Settings and never lights by path alone).
+ * /workflow/12/thread is still Agents, and /billing is Settings.
  */
 export function activeHome(pathname: string): HomeId | undefined {
   let best: { id: HomeId; length: number } | undefined;
   for (const home of HOMES) {
-    if (home.id === "team") continue;
     for (const path of [home.url, ...(home.activePaths ?? [])]) {
       const bare = path.split("#")[0];
       if (matches(pathname, bare) && (!best || bare.length > best.length)) {

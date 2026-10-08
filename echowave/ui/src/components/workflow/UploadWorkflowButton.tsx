@@ -86,11 +86,12 @@ export function UploadWorkflowButton() {
     return (
         <>
             <Button
+                aria-label="Import an agent"
                 onClick={() => setIsOpen(true)}
                 variant="outline"
             >
-                <Upload className="w-4 h-4 mr-2" />
-                Import an agent
+                <Upload className="w-4 h-4 sm:mr-2" />
+                <span className="hidden sm:inline">Import an agent</span>
             </Button>
 
             <Dialog open={isOpen} onOpenChange={setIsOpen}>

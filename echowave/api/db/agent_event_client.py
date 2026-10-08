@@ -3,7 +3,7 @@
 from datetime import UTC, datetime
 from typing import Any, Optional, Sequence
 
-from sqlalchemy import select, tuple_, update
+from sqlalchemy import false, func, or_, select, true, tuple_, update
 
 from api.db.base_client import BaseDBClient
 from api.db.models import AgentEventModel
@@ -60,8 +60,15 @@ class AgentEventClient(BaseDBClient):
                 thread_id=thread_id,
             )
             session.add(row)
+            # Read the id before committing: the session expires its rows on
+            # commit, and touching row.id afterwards is a lazy load outside
+            # the greenlet -- it raised MissingGreenlet on every write, so
+            # every caller lost the id it was promised (and the work hung on
+            # it: action cards, inbox notices, outbound event webhooks).
+            await session.flush()
+            event_id = int(row.id) if row.id is not None else None
             await session.commit()
-            return int(row.id) if row.id is not None else None
+            return event_id
 
     async def get_agent_event(
         self, event_id: int, *, organization_id: int
@@ -95,6 +102,36 @@ class AgentEventClient(BaseDBClient):
             await session.commit()
             return result.rowcount == 1
 
+    async def transition_agent_event_payload(
+        self,
+        event_id: int,
+        *,
+        organization_id: int,
+        from_state: str,
+        payload: dict[str, Any],
+    ) -> bool:
+        """Replace one row's payload only if its ``state`` is still
+        ``from_state``. False means somebody else moved it first.
+
+        A compare-and-swap in one statement: two presses of Confirm, or a
+        retried job, read the same state, and only the first write may win.
+        A payload with no state yet is a fresh proposal."""
+        current = func.coalesce(
+            AgentEventModel.payload["state"].as_string(), "proposed"
+        )
+        async with self.async_session() as session:
+            result = await session.execute(
+                update(AgentEventModel)
+                .where(
+                    AgentEventModel.id == event_id,
+                    AgentEventModel.organization_id == organization_id,
+                    current == from_state,
+                )
+                .values(payload=payload)
+            )
+            await session.commit()
+            return result.rowcount == 1
+
     async def agent_events(
         self,
         *,
@@ -111,8 +148,24 @@ class AgentEventClient(BaseDBClient):
         after_id: Optional[int] = None,
         assistant_thread: bool = False,
         thread_id: Optional[str] = None,
+        viewer_id: Optional[int] = None,
+        decibyl_threads: Optional[tuple[set[str], bool]] = None,
     ) -> list[AgentEventModel]:
         """The timeline, newest first.
+
+        ``decibyl_threads`` is the viewer's own Decibyl conversations, from
+        ``decibyl_threads_of``: their thread ids, and whether the original
+        thread is theirs to read. When given, a row of Decibyl's conversation
+        (no workflow, no folder) is returned only if its thread is one of
+        them. The whole-history feed passes it with private threads on;
+        without it that feed returned every colleague's private chat.
+
+        ``viewer_id`` is who is reading. A row whose payload names a
+        ``private_to`` person (stream `reach`: a connect chip, a price
+        comparison, an order or outside-tool card and the lines under it) is
+        returned only to that person, and to no caller that names nobody --
+        deny by default, so a reader added later cannot show one person's
+        connections to a colleague by forgetting an argument.
 
         ``assistant_thread`` is Decibyl's own conversation: rows with neither
         a workflow nor a folder. Nothing else in the table has both empty
@@ -141,11 +194,25 @@ class AgentEventClient(BaseDBClient):
         if include_on_request:
             allowed.append(AgentEventVisibility.ON_REQUEST.value)
 
+        private_to = AgentEventModel.payload["private_to"].as_string()
         query = select(AgentEventModel).where(
             AgentEventModel.organization_id == organization_id,
             AgentEventModel.visibility.in_(allowed),
+            or_(private_to.is_(None), private_to == str(viewer_id))
+            if viewer_id is not None
+            else private_to.is_(None),
         )
 
+        if decibyl_threads is not None:
+            own, original = decibyl_threads
+            query = query.where(
+                or_(
+                    AgentEventModel.workflow_id.is_not(None),
+                    AgentEventModel.folder_id.is_not(None),
+                    AgentEventModel.thread_id.in_(own) if own else false(),
+                    AgentEventModel.thread_id.is_(None) if original else false(),
+                )
+            )
         if workflow_id is not None:
             query = query.where(AgentEventModel.workflow_id == workflow_id)
         if workflow_run_id is not None:
@@ -246,6 +313,49 @@ class AgentEventClient(BaseDBClient):
         except (TypeError, ValueError):
             return None
 
+    async def decibyl_threads_of(
+        self, *, organization_id: int, viewer_id: int, viewer_is_admin: bool
+    ) -> tuple[set[str], bool]:
+        """The Decibyl conversations a person may read with private threads
+        on, by the rule ``thread_author`` gates a single thread with: the
+        author of a thread's first human line, and an Admin for a thread with
+        no author on record. Returns their thread ids, and whether the
+        original (NULL) thread is theirs. Unbounded on purpose: a limit here
+        would drop a person's own older chats from their history, silently.
+        """
+        first = (
+            select(func.min(AgentEventModel.id).label("first_id"))
+            .where(
+                AgentEventModel.organization_id == organization_id,
+                AgentEventModel.workflow_id.is_(None),
+                AgentEventModel.folder_id.is_(None),
+                AgentEventModel.kind == AgentEventKind.MESSAGE.value,
+                AgentEventModel.actor == AgentEventActor.HUMAN.value,
+            )
+            .group_by(AgentEventModel.thread_id)
+            .subquery()
+        )
+        query = select(AgentEventModel.thread_id, AgentEventModel.payload).where(
+            AgentEventModel.id.in_(select(first.c.first_id))
+        )
+        own: set[str] = set()
+        original = False
+        async with self.async_session() as session:
+            for thread, payload in (await session.execute(query)).all():
+                try:
+                    raw = (payload or {}).get("author_id")
+                    author = int(raw) if raw is not None else None
+                except (TypeError, ValueError):
+                    author = None
+                mine = author == viewer_id if author is not None else viewer_is_admin
+                if not mine:
+                    continue
+                if thread is None:
+                    original = True
+                else:
+                    own.add(thread)
+        return own, original
+
     async def assistant_threads(
         self,
         *,
@@ -253,6 +363,7 @@ class AgentEventClient(BaseDBClient):
         limit: int = 50,
         viewer_id: Optional[int] = None,
         viewer_is_admin: bool = False,
+        reader_id: Optional[int] = None,
     ) -> list[dict[str, Any]]:
         """Decibyl's conversations, most recently spoken in first.
 
@@ -282,9 +393,16 @@ class AgentEventClient(BaseDBClient):
         private threads are on (D-1b): a thread is the person's who wrote its
         first line, and one with no author on record is an Admin's to see.
         None lists everything, which is what the flag being off means.
+
+        ``reader_id`` is who is reading, whatever the switch says. A line
+        whose payload names a ``private_to`` person (a care card's lines, a
+        reach order's) is counted and used as a title only for that person,
+        the rule the timeline itself follows; without it a private line
+        became a colleague's thread title.
         """
         from sqlalchemy import func
 
+        private_to = AgentEventModel.payload["private_to"].as_string()
         grouped = (
             select(
                 AgentEventModel.thread_id.label("thread_id"),
@@ -298,6 +416,9 @@ class AgentEventClient(BaseDBClient):
                 AgentEventModel.folder_id.is_(None),
                 AgentEventModel.kind == AgentEventKind.MESSAGE.value,
                 AgentEventModel.visibility == AgentEventVisibility.ALWAYS.value,
+                or_(private_to.is_(None), private_to == str(reader_id))
+                if reader_id is not None
+                else true(),
             )
             .group_by(AgentEventModel.thread_id)
             .order_by(func.max(AgentEventModel.at).desc())
@@ -340,6 +461,50 @@ class AgentEventClient(BaseDBClient):
             }
             for r in rows
             if visible(r.first_id)
+        ]
+
+    async def recent_agent_conversations(
+        self, *, organization_id: int, limit: int = 20
+    ) -> list[dict[str, Any]]:
+        """The agents somebody has been talking to, most recent first.
+
+        Messages only, and ``ALWAYS`` only: what was *said* in an agent's
+        chat, not its activity lines, so an agent that merely ran a routine
+        is not a conversation. One row per agent with its latest message.
+        """
+        from sqlalchemy import func
+
+        ranked = (
+            select(
+                AgentEventModel.workflow_id.label("workflow_id"),
+                AgentEventModel.summary.label("summary"),
+                AgentEventModel.at.label("at"),
+                func.row_number()
+                .over(
+                    partition_by=AgentEventModel.workflow_id,
+                    order_by=(AgentEventModel.at.desc(), AgentEventModel.id.desc()),
+                )
+                .label("rank"),
+            )
+            .where(
+                AgentEventModel.organization_id == organization_id,
+                AgentEventModel.workflow_id.is_not(None),
+                AgentEventModel.kind == AgentEventKind.MESSAGE.value,
+                AgentEventModel.visibility == AgentEventVisibility.ALWAYS.value,
+            )
+            .subquery()
+        )
+        query = (
+            select(ranked)
+            .where(ranked.c.rank == 1)
+            .order_by(ranked.c.at.desc())
+            .limit(max(1, min(limit, 100)))
+        )
+        async with self.async_session() as session:
+            rows = (await session.execute(query)).all()
+        return [
+            {"workflow_id": r.workflow_id, "summary": r.summary or "", "at": r.at}
+            for r in rows
         ]
 
     async def latest_event_per_workflow(

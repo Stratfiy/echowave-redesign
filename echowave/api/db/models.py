@@ -55,7 +55,9 @@ class UserModel(Base):
     selected_organization_id = Column(
         Integer, ForeignKey("organizations.id"), nullable=True
     )
-    selected_organization = relationship("OrganizationModel")
+    selected_organization = relationship(
+        "OrganizationModel", foreign_keys=[selected_organization_id]
+    )
     memberships = relationship(
         "OrganizationMembershipModel",
         back_populates="user",
@@ -65,6 +67,10 @@ class UserModel(Base):
     # StaffRole in api/enums.py. Nullable rather than a Postgres ENUM so a
     # future tier needs no migration — same convention as account_type below.
     staff_role = Column(String(16), nullable=True)
+    #: Launch stream `staff`: when staff suspended this account through an
+    #: approved command. Honoured by ``get_user`` while ``staff_console`` is
+    #: on; NULL means not suspended.
+    staff_suspended_at = Column(DateTime(timezone=True), nullable=True)
     email = Column(String, nullable=True)
     password_hash = Column(String, nullable=True)
 
@@ -132,6 +138,10 @@ class OrganizationModel(Base):
     # until an admin types one; readers fall back to "Organization {id}".
     # Distinct from billing_name, which is the legal name on the invoice.
     name = Column(String(120), nullable=True)
+    # Phase 3 (`staff`): set by the approved ``workspace.suspend`` command.
+    # While set (and ``staff_console`` is on) the workspace's members are
+    # refused and no new run starts in it. Migration 20261009phase3staff.
+    staff_suspended_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
     #: Staff override of the trial's end (PLAN-1, KAN-255): an extension, or
     #: a pilot's longer window. NULL means the computed window in trial.py.
@@ -195,6 +205,14 @@ class OrganizationModel(Base):
     # rather than a Postgres ENUM so new account types need no migration —
     # same convention as workflow_runs.mode. Values: see AccountType.
     account_type = Column(String(32), nullable=True)
+    #: ``personal`` for a person's own space (services/personal_space.py);
+    #: NULL for a workspace, which is every row written before it existed.
+    kind = Column(String(16), nullable=True)
+    #: The one person a personal space belongs to. A database trigger refuses
+    #: any other membership in it, whichever code path tries.
+    personal_owner_user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True
+    )
     # A staff-set date until which the account may buy the gated ₹500 pack
     # (KAN-47). "Early" ends on a date rather than living forever.
     early_adopter_until = Column(DateTime(timezone=True), nullable=True)
@@ -6202,7 +6220,7 @@ class AgentRoutineModel(Base):
     workflow_id = Column(
         Integer,
         ForeignKey("workflows.id", ondelete="CASCADE"),
-        nullable=False,
+        nullable=True,
         index=True,
     )
 
@@ -6242,6 +6260,11 @@ class AgentRoutineModel(Base):
     )
     #: When it was last test-run. NULL means never, which means it may not arm.
     tested_at = Column(DateTime(timezone=True), nullable=True)
+    #: The confirmed card that set this routine from chat (stream `today`,
+    #: ``routine_start_on``). A person approved this exact schedule on the
+    #: card, which arms it the way a test run does; NULL for every routine
+    #: made any other way. Not a test run, and never shown as one.
+    armed_by_card_event_id = Column(Integer, nullable=True)
 
     #: The slot last fired, not the moment of firing. This is what makes a
     #: minute tick safe: the runtime compares it against the slot it is
@@ -6397,6 +6420,12 @@ class AgentTaskModel(Base):
     )
     blocked_by = Column(JSON, nullable=True)
     number = Column(Integer, nullable=True)
+    #: A task private to one person (a meeting's follow-up, MEETINGS.md):
+    #: the board, Today and the board tool show it to them alone. NULL is
+    #: the workspace's, as every task was before.
+    private_to_user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True
+    )
     #: TB-3: a task's labels, as a list of short strings. A label is only a
     #: word; the board's set of labels is whatever its tasks carry.
     labels = Column(JSON, nullable=True)
@@ -6408,9 +6437,33 @@ class AgentTaskModel(Base):
     started_at = Column(DateTime(timezone=True), nullable=True)
     finished_at = Column(DateTime(timezone=True), nullable=True)
 
+    #: The task ledger (launch stream `controls`, services/tasks/ledger.py).
+    #: One of the nine states every channel shows; NULL on a row the ledger
+    #: never touched, whose state is read from ``status`` instead.
+    ledger_state = Column(String(24), nullable=True)
+    #: Bumped by every ledger transition. A writer names the version it read,
+    #: and a write from an older one is refused rather than applied.
+    state_version = Column(Integer, nullable=False, default=0, server_default=text("0"))
+    #: The caller's key for "this same request": a retry with the same key
+    #: gets the task it already made, never a second one.
+    idempotency_key = Column(String(128), nullable=True)
+    #: What proves the outcome: a message id, a calendar entry, a card id.
+    outcome_evidence = Column(JSON, nullable=True)
+    #: The approval card this task waits on, and the exact payload version
+    #: that approval was for.
+    approval_event_id = Column(Integer, nullable=True)
+    payload_version = Column(String(64), nullable=True)
+
     __table_args__ = (
         Index("ix_agent_tasks_org_status", "organization_id", "status"),
         UniqueConstraint("organization_id", "number", name="uq_agent_tasks_org_number"),
+        Index(
+            "uq_agent_tasks_org_idempotency_key",
+            "organization_id",
+            "idempotency_key",
+            unique=True,
+            postgresql_where=text("idempotency_key IS NOT NULL"),
+        ),
     )
 
 
@@ -6795,13 +6848,102 @@ class ProcurementDocumentModel(Base):
 
 # Tables kept in their own modules (launch convention, KAN-276): imported here
 # so they are on Base.metadata for alembic and the tests.
+from api.db.agents_models import (  # noqa: E402,F401
+    CommitmentModel,
+    HelperWorkspaceSettingModel,
+    ResearchInterestsModel,
+    SavedReportModel,
+    TrackerEntryModel,
+    TrackerModel,
+)
+from api.db.browser_models import (  # noqa: E402,F401
+    BrowserSessionModel,
+    BrowserSiteLoginModel,
+    BrowserSiteRuleModel,
+)
+from api.db.care_models import (  # noqa: E402,F401
+    CareAlertModel,
+    CareCircleMemberModel,
+    CareCircleModel,
+    CareDoseCallModel,
+    CareHelpSessionModel,
+    CareMedicineModel,
+    CareScamCheckModel,
+)
 from api.db.channel_identity_models import (  # noqa: E402,F401
     ChannelIdentityModel,
     ChannelLinkCodeModel,
     SlackInstallationModel,
 )
+from api.db.controls_models import (  # noqa: E402,F401
+    AgentTaskTransitionModel,
+    AnalyticsOutboxModel,
+    MemberPreferencesModel,
+    OperationalUsageModel,
+    OutputFeedbackModel,
+    QuotaAllowanceModel,
+)
 from api.db.feature_override_models import (  # noqa: E402,F401
     FeatureOverrideModel,
+)
+from api.db.identity_models import (  # noqa: E402,F401
+    CardInterestModel,
+    ChannelCheckModel,
+    ConnectionConsentModel,
+    DeliveryReceiptModel,
+    EmailIdentityMessageModel,
+    EmailIdentityModel,
+    EmailIdentitySendModel,
+    NotificationDeliveryModel,
+    NotificationPreferencesModel,
+    NumberReadinessModel,
+    PushSubscriptionModel,
+)
+from api.db.learning_models import (  # noqa: E402,F401
+    LearnerProfileModel,
+    LearningAttemptModel,
+    LearningExerciseModel,
+    LearningGoalModel,
+    LearningLessonModel,
+    LearningSkillModel,
+)
+from api.db.meeting_models import (  # noqa: E402,F401
+    MeetingBreakModel,
+    MeetingItemModel,
+    MeetingModel,
+    MeetingSegmentModel,
+)
+from api.db.mobile_push_models import (  # noqa: E402,F401
+    MobilePushTokenModel,
+)
+from api.db.ops_models import (  # noqa: E402,F401
+    OpsCommandModel,
+    OpsEvidenceModel,
+    PlatformCredentialRotationModel,
+)
+from api.db.people_models import (  # noqa: E402,F401
+    PeopleSettingsModel,
+    PeopleSyncModel,
+    PersonHandleModel,
+    PersonInteractionModel,
+    PersonMergeModel,
+    PersonModel,
+    PersonShareModel,
+    PersonSourceModel,
+)
+from api.db.reach_models import (  # noqa: E402,F401
+    ReachConnectionModel,
+    ReachOrderDraftModel,
+)
+from api.db.settings_models import (  # noqa: E402,F401
+    MemoryFactRevisionModel,
+    PersonalDataRequestModel,
+    SavedItemModel,
+    TemporaryConversationModel,
+)
+from api.db.shell_models import (  # noqa: E402,F401
+    UserOnboardingModel,
+    WaitlistRequestModel,
 )
 from api.db.signup_invite_models import (  # noqa: E402,F401
     SignupInviteModel,
@@ -6809,4 +6951,35 @@ from api.db.signup_invite_models import (  # noqa: E402,F401
 )
 from api.db.site_project_models import (  # noqa: E402,F401
     SiteProjectModel,
+)
+from api.db.staff_models import (  # noqa: E402,F401
+    QualityEvalCaseModel,
+    QualityEvalResultModel,
+    QualityEvalRunModel,
+    StaffCommandModel,
+    StaffIncidentModel,
+    StaffIncidentStepModel,
+    StaffRefundModel,
+    StaffRoleGrantModel,
+)
+from api.db.support_models import (  # noqa: E402,F401
+    SupportActionModel,
+    SupportAttachmentModel,
+    SupportMessageModel,
+    SupportNoteModel,
+    SupportTicketModel,
+)
+from api.db.today_models import (  # noqa: E402,F401
+    DailyBriefModel,
+    DailyBriefSettingsModel,
+    TodayDeliveryModel,
+    TodayDismissalModel,
+    TodayEventModel,
+    TodayReminderModel,
+)
+from api.db.voice_models import (  # noqa: E402,F401
+    AppointmentModel,
+    AppointmentPolicyModel,
+    VoiceSessionModel,
+    VoiceTurnModel,
 )

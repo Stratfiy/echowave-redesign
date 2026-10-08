@@ -100,3 +100,16 @@ describe('forgetting', () => {
         expect(await screen.findByRole('alert')).toBeTruthy();
     });
 });
+
+describe('a failed read is not an empty memory', () => {
+    it('says it could not load, and Try again reads it back', async () => {
+        read.mockResolvedValueOnce({ error: { detail: 'boom' } });
+        read.mockResolvedValueOnce({ data: { facts: [fact({ key: 'Opening hours', value: '9 to 6' })], gaps: [] } });
+        render(<MemoryList />);
+        expect(await screen.findByTestId('memory-load-failed')).toBeTruthy();
+        expect(screen.queryByText(/Nothing confirmed/)).toBeNull();
+        fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+        expect(await screen.findByText('9 to 6')).toBeTruthy();
+        expect(read).toHaveBeenCalledTimes(2);
+    });
+});

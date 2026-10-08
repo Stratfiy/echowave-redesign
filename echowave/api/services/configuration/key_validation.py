@@ -84,9 +84,75 @@ async def _check_serper(api_key: str) -> ValidationResult:
     )
 
 
+async def _check_apollo(api_key: str) -> ValidationResult:
+    """Apollo's own health check on the key: free, spends no credits.
+    ``is_logged_in`` false (or a 401/403) is a key Apollo does not know."""
+    import httpx
+
+    try:
+        async with httpx.AsyncClient(timeout=TIMEOUT_SECONDS) as http:
+            response = await http.get(
+                "https://api.apollo.io/v1/auth/health",
+                headers={"x-api-key": api_key, "Cache-Control": "no-cache"},
+            )
+    except Exception as exc:  # noqa: BLE001 - the vendor, not the key
+        logger.warning("Could not reach Apollo to check a key: {}", exc)
+        return ValidationResult(
+            "unverified",
+            "The key was stored. Decibyl could not reach Apollo to check it -- "
+            "run one lead search to confirm it works.",
+        )
+    if response.status_code in (401, 403):
+        return ValidationResult("invalid", "Apollo rejected that key.")
+    if response.status_code == 200:
+        try:
+            logged_in = bool((response.json() or {}).get("is_logged_in"))
+        except ValueError:
+            logged_in = False
+        if logged_in:
+            return ValidationResult("valid", "Apollo accepted the key.")
+        return ValidationResult("invalid", "Apollo does not recognise that key.")
+    return ValidationResult(
+        "unverified",
+        f"The key was stored. Apollo answered {response.status_code}, so it "
+        "could not be checked -- run one lead search to confirm it works.",
+    )
+
+
+async def _check_treg(api_key: str) -> ValidationResult:
+    """Treg's balance on the token: free, and a wrong token is a 401."""
+    import httpx
+
+    try:
+        async with httpx.AsyncClient(timeout=TIMEOUT_SECONDS) as http:
+            response = await http.get(
+                "https://treg.to/balance", headers={"X-Treg-Token": api_key}
+            )
+    except Exception as exc:  # noqa: BLE001 - the vendor, not the key
+        logger.warning("Could not reach Treg to check a token: {}", exc)
+        return ValidationResult(
+            "unverified",
+            "The token was stored. Decibyl could not reach Treg to check it -- "
+            "run one lead search to confirm it works.",
+        )
+    if response.status_code in (401, 403):
+        return ValidationResult("invalid", "Treg rejected that token.")
+    if response.status_code == 200:
+        return ValidationResult("valid", "Treg accepted the token.")
+    return ValidationResult(
+        "unverified",
+        f"The token was stored. Treg answered {response.status_code}, so it "
+        "could not be checked -- run one lead search to confirm it works.",
+    )
+
+
 #: Data vendors have no service configuration and no probe in
 #: ``check_validity``; each gets a small check of its own here.
-_DATA_CHECKS = {"serper": _check_serper}
+_DATA_CHECKS = {
+    "serper": _check_serper,
+    "apollo": _check_apollo,
+    "treg": _check_treg,
+}
 
 
 def _validator():

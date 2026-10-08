@@ -47,6 +47,12 @@ async def is_internal(session: AsyncSession, organization_id: int | None) -> boo
     """
     if organization_id is None:
         return False
+    # Free while we are early: every account is billed like one of ours --
+    # nothing charged, no floor, provider cost still recorded (free_mode.py).
+    from api.services.billing import free_mode
+
+    if free_mode.on(organization_id):
+        return True
     return bool(
         await session.scalar(
             select(OrganizationModel.internal_billing).where(

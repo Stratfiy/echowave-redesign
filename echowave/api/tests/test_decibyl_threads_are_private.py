@@ -125,6 +125,65 @@ class TestReadingAThread:
         await route._assert_thread_is_theirs(UserModel(id=1), 7, "anything")
 
 
+class TestTheWholeHistory:
+    """The unfiltered timeline holds Decibyl's rows from every thread. Found
+    on staging: B read A's private chat there, because the thread check only
+    guards ``assistant`` reads."""
+
+    async def _read(self, viewer, org):
+        viewer.selected_organization_id = org.id
+        out = await route.timeline(
+            workflow_id=None,
+            workflow_run_id=None,
+            folder_id=None,
+            assistant=False,
+            thread_id=None,
+            kinds=None,
+            deliverables_only=False,
+            include_transcripts=False,
+            limit=100,
+            before_at=None,
+            before_id=None,
+            user=viewer,
+        )
+        return {e.summary for e in out.events}
+
+    async def _setup(self, session, slug):
+        org = await _org(session, slug)
+        a, b = await _user(session, f"{slug}-a"), await _user(session, f"{slug}-b")
+        reply = _line(org, thread_id="t-a", author_id=None, text="reply to a")
+        reply.actor = AgentEventActor.AGENT.value
+        session.add_all(
+            [
+                _line(org, thread_id="t-a", author_id=a.id, text="a's secret"),
+                reply,
+                _line(org, thread_id="t-b", author_id=b.id, text="b's own"),
+            ]
+        )
+        await session.flush()
+        return org, a, b
+
+    async def test_on_a_member_reads_only_their_own_threads(
+        self, async_session, monkeypatch
+    ):
+        monkeypatch.setattr(constants, "DECIBYL_PRIVATE_THREADS_ENABLED", True)
+        from api.db import db_client
+
+        org, a, b = await self._setup(async_session, "whole")
+        monkeypatch.setattr(db_client, "async_session", lambda: _Borrow(async_session))
+        monkeypatch.setattr(route, "_is_admin", _never_admin)
+        assert await self._read(b, org) == {"b's own"}
+        assert await self._read(a, org) == {"a's secret", "reply to a"}
+
+    async def test_off_the_history_is_everyones(self, async_session, monkeypatch):
+        monkeypatch.setattr(constants, "DECIBYL_PRIVATE_THREADS_ENABLED", False)
+        from api.db import db_client
+
+        org, a, b = await self._setup(async_session, "whole-off")
+        monkeypatch.setattr(db_client, "async_session", lambda: _Borrow(async_session))
+        assert await self._read(b, org) == {"a's secret", "reply to a", "b's own"}
+
+
 async def _never_admin(user, organization_id):
     return False
 

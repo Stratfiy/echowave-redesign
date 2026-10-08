@@ -183,8 +183,8 @@ export function SimpleTaskBoard({ tabs }: { tabs: PageTab[] }) {
         {/* The board sits beside the schedules: both are work that is not a
             conversation, and neither belongs inside the assistant's thread. */}
         <PageHeader
-            title="Tasks"
-            description="What the agents and the team have been handed, and what came of it. An agent files a task for a colleague or for you; you file one for an agent or for the team."
+            title="Today"
+            description="What needs your attention: work waiting on you, what is due, and what your agents finished."
             tabs={tabs}
         />
         <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6">

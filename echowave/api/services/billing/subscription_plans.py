@@ -27,7 +27,7 @@ one its constants describe.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from loguru import logger
 from sqlalchemy import select
@@ -318,6 +318,7 @@ async def knowledge_base_allowance_for(
     Imported lazily because ``mandates`` imports this module for
     :func:`resolve`, and the cycle is only benign at call time.
     """
+    from api.services.billing import free_mode
     from api.services.billing.mandates import (
         PURPOSE_STARTER_PLAN,
         get_mandate,
@@ -325,6 +326,8 @@ async def knowledge_base_allowance_for(
     )
     from api.services.billing.staff_accounts import is_staff_account
 
+    if free_mode.on(organization_id):
+        return STAFF_KNOWLEDGE_BASE
     if await is_staff_account(session, organization_id=organization_id):
         return STAFF_KNOWLEDGE_BASE
     mandate = await get_mandate(
@@ -1009,6 +1012,20 @@ _TRIAL_FALLBACK = Plan(
 )
 
 
+def _free_mode_plan(free: Plan) -> Plan:
+    """Free, with everything on: voice and the whole knowledge base.
+
+    Still coded ``free``, so every lookup keyed on a plan code keeps finding a
+    row; what it gates is opened here and in plan_limits (see free_mode.py).
+    """
+    return replace(
+        free,
+        voice_allowed=True,
+        knowledge_base_bytes=constants.STAFF_KNOWLEDGE_BASE_BYTES,
+        knowledge_base_max_file_bytes=constants.KNOWLEDGE_BASE_MAX_FILE_SIZE_BYTES,
+    )
+
+
 async def plan_for_organization(session: AsyncSession, *, organization_id: int) -> Plan:
     """The plan an account is on: its authorised plan mandate's, else Free.
 
@@ -1017,11 +1034,15 @@ async def plan_for_organization(session: AsyncSession, *, organization_id: int) 
     instruction the bank has not confirmed would hand out the plan to anyone
     who begins checkout and abandons it.
     """
+    from api.services.billing import free_mode
     from api.services.billing.mandates import (
         PURPOSE_STARTER_PLAN,
         get_mandate,
         is_authorised,
     )
+
+    if free_mode.on(organization_id):
+        return _free_mode_plan(await get_plan(session, code=FREE) or _FREE_FALLBACK)
 
     mandate = await get_mandate(
         session, organization_id=organization_id, purpose=PURPOSE_STARTER_PLAN

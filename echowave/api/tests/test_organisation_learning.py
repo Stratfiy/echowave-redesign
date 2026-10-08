@@ -190,6 +190,53 @@ class TestTheMemoryScreen:
         assert write.await_args.kwargs["facts"] == {"opening_hours": "Mon-Sat 9:30-8"}
 
     @pytest.mark.asyncio
+    async def test_teaching_one_agent_writes_to_that_agents_memory(self):
+        """ "Teach Riya something" on the agent's page: true of Riya, not of the
+        bot answering the phone, so it is stored on her alone."""
+        with (
+            patch(
+                "api.routes.organisation_memory.db_client.get_workflow",
+                AsyncMock(return_value=SimpleNamespace(id=7)),
+            ) as lookup,
+            patch(
+                "api.routes.organisation_memory.db_client.remember_organisation_facts",
+                AsyncMock(return_value=1),
+            ) as write,
+            patch(
+                "api.routes.organisation_memory.db_client.organisation_memory",
+                AsyncMock(return_value=[]),
+            ) as read,
+        ):
+            await write_facts(
+                FactsRequest(
+                    facts={"note": "Clinic is closed on Sundays"}, workflow_id=7
+                ),
+                user=_user(),
+            )
+        assert lookup.await_args.kwargs["organization_id"] == 42
+        assert write.await_args.kwargs["workflow_id"] == 7
+        assert read.await_args.kwargs["workflow_id"] == 7
+
+    @pytest.mark.asyncio
+    async def test_teaching_another_workspaces_agent_is_a_404(self):
+        with (
+            patch(
+                "api.routes.organisation_memory.db_client.get_workflow",
+                AsyncMock(return_value=None),
+            ),
+            patch(
+                "api.routes.organisation_memory.db_client.remember_organisation_facts",
+                AsyncMock(return_value=1),
+            ) as write,
+        ):
+            with pytest.raises(HTTPException) as raised:
+                await write_facts(
+                    FactsRequest(facts={"note": "x"}, workflow_id=999), user=_user()
+                )
+        assert raised.value.status_code == 404
+        write.assert_not_awaited()
+
+    @pytest.mark.asyncio
     async def test_an_unknown_status_is_refused(self):
         with pytest.raises(HTTPException) as raised:
             await set_status(

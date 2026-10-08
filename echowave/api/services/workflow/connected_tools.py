@@ -591,6 +591,14 @@ async def execute(
             note=f"{tool.name} via {toolkit_of(tool) or 'connector'} (Decibyl"
             + (f", as member {member})" if source == members.MEMBER else ")"),
         )
+        # The "last success" on Settings -> Connections (stream identity).
+        from api.services.identity import connections as identity_connections
+
+        await identity_connections.note_success(
+            organization_id,
+            member if source == members.MEMBER else None,
+            toolkit_of(tool),
+        )
     # A large read is stored and previewed rather than truncated (Step 20),
     # so nothing is lost and a script can work through the whole of it.
     if spill.is_large(result):

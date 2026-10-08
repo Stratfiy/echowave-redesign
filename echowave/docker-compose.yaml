@@ -165,7 +165,9 @@ services:
     restart: unless-stopped
     # Ceiling; see the note on postgres.
     mem_limit: 512m
-    image: minio/minio
+    # Built here: minio/minio is no longer published. See deploy/minio/Dockerfile.
+    build: ./deploy/minio
+    image: decibyl-minio:local
     container_name: minio
     command: server /data --console-address ":9001"
     environment:
@@ -488,7 +490,11 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 60s
+      # The ui waits for this to be healthy. 60s was too short on a t3.large
+      # with the launch flags on: the api came up fine, but `up` gave up on
+      # it first and never started the ui. A healthy api still passes on its
+      # first check, so this only lengthens how long a broken one is waited on.
+      start_period: 180s
     networks:
       - app-network
 
@@ -577,6 +583,14 @@ services:
       # Studio's design review: screenshots of a built site, taken by
       # Chromium in a box with no network at all.
       SANDBOX_SHOT_IMAGE: ${SANDBOX_SHOT_IMAGE:-mcr.microsoft.com/playwright:v1.56.0-noble}
+      # Decibyl's private browser (sandbox/browser/). The service creates
+      # this network itself, with containers unable to reach each other;
+      # nothing else joins it. Run sandbox/browser/egress-guard.sh on the
+      # host once it exists. Unset, browsers are refused.
+      SANDBOX_BROWSER_NETWORK: ${SANDBOX_BROWSER_NETWORK:-decibyl_sandbox_browser}
+      SANDBOX_BROWSER_IMAGE: ${SANDBOX_BROWSER_IMAGE:-ghcr.io/stratfiy/decibyl-browser-box:latest}
+      SANDBOX_BROWSER_SUBNET: ${SANDBOX_BROWSER_SUBNET:-172.30.240.0/24}
+      SANDBOX_MAX_BROWSERS: ${SANDBOX_MAX_BROWSERS:-2}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     mem_limit: 256m

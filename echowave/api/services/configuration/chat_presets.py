@@ -21,6 +21,7 @@ from dataclasses import dataclass
 from typing import Any, Optional
 
 from api.services.configuration.ai_model_configuration import (
+    BRAIN_CHOSEN,
     WORKFLOW_MODEL_CONFIGURATION_V2_OVERRIDE_KEY,
 )
 
@@ -34,28 +35,31 @@ class ChatPreset:
     llm_tier: str
 
 
-#: Ordered as offered: cheapest and quickest first. Three on the menu; the
-#: strongest models are named under "More models" rather than hidden behind
-#: a fourth word nobody could tell from the third.
+#: Ordered as offered: cheapest first. The same words as an agent's brain
+#: (Everyday / Smart / Deep), so a chat and a call never disagree about what
+#: "Smart" means. Fast (Sarvam) is a calls-only tier and is not offered here.
 CHAT_PRESETS: tuple[ChatPreset, ...] = (
     ChatPreset(
-        "everyday", "Everyday", "Quick answers. Fine for most messages.", "lite"
+        "everyday", "Everyday", "Quick answers. Fine for most messages.", "default"
     ),
     ChatPreset(
-        "smart", "Smart", "A stronger brain for tools and documents.", "default"
+        "smart", "Smart", "A stronger brain for tools and documents.", "accurate"
     ),
     ChatPreset(
-        "deep", "Deep", "For messages where getting it wrong is expensive.", "accurate"
+        "deep",
+        "Deep",
+        "Thinks first. For messages where getting it wrong is expensive.",
+        "advanced",
     ),
 )
 
 #: Still accepted from a message -- a picker remembered it on somebody's
-#: device -- and still the ``advanced`` tier. Not on the menu.
+#: device. ``advanced`` is ``deep`` under its old name.
 _RETIRED_PRESETS: tuple[ChatPreset, ...] = (
     ChatPreset(
         "advanced",
-        "Advanced",
-        "The strongest model. Thinks before it answers.",
+        "Deep",
+        "Thinks first. For messages where getting it wrong is expensive.",
         "advanced",
     ),
 )
@@ -81,6 +85,15 @@ class Vendor:
 #: vendor with no active platform LLM key is not offered (see ``menu``).
 CATALOGUE: tuple[Vendor, ...] = (
     Vendor(
+        "anthropic",
+        "Anthropic",
+        (
+            CatalogueModel("claude-opus-5-5", "Claude Opus 5.5"),
+            CatalogueModel("claude-sonnet-5-5", "Claude Sonnet 5.5"),
+            CatalogueModel("claude-haiku-4-5", "Claude Haiku 4.5"),
+        ),
+    ),
+    Vendor(
         "openai",
         "OpenAI",
         (
@@ -88,15 +101,6 @@ CATALOGUE: tuple[Vendor, ...] = (
             CatalogueModel("gpt-5-mini", "GPT-5 mini"),
             CatalogueModel("gpt-4.1", "GPT-4.1"),
             CatalogueModel("gpt-4.1-mini", "GPT-4.1 mini"),
-        ),
-    ),
-    Vendor(
-        "anthropic",
-        "Anthropic",
-        (
-            CatalogueModel("claude-opus-5", "Claude Opus 5"),
-            CatalogueModel("claude-sonnet-5", "Claude Sonnet 5"),
-            CatalogueModel("claude-haiku-4-5", "Claude Haiku 4.5"),
         ),
     ),
     Vendor(
@@ -300,10 +304,13 @@ def apply(run_configs: dict[str, Any] | None, slug: Optional[str]) -> dict[str, 
         configs[WORKFLOW_MODEL_CONFIGURATION_V2_OVERRIDE_KEY] = {
             **existing,
             "stack": new_stack,
+            BRAIN_CHOSEN: True,
         }
         return configs
 
     configs.update(managed_stack_override(voice="", llm_tier=tier))
+    override = configs[WORKFLOW_MODEL_CONFIGURATION_V2_OVERRIDE_KEY]
     if pair is not None:
-        configs[WORKFLOW_MODEL_CONFIGURATION_V2_OVERRIDE_KEY]["stack"]["llm"] = brain
+        override["stack"]["llm"] = brain
+    override[BRAIN_CHOSEN] = True
     return configs

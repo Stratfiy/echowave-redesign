@@ -33,6 +33,8 @@ Same two halves as ``decisions``: ``propose`` is what the model calls,
 
 from __future__ import annotations
 
+import hashlib
+import json
 from datetime import UTC, datetime, timedelta
 from typing import Any, Optional
 
@@ -108,24 +110,279 @@ INSTALL_FROM_REPOSITORY = "install_from_repository"
 #: services/workflow/routines.py). Internal like the three above: Decibyl
 #: reaches it through schedule_routine, which has already read the words.
 SCHEDULE_ROUTINE = "schedule_routine"
+#: Track a commitment the person approves (launch stream `agents`,
+#: Follow-up; see services/helpers/commitments.py). Internal: reached
+#: through track_commitment, which has already validated the fields.
+TRACK_COMMITMENT = "track_commitment"
+#: Create a tracker the person described (the describe-it builder; see
+#: services/helpers/trackers.py). Internal for the same reason.
+CREATE_TRACKER = "create_tracker"
+#: One step Decibyl wants to take on a person's own computer that sends,
+#: pays, deletes or submits (see services/workflow/desktop_steps.py and
+#: echowave/desktop). Internal like the others: only the desktop app
+#: proposes it, through /desktop/steps. Confirm does not do the step here --
+#: the computer does -- so a fired card is RELEASED, not done, and the
+#: desktop claims it exactly once for the action the person saw.
+DESKTOP_STEP = "desktop_step"
+
+#: One consequential step in Decibyl's private browser -- a submit, a
+#: payment, a send, a booking, a sign-up (services/browser/). Proposed by the
+#: browser session itself with the exact button, page and form fields, never
+#: through propose_action: a model cannot ask for one, only a gate can.
+BROWSER_STEP = "browser_step"
+#: Launch stream `care` (services/care/cards.py). Internal like the ones
+#: above: the care screens and Decibyl's care tools build the arguments, and
+#: the card is the older person's consent. Only that person can answer it
+#: (``only_user_id``), whoever else can read the workspace's thread.
+#: Add a family member to the circle, sharing exactly the kinds named.
+CARE_FAMILY_INVITE = "care_family_invite"
+#: Widen what an existing family member sees.
+CARE_FAMILY_SHARE = "care_family_share"
+#: Start medicine reminder calls: the number, times, language and who is
+#: told when a dose is missed, exactly as the card shows them.
+CARE_MEDICINE_CALLS = "care_medicine_calls"
+CARE_ACTIONS = (CARE_FAMILY_INVITE, CARE_FAMILY_SHARE, CARE_MEDICINE_CALLS)
+#: Place an order on an ordering app the person connected (stream `reach`;
+#: services/reach/ordering). Internal: reached through order_prepare, which
+#: has priced the list and saved the draft the card is bound to.
+PLACE_ORDER = "place_order"
+#: Run a write on an outside AI tool the person connected (stream `reach`;
+#: services/reach/outside_tools.py). Internal like RUN_TOOL.
+RUN_OUTSIDE_TOOL = "run_outside_tool"
+#: Cards that act in one person's own account: only that person may
+#: confirm, decline or undo them (``owner_user_id`` on the payload).
+OWNED_ACTIONS = (PLACE_ORDER, RUN_OUTSIDE_TOOL)
+#: Delete one person's learning goal and all its practice (launch stream
+#: `learning`; see services/learning). Internal: proposed from the progress
+#: page's Delete, never by a model; only the learner's own Confirm runs it.
+DELETE_LEARNING_GOAL = "delete_learning_goal"
+#: Add one task from a meeting's suggested follow-up (launch stream
+#: `meetings`; see services/meetings/follow_ups.py). Internal: proposed from
+#: the meeting record, never by a model, and only the person who captured
+#: the meeting may settle it.
+MEETING_FOLLOW_UP = "meeting_follow_up"
+#: A person's own identity acts (launch stream identity; see
+#: services/identity/cards.py): disconnect an app they connected, send from
+#: their Decibyl address, request a phone number. Proposed from Settings,
+#: never by the model, and private to the person who asked.
+DISCONNECT_APP = "disconnect_app"
+SEND_IDENTITY_EMAIL = "send_identity_email"
+REQUEST_NUMBER = "request_number"
+IDENTITY_ACTIONS = (DISCONNECT_APP, SEND_IDENTITY_EMAIL, REQUEST_NUMBER)
+#: Place one phone call for the person who asked ("call it for me", stream
+#: `voice`; see services/voice/call_for_me.py). Internal like the four above:
+#: Decibyl reaches it through its call_for_me tool, offered only while the
+#: flag is on. Never reversible: a call that rang cannot be unrung.
+PLACE_CALL = "place_call"
+#: Let an agent book appointments: the booking policy, the agent's hours and
+#: the booking tool, on one card (stream `voice`; services/voice/
+#: booking_setup.py). Internal: reached through set_up_booking.
+SET_UP_BOOKING = "set_up_booking"
 INTERNAL_ACTIONS = (
+    PLACE_ORDER,
+    RUN_OUTSIDE_TOOL,
     RUN_TOOL,
     SEND_DOCUMENT,
     BUILD_FROM_SPEC,
     INSTALL_FROM_REPOSITORY,
     SCHEDULE_ROUTINE,
+    TRACK_COMMITMENT,
+    CREATE_TRACKER,
+    DESKTOP_STEP,
+    BROWSER_STEP,
+    *CARE_ACTIONS,
+    DELETE_LEARNING_GOAL,
+    MEETING_FOLLOW_UP,
+    *IDENTITY_ACTIONS,
+    PLACE_CALL,
+    SET_UP_BOOKING,
 )
 
 #: The states a proposal moves through. Terminal ones are the last four.
 PROPOSED = "proposed"
 ARMED = "armed"
+#: Claimed by the job that fires it, before it acts: a retried or duplicate
+#: job finds the card already running and does nothing, so a send happens
+#: once. A card left here means the job died mid-action; whether the action
+#: happened is unknown, and it is never fired again blind.
+RUNNING = "running"
 DONE = "done"
 FAILED = "failed"
 UNDONE = "undone"
 CANCELLED = "cancelled"
 DECLINED = "declined"
+#: A desktop step whose undo window has passed: the person's computer may
+#: now take it, once (desktop_steps.claim moves it on to RUNNING). Not done:
+#: nothing ran here, and a claimed step that never reports is swept to
+#: OUTCOME_UNKNOWN like any other card left running.
+RELEASED = "released"
+#: The job claimed the card and then lost track of it -- it died, or the
+#: outside service never said whether the send happened. Never fired again
+#: blind (task ledger, handoff 10): a person checks, and the card says so.
+OUTCOME_UNKNOWN = "outcome_unknown"
+#: A card still ``running`` this long after it was due to fire is taken to
+#: have lost its job.
+STALE_RUNNING_MINUTES = 10
 
 MAX_WHY_CHARS = 300
+
+
+# --- approval binding (task ledger) ------------------------------------------
+
+
+def _ledger_on(organization_id: int | None) -> bool:
+    from api.services.workflow import task_ledger
+
+    return task_ledger.enabled(organization_id)
+
+
+def payload_version(payload: dict[str, Any]) -> str:
+    """The version of what a card would do: a hash of its action and its
+    arguments, nothing else. The label and the reason are the model's words
+    and do not change the act; the arguments are the act."""
+    canonical = json.dumps(
+        {"action": payload.get("action"), "args": payload.get("args") or {}},
+        sort_keys=True,
+        default=str,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(canonical.encode()).hexdigest()[:16]
+
+
+def stamp_new_card(organization_id: int, payload: dict[str, Any]) -> None:
+    """For a card written straight to the timeline rather than through
+    ``propose`` (the browser's gate writes its own, with the step it saw):
+    the same version a proposed card carries, so Confirm must name it."""
+    if _ledger_on(organization_id):
+        payload["version"] = payload_version(payload)
+        _stamp_ledger_state(organization_id, payload)
+
+
+async def card_requested(
+    organization_id: int, event_id: int, payload: dict[str, Any], user_id: Any
+) -> None:
+    """The catalogue event ``propose`` emits, for such a card."""
+    from types import SimpleNamespace
+
+    await _emit(
+        "approval_requested",
+        SimpleNamespace(id=event_id, organization_id=organization_id),
+        payload,
+        user_id,
+    )
+
+
+def _is_outbound(payload: dict[str, Any]) -> bool:
+    """Whether running the card reaches somebody: a send, not a read or a
+    draft. What the operational quota counts as an outbound message."""
+    action = payload.get("action")
+    if action in (SEND_DOCUMENT, SEND_IDENTITY_EMAIL, PLACE_CALL):
+        return True
+    if action == DESKTOP_STEP:
+        # A send on the person's own computer is a send all the same.
+        return (payload.get("args") or {}).get("kind") == "send"
+    if action == CARE_FAMILY_INVITE:
+        # The invitation is emailed to the family member when email is set up.
+        return True
+    if action == RUN_OUTSIDE_TOOL:
+        # What an outside write does is the server's to say; counted as a
+        # send, the conservative side for a cost limit.
+        return True
+    if action == RUN_TOOL:
+        if "reaches_people" in payload:
+            return bool(payload["reaches_people"])
+        effect = str(payload.get("effect") or "")
+        return not effect.startswith(("Reads from", "Writes a draft"))
+    return False
+
+
+#: Argument names, across the mail and message tools Composio names, for who
+#: a write reaches, who is copied, the subject line and what it says. The
+#: first present wins in each group.
+_PREVIEW_TO = (
+    "recipient_email",
+    "to",
+    "to_email",
+    "to_recipients",
+    "recipients",
+    "recipient",
+    "email",
+)
+_PREVIEW_CC = ("cc", "cc_emails", "cc_recipients")
+_PREVIEW_BCC = ("bcc", "bcc_emails", "bcc_recipients")
+_PREVIEW_SUBJECT = ("subject", "title")
+_PREVIEW_BODY = ("body", "message", "text", "content", "html_body")
+
+
+def _preview_text(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, (list, tuple)):
+        return ", ".join(t for t in (_preview_text(v) for v in value) if t)
+    if isinstance(value, dict):
+        return _preview_text(
+            value.get("email") or value.get("address") or value.get("emailAddress")
+        )
+    return str(value).strip()
+
+
+def arguments_preview(arguments: dict[str, Any]) -> str:
+    """Who a connected-app write reaches and exactly what it says, as the
+    card shows it: "To:", "Cc:", "Subject:", then the body in full. Empty
+    when the arguments name no recipient and no text (a read, a lookup).
+
+    Untruncated on purpose: a body clipped on the card is a body nobody
+    approved past the clip."""
+
+    def first(keys: tuple[str, ...]) -> str:
+        for key in keys:
+            text = _preview_text(arguments.get(key))
+            if text:
+                return text
+        return ""
+
+    lines = [
+        f"{label}: {value}"
+        for label, value in (
+            ("To", first(_PREVIEW_TO)),
+            ("Cc", first(_PREVIEW_CC)),
+            ("Bcc", first(_PREVIEW_BCC)),
+            ("Subject", first(_PREVIEW_SUBJECT)),
+        )
+        if value
+    ]
+    body = first(_PREVIEW_BODY)
+    if body:
+        lines.append("")
+        lines.append(body)
+    return "\n".join(lines).strip()
+
+
+async def _emit(name: str, event: Any, payload: dict[str, Any], user_id: Any) -> None:
+    """One catalogue event about a card. Never raises (events.emit)."""
+    from api.services import events
+
+    if name.startswith("task_"):
+        # A card's run is a task: the catalogue names its kind task_kind.
+        properties: dict[str, Any] = {
+            "task_kind": payload.get("action"),
+            "status": payload.get("state"),
+        }
+        if name == "task_completed":
+            properties["has_evidence"] = bool(payload.get("done"))
+    else:
+        properties = {
+            "action_kind": payload.get("action"),
+            "status": payload.get("state"),
+        }
+    await events.emit(
+        name,
+        user_id=user_id if isinstance(user_id, int) and user_id > 0 else None,
+        organization_id=event.organization_id,
+        task_id=f"card:{event.id}",
+        configuration_version=payload.get("version"),
+        properties=properties,
+    )
 
 
 def tool_properties() -> dict[str, Any]:
@@ -203,6 +460,12 @@ class ActionError(ValueError):
     """The press cannot be honoured; the message says why, for the screen."""
 
 
+class OutcomeUnknown(ActionError):
+    """It was handed over and nobody knows whether it happened: a browser
+    press that never reported back, an order or an outside write that broke
+    after reaching the service. Never retried; the card says so."""
+
+
 # --- resolving what was proposed -------------------------------------------
 
 
@@ -261,6 +524,27 @@ async def resolve(
         raise ActionError("That is not something I can propose.")
     why = str(arguments.get("why") or "").strip()[:MAX_WHY_CHARS]
 
+    if action == BROWSER_STEP:
+        # Only the browser's own gate writes this card, straight onto the
+        # timeline with the step it saw. A proposal arriving here came from
+        # a model, and a model does not get to describe the button.
+        raise ActionError("That is not something I can propose.")
+    if action in CARE_ACTIONS:
+        from api.services.care import cards as care_cards
+
+        return await care_cards.resolve(
+            action, organization_id=organization_id, arguments=arguments, why=why
+        )
+    if action in OWNED_ACTIONS:
+        return await _resolve_owned(organization_id, action, arguments, why)
+    if action in IDENTITY_ACTIONS:
+        from api.services.identity import cards as identity_cards
+
+        try:
+            return await identity_cards.resolve(organization_id, arguments)
+        except identity_cards.CardError as exc:
+            raise ActionError(str(exc)) from exc
+
     if action == RUN_TOOL:
         from api.services.workflow import connected_tools
 
@@ -273,26 +557,58 @@ async def resolve(
         if tool is None or not connected_tools.is_connected(tool):
             raise ActionError("That app is not connected here.")
         app = connected_tools.toolkit_of(tool)
+        args = {
+            "tool_uuid": tool.tool_uuid,
+            "tool_name": tool.name,
+            "toolkit": app,
+            "arguments": dict(arguments.get("arguments") or {}),
+        }
+        if arguments.get("commitment_id") is not None:
+            # A follow-up for a tracked commitment (Follow-up helper): part of
+            # the approved act, so it is in the version like the arguments.
+            args["commitment_id"] = int(arguments["commitment_id"])
+            # And the asker's alone to answer, like the commitment it follows.
+            from api.services import acting as _acting
+
+            follow_up_owner = _acting.acting_user()
+        else:
+            follow_up_owner = None
         return {
             "action": action,
-            "args": {
-                "tool_uuid": tool.tool_uuid,
-                "tool_name": tool.name,
-                "toolkit": app,
-                "arguments": dict(arguments.get("arguments") or {}),
-            },
+            "args": args,
             "label": f"{tool.name} via {app}" if app else str(tool.name),
             "why": why,
+            # Who it reaches and exactly what it says, drawn from the
+            # arguments (never the model's prose) for ActionCard to show
+            # beside Confirm. Not in the version: it is the arguments, read.
+            "preview": arguments_preview(args["arguments"]),
             # What pressing Confirm does, in one derived line. Taken from the
             # tool, not from ``arguments``: an effect the model could supply
             # would be the same sentence that called a send a draft.
             "effect": effect_of(tool),
+            # Whether it is a send, for the operational quota; derived from
+            # the tool like the effect line, never from the model.
+            "reaches_people": not connected_tools.is_read(tool)
+            and not _is_staged(tool),
             # An email sent or a record created in somebody else's system
             # has no inverse we can promise; the undo window before it fires
             # is the safety, not a button after.
             "reversible": False,
             "state": PROPOSED,
+            **({"private_to": follow_up_owner} if follow_up_owner else {}),
         }
+
+    if action == DESKTOP_STEP:
+        from api.services.workflow import desktop_steps
+
+        try:
+            return desktop_steps.resolve(arguments, why=why)
+        except desktop_steps.DesktopStepError as exc:
+            raise ActionError(str(exc)) from exc
+    if action == MEETING_FOLLOW_UP:
+        from api.services.meetings import follow_ups
+
+        return await follow_ups.resolve_card(organization_id, arguments)
 
     if action == BUILD_FROM_SPEC:
         from api.services.workflow import bot_from_brief
@@ -301,6 +617,50 @@ async def resolve(
             return bot_from_brief.resolve(arguments)
         except bot_from_brief.BriefError as exc:
             raise ActionError(str(exc)) from exc
+
+    if action == TRACK_COMMITMENT:
+        from api.services import acting
+        from api.services.helpers import commitments
+
+        try:
+            fields = commitments.clean(arguments)
+        except commitments.Invalid as exc:
+            raise ActionError(str(exc)) from exc
+        return {
+            "action": TRACK_COMMITMENT,
+            # Whose follow-up list it joins: the person who asked, recorded
+            # now, not whoever later presses Confirm.
+            "args": {**fields.as_args(), "owner_user_id": acting.acting_user()},
+            # The asker's own (launch stream `agents`): only they see and
+            # answer it, whoever else can read the workspace's threads.
+            "private_to": acting.acting_user(),
+            "label": commitments.label(fields),
+            "why": why,
+            "effect": "Adds it to your follow-ups, private to you. Nothing is sent.",
+            "reversible": False,
+            "state": PROPOSED,
+        }
+
+    if action == CREATE_TRACKER:
+        from api.services import acting
+        from api.services.helpers import trackers
+
+        try:
+            spec = trackers.clean_spec(arguments)
+        except trackers.Invalid as exc:
+            raise ActionError(str(exc)) from exc
+        return {
+            "action": CREATE_TRACKER,
+            "args": {**spec, "owner_user_id": acting.acting_user()},
+            # The asker's own (launch stream `agents`): only they see and
+            # answer it, whoever else can read the workspace's threads.
+            "private_to": acting.acting_user(),
+            "label": trackers.label(spec),
+            "why": why,
+            "effect": "Creates an empty tracker, private to you. Nothing is sent.",
+            "reversible": False,
+            "state": PROPOSED,
+        }
 
     if action == INSTALL_FROM_REPOSITORY:
         repository = str(arguments.get("repository") or "").strip()[:200]
@@ -392,6 +752,60 @@ async def resolve(
             "label": f"Turn {target_name} {'on' if on else 'off'}",
             "why": why,
             "reversible": True,
+            "state": PROPOSED,
+        }
+
+    if action == SET_UP_BOOKING:
+        from api.services.voice import booking_setup
+
+        try:
+            card = await booking_setup.resolve(
+                organization_id=organization_id, arguments=arguments
+            )
+        except booking_setup.BookingSetupError as exc:
+            raise ActionError(str(exc)) from exc
+        return {"action": action, "why": why, "state": PROPOSED, **card}
+
+    if action == PLACE_CALL:
+        from api.services import acting
+        from api.services.voice import call_for_me
+
+        try:
+            card = await call_for_me.resolve(
+                organization_id=organization_id,
+                arguments=arguments,
+                user_id=acting.acting_user(),
+            )
+        except call_for_me.CallNotPossible as exc:
+            raise ActionError(str(exc)) from exc
+        return {"action": action, "why": why, "state": PROPOSED, **card}
+
+    if action == DELETE_LEARNING_GOAL:
+        from api.services.learning import core as learning
+
+        goal_uuid = str(arguments.get("goal_uuid") or "").strip()
+        try:
+            owner = int(arguments.get("user_id") or 0)
+        except (TypeError, ValueError):
+            owner = 0
+        if not goal_uuid or not owner:
+            raise ActionError("Say which learning goal, and whose.")
+        if not await learning.owns_goal(organization_id, owner, goal_uuid):
+            raise ActionError("That learning goal is not here.")
+        return {
+            "action": action,
+            # The title is not on the card: the card sits on a thread others
+            # in the workspace may read, and a goal is its learner's own. The
+            # learner's screen shows the title beside the card.
+            "args": {"goal_uuid": goal_uuid, "user_id": owner},
+            # The learner's card alone, on whatever thread it sits: a goal
+            # started on the learning page has no thread, and the authorless
+            # one is an Admin's -- which hid a plain member's own card from
+            # them and showed it to the owner.
+            "private_to": owner,
+            "label": "Delete a learning goal and all its practice",
+            "why": why or "Asked to delete it from the progress page.",
+            "reversible": False,
             "state": PROPOSED,
         }
 
@@ -530,7 +944,89 @@ async def resolve(
     }
 
 
+def _owned_switched_on(organization_id: int, action: str | None) -> bool:
+    """An order needs ``ordering``; an outside write needs ``outside_tools``."""
+    from api.services import reach
+
+    flag = reach.ORDERING if action == PLACE_ORDER else reach.OUTSIDE_TOOLS
+    return reach.enabled(flag, organization_id)
+
+
+async def _resolve_owned(
+    organization_id: int, action: str, arguments: dict[str, Any], why: str
+) -> dict[str, Any]:
+    """An order or an outside-tool write, in one person's own account.
+
+    The owner is the person whose turn proposed it -- the acting user, and
+    nobody else: an ``owner_user_id`` naming somebody other than the person
+    asking is refused, so a model cannot put a card in a colleague's name.
+    """
+    from api.services import acting
+
+    if not _owned_switched_on(organization_id, action):
+        raise ActionError("That is not switched on here.")
+    owner = acting.valid_member(acting.acting_user())
+    named = acting.valid_member(arguments.get("owner_user_id"))
+    if owner is None or (named is not None and named != owner):
+        raise ActionError("Only the person asking can have this done in their account.")
+    if action == PLACE_ORDER:
+        from api.services.reach.ordering import service as ordering
+
+        try:
+            card = await ordering.card_payload(
+                organization_id, str(arguments.get("draft") or ""), owner
+            )
+        except ordering.OrderError as exc:
+            raise ActionError(str(exc)) from exc
+        return {
+            "action": action,
+            "args": card["args"],
+            "label": card["label"],
+            "why": why,
+            "effect": card["effect"],
+            "owner_user_id": owner,
+            # Only its owner reads this card (agent_events' viewer filter).
+            "private_to": owner,
+            "reversible": False,
+            "state": PROPOSED,
+        }
+    from api.services.reach import connections
+
+    row = await connections.get(
+        organization_id, owner, str(arguments.get("connection") or "")
+    )
+    tool = str(arguments.get("tool") or "")
+    if row is None or tool not in {t.get("name") for t in row.tools or []}:
+        raise ActionError("That outside tool is not connected for you.")
+    return {
+        "action": action,
+        "args": {
+            "connection": row.uuid,
+            "tool": tool,
+            "arguments": dict(arguments.get("arguments") or {}),
+        },
+        "label": f"{tool} on {row.name}",
+        "why": why,
+        "effect": (
+            f"Runs {tool} on {row.name}, an outside tool you connected, from "
+            "your account. What it changes is up to that tool; it cannot be "
+            "undone from here."
+        ),
+        "owner_user_id": owner,
+        "private_to": owner,
+        "reaches_people": True,
+        "reversible": False,
+        "state": PROPOSED,
+    }
+
+
 # --- the model's half -------------------------------------------------------
+
+
+def _is_staged(tool: Any) -> bool:
+    from api.services.workflow import unattended
+
+    return bool(unattended.is_staged(tool))
 
 
 def _is_same_proposal(row: Any, payload: dict[str, Any]) -> bool:
@@ -579,6 +1075,7 @@ async def _already_proposed(
         limit=DUPLICATE_WINDOW,
         assistant_thread=assistant,
         thread_id=agent_timeline.current_thread() if assistant else None,
+        viewer_id=payload.get("private_to"),
     )
     for row in rows or []:
         if _is_same_proposal(row, payload):
@@ -593,8 +1090,12 @@ async def propose(
     workflow_run_id: int | None,
     arguments: dict[str, Any],
     in_channel: bool = True,
+    include_event_id: bool = False,
 ) -> dict[str, Any]:
     """Record the proposal. Returns what the model is told.
+
+    ``include_event_id`` adds the card's id for a screen that shows the card
+    itself (Settings, stream identity); the model is never told it.
 
     ``in_channel=False`` is Decibyl: the row has no bot and no channel, which
     is what puts it on Decibyl's own thread (see decibyl.thread_filter).
@@ -629,6 +1130,7 @@ async def propose(
     if waiting is not None:
         return {
             "status": "already_proposed",
+            "event_id": waiting.id,
             "note": (
                 f"{payload['label']} is already proposed and waiting on the "
                 "thread. Do not propose it again. Say you have already "
@@ -636,7 +1138,16 @@ async def propose(
             ),
         }
 
-    await agent_timeline.record(
+    # Which helper asked, when one did (launch stream `agents`): every card
+    # carries organisation, member and helper. Not part of the version.
+    from api.services.helpers import turn as helper_turn
+
+    if helper_turn.current():
+        payload["helper"] = helper_turn.current()
+    if _ledger_on(organization_id):
+        # The exact act a Confirm will approve (design, "Approval state").
+        payload["version"] = payload_version(payload)
+    recorded = await agent_timeline.record(
         organization_id=organization_id,
         kind=AgentEventKind.ACTION_PROPOSED.value,
         summary=payload["label"],
@@ -644,29 +1155,285 @@ async def propose(
         workflow_run_id=workflow_run_id,
         payload=payload,
         in_channel=in_channel,
+        visibility=_visibility(payload),
     )
-    return {
+    if recorded is not None:
+        from types import SimpleNamespace
+
+        from api.services import acting
+
+        await _emit(
+            "approval_requested",
+            SimpleNamespace(id=recorded, organization_id=organization_id),
+            payload,
+            acting.acting_user(),
+        )
+        # The person who asked, on their phone (MOBILE.md). The notice opens
+        # the card; Confirm is only ever on the card. Never raises.
+        from api.services.identity import mobile_push
+
+        await mobile_push.announce_approval(
+            organization_id=organization_id,
+            user_id=acting.acting_user(),
+            event_id=recorded,
+            label=payload.get("label") or "",
+        )
+    told = {
         "status": "proposed",
+        "event_id": recorded,
         "note": (
             f"Proposed: {payload['label']}. A person has to confirm it on the "
             "card before it happens. Say that you have proposed it, then end "
             "your reply."
         ),
     }
+    if include_event_id:
+        told["event_id"] = recorded
+    return told
+
+
+async def propose_learning_deletion(
+    *,
+    organization_id: int,
+    user_id: int,
+    goal_uuid: str,
+    thread_id: str | None,
+) -> dict[str, Any]:
+    """The delete card for a learning goal, on Decibyl's thread the goal
+    started in. Returns ``{"status", "event_id", "payload"}``; a card
+    already waiting is returned rather than doubled."""
+    with agent_timeline.in_thread(thread_id):
+        told = await propose(
+            organization_id=organization_id,
+            workflow_id=None,
+            workflow_run_id=None,
+            arguments={
+                "action": DELETE_LEARNING_GOAL,
+                "goal_uuid": goal_uuid,
+                "user_id": user_id,
+            },
+            in_channel=False,
+        )
+    event_id = told.get("event_id")
+    if not event_id:
+        raise ActionError(str(told.get("reason") or "The card could not be made."))
+    event = await db_client.get_agent_event(event_id, organization_id=organization_id)
+    return {
+        "status": told["status"],
+        "event_id": event_id,
+        "payload": dict(event.payload or {}) if event is not None else {},
+    }
+
+
+#: Cards raised by a Settings screen rather than by a model (settings stream,
+#: services/settings/cards.py). Their payload is built by that module, not
+#: resolved from model arguments; they are settled on the screen that raised
+#: them, belong to one person (``owner_user_id``), and say nothing on the
+#: shared thread.
+SETTINGS_ORIGIN = "settings"
+
+
+def _from_settings(payload: dict[str, Any]) -> bool:
+    return payload.get("origin") == SETTINGS_ORIGIN
+
+
+def _personal_identity(payload: dict[str, Any]) -> bool:
+    if not payload.get("private_to"):
+        return False
+    from api.services.identity import cards as identity_cards
+
+    return identity_cards.is_personal(payload)
+
+
+async def propose_prepared(
+    *,
+    organization_id: int,
+    payload: dict[str, Any],
+    thread_id: str,
+) -> int | None:
+    """Record a card whose payload a screen built (settings stream). The
+    same proposed -> armed -> running -> done life as every other card, the
+    same version binding and the same run-once claim. Returns the card id."""
+    if not _from_settings(payload):
+        raise ActionError("Only a Settings card is recorded this way.")
+    payload = dict(payload)
+    payload["state"] = PROPOSED
+    # Always versioned: the screen confirms exactly what it showed.
+    payload["version"] = payload_version(payload)
+    _stamp_ledger_state(organization_id, payload)
+    recorded = await agent_timeline.record(
+        organization_id=organization_id,
+        kind=AgentEventKind.ACTION_PROPOSED.value,
+        summary=payload["label"],
+        payload=payload,
+        in_channel=False,
+        thread_id=thread_id,
+    )
+    if recorded is not None:
+        from types import SimpleNamespace
+
+        await _emit(
+            "approval_requested",
+            SimpleNamespace(id=recorded, organization_id=organization_id),
+            payload,
+            payload.get("owner_user_id"),
+        )
+    return recorded
 
 
 # --- the person's half ------------------------------------------------------
+
+
+def _visibility(payload: dict[str, Any], action: str | None = None) -> str | None:
+    """Identity's cards (and the lines under them) are never on a timeline:
+    they live in Settings. Other private cards -- reach's orders and outside
+    tools -- stay on the thread and are shown to their owner alone through
+    ``private_to``, which the timeline query filters on."""
+    from api.enums import AgentEventVisibility
+
+    if (
+        payload.get("private_to")
+        and (action or payload.get("action")) in IDENTITY_ACTIONS
+    ):
+        return AgentEventVisibility.PRIVATE.value
+    return None
+
+
+#: What a card someone may not see answers with: the way a wrong tenant is.
+NOT_HERE = "That proposal is not here."
+
+
+def answer_refusal(payload: dict[str, Any], user_id: int) -> str | None:
+    """Why ``user_id`` may not answer this card, or None when they may.
+
+    One place for every stream's "only this person" rule. ``settle`` raises
+    the reason; Today's approval queue and the approval dock list only the
+    cards a person may answer, so nobody is offered a Do it that would be
+    refused. ``NOT_HERE`` means the card is private and not theirs to see.
+    """
+    owner = payload.get("private_to")
+    if owner is not None and owner != user_id:
+        # First, before any rule with its own words: a card the caller cannot
+        # see answers as an id that names nothing does. "Only the person this
+        # is for..." told a colleague the card existed and was somebody's.
+        return NOT_HERE
+    only = payload.get("only_user_id")
+    if only is not None and int(only) != int(user_id):
+        # A consent card (stream `care`): the person it is about answers it,
+        # not whoever else in the workspace can read the thread.
+        return "Only the person this is about can answer this card."
+    action = payload.get("action")
+    if action == DESKTOP_STEP:
+        # Somebody's own computer: a teammate who can read the thread cannot
+        # press Do it on another person's screen.
+        if int((payload.get("args") or {}).get("user_id") or 0) != user_id:
+            return "Only the person whose computer this is can answer this."
+    if action == BROWSER_STEP and int(payload.get("requested_by") or 0) != int(user_id):
+        # A person's browser is theirs: a colleague on the thread can read
+        # the card but cannot press on their behalf.
+        return "Only the person whose browser it is can answer this."
+    if action in OWNED_ACTIONS and payload.get("owner_user_id") != user_id:
+        # An order or an outside write acts in one person's account: a
+        # colleague who can see the card can neither approve nor stop it.
+        return "Only the person this is for can decide on it."
+    if action == PLACE_CALL:
+        # A call for one person ("call it for me"): theirs alone, including
+        # cards made before they carried ``private_to``.
+        principal = (payload.get("args") or {}).get("principal_user_id")
+        if principal is not None and int(principal) != int(user_id):
+            return NOT_HERE
+    if action == MEETING_FOLLOW_UP:
+        from api.services.meetings import follow_ups
+
+        if follow_ups.owner_of(payload) != user_id:
+            # A meeting is private to whoever captured it; to anyone else
+            # its card is not there, the way a wrong tenant is not.
+            return NOT_HERE
+    return None
+
+
+#: The fields that give a card its own "who decides" rule
+#: (``answer_refusal``); such a card is not also held to its thread.
+_OWNER_FIELDS = ("only_user_id", "owner_user_id", "private_to", "requested_by")
+_OWNED_KINDS = (DESKTOP_STEP, BROWSER_STEP, MEETING_FOLLOW_UP)
+
+
+async def thread_refusal(event: Any, user_id: int) -> str | None:
+    """``NOT_HERE`` when a card sits on a private Decibyl conversation this
+    person may not read (D-1b), else None.
+
+    The rule is the timeline's: a conversation is the person's who wrote its
+    first line, and one with no author on record is an Admin's. Without it a
+    plain member could approve or edit a card on a colleague's private chat
+    by its id, though they could not see it. A card with its own owner rule
+    (``answer_refusal``) is decided by that rule instead, and cards on an
+    agent's thread or a channel are the workspace's, as before. Nothing
+    changes while private threads are off.
+    """
+    from api import constants
+
+    if not constants.DECIBYL_PRIVATE_THREADS_ENABLED:
+        return None
+    if event.workflow_id is not None or event.folder_id is not None:
+        return None
+    payload = dict(event.payload or {})
+    if payload.get("action") in _OWNED_KINDS or any(
+        payload.get(field) is not None for field in _OWNER_FIELDS
+    ):
+        return None
+    author = await db_client.thread_author(
+        organization_id=event.organization_id, thread_id=event.thread_id
+    )
+    if author is not None:
+        return None if author == user_id else NOT_HERE
+    from api.enums import ORGANIZATION_ROLE_RANK, OrganizationRole
+
+    membership = await db_client.get_membership(user_id, event.organization_id)
+    rank = ORGANIZATION_ROLE_RANK.get(membership.role if membership else "", -1)
+    if rank >= ORGANIZATION_ROLE_RANK[OrganizationRole.ADMIN.value]:
+        return None
+    return NOT_HERE
+
+
+def _assert_owner(payload: dict[str, Any], user_id: int) -> None:
+    """A private card is settled and edited by its owner and nobody else --
+    not a colleague, not an admin. Said the way a wrong tenant is."""
+    owner = payload.get("private_to")
+    if owner is not None and owner != user_id:
+        raise ActionError("That proposal is not here.")
 
 
 def _stamp(user_id: int) -> dict[str, Any]:
     return {"by": user_id, "at": datetime.now(UTC).isoformat()}
 
 
+def _stamp_ledger_state(organization_id: int, payload: dict[str, Any]) -> None:
+    if _ledger_on(organization_id):
+        # The card's place in the shared task vocabulary, kept on the row so
+        # every channel reads the same state without mapping it again.
+        from api.services.workflow import task_ledger
+
+        payload["ledger_state"] = task_ledger.card_state(payload)
+
+
 async def _write(event: Any, payload: dict[str, Any]) -> None:
+    _stamp_ledger_state(event.organization_id, payload)
     if not await db_client.set_agent_event_payload(
         event.id, organization_id=event.organization_id, payload=payload
     ):
         raise ActionError("That proposal is not here any more.")
+
+
+async def _move(event: Any, from_state: str, payload: dict[str, Any]) -> None:
+    """Write ``payload`` only if the card is still in ``from_state``."""
+    _stamp_ledger_state(event.organization_id, payload)
+    if not await db_client.transition_agent_event_payload(
+        event.id,
+        organization_id=event.organization_id,
+        from_state=from_state,
+        payload=payload,
+    ):
+        raise ActionError("Already settled.")
 
 
 async def _proposal(organization_id: int, event_id: int) -> Any:
@@ -682,31 +1449,74 @@ async def settle(
     event_id: int,
     verb: str,
     user_id: int,
+    version: str | None = None,
+    require_version: bool = False,
 ) -> dict[str, Any]:
     """Confirm, decline or undo, on the card. Returns the updated payload.
 
     ``confirm`` arms the action and queues it to fire after the undo window.
     ``decline`` ends a proposal nothing was done about.
     ``undo`` cancels an armed action, or puts back a done one that can be.
+
+    With the task ledger on, ``confirm`` approves one version of the card:
+    ``version`` must be the one the person was shown. A card edited since
+    (``revise``) has a new version, and the old Confirm is refused rather
+    than applied to words nobody read. The same press from two channels
+    arms it once: the move from proposed is a compare-and-swap.
+    ``require_version`` holds a Confirm to its version with the ledger off
+    too (``settle_many``).
     """
     event = await _proposal(organization_id, event_id)
+    refusal = await thread_refusal(event, user_id)
+    if refusal is not None:
+        raise ActionError(refusal)
     payload = dict(event.payload or {})
     state = payload.get("state") or PROPOSED
+    refusal = answer_refusal(payload, user_id)
+    if refusal is not None:
+        raise ActionError(refusal)
 
     if verb == "confirm":
         if state != PROPOSED:
             raise ActionError("Already settled.")
+        if _ledger_on(organization_id) or require_version:
+            current = payload_version(payload)
+            stored = payload.get("version")
+            if stored is not None and stored != current:
+                # The arguments changed under a stored version: not
+                # something any screen showed.
+                raise ActionError("This card changed since it was proposed. Ask again.")
+            if (stored is not None or require_version) and version != (
+                stored or current
+            ):
+                raise ActionError(
+                    "This changed since you looked at it. Review the new "
+                    "version and confirm again."
+                )
+            # A card proposed before versions existed is stamped now.
+            payload["version"] = current
+            payload["idempotency_key"] = f"card:{event.id}:{current}"
         # The approval matrix (KAN-160): a card is a "card" subject with no
         # amount. Raises ApprovalRequired, naming who must, before anything
         # is armed; a no-op while the switch is off.
-        await approvals.check(
-            organization_id, subject=approvals.CARD, amount_paise=None, user_id=user_id
-        )
+        if not _from_settings(payload) and not _personal_identity(payload):
+            # A person's own Settings card (their memory, their saved item,
+            # their data) is theirs to approve, not a workspace approver's.
+            # So is their own identity card (their app connection, their
+            # Decibyl address): private, so nobody else could approve it.
+            await approvals.check(
+                organization_id,
+                subject=approvals.CARD,
+                amount_paise=None,
+                user_id=user_id,
+            )
         fires_at = datetime.now(UTC) + timedelta(seconds=UNDO_WINDOW_SECONDS)
         payload["state"] = ARMED
         payload["confirmed"] = _stamp(user_id)
+        if payload.get("version"):
+            payload["confirmed"]["version"] = payload["version"]
         payload["fires_at"] = fires_at.isoformat()
-        await _write(event, payload)
+        await _move(event, PROPOSED, payload)
         from api.tasks.arq import enqueue_job
         from api.tasks.function_names import FunctionNames
 
@@ -723,9 +1533,10 @@ async def settle(
             )
             payload["state"] = FAILED
             payload["error"] = "Could not be started. Try again."
-            await _write(event, payload)
+            await _move(event, ARMED, payload)
             raise ActionError(payload["error"]) from exc
         await _audit(event, payload, audit_log.CARD_CONFIRMED, user_id, state)
+        await _emit("approval_granted", event, payload, user_id)
         return payload
 
     if verb == "decline":
@@ -733,8 +1544,18 @@ async def settle(
             raise ActionError("Already settled.")
         payload["state"] = DECLINED
         payload["declined"] = _stamp(user_id)
-        await _write(event, payload)
+        await _move(event, PROPOSED, payload)
         await _audit(event, payload, audit_log.CARD_DECLINED, user_id, state)
+        if payload.get("action") == BROWSER_STEP:
+            from api.services.browser import session as browser_session
+
+            await browser_session.declined(payload)
+        await _emit("approval_rejected", event, payload, user_id)
+        if payload.get("action") in CARE_ACTIONS:
+            from api.services.care import cards as care_cards
+
+            await care_cards.declined(organization_id, payload)
+        await _release_order(organization_id, payload)
         if payload.get("action") == RUN_TOOL:
             # A declined send is an outcome too (OP-4): the prospect is
             # marked, and the next run does not propose them as new.
@@ -750,14 +1571,28 @@ async def settle(
         if state == ARMED:
             payload["state"] = CANCELLED
             payload["cancelled"] = _stamp(user_id)
-            await _write(event, payload)
+            await _move(event, ARMED, payload)
             await _audit(event, payload, audit_log.CARD_UNDONE, user_id, state)
+            if payload.get("action") in CARE_ACTIONS:
+                from api.services.care import cards as care_cards
+
+                await care_cards.declined(organization_id, payload)
+            await _release_order(organization_id, payload)
             return payload
         if state == DONE and payload.get("reversible"):
-            await _reverse(organization_id, payload)
+            # Claim the undo first, so two presses put it back once.
             payload["state"] = UNDONE
             payload["undone"] = _stamp(user_id)
-            await _write(event, payload)
+            await _move(event, DONE, payload)
+            try:
+                await _reverse(organization_id, payload)
+            except Exception:
+                # Not put back after all: the card says done again, never a
+                # false "undone".
+                payload["state"] = DONE
+                payload.pop("undone", None)
+                await _write(event, payload)
+                raise
             await _audit(event, payload, audit_log.CARD_UNDONE, user_id, state)
             await _say(event, f"Put back: {payload['label'].lower()} undone.")
             return payload
@@ -766,6 +1601,221 @@ async def settle(
         raise ActionError("Nothing to undo.")
 
     raise ActionError("Not a thing to do with a proposal.")
+
+
+async def _release_order(organization_id: int, payload: dict[str, Any]) -> None:
+    """A declined or undone order card: its draft can never be placed."""
+    if payload.get("action") != PLACE_ORDER:
+        return
+    from api.services.reach.ordering import service as ordering
+
+    try:
+        await ordering.cancel_for_card(organization_id, dict(payload.get("args") or {}))
+    except Exception as exc:  # noqa: BLE001 - the card is already settled
+        logger.warning("Could not release an order draft: {}", exc)
+
+
+async def reconcile(
+    organization_id: int,
+    event_id: int,
+    *,
+    done: bool,
+    note: str,
+    result: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Settle a card whose outcome was unknown, once the outside service
+    has said what happened (task ledger: outcome unknown -> completed or
+    failed, never back to running)."""
+    event = await _proposal(organization_id, event_id)
+    payload = dict(event.payload or {})
+    if payload.get("state") != OUTCOME_UNKNOWN:
+        return payload
+    payload["state"] = DONE if done else FAILED
+    if done:
+        payload["done"] = {"at": datetime.now(UTC).isoformat(), "note": note}
+        if result:
+            payload.setdefault("result", {}).update(result)
+        payload.pop("error", None)
+    else:
+        payload["error"] = note
+    await _move(event, OUTCOME_UNKNOWN, payload)
+    await _say(event, note)
+    return payload
+
+
+#: The actions whose arguments a person may edit on the card before
+#: confirming. Each edit is a new version (``payload_version``).
+#: The most cards one "Confirm all" may name. A batch of outreach drafts is
+#: a page of leads, not a mailing list; past this it is refused whole.
+MAX_CONFIRM_ALL = 25
+
+
+async def settle_many(
+    *,
+    organization_id: int,
+    items: list[dict[str, Any]],
+    user_id: int,
+) -> list[dict[str, Any]]:
+    """Confirm several cards with one press, still one approval per card.
+
+    Each item is ``{"event_id", "version"}``: the card and the version the
+    person was shown. Each is the ordinary ``settle(confirm)`` with its
+    version required whatever the ledger switch says, so a card edited
+    since, already settled, owned by somebody else or in another workspace
+    is refused on its own line and the rest still go. Nothing is approved
+    as a group. Returns one ``{event_id, ok, state | reason}`` per distinct
+    card, in the order named.
+    """
+    if not isinstance(items, list) or not items:
+        raise ActionError("Say which cards to confirm.")
+    if len(items) > MAX_CONFIRM_ALL:
+        raise ActionError(
+            f"At most {MAX_CONFIRM_ALL} cards at once. Confirm these in parts."
+        )
+    seen: set[int] = set()
+    results: list[dict[str, Any]] = []
+    for item in items:
+        try:
+            event_id = int((item or {}).get("event_id"))
+        except (TypeError, ValueError):
+            results.append({"event_id": None, "ok": False, "reason": "Not a card."})
+            continue
+        if event_id in seen:
+            continue
+        seen.add(event_id)
+        version = str((item or {}).get("version") or "").strip() or None
+        if version is None:
+            results.append(
+                {
+                    "event_id": event_id,
+                    "ok": False,
+                    "reason": "Open this card and confirm it on its own.",
+                }
+            )
+            continue
+        try:
+            payload = await settle(
+                organization_id=organization_id,
+                event_id=event_id,
+                verb="confirm",
+                user_id=user_id,
+                version=version,
+                require_version=True,
+            )
+        except ActionError as exc:
+            results.append({"event_id": event_id, "ok": False, "reason": str(exc)})
+            continue
+        except approvals.ApprovalRequired as exc:
+            results.append({"event_id": event_id, "ok": False, "reason": str(exc)})
+            continue
+        results.append(
+            {"event_id": event_id, "ok": True, "state": payload.get("state")}
+        )
+    return results
+
+
+REVISABLE = (RUN_TOOL, SEND_DOCUMENT, SEND_IDENTITY_EMAIL)
+#: The fields of a SEND_IDENTITY_EMAIL card a person may change.
+_EMAIL_FIELDS = ("to", "subject", "body")
+#: The fields of a SEND_DOCUMENT card a person may change.
+_DOCUMENT_FIELDS = ("note", "to", "channel")
+
+
+async def revise(
+    *,
+    organization_id: int,
+    event_id: int,
+    arguments: dict[str, Any],
+    user_id: int,
+) -> dict[str, Any]:
+    """Edit what a waiting card will do. Returns the updated payload.
+
+    Editing invalidates approval (design, "Approval state"): the card goes
+    back to proposed with a new version, an armed one is disarmed (its job
+    finds it no longer armed and does nothing), and only a Confirm naming
+    the new version can run it. The old versions are listed on the card.
+    Task ledger only.
+    """
+    if not _ledger_on(organization_id):
+        raise ActionError("Cards cannot be edited here yet.")
+    if not isinstance(arguments, dict) or not arguments:
+        raise ActionError("Say what to change.")
+    event = await _proposal(organization_id, event_id)
+    refusal = await thread_refusal(event, user_id)
+    if refusal is not None:
+        raise ActionError(refusal)
+    payload = dict(event.payload or {})
+    state = payload.get("state") or PROPOSED
+    _assert_owner(payload, user_id)
+    if state not in (PROPOSED, ARMED):
+        raise ActionError("This has already run or been settled.")
+    action = payload.get("action")
+    if action not in REVISABLE:
+        raise ActionError(
+            "This one cannot be edited. Decline it and ask for what you want."
+        )
+    args = dict(payload.get("args") or {})
+    if action == RUN_TOOL:
+        args["arguments"] = dict(arguments)
+        payload["preview"] = arguments_preview(args["arguments"])
+    elif action == SEND_IDENTITY_EMAIL:
+        from api.services.identity import cards as identity_cards
+
+        unknown = set(arguments) - set(_EMAIL_FIELDS)
+        if unknown:
+            raise ActionError(f"Cannot change {', '.join(sorted(unknown))}.")
+        try:
+            args = identity_cards.revise_email(args, arguments)
+        except identity_cards.CardError as exc:
+            raise ActionError(str(exc)) from exc
+    else:
+        unknown = set(arguments) - set(_DOCUMENT_FIELDS)
+        if unknown:
+            raise ActionError(f"Cannot change {', '.join(sorted(unknown))}.")
+        for key in _DOCUMENT_FIELDS:
+            if key in arguments:
+                args[key] = str(arguments[key] or "")[:2_000]
+    before = payload.get("version") or payload_version(payload)
+    payload["args"] = args
+    after = payload_version(payload)
+    if after == before:
+        return payload
+    payload["version"] = after
+    payload["revisions"] = [
+        *list(payload.get("revisions") or [])[-9:],
+        {"version": before, **_stamp(user_id)},
+    ]
+    payload["state"] = PROPOSED
+    for key in ("confirmed", "fires_at", "idempotency_key"):
+        payload.pop(key, None)
+    await _move(event, state, payload)
+    await audit_log.record(
+        event.organization_id,
+        action=audit_log.CARD_REVISED,
+        subject_kind="card",
+        subject_id=event.id,
+        subject=_audit_subject(payload),
+        actor_user_id=user_id,
+        before={"state": state, "version": before},
+        after={"state": PROPOSED, "version": after},
+    )
+    return payload
+
+
+def _audit_subject(payload: dict[str, Any]) -> str:
+    """What the workspace audit says a card was. A private card's label is
+    its owner's words (a name, an amount), and a meeting follow-up's is the
+    words of a meeting only its owner can open: the audit every admin reads
+    keeps who pressed what and when, not what the card said (admins do not
+    inherit private things, handoff 25)."""
+    action = payload.get("action")
+    if payload.get("audit_subject"):
+        # A card that names its own neutral subject (stream `care`: "Care:
+        # medicine reminders") keeps it; it says what kind, never whose.
+        return str(payload["audit_subject"])[:255]
+    if payload.get("private_to") or action == MEETING_FOLLOW_UP:
+        return f"Private card ({action})"[:255]
+    return str(payload.get("label") or action or "")[:255]
 
 
 async def _audit(
@@ -777,7 +1827,7 @@ async def _audit(
         action=action,
         subject_kind="card",
         subject_id=event.id,
-        subject=str(payload.get("label") or payload.get("action") or "")[:255],
+        subject=_audit_subject(payload),
         actor_user_id=user_id,
         before={"state": was},
         after={"state": payload.get("state"), "action": payload.get("action")},
@@ -792,7 +1842,17 @@ async def _say(event: Any, line: str) -> None:
     what happened without opening the card."""
     from api.services.workflow import decibyl
 
+    payload_of = dict(getattr(event, "payload", None) or {})
+    if _from_settings(payload_of) or payload_of.get("action") == MEETING_FOLLOW_UP:
+        # Reported on the screen that raised it, never on the shared thread:
+        # a person's own Settings card would tell colleagues what they did,
+        # and a meeting follow-up would put a private meeting's words in
+        # front of the whole workspace.
+        return
     payload: dict[str, Any] = {"body": line, "action_event_id": event.id}
+    if (event.payload or {}).get("private_to"):
+        # What happened to a private card is as private as the card.
+        payload["private_to"] = event.payload["private_to"]
     if event.workflow_id is None:
         payload["from"] = decibyl.NAME
     await agent_timeline.record(
@@ -804,13 +1864,144 @@ async def _say(event: Any, line: str) -> None:
         folder_id=event.folder_id,
         payload=payload,
         in_channel=event.folder_id is not None,
+        visibility=_visibility(payload, (event.payload or {}).get("action")),
+        # Under the card, on the card's own conversation. The job runs in the
+        # worker, outside any turn, so the context names no thread and the
+        # line went to the person's original chat instead.
+        thread_id=getattr(event, "thread_id", None),
     )
 
 
-async def _execute(organization_id: int, payload: dict[str, Any]) -> str:
-    """Do it. Returns one line on what happened; raises on refusal."""
+async def _execute_owned(organization_id: int, payload: dict[str, Any]) -> str:
     action = payload.get("action")
     args = payload.get("args") or {}
+    confirmed = payload.get("confirmed") or {}
+    confirmer = confirmed.get("by")
+    if confirmer != payload.get("owner_user_id"):
+        raise ActionError("Only the person this is for could approve it.")
+    if not _owned_switched_on(organization_id, action):
+        # Rolled back between approval and the run: off means off.
+        raise ActionError("This has been switched off here, so nothing was done.")
+    if action == PLACE_ORDER:
+        from api.services.reach.ordering import service as ordering
+
+        try:
+            placed = await ordering.place(
+                organization_id=organization_id,
+                args=dict(args),
+                confirmer=confirmer,
+                idempotency_key=str(
+                    payload.get("idempotency_key")
+                    or f"card:{payload.get('event_id', '')}:{payload_version(payload)}:{confirmed.get('at', '')}"
+                ),
+            )
+        except ordering.OrderError as exc:
+            raise ActionError(str(exc)) from exc
+        except ordering.OutcomeUnknown as exc:
+            raise OutcomeUnknown(str(exc)) from exc
+        payload.setdefault("result", {}).update(placed["result"])
+        return placed["note"]
+    from api.services.reach import connections, safety, wire
+
+    row = await connections.get(
+        organization_id, confirmer, str(args.get("connection") or "")
+    )
+    if row is None:
+        raise ActionError("That outside tool is no longer connected.")
+    try:
+        data = await connections.call(
+            row, str(args.get("tool") or ""), dict(args.get("arguments") or {})
+        )
+    except wire.ToolRefused as exc:
+        raise ActionError(f"{row.name} refused: {safety.clean_text(exc, 200)}") from exc
+    except wire.NeedsSignIn as exc:
+        raise ActionError(
+            f"The {row.name} sign-in has expired; connect it again."
+        ) from exc
+    except wire.WireError as exc:
+        raise OutcomeUnknown(
+            f"{row.name} did not answer, so we do not know whether it ran. "
+            "Please check there before asking again."
+        ) from exc
+    payload.setdefault("result", {})["data"] = safety.clean_text(
+        data if isinstance(data, str) else str(data), 1_000
+    )
+    return f"Done: {args.get('tool')} on {row.name}."
+
+
+async def _people_note(
+    payload: dict[str, Any],
+    organization_id: int,
+    *,
+    channel: str,
+    to: str,
+    line: str,
+    ref: str,
+) -> None:
+    """Put a send on the contact's page in the confirming person's People.
+    Never raises; does nothing while People is off."""
+    from api.services.people import interactions as people_interactions
+
+    who = (payload.get("confirmed") or {}).get("by")
+    try:
+        owner = int(who) if who else None
+    except (TypeError, ValueError):
+        owner = None
+    await people_interactions.record(
+        organization_id,
+        owner,
+        channel=channel,
+        direction="out",
+        phone=to if channel == "whatsapp" else None,
+        email=to if channel == "email" else None,
+        line=line,
+        ref=ref,
+    )
+
+
+async def _execute(
+    organization_id: int, payload: dict[str, Any], *, event_id: int | None = None
+) -> str:
+    """Do it. Returns one line on what happened; raises on refusal."""
+    if _from_settings(payload):
+        from api.services.settings import cards as settings_cards
+
+        return await settings_cards.execute(organization_id, payload)
+    action = payload.get("action")
+    args = payload.get("args") or {}
+    if action in (TRACK_COMMITMENT, CREATE_TRACKER):
+        return await _execute_helper_card(organization_id, payload, event_id)
+    if action in OWNED_ACTIONS:
+        return await _execute_owned(organization_id, payload)
+    if action in IDENTITY_ACTIONS:
+        from api.services.identity import cards as identity_cards
+
+        try:
+            return await identity_cards.execute(
+                organization_id, payload, event_id=event_id
+            )
+        except identity_cards.CardError as exc:
+            raise ActionError(str(exc)) from exc
+    if action == SET_UP_BOOKING:
+        from api.services.voice import appointments, booking_setup
+
+        try:
+            return await booking_setup.execute(
+                organization_id=organization_id, payload=payload
+            )
+        except (booking_setup.BookingSetupError, appointments.PolicyInvalid) as exc:
+            raise ActionError(str(exc)) from exc
+    if action == PLACE_CALL:
+        from api.services.voice import call_for_me
+
+        try:
+            return await call_for_me.execute(
+                organization_id=organization_id,
+                payload=payload,
+                event_id=int(event_id or 0),
+            )
+        except call_for_me.CallNotPossible as exc:
+            raise ActionError(str(exc)) from exc
     if action in (TURN_BOT_ON, TURN_BOT_OFF):
         try:
             await db_client.set_workflow_live(
@@ -841,7 +2032,52 @@ async def _execute(organization_id: int, payload: dict[str, Any]) -> str:
         ):
             raise ActionError("That fact is no longer in memory.")
         return f"Forgotten: {args.get('key', 'that')}."
+    if action == DESKTOP_STEP:
+        # Nothing happens on the server: the step is the computer's to take.
+        return "Approved. Your computer will do this once."
+    if action == DELETE_LEARNING_GOAL:
+        from api.services.learning import core as learning
+
+        confirmed_by = int(((payload.get("confirmed") or {}).get("by")) or 0)
+        owner = int(args.get("user_id") or 0)
+        if not owner or confirmed_by != owner:
+            # A learning record is its learner's: a colleague's Confirm on a
+            # card they can see does not delete somebody else's practice.
+            raise ActionError("Only the learner can delete their learning goal.")
+        if not await learning.delete_goal(
+            organization_id, owner, str(args.get("goal_uuid") or "")
+        ):
+            raise ActionError("That learning goal was already deleted.")
+        return "Deleted the learning goal and all its practice."
+    if action == MEETING_FOLLOW_UP:
+        from api.services.meetings import follow_ups
+
+        return await follow_ups.execute(organization_id, payload)
     if action == SCHEDULE_ROUTINE:
+        from api.services import features
+
+        if event_id is not None and features.is_on("routine_start_on", organization_id):
+            # Stream `today`: the person confirmed this exact schedule and
+            # instruction on the card, so it starts on, armed by that card
+            # (routines.may_arm). Said back in one sentence.
+            from api.services.workflow import routines
+
+            routine = await db_client.create_routine(
+                organization_id=organization_id,
+                workflow_id=None,
+                name=str(args.get("name") or "")[:120],
+                instruction=str(args.get("instruction") or ""),
+                cadence=str(args.get("cadence") or "daily"),
+                anchor=str(args.get("anchor") or "opening"),
+                at_minute=int(args.get("at_minute") or 0),
+                offset_minutes=int(args.get("offset_minutes") or 0),
+                weekday=int(args.get("weekday") or 0),
+                is_active=True,
+                armed_by_card_event_id=int(event_id),
+            )
+            payload.setdefault("result", {}).update({"routine_id": routine.id})
+            when = routines.describe(routines.spec_from_model(routine))
+            return f"Will do, {when[0].lower()}{when[1:]}."
         routine = await db_client.create_routine(
             organization_id=organization_id,
             workflow_id=None,
@@ -953,7 +2189,11 @@ async def _execute(organization_id: int, payload: dict[str, Any]) -> str:
                 "The agent could not be built from that spec just now."
             ) from exc
         payload.setdefault("result", {}).update(
-            {"workflow_id": built["workflow_id"], "handle": built.get("handle")}
+            {
+                "workflow_id": built["workflow_id"],
+                "handle": built.get("handle"),
+                "channel": built.get("channel"),
+            }
         )
         return str(built["note"])
 
@@ -997,7 +2237,7 @@ async def _execute(organization_id: int, payload: dict[str, Any]) -> str:
 
         confirmed_at = str((payload.get("confirmed") or {}).get("at") or "")
         try:
-            return await documents.deliver(
+            line = await documents.deliver(
                 organization_id,
                 file_id=str(args.get("file_id") or ""),
                 name=str(args.get("name") or ""),
@@ -1008,6 +2248,34 @@ async def _execute(organization_id: int, payload: dict[str, Any]) -> str:
             )
         except documents.DocumentError as exc:
             raise ActionError(str(exc)) from exc
+        await _people_note(
+            payload,
+            organization_id,
+            channel="whatsapp" if args.get("channel") == "whatsapp" else "email",
+            to=str(args.get("to") or ""),
+            line=f"Sent {args.get('name') or 'a file'}",
+            ref=f"card:{event_id}" if event_id else f"send_document:{confirmed_at}",
+        )
+        return line
+    if action == BROWSER_STEP:
+        from api.services.browser import session as browser_session
+
+        outcome = await browser_session.approved(
+            payload, organization_id=organization_id
+        )
+        if outcome.get("unknown"):
+            raise OutcomeUnknown(
+                "The browser did not report back in time, so whether it went "
+                "through is not known. Look at the page before trying again."
+            )
+        if not outcome.get("ok"):
+            raise ActionError(str(outcome.get("note") or "It did not go through."))
+        payload.setdefault("result", {})["url"] = outcome.get("url")
+        return str(outcome.get("note") or "Done in your browser.")
+    if action in CARE_ACTIONS:
+        from api.services.care import cards as care_cards
+
+        return await care_cards.execute(organization_id, payload)
     if action == RUN_TOOL:
         from api.services.workflow import connected_tools
 
@@ -1036,12 +2304,68 @@ async def _execute(organization_id: int, payload: dict[str, Any]) -> str:
         await send_approval.note_sent(
             organization_id, dict(args.get("arguments") or {})
         )
+        # People: a mail the person approved, to someone, from their app.
+        sent_to = send_approval.recipient_of(dict(args.get("arguments") or {}))
+        if sent_to:
+            toolkit = (connected_tools.toolkit_of(tool) or "").lower()
+            subject = send_approval.subject_of(dict(args.get("arguments") or {}))
+            await _people_note(
+                payload,
+                organization_id,
+                channel="email",
+                to=str(sent_to),
+                line=(
+                    f"Sent: {subject}"
+                    if subject
+                    else f"Sent with {toolkit or 'an app'}"
+                ),
+                ref=f"card:{event_id}" if event_id else f"run_tool:{confirmed_at}",
+            )
         return f"Done: {args.get('tool_name', 'the tool')}."
     raise ActionError("That is not something that can be done.")
 
 
+async def _execute_helper_card(
+    organization_id: int, payload: dict[str, Any], event_id: int | None
+) -> str:
+    """The launch-helper cards: track a commitment, create a tracker."""
+    args = payload.get("args") or {}
+    owner = args.get("owner_user_id") or (payload.get("confirmed") or {}).get("by")
+    if not owner:
+        raise ActionError("Nobody asked for this, so nobody owns it.")
+    if payload.get("action") == TRACK_COMMITMENT:
+        from api.services.helpers import commitments
+
+        try:
+            fields = commitments.clean(args)
+        except commitments.Invalid as exc:
+            raise ActionError(str(exc)) from exc
+        await commitments.create(
+            fields,
+            organization_id=organization_id,
+            user_id=int(owner),
+            approved_card_id=event_id,
+        )
+        return f"Tracking it: {commitments.label(fields)[len('Track: ') :]}."
+    from api.services.helpers import trackers
+
+    try:
+        spec = trackers.clean_spec(args)
+    except trackers.Invalid as exc:
+        raise ActionError(str(exc)) from exc
+    row = await trackers.create(
+        spec, organization_id=organization_id, user_id=int(owner)
+    )
+    return f"Created the tracker {row.name}. Tell me a row to add."
+
+
 async def _reverse(organization_id: int, payload: dict[str, Any]) -> None:
     """The inverse, for the actions that have one."""
+    if _from_settings(payload):
+        from api.services.settings import cards as settings_cards
+
+        await settings_cards.reverse(organization_id, payload)
+        return
     action = payload.get("action")
     args = payload.get("args") or {}
     if action in (TURN_BOT_ON, TURN_BOT_OFF):
@@ -1061,6 +2385,16 @@ async def _reverse(organization_id: int, payload: dict[str, Any]) -> None:
             status=str(args.get("was_status") or "confirmed"),
         ):
             raise ActionError("That fact is no longer in memory.")
+        return
+    if action in CARE_ACTIONS:
+        from api.services.care import cards as care_cards
+
+        await care_cards.reverse(organization_id, payload)
+        return
+    if action == MEETING_FOLLOW_UP:
+        from api.services.meetings import follow_ups
+
+        await follow_ups.reverse(organization_id, payload)
         return
     if action == INSTALL_FROM_REPOSITORY:
         from api.services.skills import imports
@@ -1088,24 +2422,168 @@ async def run(event_id: int, organization_id: int) -> None:
     payload = dict(event.payload or {})
     if payload.get("state") != ARMED:
         return
+    # Claim it before acting. A retried job, or a second one, loses here and
+    # does nothing: the action is fired once or not at all.
+    payload["state"] = RUNNING
     try:
-        note = await _execute(organization_id, payload)
+        await _move(event, ARMED, payload)
+    except ActionError:
+        logger.info("Action {} was already claimed; not firing it again", event_id)
+        return
+    ledger = _ledger_on(organization_id)
+    confirmer = (payload.get("confirmed") or {}).get("by")
+    if ledger:
+        # Revalidate at execution (handoff 9, "Approvals"): what runs is the
+        # version that was approved, or nothing.
+        approved = (payload.get("confirmed") or {}).get("version")
+        if approved and (
+            approved != payload.get("version") or approved != payload_version(payload)
+        ):
+            payload["state"] = FAILED
+            payload["error"] = (
+                "It changed after it was approved. Confirm the new version."
+            )
+            await _write(event, payload)
+            await _say(
+                event, f"Could not: {payload['label'].lower()}. {payload['error']}"
+            )
+            await _emit("task_failed", event, payload, confirmer)
+            return
+    await _emit("task_started", event, payload, confirmer)
+    if _is_outbound(payload) and isinstance(confirmer, int):
+        # A send spends the confirming person's daily outbound allowance
+        # (operational quotas), whatever plan or free mode says.
+        from api.services import quotas
+
+        try:
+            await quotas.consume(confirmer, quotas.OUTBOUND_MESSAGES)
+        except quotas.QuotaExceeded as exc:
+            payload["state"] = FAILED
+            payload["error"] = str(exc)
+            payload["reason_code"] = "quota_outbound_messages"
+            await _write(event, payload)
+            await _say(event, f"Not sent: {payload['label'].lower()}. {exc}")
+            await _emit("task_failed", event, payload, confirmer)
+            return
+    payload.setdefault("event_id", event.id)
+    try:
+        from api.services.identity import reconcile
+        from api.services.messaging.send import callback_data
+
+        with callback_data(reconcile.callback_key(organization_id, payload)):
+            note = await _execute(organization_id, payload, event_id=event.id)
+    except OutcomeUnknown as exc:
+        # A browser press that never reported back, or an order or outside
+        # write that may have happened: said so whatever the ledger switch,
+        # never "failed", never fired again.
+        payload["state"] = OUTCOME_UNKNOWN
+        payload["error"] = str(exc)
+        await _write(event, payload)
+        await _say(event, f"Not known: {payload['label'].lower()}. {exc}")
+        await _emit("task_failed", event, payload, confirmer)
+        return
     except ActionError as exc:
         payload["state"] = FAILED
         payload["error"] = str(exc)
         await _write(event, payload)
         await _say(event, f"Could not: {payload['label'].lower()}. {exc}")
+        await _emit("task_failed", event, payload, confirmer)
         return
     except Exception as exc:  # noqa: BLE001 - the card must say something
         logger.error("Action {} failed: {}", event_id, exc)
+        if payload.get("action") in (*OWNED_ACTIONS, PLACE_CALL) or (
+            ledger
+            and (
+                _is_outbound(payload)
+                or payload.get("action") in (RETURN_MISSED_CALL, *IDENTITY_ACTIONS)
+            )
+        ):
+            # A call is never "failed" after the dial began, ledger or not:
+            # it may have rung, and a redial would ring them twice.
+            # Something reached the outside service and broke: whether it
+            # went is not known. Said so, and never retried blind.
+            from api.services.workflow import task_ledger
+
+            payload["state"] = OUTCOME_UNKNOWN
+            payload["error"] = task_ledger.UNKNOWN_COPY
+            await _write(event, payload)
+            await _say(event, f"{payload['label']}: {task_ledger.UNKNOWN_COPY}")
+            return
         payload["state"] = FAILED
         payload["error"] = "Something went wrong on our side."
         await _write(event, payload)
         await _say(
             event, f"Could not: {payload['label'].lower()}. This is us, not you."
         )
+        await _emit("task_failed", event, payload, confirmer)
+        return
+    if payload.get("action") == DESKTOP_STEP:
+        # Released, not done: done is what the computer reports after it
+        # took the step (desktop_steps.report). No line under the card yet.
+        payload["state"] = RELEASED
+        payload["released"] = {"at": datetime.now(UTC).isoformat(), "note": note}
+        await _write(event, payload)
         return
     payload["state"] = DONE
     payload["done"] = {"at": datetime.now(UTC).isoformat(), "note": note}
     await _write(event, payload)
     await _say(event, note)
+    await _emit("task_completed", event, payload, confirmer)
+
+
+async def sweep_stale_running(now: datetime | None = None) -> int:
+    """Cards claimed and never finished become ``outcome_unknown``.
+
+    A worker that died between claiming a card and writing its outcome
+    leaves it ``running`` forever, which reads as "still going". After
+    ``STALE_RUNNING_MINUTES`` past its firing time it is marked unknown --
+    a person checks; it is never fired again. Task ledger only. Returns how
+    many it marked.
+    """
+    from sqlalchemy import text as sql
+
+    from api.services import features
+    from api.services.workflow import task_ledger
+
+    if not features.on_anywhere(task_ledger.FLAG):
+        return 0
+    now = now or datetime.now(UTC)
+    cutoff = now - timedelta(minutes=STALE_RUNNING_MINUTES)
+    async with db_client.async_session() as session:
+        rows = (
+            await session.execute(
+                sql(
+                    "SELECT id, organization_id FROM agent_events "
+                    "WHERE kind = :kind AND payload->>'state' = :state "
+                    "ORDER BY id LIMIT 500"
+                ),
+                {"kind": AgentEventKind.ACTION_PROPOSED.value, "state": RUNNING},
+            )
+        ).all()
+    marked = 0
+    for event_id, organization_id in rows:
+        if not features.is_on(task_ledger.FLAG, organization_id):
+            continue
+        event = await db_client.get_agent_event(
+            event_id, organization_id=organization_id
+        )
+        if event is None:
+            continue
+        payload = dict(event.payload or {})
+        fires = payload.get("fires_at")
+        try:
+            due = datetime.fromisoformat(fires) if fires else None
+        except ValueError:
+            due = None
+        if due is None or due > cutoff:
+            continue
+        payload["state"] = OUTCOME_UNKNOWN
+        payload["error"] = task_ledger.UNKNOWN_COPY
+        payload["reason_code"] = "worker_lost"
+        try:
+            await _move(event, RUNNING, payload)
+        except ActionError:
+            continue
+        await _say(event, f"{payload['label']}: {task_ledger.UNKNOWN_COPY}")
+        marked += 1
+    return marked

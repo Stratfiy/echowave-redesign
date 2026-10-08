@@ -1,0 +1,1497 @@
+{
+ "/api/v1/admin/controls/capabilities": {
+  "GET": [
+   "capability_checklist"
+  ]
+ },
+ "/api/v1/admin/controls/events/catalogue": {
+  "GET": [
+   "event_catalogue"
+  ]
+ },
+ "/api/v1/admin/controls/feedback/summary": {
+  "GET": [
+   "reply_feedback"
+  ]
+ },
+ "/api/v1/admin/controls/quotas/grants/{allowance_id}": {
+  "DELETE": [
+   "operational_quotas"
+  ]
+ },
+ "/api/v1/admin/controls/quotas/users/{user_id}": {
+  "GET": [
+   "operational_quotas"
+  ]
+ },
+ "/api/v1/admin/controls/quotas/users/{user_id}/grants": {
+  "POST": [
+   "operational_quotas"
+  ]
+ },
+ "/api/v1/admin/ops/commands": {
+  "GET": [
+   "ops_console"
+  ],
+  "POST": [
+   "ops_console"
+  ]
+ },
+ "/api/v1/admin/ops/commands/catalogue": {
+  "GET": [
+   "ops_console"
+  ]
+ },
+ "/api/v1/admin/ops/commands/{command_id}": {
+  "GET": [
+   "ops_console"
+  ]
+ },
+ "/api/v1/admin/ops/commands/{command_id}/approve": {
+  "POST": [
+   "ops_console"
+  ]
+ },
+ "/api/v1/admin/ops/commands/{command_id}/reject": {
+  "POST": [
+   "ops_console"
+  ]
+ },
+ "/api/v1/admin/ops/cost-stop": {
+  "GET": [
+   "ops_console"
+  ]
+ },
+ "/api/v1/admin/ops/credentials": {
+  "GET": [
+   "ops_console"
+  ]
+ },
+ "/api/v1/admin/ops/credentials/rotations": {
+  "POST": [
+   "ops_console"
+  ]
+ },
+ "/api/v1/admin/ops/credentials/rotations/{rotation_id}/{step}": {
+  "POST": [
+   "ops_console"
+  ]
+ },
+ "/api/v1/admin/ops/evidence": {
+  "GET": [
+   "ops_console"
+  ],
+  "POST": [
+   "ops_console"
+  ]
+ },
+ "/api/v1/admin/ops/health": {
+  "GET": [
+   "ops_console"
+  ]
+ },
+ "/api/v1/admin/ops/laya": {
+  "GET": [
+   "ops_console"
+  ]
+ },
+ "/api/v1/admin/provider-keys/voice-failures": {
+  "GET": [
+   "voice_watch"
+  ]
+ },
+ "/api/v1/admin/staff/analytics": {
+  "GET": [
+   "staff_console"
+  ]
+ },
+ "/api/v1/admin/staff/analytics/records": {
+  "GET": [
+   "staff_console"
+  ]
+ },
+ "/api/v1/admin/staff/audit": {
+  "GET": [
+   "staff_console"
+  ]
+ },
+ "/api/v1/admin/staff/commands": {
+  "GET": [
+   "staff_console"
+  ],
+  "POST": [
+   "staff_console"
+  ]
+ },
+ "/api/v1/admin/staff/commands/catalogue": {
+  "GET": [
+   "staff_console"
+  ]
+ },
+ "/api/v1/admin/staff/commands/preview": {
+  "POST": [
+   "staff_console"
+  ]
+ },
+ "/api/v1/admin/staff/commands/{command_id}": {
+  "GET": [
+   "staff_console"
+  ]
+ },
+ "/api/v1/admin/staff/commands/{command_id}/approve": {
+  "POST": [
+   "staff_console"
+  ]
+ },
+ "/api/v1/admin/staff/commands/{command_id}/reject": {
+  "POST": [
+   "staff_console"
+  ]
+ },
+ "/api/v1/admin/staff/incidents": {
+  "GET": [
+   "staff_console",
+   "staff_incidents"
+  ]
+ },
+ "/api/v1/admin/staff/incidents/{incident_id}": {
+  "GET": [
+   "staff_console",
+   "staff_incidents"
+  ]
+ },
+ "/api/v1/admin/staff/ledger": {
+  "GET": [
+   "staff_console"
+  ]
+ },
+ "/api/v1/admin/staff/ledger/export.csv": {
+  "GET": [
+   "staff_console"
+  ]
+ },
+ "/api/v1/admin/staff/ledger/{payment_id}": {
+  "GET": [
+   "staff_console"
+  ]
+ },
+ "/api/v1/admin/staff/me": {
+  "GET": [
+   "staff_console"
+  ]
+ },
+ "/api/v1/admin/staff/operations": {
+  "GET": [
+   "staff_console"
+  ]
+ },
+ "/api/v1/admin/staff/operations/latency": {
+  "GET": [
+   "staff_console"
+  ]
+ },
+ "/api/v1/admin/staff/operations/trace/{task_id}": {
+  "GET": [
+   "staff_console"
+  ]
+ },
+ "/api/v1/admin/staff/overview": {
+  "GET": [
+   "staff_console"
+  ]
+ },
+ "/api/v1/admin/staff/policy": {
+  "GET": [
+   "staff_console"
+  ]
+ },
+ "/api/v1/admin/staff/quality/datasets": {
+  "GET": [
+   "staff_console",
+   "staff_evaluations"
+  ]
+ },
+ "/api/v1/admin/staff/quality/datasets/{dataset}/cases": {
+  "GET": [
+   "staff_console",
+   "staff_evaluations"
+  ]
+ },
+ "/api/v1/admin/staff/quality/runs": {
+  "GET": [
+   "staff_console",
+   "staff_evaluations"
+  ]
+ },
+ "/api/v1/admin/staff/quality/runs/{run_id}": {
+  "GET": [
+   "staff_console",
+   "staff_evaluations"
+  ]
+ },
+ "/api/v1/admin/staff/quality/runs/{run_id}/cases/{case_id}": {
+  "GET": [
+   "staff_console",
+   "staff_evaluations"
+  ]
+ },
+ "/api/v1/admin/staff/revenue": {
+  "GET": [
+   "staff_console"
+  ]
+ },
+ "/api/v1/admin/staff/roles": {
+  "GET": [
+   "staff_console"
+  ]
+ },
+ "/api/v1/admin/staff/users": {
+  "GET": [
+   "staff_console"
+  ]
+ },
+ "/api/v1/admin/staff/users/{user_id}": {
+  "GET": [
+   "staff_console"
+  ]
+ },
+ "/api/v1/admin/staff/users/{user_id}/assisted-access/end": {
+  "POST": [
+   "staff_console"
+  ]
+ },
+ "/api/v1/admin/staff/users/{user_id}/tasks": {
+  "GET": [
+   "staff_console"
+  ]
+ },
+ "/api/v1/admin/staff/waitlist": {
+  "GET": [
+   "staff_console"
+  ]
+ },
+ "/api/v1/admin/support/actions": {
+  "GET": [
+   "support_actions"
+  ],
+  "POST": [
+   "support_actions"
+  ]
+ },
+ "/api/v1/admin/support/actions/commands": {
+  "GET": [
+   "support_actions"
+  ]
+ },
+ "/api/v1/admin/support/actions/preview": {
+  "POST": [
+   "support_actions"
+  ]
+ },
+ "/api/v1/admin/support/actions/{action_id}": {
+  "GET": [
+   "support_actions"
+  ]
+ },
+ "/api/v1/admin/support/actions/{action_id}/approve": {
+  "POST": [
+   "support_actions"
+  ]
+ },
+ "/api/v1/admin/support/actions/{action_id}/reconcile": {
+  "POST": [
+   "support_actions"
+  ]
+ },
+ "/api/v1/admin/support/actions/{action_id}/reject": {
+  "POST": [
+   "support_actions"
+  ]
+ },
+ "/api/v1/admin/support/actions/{action_id}/revise": {
+  "POST": [
+   "support_actions"
+  ]
+ },
+ "/api/v1/admin/support/actions/{action_id}/run": {
+  "POST": [
+   "support_actions"
+  ]
+ },
+ "/api/v1/admin/support/actions/{action_id}/withdraw": {
+  "POST": [
+   "support_actions"
+  ]
+ },
+ "/api/v1/admin/support/attachments/{attachment_id}/link": {
+  "GET": [
+   "support_inbox"
+  ]
+ },
+ "/api/v1/admin/support/staff": {
+  "GET": [
+   "support_inbox"
+  ]
+ },
+ "/api/v1/admin/support/summary": {
+  "GET": [
+   "support_inbox"
+  ]
+ },
+ "/api/v1/admin/support/tickets": {
+  "GET": [
+   "support_inbox"
+  ]
+ },
+ "/api/v1/admin/support/tickets/{ticket_id}": {
+  "GET": [
+   "support_inbox"
+  ],
+  "PATCH": [
+   "support_inbox"
+  ]
+ },
+ "/api/v1/admin/support/tickets/{ticket_id}/notes": {
+  "POST": [
+   "support_inbox"
+  ]
+ },
+ "/api/v1/admin/support/tickets/{ticket_id}/replies": {
+  "POST": [
+   "support_inbox"
+  ]
+ },
+ "/api/v1/admin/voice/latency": {
+  "GET": [
+   "voice_latency"
+  ]
+ },
+ "/api/v1/agent-graph/{workflow_id}/last-run": {
+  "GET": [
+   "agent_graph_extras"
+  ]
+ },
+ "/api/v1/agent-graph/{workflow_id}/starts": {
+  "GET": [
+   "agent_graph_extras"
+  ]
+ },
+ "/api/v1/browser/logins": {
+  "GET": [
+   "decibyl_browser"
+  ]
+ },
+ "/api/v1/browser/logins/{login_id}": {
+  "DELETE": [
+   "decibyl_browser"
+  ]
+ },
+ "/api/v1/browser/sessions/{session_uuid}": {
+  "GET": [
+   "decibyl_browser"
+  ]
+ },
+ "/api/v1/browser/sessions/{session_uuid}/handback": {
+  "POST": [
+   "decibyl_browser"
+  ]
+ },
+ "/api/v1/browser/sessions/{session_uuid}/input": {
+  "POST": [
+   "decibyl_browser"
+  ]
+ },
+ "/api/v1/browser/sessions/{session_uuid}/screen": {
+  "GET": [
+   "decibyl_browser"
+  ]
+ },
+ "/api/v1/browser/sessions/{session_uuid}/stop": {
+  "POST": [
+   "decibyl_browser"
+  ]
+ },
+ "/api/v1/browser/sessions/{session_uuid}/takeover": {
+  "POST": [
+   "decibyl_browser"
+  ]
+ },
+ "/api/v1/care/circle": {
+  "GET": [
+   "care_family_circle"
+  ],
+  "PUT": [
+   "care_family_circle"
+  ]
+ },
+ "/api/v1/care/circle/members": {
+  "POST": [
+   "care_family_circle"
+  ]
+ },
+ "/api/v1/care/circle/members/{member_id}": {
+  "DELETE": [
+   "care_family_circle"
+  ]
+ },
+ "/api/v1/care/circle/members/{member_id}/shares": {
+  "PUT": [
+   "care_family_circle"
+  ]
+ },
+ "/api/v1/care/family": {
+  "GET": [
+   "care_family_circle"
+  ]
+ },
+ "/api/v1/care/family/accept": {
+  "POST": [
+   "care_family_circle"
+  ]
+ },
+ "/api/v1/care/family/alerts/{alert_id}/read": {
+  "POST": [
+   "care_family_circle"
+  ]
+ },
+ "/api/v1/care/help/sessions": {
+  "POST": [
+   "care_tech_help"
+  ]
+ },
+ "/api/v1/care/help/sessions/{session_id}": {
+  "GET": [
+   "care_tech_help"
+  ]
+ },
+ "/api/v1/care/help/sessions/{session_id}/answer": {
+  "POST": [
+   "care_tech_help"
+  ]
+ },
+ "/api/v1/care/help/topics": {
+  "GET": [
+   "care_tech_help"
+  ]
+ },
+ "/api/v1/care/medicines": {
+  "GET": [
+   "care_medicine_calls"
+  ],
+  "POST": [
+   "care_medicine_calls"
+  ]
+ },
+ "/api/v1/care/medicines/{medicine_id}/pause": {
+  "POST": [
+   "care_medicine_calls"
+  ]
+ },
+ "/api/v1/care/medicines/{medicine_id}/resume": {
+  "POST": [
+   "care_medicine_calls"
+  ]
+ },
+ "/api/v1/care/medicines/{medicine_id}/taken": {
+  "POST": [
+   "care_medicine_calls"
+  ]
+ },
+ "/api/v1/care/scam-check": {
+  "POST": [
+   "care_scam_check"
+  ]
+ },
+ "/api/v1/care/scam-check/recent": {
+  "GET": [
+   "care_scam_check"
+  ]
+ },
+ "/api/v1/connectors/{slug}/connect/mine": {
+  "POST": [
+   "connections_per_person"
+  ]
+ },
+ "/api/v1/desktop/receipts": {
+  "POST": [
+   "desktop_computer_use"
+  ]
+ },
+ "/api/v1/desktop/status": {
+  "GET": [
+   "desktop_computer_use"
+  ]
+ },
+ "/api/v1/desktop/steps": {
+  "POST": [
+   "desktop_computer_use"
+  ]
+ },
+ "/api/v1/desktop/steps/{event_id}": {
+  "GET": [
+   "desktop_computer_use"
+  ]
+ },
+ "/api/v1/desktop/steps/{event_id}/cancel": {
+  "POST": [
+   "desktop_computer_use"
+  ]
+ },
+ "/api/v1/desktop/steps/{event_id}/claim": {
+  "POST": [
+   "desktop_computer_use"
+  ]
+ },
+ "/api/v1/desktop/steps/{event_id}/outcome": {
+  "POST": [
+   "desktop_computer_use"
+  ]
+ },
+ "/api/v1/dialer-connections": {
+  "GET": [
+   "dialer_import"
+  ],
+  "POST": [
+   "dialer_import"
+  ]
+ },
+ "/api/v1/dialer-connections/calls": {
+  "GET": [
+   "dialer_import"
+  ]
+ },
+ "/api/v1/dialer-connections/{connection_id}": {
+  "DELETE": [
+   "dialer_import"
+  ]
+ },
+ "/api/v1/events/client": {
+  "POST": [
+   "event_catalogue"
+  ]
+ },
+ "/api/v1/feedback": {
+  "POST": [
+   "reply_feedback"
+  ]
+ },
+ "/api/v1/feedback/mine": {
+  "GET": [
+   "reply_feedback"
+  ]
+ },
+ "/api/v1/help/options": {
+  "GET": [
+   "support_help"
+  ]
+ },
+ "/api/v1/help/share-preview": {
+  "POST": [
+   "support_help"
+  ]
+ },
+ "/api/v1/help/tickets": {
+  "GET": [
+   "support_help"
+  ],
+  "POST": [
+   "support_help"
+  ]
+ },
+ "/api/v1/help/tickets/{ticket_id}": {
+  "GET": [
+   "support_help"
+  ]
+ },
+ "/api/v1/help/tickets/{ticket_id}/attachments": {
+  "POST": [
+   "support_help"
+  ]
+ },
+ "/api/v1/help/tickets/{ticket_id}/messages": {
+  "POST": [
+   "support_help"
+  ]
+ },
+ "/api/v1/help/tickets/{ticket_id}/reopen": {
+  "POST": [
+   "support_help"
+  ]
+ },
+ "/api/v1/help/tickets/{ticket_id}/resolve": {
+  "POST": [
+   "support_help"
+  ]
+ },
+ "/api/v1/helpers": {
+  "GET": [
+   "launch_helpers"
+  ]
+ },
+ "/api/v1/helpers/commitments": {
+  "GET": [
+   "follow_up_ledger"
+  ],
+  "POST": [
+   "follow_up_ledger"
+  ]
+ },
+ "/api/v1/helpers/commitments/{commitment_uuid}": {
+  "PATCH": [
+   "follow_up_ledger"
+  ]
+ },
+ "/api/v1/helpers/reports": {
+  "GET": [
+   "research_reports"
+  ]
+ },
+ "/api/v1/helpers/reports/from-reply": {
+  "POST": [
+   "research_reports"
+  ]
+ },
+ "/api/v1/helpers/reports/{report_uuid}": {
+  "GET": [
+   "research_reports"
+  ]
+ },
+ "/api/v1/helpers/reports/{report_uuid}/export": {
+  "GET": [
+   "research_reports"
+  ]
+ },
+ "/api/v1/helpers/reports/{report_uuid}/visibility": {
+  "PUT": [
+   "research_reports"
+  ]
+ },
+ "/api/v1/helpers/research/interests": {
+  "GET": [
+   "trading_summaries"
+  ],
+  "PUT": [
+   "trading_summaries"
+  ]
+ },
+ "/api/v1/helpers/research/trading-summary": {
+  "POST": [
+   "trading_summaries"
+  ]
+ },
+ "/api/v1/helpers/trackers": {
+  "GET": [
+   "describe_builder"
+  ]
+ },
+ "/api/v1/helpers/trackers/{tracker_uuid}": {
+  "GET": [
+   "describe_builder"
+  ]
+ },
+ "/api/v1/helpers/trackers/{tracker_uuid}/rows": {
+  "POST": [
+   "describe_builder"
+  ]
+ },
+ "/api/v1/helpers/who-owes-me": {
+  "GET": [
+   "follow_up_ledger"
+  ]
+ },
+ "/api/v1/helpers/{key}/setup": {
+  "POST": [
+   "launch_helpers"
+  ]
+ },
+ "/api/v1/helpers/{key}/workspace": {
+  "PUT": [
+   "launch_helpers"
+  ]
+ },
+ "/api/v1/learning/goals": {
+  "GET": [
+   "learning"
+  ],
+  "POST": [
+   "learning"
+  ]
+ },
+ "/api/v1/learning/goals/{goal_id}": {
+  "PATCH": [
+   "learning"
+  ]
+ },
+ "/api/v1/learning/goals/{goal_id}/attempts": {
+  "POST": [
+   "learning"
+  ]
+ },
+ "/api/v1/learning/goals/{goal_id}/baseline": {
+  "POST": [
+   "learning"
+  ]
+ },
+ "/api/v1/learning/goals/{goal_id}/deletion": {
+  "POST": [
+   "learning"
+  ]
+ },
+ "/api/v1/learning/goals/{goal_id}/export": {
+  "GET": [
+   "learning"
+  ]
+ },
+ "/api/v1/learning/goals/{goal_id}/next": {
+  "POST": [
+   "learning"
+  ]
+ },
+ "/api/v1/learning/goals/{goal_id}/progress": {
+  "GET": [
+   "learning"
+  ]
+ },
+ "/api/v1/learning/goals/{goal_id}/review": {
+  "POST": [
+   "learning"
+  ]
+ },
+ "/api/v1/learning/goals/{goal_id}/session": {
+  "GET": [
+   "learning"
+  ]
+ },
+ "/api/v1/learning/goals/{goal_id}/skills/{skill_id}": {
+  "GET": [
+   "learning"
+  ]
+ },
+ "/api/v1/learning/profile": {
+  "PUT": [
+   "learning"
+  ]
+ },
+ "/api/v1/learning/reviews": {
+  "GET": [
+   "learning"
+  ]
+ },
+ "/api/v1/learning/status": {
+  "GET": [
+   "learning"
+  ]
+ },
+ "/api/v1/learning/suggestions": {
+  "GET": [
+   "learning"
+  ]
+ },
+ "/api/v1/learning/today": {
+  "GET": [
+   "learning"
+  ]
+ },
+ "/api/v1/me/card-interest": {
+  "PUT": [
+   "identity_email"
+  ]
+ },
+ "/api/v1/me/connections": {
+  "GET": [
+   "identity_connections"
+  ]
+ },
+ "/api/v1/me/connections/consents/{consent_id}/complete": {
+  "POST": [
+   "identity_connections"
+  ]
+ },
+ "/api/v1/me/connections/disconnect": {
+  "POST": [
+   "identity_connections"
+  ]
+ },
+ "/api/v1/me/connections/preview": {
+  "GET": [
+   "identity_connections"
+  ]
+ },
+ "/api/v1/me/connections/start": {
+  "POST": [
+   "identity_connections"
+  ]
+ },
+ "/api/v1/me/email-identity": {
+  "GET": [
+   "identity_email"
+  ]
+ },
+ "/api/v1/me/email-identity/check": {
+  "POST": [
+   "identity_email"
+  ]
+ },
+ "/api/v1/me/email-identity/provision": {
+  "POST": [
+   "identity_email"
+  ]
+ },
+ "/api/v1/me/email-identity/release": {
+  "POST": [
+   "identity_email"
+  ]
+ },
+ "/api/v1/me/email-identity/reserve": {
+  "POST": [
+   "identity_email"
+  ]
+ },
+ "/api/v1/me/email-identity/send": {
+  "POST": [
+   "identity_email"
+  ]
+ },
+ "/api/v1/me/memory": {
+  "GET": [
+   "memory_manager"
+  ]
+ },
+ "/api/v1/me/memory/destinations": {
+  "GET": [
+   "memory_manager"
+  ]
+ },
+ "/api/v1/me/memory/switch": {
+  "PUT": [
+   "memory_manager"
+  ]
+ },
+ "/api/v1/me/memory/{fact_id}": {
+  "GET": [
+   "memory_manager"
+  ],
+  "PATCH": [
+   "memory_manager"
+  ]
+ },
+ "/api/v1/me/memory/{fact_id}/confirm": {
+  "POST": [
+   "memory_manager"
+  ]
+ },
+ "/api/v1/me/memory/{fact_id}/forget": {
+  "POST": [
+   "memory_manager"
+  ]
+ },
+ "/api/v1/me/memory/{fact_id}/share": {
+  "POST": [
+   "memory_manager"
+  ]
+ },
+ "/api/v1/me/memory/{fact_id}/share-preview": {
+  "GET": [
+   "memory_manager"
+  ]
+ },
+ "/api/v1/me/mobile-push/devices": {
+  "GET": [
+   "mobile_push"
+  ]
+ },
+ "/api/v1/me/mobile-push/devices/{device_id}": {
+  "DELETE": [
+   "mobile_push"
+  ]
+ },
+ "/api/v1/me/mobile-push/tokens": {
+  "POST": [
+   "mobile_push"
+  ]
+ },
+ "/api/v1/me/mobile-push/tokens/remove": {
+  "POST": [
+   "mobile_push"
+  ]
+ },
+ "/api/v1/me/notifications": {
+  "GET": [
+   "identity_notifications"
+  ],
+  "PUT": [
+   "identity_notifications"
+  ]
+ },
+ "/api/v1/me/notifications/test": {
+  "POST": [
+   "identity_notifications"
+  ]
+ },
+ "/api/v1/me/outcomes/{event_id}": {
+  "POST": [
+   "identity_reconciliation"
+  ]
+ },
+ "/api/v1/me/personal-space": {
+  "GET": [
+   "personal_space"
+  ]
+ },
+ "/api/v1/me/phone-identity": {
+  "GET": [
+   "identity_phone"
+  ]
+ },
+ "/api/v1/me/phone-identity/numbers/{phone_number_id}/readiness": {
+  "POST": [
+   "identity_phone"
+  ]
+ },
+ "/api/v1/me/phone-identity/request": {
+  "POST": [
+   "identity_phone"
+  ]
+ },
+ "/api/v1/me/preferences": {
+  "GET": [
+   "member_preferences"
+  ],
+  "PUT": [
+   "member_preferences"
+  ]
+ },
+ "/api/v1/me/privacy": {
+  "GET": [
+   "privacy_center"
+  ]
+ },
+ "/api/v1/me/privacy/deletion": {
+  "POST": [
+   "privacy_center"
+  ]
+ },
+ "/api/v1/me/privacy/export": {
+  "POST": [
+   "privacy_center"
+  ]
+ },
+ "/api/v1/me/privacy/preview": {
+  "GET": [
+   "privacy_center"
+  ]
+ },
+ "/api/v1/me/privacy/requests/{request_id}": {
+  "GET": [
+   "privacy_center"
+  ]
+ },
+ "/api/v1/me/privacy/requests/{request_id}/download": {
+  "GET": [
+   "privacy_center"
+  ]
+ },
+ "/api/v1/me/push-subscriptions": {
+  "POST": [
+   "identity_notifications"
+  ]
+ },
+ "/api/v1/me/push-subscriptions/{subscription_id}": {
+  "DELETE": [
+   "identity_notifications"
+  ]
+ },
+ "/api/v1/me/quotas": {
+  "GET": [
+   "operational_quotas"
+  ]
+ },
+ "/api/v1/me/saved": {
+  "GET": [
+   "saved_items"
+  ],
+  "POST": [
+   "saved_items"
+  ]
+ },
+ "/api/v1/me/saved/{item_id}": {
+  "GET": [
+   "saved_items"
+  ],
+  "PATCH": [
+   "saved_items"
+  ]
+ },
+ "/api/v1/me/saved/{item_id}/delete": {
+  "POST": [
+   "saved_items"
+  ]
+ },
+ "/api/v1/me/search": {
+  "GET": [
+   "saved_items"
+  ]
+ },
+ "/api/v1/me/settings/profile": {
+  "GET": [
+   "settings_shell"
+  ],
+  "PUT": [
+   "settings_shell"
+  ]
+ },
+ "/api/v1/me/settings/voices": {
+  "GET": [
+   "settings_shell"
+  ]
+ },
+ "/api/v1/me/temporary-conversations": {
+  "POST": [
+   "memory_manager"
+  ]
+ },
+ "/api/v1/me/temporary-conversations/{thread_id}": {
+  "GET": [
+   "memory_manager"
+  ]
+ },
+ "/api/v1/meetings": {
+  "GET": [
+   "meeting_capture"
+  ],
+  "POST": [
+   "meeting_capture"
+  ]
+ },
+ "/api/v1/meetings/capabilities": {
+  "GET": [
+   "meeting_capture"
+  ]
+ },
+ "/api/v1/meetings/{meeting_id}": {
+  "DELETE": [
+   "meeting_capture"
+  ],
+  "GET": [
+   "meeting_capture"
+  ],
+  "PATCH": [
+   "meeting_capture"
+  ]
+ },
+ "/api/v1/meetings/{meeting_id}/actions/{item_id}": {
+  "PUT": [
+   "meeting_capture"
+  ]
+ },
+ "/api/v1/meetings/{meeting_id}/actions/{item_id}/review": {
+  "POST": [
+   "meeting_capture"
+  ]
+ },
+ "/api/v1/meetings/{meeting_id}/actions/{item_id}/settle": {
+  "POST": [
+   "meeting_capture"
+  ]
+ },
+ "/api/v1/meetings/{meeting_id}/deletion": {
+  "GET": [
+   "meeting_capture"
+  ]
+ },
+ "/api/v1/meetings/{meeting_id}/export": {
+  "GET": [
+   "meeting_capture"
+  ]
+ },
+ "/api/v1/meetings/{meeting_id}/gaps": {
+  "POST": [
+   "meeting_capture"
+  ]
+ },
+ "/api/v1/meetings/{meeting_id}/pause": {
+  "POST": [
+   "meeting_capture"
+  ]
+ },
+ "/api/v1/meetings/{meeting_id}/read": {
+  "POST": [
+   "meeting_capture"
+  ]
+ },
+ "/api/v1/meetings/{meeting_id}/resume": {
+  "POST": [
+   "meeting_capture"
+  ]
+ },
+ "/api/v1/meetings/{meeting_id}/retry": {
+  "POST": [
+   "meeting_capture"
+  ]
+ },
+ "/api/v1/meetings/{meeting_id}/segments": {
+  "POST": [
+   "meeting_capture"
+  ]
+ },
+ "/api/v1/meetings/{meeting_id}/stop": {
+  "POST": [
+   "meeting_capture"
+  ]
+ },
+ "/api/v1/meetings/{meeting_id}/transcript/{seq}": {
+  "PUT": [
+   "meeting_capture"
+  ]
+ },
+ "/api/v1/meetings/{meeting_id}/upload": {
+  "POST": [
+   "meeting_capture"
+  ]
+ },
+ "/api/v1/organisation/memory/{fact_id}/share": {
+  "POST": [
+   "personal_memory"
+  ]
+ },
+ "/api/v1/organizations/approval-rules": {
+  "GET": [
+   "approvals"
+  ],
+  "PUT": [
+   "approvals"
+  ]
+ },
+ "/api/v1/organizations/audit": {
+  "GET": [
+   "approvals"
+  ]
+ },
+ "/api/v1/organizations/audit.csv": {
+  "GET": [
+   "approvals"
+  ]
+ },
+ "/api/v1/procurement/documents": {
+  "GET": [
+   "procurement_docs"
+  ]
+ },
+ "/api/v1/procurement/documents/{register_id}/files/{file}": {
+  "GET": [
+   "procurement_docs"
+  ]
+ },
+ "/api/v1/public/early-access/invites/{code}": {
+  "GET": [
+   "early_access"
+  ]
+ },
+ "/api/v1/public/early-access/languages": {
+  "GET": [
+   "early_access"
+  ]
+ },
+ "/api/v1/public/early-access/waitlist": {
+  "POST": [
+   "early_access"
+  ]
+ },
+ "/api/v1/public/email-identity/events": {
+  "POST": [
+   "identity_email"
+  ]
+ },
+ "/api/v1/public/email-identity/inbound": {
+  "POST": [
+   "identity_email"
+  ]
+ },
+ "/api/v1/settings/models/inheritance": {
+  "GET": [
+   "model_inheritance"
+  ],
+  "PUT": [
+   "model_inheritance"
+  ]
+ },
+ "/api/v1/studio/chat": {
+  "POST": [
+   "studio"
+  ]
+ },
+ "/api/v1/studio/config": {
+  "GET": [
+   "studio"
+  ]
+ },
+ "/api/v1/studio/sites": {
+  "GET": [
+   "studio"
+  ],
+  "POST": [
+   "studio"
+  ]
+ },
+ "/api/v1/studio/sites/{site_id}": {
+  "DELETE": [
+   "studio"
+  ],
+  "GET": [
+   "studio"
+  ]
+ },
+ "/api/v1/studio/sites/{site_id}/build": {
+  "POST": [
+   "studio"
+  ]
+ },
+ "/api/v1/studio/sites/{site_id}/download": {
+  "GET": [
+   "studio"
+  ]
+ },
+ "/api/v1/studio/sites/{site_id}/file": {
+  "GET": [
+   "studio"
+  ]
+ },
+ "/api/v1/studio/sites/{site_id}/files": {
+  "PUT": [
+   "studio"
+  ]
+ },
+ "/api/v1/tasks/ledger": {
+  "POST": [
+   "task_ledger"
+  ]
+ },
+ "/api/v1/tasks/{task_id}/ledger": {
+  "GET": [
+   "task_ledger"
+  ]
+ },
+ "/api/v1/tasks/{task_id}/ledger/transition": {
+  "POST": [
+   "task_ledger"
+  ]
+ },
+ "/api/v1/today": {
+  "GET": [
+   "today_list"
+  ]
+ },
+ "/api/v1/today/activity": {
+  "GET": [
+   "today_list"
+  ]
+ },
+ "/api/v1/today/activity/{kind}/{item_id}": {
+  "GET": [
+   "today_list"
+  ]
+ },
+ "/api/v1/today/brief": {
+  "GET": [
+   "daily_brief"
+  ]
+ },
+ "/api/v1/today/brief/refresh": {
+  "POST": [
+   "daily_brief"
+  ]
+ },
+ "/api/v1/today/brief/settings": {
+  "GET": [
+   "daily_brief"
+  ],
+  "PUT": [
+   "daily_brief"
+  ]
+ },
+ "/api/v1/today/brief/test": {
+  "POST": [
+   "daily_brief"
+  ]
+ },
+ "/api/v1/today/end-of-day": {
+  "GET": [
+   "end_of_day_note"
+  ]
+ },
+ "/api/v1/today/end-of-day/refresh": {
+  "POST": [
+   "end_of_day_note"
+  ]
+ },
+ "/api/v1/today/events": {
+  "POST": [
+   "today_reminders"
+  ]
+ },
+ "/api/v1/today/events/{event_id}/cancel": {
+  "POST": [
+   "today_reminders"
+  ]
+ },
+ "/api/v1/today/events/{event_id}/move": {
+  "POST": [
+   "today_reminders"
+  ]
+ },
+ "/api/v1/today/missed-calls/{missed_call_id}/call-back": {
+  "POST": [
+   "today_list"
+  ]
+ },
+ "/api/v1/today/reminders": {
+  "GET": [
+   "today_reminders"
+  ],
+  "POST": [
+   "today_reminders"
+  ]
+ },
+ "/api/v1/today/reminders/preview": {
+  "POST": [
+   "today_reminders"
+  ]
+ },
+ "/api/v1/today/reminders/{reminder_id}": {
+  "GET": [
+   "today_reminders"
+  ],
+  "PUT": [
+   "today_reminders"
+  ]
+ },
+ "/api/v1/today/reminders/{reminder_id}/snooze": {
+  "POST": [
+   "today_reminders"
+  ]
+ },
+ "/api/v1/today/reminders/{reminder_id}/status": {
+  "POST": [
+   "today_reminders"
+  ]
+ },
+ "/api/v1/today/reminders/{reminder_id}/test": {
+  "POST": [
+   "today_reminders"
+  ]
+ },
+ "/api/v1/today/resolve-date": {
+  "POST": [
+   "today_reminders"
+  ]
+ },
+ "/api/v1/today/routines/preview": {
+  "POST": [
+   "today_list"
+  ]
+ },
+ "/api/v1/today/suggestions/{key}/dismiss": {
+  "POST": [
+   "today_list"
+  ]
+ },
+ "/api/v1/voice/appointments": {
+  "GET": [
+   "call_appointment"
+  ]
+ },
+ "/api/v1/voice/appointments/policy": {
+  "GET": [
+   "call_appointment"
+  ],
+  "PUT": [
+   "call_appointment"
+  ]
+ },
+ "/api/v1/voice/appointments/slots": {
+  "GET": [
+   "call_appointment"
+  ]
+ },
+ "/api/v1/voice/readiness": {
+  "GET": [
+   "decibyl_voice"
+  ]
+ },
+ "/api/v1/voice/sessions": {
+  "POST": [
+   "decibyl_voice"
+  ]
+ },
+ "/api/v1/voice/sessions/{session_id}": {
+  "GET": [
+   "decibyl_voice"
+  ]
+ },
+ "/api/v1/voice/sessions/{session_id}/end": {
+  "POST": [
+   "decibyl_voice"
+  ]
+ },
+ "/api/v1/voice/sessions/{session_id}/heartbeat": {
+  "POST": [
+   "decibyl_voice"
+  ]
+ },
+ "/api/v1/voice/sessions/{session_id}/move": {
+  "POST": [
+   "decibyl_voice"
+  ]
+ },
+ "/api/v1/voice/sessions/{session_id}/turns": {
+  "POST": [
+   "voice_latency"
+  ]
+ },
+ "/api/v1/workflow/{workflow_id}/visibility": {
+  "PUT": [
+   "workspace_roles"
+  ]
+ },
+ "/api/v1/workspace-roles": {
+  "GET": [
+   "workspace_roles"
+  ],
+  "POST": [
+   "workspace_roles"
+  ]
+ },
+ "/api/v1/workspace-roles/shared/{token}": {
+  "GET": [
+   "workspace_roles"
+  ]
+ },
+ "/api/v1/workspace-roles/shared/{token}/install": {
+  "POST": [
+   "workspace_roles"
+  ]
+ },
+ "/api/v1/workspace-roles/{role_id}": {
+  "DELETE": [
+   "workspace_roles"
+  ]
+ },
+ "/api/v1/workspace-roles/{role_id}/copy-to": {
+  "POST": [
+   "workspace_roles"
+  ]
+ },
+ "/api/v1/workspace-roles/{role_id}/hire": {
+  "POST": [
+   "workspace_roles"
+  ]
+ },
+ "/api/v1/workspace-roles/{role_id}/share": {
+  "DELETE": [
+   "workspace_roles"
+  ],
+  "POST": [
+   "workspace_roles"
+  ]
+ }
+}

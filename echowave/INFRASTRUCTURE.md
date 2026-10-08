@@ -1,5 +1,9 @@
 # Hosting Decibyl in ap-south-1
 
+> How the box is deployed and operated today -- and what in this page has
+> since changed -- is in **`OPS-RUNBOOK.md`**. This page is the sizing and
+> target-architecture reference.
+
 How the platform should be deployed to carry the Telangana campaign, and what
 has to change to get there. Every capacity and cost figure comes from
 `scripts/infra_sizing.py`, which derives them from the same volume model as the
@@ -171,10 +175,11 @@ Fix for the tender: bring the control node up first, let it migrate, then start
 the media nodes. Fix for the product: the chart's `migrate-Job`.
 
 **Consequence for the build:** the media nodes must run *without* the
-orchestrator and ARI manager. Until the start script is role-aware, that is a
-one-line override on the media hosts — set `ARQ_WORKERS=0` and comment the two
-`start` lines, or run them from a compose override with a different `command`.
-This is the piece of §6 most likely to be got wrong.
+orchestrator and ARI manager. The start script is now role-aware: set
+`DECIBYL_ROLE=media` on the media hosts (uvicorn only: no migration, no
+singletons, no ARQ) and `DECIBYL_ROLE=control` on exactly one control node, and
+bring the control node up first. Leaving the default `all` on every node is
+the piece of §6 most likely to be got wrong.
 
 ---
 

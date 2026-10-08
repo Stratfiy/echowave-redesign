@@ -1,0 +1,24 @@
+body {
+    padding: 14px;
+    -webkit-app-region: drag;
+}
+form {
+    -webkit-app-region: no-drag;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+textarea {
+    width: 100%;
+    resize: none;
+    font-size: 16px;
+    padding: 10px 12px;
+}
+.row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+.row #message {
+    flex: 1;
+}

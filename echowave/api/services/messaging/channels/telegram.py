@@ -91,7 +91,10 @@ def keyboard(card: Card) -> dict[str, Any] | None:
     return {
         "inline_keyboard": [
             [
-                {"text": label, "callback_data": button_id(card.event_id, verb)}
+                {
+                    "text": label,
+                    "callback_data": button_id(card.event_id, verb, card.version),
+                }
                 for verb, label in buttons
             ]
         ]

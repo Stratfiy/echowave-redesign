@@ -1,0 +1,17 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["APPLE_TEAM_ID.ai.decibyl.app"],
+        "components": [
+          { "/": "/overview", "comment": "a thread: /overview?thread=..." },
+          { "/": "/chat/*" },
+          { "/": "/tasks" },
+          { "/": "/tasks/approvals/*" },
+          { "/": "/tasks/reminders/*" }
+        ]
+      }
+    ]
+  },
+  "webcredentials": { "apps": ["APPLE_TEAM_ID.ai.decibyl.app"] }
+}

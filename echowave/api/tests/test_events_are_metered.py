@@ -466,7 +466,9 @@ class TestTheTimelineSaysWhatEachRowCost:
             "api.routes.agent_timeline.db_client.agent_events",
             AsyncMock(return_value=rows),
         ):
-            response = await timeline(user=SimpleNamespace(selected_organization_id=42))
+            response = await timeline(
+                user=SimpleNamespace(id=1, selected_organization_id=42)
+            )
         by_id = {e.id: e for e in response.events}
         assert (by_id[1].credits, by_id[1].included) == (2, False)
         assert (by_id[2].credits, by_id[2].included) == (0, True)

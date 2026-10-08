@@ -6,8 +6,12 @@
  * than shipping as a screen nobody can find -- the silent-absence shape,
  * applied to navigation.
  */
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
+import { SETTINGS_SECTIONS } from "../../settings/sections";
 import { getVisibleNavSections, SHELL_MANAGE, shellUrls, STAFF_SECTION, visibleShellManage } from "../navigation";
 
 const ALL = { isStaff: true, isOrganizationAdmin: true, isSuperadmin: true };
@@ -30,13 +34,28 @@ describe("the navigation", () => {
     });
 
     it("points only at destinations that exist", () => {
-        // Company and Studio are homes of the rail alone, with no legacy nav item.
-        const known = new Set([...getVisibleNavSections(ALL).flatMap((s) => s.items.map((i) => i.url)), "/company", "/studio"]);
-        for (const url of shellUrls()) expect(known.has(url), url).toBe(true);
+        // Settings' own sections and Studio have no legacy nav item.
+        const known = new Set([
+            ...getVisibleNavSections(ALL).flatMap((s) => s.items.map((i) => i.url)),
+            ...SETTINGS_SECTIONS.map((section) => section.href),
+            "/studio",
+        ]);
+        // Or a page that exists in the app: a home's tab (Routines, Contacts,
+        // Handed over) has no legacy nav item either.
+        const isPage = (url: string) =>
+            existsSync(resolve(process.cwd(), "src/app", ...url.split("/").filter(Boolean), "page.tsx"));
+        for (const url of shellUrls()) expect(known.has(url) || isPage(url), url).toBe(true);
     });
 
-    it("keeps Manage to five entries", () => {
-        expect(SHELL_MANAGE.map((e) => e.title)).toEqual(["Marketplace", "Apps & tools", "Deploy", "Billing", "Settings"]);
+    it("keeps the account menu to what Settings does not hold", () => {
+        expect(SHELL_MANAGE.map((e) => e.title)).toEqual(["Marketplace", "Deploy", "Billing"]);
+    });
+
+    it("reaches every page the rail used to hold, through Settings", () => {
+        const urls = new Set(shellUrls());
+        for (const url of ["/settings/company", "/settings/knowledge", "/settings/channels", "/settings/team", "/settings"]) {
+            expect(urls.has(url), url).toBe(true);
+        }
     });
 
     it("shows a member the whole of it -- nothing here is admin-only today", () => {

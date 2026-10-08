@@ -9,6 +9,7 @@ import { getWorkflowRunsApiV1SuperuserWorkflowRunsGet } from '@/client/sdk.gen';
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { FilterBuilder } from "@/components/filters/FilterBuilder";
 import { MediaPreviewButton, MediaPreviewDialog } from '@/components/MediaPreviewDialog';
+import { useAssistedAccessDialog } from "@/components/superadmin/AssistedAccessDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -94,6 +95,7 @@ export default function RunsPage() {
     const [selectedRowId, setSelectedRowId] = useState<number | null>(null);
 
     const auth = useAuth();
+    const { ask: askAccess, dialog: accessDialog } = useAssistedAccessDialog();
 
     // Media preview dialog
     const mediaPreview = MediaPreviewDialog();
@@ -267,9 +269,13 @@ export default function RunsPage() {
         async (targetUserId: number | undefined, redirectPath?: string) => {
             if (!targetUserId || !auth.isAuthenticated) return;
             try {
+                const choice = await askAccess(`user ${targetUserId}`);
+                if (!choice) return;
                 const token = await auth.getAccessToken();
                 await impersonateAsSuperadmin({
                     accessToken: token,
+                    reason: choice.reason,
+                    mode: choice.mode,
                     userId: targetUserId,
                     redirectPath,
                     openInNewTab: true,
@@ -279,7 +285,7 @@ export default function RunsPage() {
                 alert('Failed to impersonate the user. Please try again.');
             }
         },
-        [auth],
+        [auth, askAccess],
     );
 
     if (isLoading && runs.length === 0) {
@@ -295,6 +301,7 @@ export default function RunsPage() {
 
     return (
         <div className="container mx-auto p-6 space-y-6 max-w-full">
+            {accessDialog}
             <div>
                 <h1 className="text-3xl font-bold mb-2">Workflow Runs</h1>
                 <p className="text-muted-foreground">View and manage all workflow runs across organizations</p>

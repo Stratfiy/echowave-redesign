@@ -17,7 +17,7 @@ Both branches a tier can reach are covered, because they failed on different
 attributes and fixing only the one that happened to be the default tier would
 have left the others broken:
 
-* ``default`` and ``accurate`` resolve to openai, which reads ``base_url``
+* ``default``, ``accurate`` and ``advanced`` resolve to anthropic
 * ``lite``, ``fast`` and ``zen`` resolve to sarvam, which reads ``temperature``
 """
 
@@ -73,14 +73,14 @@ class TestAManagedTierReachesTheFactory:
         await managed_resolution.apply(effective)
         return effective
 
-    async def test_the_openai_tier_builds(self, monkeypatch, captured):
+    async def test_the_claude_tier_builds(self, monkeypatch, captured):
         effective = await self._resolve(monkeypatch, "default")
-        assert effective.llm.provider == "openai"
+        assert effective.llm.provider == "anthropic"
 
         # The assertion is that this does not raise AttributeError.
         service_factory.create_llm_service(effective)
 
-        assert captured["provider"] == "openai"
+        assert captured["provider"] == "anthropic"
         assert captured["api_key"] == "platform-key-xyz"
         # Absent rather than None: the vendor default is what a managed slot
         # should run on, and passing base_url=None would override it.

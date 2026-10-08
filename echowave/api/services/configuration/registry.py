@@ -287,6 +287,12 @@ _KEYED_COMPONENTS: tuple[tuple[str, ServiceType], ...] = (
 #: entered there, not as an environment variable on the box).
 DATA_PROVIDERS: dict[str, tuple[str, ...]] = {
     "serper": ("data",),
+    # Lead data for outreach (services/outreach/leads.py): people who match
+    # a business's ideal customer, with verified work addresses.
+    "apollo": ("data",),
+    # Treg (treg.to): one token for many lead-data vendors; the default lead
+    # source for outreach.
+    "treg": ("data",),
 }
 
 
@@ -589,6 +595,8 @@ FIREWORKS_MODELS = [
 #: exist rather than an older snapshot.
 ANTHROPIC_MODELS = [
     "claude-haiku-4-5",
+    "claude-sonnet-5-5",
+    "claude-opus-5-5",
     "claude-sonnet-5",
     "claude-opus-5",
     "claude-sonnet-4-6",

@@ -65,7 +65,7 @@ describe("CompanyView", () => {
         const chart = screen.getByRole("region", { name: "Org chart" });
         expect(within(chart).getByText("Sales")).toBeTruthy();
         expect(within(chart).getByText("No team yet")).toBeTruthy();
-        expect(within(chart).getByRole("link", { name: /Ava/ }).getAttribute("href")).toBe("/workflow/1");
+        expect(within(chart).getByRole("link", { name: /Ava/ }).getAttribute("href")).toBe("/workflow/1/thread");
 
         const needs = screen.getByRole("region", { name: "Needs you" });
         expect(within(needs).getByText("Ava hit its budget")).toBeTruthy();

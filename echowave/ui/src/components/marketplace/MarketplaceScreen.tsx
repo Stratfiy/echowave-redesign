@@ -91,7 +91,7 @@ function Hero({ kind }: { kind: ShelfKind }) {
         </>
     );
     return (
-        <div className="flex items-center justify-between gap-6 overflow-hidden rounded-2xl bg-[var(--accent-brand-tint)] px-6 py-8 sm:px-10 sm:py-10">
+        <div className="flex items-center justify-between gap-6 overflow-hidden rounded-3xl border border-border/70 bg-card px-6 py-8 shadow-[0_1px_2px_rgba(0,0,0,0.03)] sm:px-10 sm:py-10">
             <div className="min-w-0">{words}</div>
             <div aria-hidden="true" data-testid="hero-art" className="relative mr-2 hidden h-[160px] w-[212px] shrink-0 md:block">
                 {HERO_ART.map((art) => (
@@ -470,7 +470,7 @@ function ToolsShelf({ query }: { query: string }) {
                         <p className="text-sm">Nothing here does that yet.</p>
                         <p className="text-xs text-muted-foreground">
                             Build it as a{" "}
-                            <Link href="/tools" className="underline">
+                            <Link href="/settings/apps" className="underline">
                                 custom tool
                             </Link>
                             : any HTTP endpoint your business already has.
@@ -501,7 +501,7 @@ function ToolsShelf({ query }: { query: string }) {
                                 </p>
                             </div>
                             <Button asChild size="sm" variant="outline" className="shrink-0 rounded-full">
-                                <Link href={`/tools?library=${encodeURIComponent(tool.key)}`} aria-label={`Add ${tool.display_name}`}>
+                                <Link href={`/settings/apps?library=${encodeURIComponent(tool.key)}`} aria-label={`Add ${tool.display_name}`}>
                                     Add
                                 </Link>
                             </Button>
@@ -519,7 +519,7 @@ function ToolsShelf({ query }: { query: string }) {
                         </p>
                     </div>
                     <Button asChild size="sm" variant="outline">
-                        <Link href="/tools">Build a tool</Link>
+                        <Link href="/settings/apps">Build a tool</Link>
                     </Button>
                 </CardContent>
             </Card>
@@ -690,7 +690,7 @@ function IntegrationsShelf({ query }: { query: string }) {
                         <p className="text-sm">Nothing matches &ldquo;{query.trim()}&rdquo;.</p>
                         <p className="text-xs text-muted-foreground">
                             Build it as a{" "}
-                            <Link href="/tools" className="underline">
+                            <Link href="/settings/apps" className="underline">
                                 custom tool
                             </Link>
                             , or tell us and we will look at adding it.

@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUpCircle, ChevronLeft, ChevronRight, LifeBuoy, LogOut, X } from "lucide-react";
+import { ArrowUpCircle, Bot, ChevronLeft, ChevronRight, HeartHandshake, LifeBuoy, LogOut, Settings, UserRound, Users, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import React from "react";
@@ -21,22 +21,24 @@ import { useAppConfig } from "@/context/AppConfigContext";
 import { useAccessRoles } from "@/hooks/useAccessRoles";
 import { useLatestReleaseVersion } from "@/hooks/useLatestReleaseVersion";
 import { useAuth } from "@/lib/auth";
+import { useSimpleMode } from "@/lib/care/simpleMode";
 import { useFeature } from "@/lib/features";
 import { cn } from "@/lib/utils";
 
 import { getVisibleNavSections, STAFF_SECTION, visibleShellManage } from "../navigation";
-import { ChannelList } from "./ChannelList";
-import { ColleagueRoster } from "./ColleagueRoster";
 import { activeHome, HOMES, RAIL_COPY } from "./homes";
+import { RecentsList } from "./RecentsList";
 import { TrialBox } from "./TrialBox";
 import { useRailData } from "./useRailData";
 
 /**
  * The rail (KAN-208, UI-1), the app's only navigation: brand and workspace,
- * the homes, the channels, the colleague roster and the trial box, per the
- * founder-approved mock. It took over from the old sidebar, and with it the
- * old sidebar's extras: the Stack team switcher, the channel list, the
- * setup-call link and the self-hosted update notice.
+ * four homes, the colleague roster and the trial box. Everything set up once
+ * and then left alone (company, knowledge, channels, team, apps, deploy,
+ * billing, settings) is in the account menu at the foot, so the rail holds
+ * only where the work is. It took over from the old sidebar, and with it the
+ * old sidebar's extras: the Stack team switcher, the setup-call link and the
+ * self-hosted update notice.
  *
  * Built on the same shadcn Sidebar as the old rail, so a phone gets the same
  * sheet and the same trigger in the top bar.
@@ -52,6 +54,7 @@ export function AppRailV2() {
   const current = activeHome(pathname);
   const { provider } = useAuth();
   const studioOn = useFeature("studio");
+  const freeMode = useFeature("free_mode");
   const homes = HOMES.filter((home) => !home.flag || (home.flag === "studio" && studioOn));
   const { config } = useAppConfig();
   // Self-hosted only: cloud is updated for the customer.
@@ -61,9 +64,9 @@ export function AppRailV2() {
   };
 
   const needsYou = colleagues.filter((c) => c.tone === "attention").length;
+  // What needs a person is Today's question, so its count is there.
   const counts: Partial<Record<string, number>> = {
-    home: needsYou > 0 ? needsYou : undefined,
-    agents: colleagues.length > 0 ? colleagues.length : undefined,
+    today: needsYou > 0 ? needsYou : undefined,
   };
 
   return (
@@ -101,7 +104,7 @@ export function AppRailV2() {
                     onClick={onNavigate}
                     title={collapsed ? home.title : undefined}
                   >
-                    {collapsed && <Icon className="h-4 w-4" aria-hidden="true" />}
+                    <Icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.7} aria-hidden="true" />
                     <span className={cn(collapsed && "sr-only")}>{home.title}</span>
                     {!collapsed && count !== undefined && <span className="v2-count">{count}</span>}
                   </Link>
@@ -113,8 +116,7 @@ export function AppRailV2() {
 
         {!collapsed && (
           <div className="v2-scroll">
-            <ChannelList pathname={pathname} onNavigate={onNavigate} />
-            <ColleagueRoster colleagues={colleagues} pathname={pathname} onNavigate={onNavigate} />
+            <RecentsList pathname={pathname} onNavigate={onNavigate} />
             {/* TODO: Projects section, once a projects feature exists. */}
           </div>
         )}
@@ -132,7 +134,8 @@ export function AppRailV2() {
               Update available ({release.latest})
             </a>
           )}
-          {!collapsed && <TrialBox trial={trial} creditsPaise={creditsPaise} />}
+          {/* Free while we are early: no trial, no credits to count. */}
+          {!collapsed && !freeMode && <TrialBox trial={trial} creditsPaise={creditsPaise} />}
           <div className={cn("v2-foot-row", collapsed && "v2-foot-col")}>
             <AccountMenu collapsed={collapsed} onNavigate={onNavigate} />
             <a
@@ -158,11 +161,24 @@ export function AppRailV2() {
 }
 
 /**
- * The person, and every manage page the homes do not name (billing,
- * apps & tools, deploy, compliance, marketplace), so no existing route is
- * lost from the rail. Role filtering is the old rail's own.
+ * The person, and every page the homes do not name (company, knowledge,
+ * channels, marketplace, apps & tools, deploy, billing, settings and team),
+ * so no existing route is lost from the rail. Role filtering is the old
+ * rail's own.
  */
-function AccountMenu({ collapsed, onNavigate }: { collapsed: boolean; onNavigate: () => void }) {
+export function AccountMenu({
+  collapsed,
+  onNavigate,
+  side = "top",
+  compact = false,
+}: {
+  collapsed: boolean;
+  onNavigate: () => void;
+  /** "bottom" when the menu opens from the phone header (shell_mobile). */
+  side?: "top" | "bottom";
+  /** Initials only, at a 44px target: the phone header's profile button. */
+  compact?: boolean;
+}) {
   const { user, logout } = useAuth();
   const roles = useAccessRoles();
   const identity =
@@ -183,19 +199,98 @@ function AccountMenu({ collapsed, onNavigate }: { collapsed: boolean; onNavigate
     isOrganizationAdmin: roles.isOrganizationAdmin,
     isSuperadmin: roles.staffRole === "superadmin",
   });
-  const manage = visibleShellManage(sections);
+  const help = useFeature("support_help");
+  const supportInbox = useFeature("support_inbox");
+  const freeMode = useFeature("free_mode");
+  // Free while we are early: nothing to pay, so no Billing in the menu.
+  const manage = visibleShellManage(sections).filter((entry) => !(freeMode && entry.url === "/billing"));
   const staffUrls = new Set(STAFF_SECTION.items.map((item) => item.url));
   const staff = sections.flatMap((section) => section.items).filter((item) => staffUrls.has(item.url));
+  // Launch stream `care`: Care for whoever has a part of it switched on, and
+  // in Simple mode fewer choices -- Care, Settings, switching back, sign out.
+  const careOn = [
+    useFeature("care_scam_check"),
+    useFeature("care_tech_help"),
+    useFeature("care_medicine_calls"),
+    useFeature("care_family_circle"),
+  ].some(Boolean);
+  const simple = useSimpleMode();
+  const peopleOn = useFeature("people");
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
+        {compact ? (
+          <button
+            type="button"
+            aria-label="Profile and settings"
+            className="motion-m1 flex h-11 w-11 items-center justify-center rounded-full"
+            data-testid="header-profile"
+          >
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
+              {/* No name or email to take letters from: a person, not "?". */}
+              {initials === "?" ? <UserRound aria-hidden className="h-4 w-4" /> : initials}
+            </span>
+          </button>
+        ) : (
         <button type="button" aria-label="Account menu" className={cn("v2-account", collapsed && "v2-account-collapsed")}>
           <span className="v2-initials">{initials}</span>
           {!collapsed && <span className="v2-account-name">{user?.displayName || identity || "You"}</span>}
         </button>
+        )}
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" side="top" className="max-h-[70vh] w-64 overflow-y-auto">
+      <DropdownMenuContent align={compact ? "end" : "start"} side={side} className="max-h-[70vh] w-64 overflow-y-auto">
+        {(careOn || simple.offered) && (
+          <DropdownMenuItem asChild>
+            <Link href="/care" onClick={onNavigate} data-testid="menu-care">
+              <HeartHandshake className="mr-2 h-4 w-4" />
+              Care
+            </Link>
+          </DropdownMenuItem>
+        )}
+        {/* People: the person's own contacts (PEOPLE.md). */}
+        {peopleOn && !simple.on && (
+          <DropdownMenuItem asChild>
+            <Link href="/people" onClick={onNavigate} data-testid="menu-people">
+              <Users className="mr-2 h-4 w-4" />
+              People
+            </Link>
+          </DropdownMenuItem>
+        )}
+        {/* Settings and the agent list: off the rail, never out of reach. */}
+        <DropdownMenuItem asChild>
+          <Link href="/settings" onClick={onNavigate}>
+            <Settings className="mr-2 h-4 w-4" />
+            Settings
+          </Link>
+        </DropdownMenuItem>
+        {simple.on ? (
+          <DropdownMenuItem onClick={() => void simple.setOn(false)} className="cursor-pointer" data-testid="menu-simple-off">
+            Switch back to the usual screen
+          </DropdownMenuItem>
+        ) : (
+          <>
+        <DropdownMenuItem asChild>
+          <Link href="/workflow" onClick={onNavigate}>
+            <Bot className="mr-2 h-4 w-4" />
+            Agents
+          </Link>
+        </DropdownMenuItem>
+        {simple.offered && (
+          <DropdownMenuItem onClick={() => void simple.setOn(true)} className="cursor-pointer" data-testid="menu-simple-on">
+            Turn on Simple mode
+          </DropdownMenuItem>
+        )}
+        {/* Help (screen 28): ask support and follow the answer. */}
+        {help && (
+          <DropdownMenuItem asChild>
+            <Link href="/help" onClick={onNavigate}>
+              <LifeBuoy className="mr-2 h-4 w-4" />
+              Help
+            </Link>
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuSeparator />
         {manage.map((entry) => (
           <React.Fragment key={entry.title}>
             {entry.url ? (
@@ -223,6 +318,15 @@ function AccountMenu({ collapsed, onNavigate }: { collapsed: boolean; onNavigate
           <>
             <DropdownMenuSeparator />
             <DropdownMenuLabel>Staff</DropdownMenuLabel>
+            {/* The support inbox (screen 32): support and superadmin alike. */}
+            {supportInbox && (
+              <DropdownMenuItem asChild>
+                <Link href="/superadmin/support" onClick={onNavigate}>
+                  <LifeBuoy className="mr-2 h-4 w-4" />
+                  Support inbox
+                </Link>
+              </DropdownMenuItem>
+            )}
             {staff.map((item) => (
               <DropdownMenuItem key={item.url} asChild>
                 <Link href={item.url} onClick={onNavigate}>
@@ -231,6 +335,8 @@ function AccountMenu({ collapsed, onNavigate }: { collapsed: boolean; onNavigate
                 </Link>
               </DropdownMenuItem>
             ))}
+          </>
+        )}
           </>
         )}
         <DropdownMenuSeparator />

@@ -1,0 +1,195 @@
+name: Deploy staging
+
+# Deploys a branch to staging: the same stack as production, on the CI box,
+# with its own hostname, its own database, its own secrets, and its own
+# Parameter Store path (/decibyl/staging/). Never production's.
+#
+# Why the CI box, and what that costs. Staging exists so a feature can be
+# switched on and tried with real keys -- a real model reply, a real call, a
+# real WhatsApp message -- before a customer can see it. The CI box already has
+# a runner (label `ci`) and spare ports: CI's own Postgres and Redis listen on
+# 55432 and 56379, staging's on the stack's usual loopback ports. The cost is
+# CPU shared with test runs, which is fine for trying features and wrong for
+# the load tests in echowave/STAGING.md -- those still need a box of their own.
+#
+# Unlike the production deploy this needs no SSM hop: the runner is on the box
+# it deploys to, so it runs the deploy script directly. Everything else is the
+# production path (scripts/ci_deploy.sh: fetch, build, up, health check, roll
+# back on failure), pointed at the staging checkout and the staging config.
+#
+# One-time setup on the box is in echowave/STAGING.md, "Functional staging on
+# the CI box".
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Branch, tag or SHA to put on staging"
+        required: true
+        type: string
+  # A branch named `staging` deploys itself, so "put this on staging" can be a
+  # push rather than a click.
+  push:
+    branches: [staging]
+    paths-ignore:
+      - "**/*.md"
+      - "echowave/docs/**"
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write # for Parameter Store, when AWS_STAGING_ROLE_ARN is set
+
+jobs:
+  deploy:
+    name: Deploy to staging
+    runs-on: [self-hosted, linux, x64, ci]
+    environment: staging
+    timeout-minutes: 75
+
+    steps:
+      # For the check script below; the deploy itself uses the staging checkout.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: Resolve the ref being deployed
+        id: target
+        run: echo "ref=${{ inputs.ref || github.ref_name }}" >> "$GITHUB_OUTPUT"
+
+      # Optional: only when a staging role exists. Without it the deploy still
+      # runs, on the .env already on the box, and config_sync warns and
+      # changes nothing -- it can never fail a deploy.
+      - name: Authenticate to AWS (staging config)
+        if: ${{ vars.AWS_STAGING_ROLE_ARN != '' }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_STAGING_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION || 'ap-south-1' }}
+          role-session-name: gha-staging-${{ github.run_id }}
+
+      - name: Deploy
+        id: deploy
+        env:
+          DEPLOY_REF: ${{ steps.target.outputs.ref }}
+          PROJECT_DIR: ${{ vars.STAGING_PROJECT_DIR || '/home/ubuntu/decibyl-staging/echowave' }}
+          RUN_AS: ${{ vars.STAGING_RUN_AS || 'ubuntu' }}
+          REGION: ${{ vars.AWS_REGION || 'ap-south-1' }}
+        run: |
+          set -euo pipefail
+          if [ ! -f "$PROJECT_DIR/.env" ]; then
+            echo "::error::No staging checkout with a .env at $PROJECT_DIR. Do the one-time setup in echowave/STAGING.md first."
+            exit 1
+          fi
+          # Never production's config: the staging path, always.
+          export CONFIG_SSM_PATH="/decibyl/staging/"
+          # Fetch with this job's own token, which actions/checkout above left
+          # in the workspace and which expires when the job ends. The staging
+          # checkout keeps no GitHub key of its own, and never production's.
+          export GIT_CONFIG_COUNT=1
+          export GIT_CONFIG_KEY_0="http.https://github.com/.extraheader"
+          GIT_CONFIG_VALUE_0="$(git -C "$GITHUB_WORKSPACE" config --get http.https://github.com/.extraheader)"
+          export GIT_CONFIG_VALUE_0
+          # The same guard as production: run the deploy script read straight
+          # out of the fetched commit, never the copy in the working tree it is
+          # about to rewrite (see the long note in deploy.yml).
+          git -C "$PROJECT_DIR" fetch --prune origin "$DEPLOY_REF"
+          git -C "$PROJECT_DIR" show FETCH_HEAD:echowave/scripts/ci_deploy.sh > /tmp/ci_deploy.staging.sh
+          sudo --preserve-env=CONFIG_SSM_PATH,GIT_CONFIG_COUNT,GIT_CONFIG_KEY_0,GIT_CONFIG_VALUE_0,AWS_ACCESS_KEY_ID,AWS_SECRET_ACCESS_KEY,AWS_SESSION_TOKEN \
+            REF="$DEPLOY_REF" PROJECT_DIR="$PROJECT_DIR" RUN_AS="$RUN_AS" AWS_REGION="$REGION" \
+            bash /tmp/ci_deploy.staging.sh
+
+      - name: Check every core flow
+        env:
+          # The runner is on the staging box, so the check can always reach
+          # the API on loopback, with or without a public hostname.
+          STAGING_URL: ${{ vars.STAGING_URL || 'http://127.0.0.1:8000' }}
+          STAGING_EMAIL_A: ${{ secrets.STAGING_EMAIL_A }}
+          STAGING_PASSWORD_A: ${{ secrets.STAGING_PASSWORD_A }}
+          STAGING_EMAIL_B: ${{ secrets.STAGING_EMAIL_B }}
+          STAGING_PASSWORD_B: ${{ secrets.STAGING_PASSWORD_B }}
+        run: |
+          # Without the secrets, use the two test accounts created on the box
+          # (root-only file, see echowave/STAGING.md), passwords masked.
+          source echowave/e2e/accounts.sh
+          python3 echowave/scripts/staging_check.py
+
+      # The end-to-end suites (echowave/e2e/README.md). They run after the
+      # check above whether it passed or not, so one deploy reports everything
+      # it can, and only once the deploy itself has finished: this job holds
+      # the CI box's one runner, so no build or test run shares the 8 GB with
+      # them. Results are uploaded below either way.
+      - name: End-to-end API suite
+        id: e2e_api
+        if: ${{ !cancelled() && steps.deploy.outcome == 'success' }}
+        env:
+          STAGING_URL: ${{ vars.STAGING_URL || 'http://127.0.0.1:8000' }}
+          STAGING_EMAIL_A: ${{ secrets.STAGING_EMAIL_A }}
+          STAGING_PASSWORD_A: ${{ secrets.STAGING_PASSWORD_A }}
+          STAGING_EMAIL_B: ${{ secrets.STAGING_EMAIL_B }}
+          STAGING_PASSWORD_B: ${{ secrets.STAGING_PASSWORD_B }}
+          # Staging has model keys, so a missing model reply is a failure here.
+          E2E_REQUIRE_MODEL: "1"
+        run: |
+          set -o pipefail
+          source echowave/e2e/accounts.sh
+          mkdir -p "$RUNNER_TEMP/e2e-results"
+          python3 -m venv "$RUNNER_TEMP/e2e-venv"
+          "$RUNNER_TEMP/e2e-venv/bin/pip" install --quiet -r echowave/e2e/api/requirements.txt
+          cd echowave/e2e/api
+          "$RUNNER_TEMP/e2e-venv/bin/python" -m pytest \
+            --junitxml="$RUNNER_TEMP/e2e-results/api-junit.xml" \
+            2>&1 | tee "$RUNNER_TEMP/e2e-results/api.log"
+
+      - name: Set up Node for the browser suite
+        if: ${{ !cancelled() && steps.deploy.outcome == 'success' }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: End-to-end browser suite
+        id: e2e_browser
+        if: ${{ !cancelled() && steps.deploy.outcome == 'success' }}
+        env:
+          STAGING_URL: ${{ vars.STAGING_URL || 'http://127.0.0.1:8000' }}
+          STAGING_UI_URL: ${{ vars.STAGING_UI_URL || 'http://127.0.0.1:3010' }}
+          STAGING_EMAIL_A: ${{ secrets.STAGING_EMAIL_A }}
+          STAGING_PASSWORD_A: ${{ secrets.STAGING_PASSWORD_A }}
+          E2E_REQUIRE_MODEL: "1"
+          E2E_BROWSER_OUTPUT: ${{ runner.temp }}/e2e-results/browser
+          # Kept between runs on the box, so Chromium downloads once.
+          PLAYWRIGHT_BROWSERS_PATH: /home/ubuntu/.cache/ms-playwright
+        run: |
+          source echowave/e2e/accounts.sh
+          cd echowave/e2e/browser
+          npm ci --no-audit --no-fund
+          npx playwright install chromium
+          # One worker (playwright.config.ts): the box is small.
+          npx playwright test
+
+      - name: Upload end-to-end results
+        if: ${{ !cancelled() && steps.deploy.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-results-${{ github.run_id }}
+          path: ${{ runner.temp }}/e2e-results
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### Staging deploy: ${{ job.status }}"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Ref | \`${{ steps.target.outputs.ref }}\` |"
+            echo "| URL | ${{ vars.STAGING_URL || 'http://127.0.0.1:8000 (on the box)' }} |"
+            echo "| Actor | @${{ github.actor }} |"
+            echo "| End-to-end API | ${{ steps.e2e_api.outcome || 'not run' }} |"
+            echo "| End-to-end browser | ${{ steps.e2e_browser.outcome || 'not run' }} |"
+          } >> "$GITHUB_STEP_SUMMARY"

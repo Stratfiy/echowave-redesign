@@ -16,44 +16,48 @@
 
 .shell-v2,
 .shell-v2-scope {
-  --paper: #f2f3ee;
-  --paper-2: #e9ebe4;
-  --line: #d3d6cc;
-  --ink: #151c19;
-  --ink-2: #4a544f;
-  --ink-3: #7c857f;
-  --teal: #0f6b67;
+  /* Calm, ChatGPT-like (Refero, October 2026): near-black ink on white, a
+   * fog-grey rail, grey secondary text, hairline borders, no shadows. Black
+   * is the one strong colour; the agents' faces carry the rest. The token
+   * names are the mock's (teal is "the primary"), kept so nothing else moves. */
+  --paper: #ffffff;
+  --paper-2: #f9f9f9;
+  --line: #ececec;
+  --ink: #0d0d0d;
+  --ink-2: #5d5d5d;
+  --ink-3: #8f8f8f;
+  --teal: #0d0d0d;
   --teal-ink: #ffffff;
-  --teal-soft: #dcebe8;
-  --haldi: #c9891c;
-  --haldi-soft: #f6e9cf;
-  --live: #2f7d4f;
-  --bad: #9e3b2e;
-  --bad-soft: #f1d6d2;
+  --teal-soft: #ececec;
+  --haldi: #d97706;
+  --haldi-soft: #fdf1dc;
+  --live: #1f9d55;
+  --bad: #b42318;
+  --bad-soft: #fde8e7;
   --v2-card: #ffffff;
 
-  --display: var(--font-v2-display), ui-sans-serif, system-ui, sans-serif;
-  --body: var(--font-v2-body), ui-sans-serif, system-ui, sans-serif;
-  --mono: var(--font-v2-mono), ui-monospace, Menlo, monospace;
+  --display: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --body: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 .dark .shell-v2,
 .dark .shell-v2-scope {
-  --paper: #111815;
-  --paper-2: #182019;
-  --line: #2a342e;
-  --ink: #edefe9;
-  --ink-2: #b4bbb4;
-  --ink-3: #7f8882;
-  --teal: #5fc2bb;
-  --teal-ink: #0b1513;
-  --teal-soft: #183633;
-  --haldi: #e0a64a;
+  --paper: #212121;
+  --paper-2: #171717;
+  --line: #303030;
+  --ink: #ececec;
+  --ink-2: #b4b4b4;
+  --ink-3: #8f8f8f;
+  --teal: #ececec;
+  --teal-ink: #0d0d0d;
+  --teal-soft: #303030;
+  --haldi: #f0a948;
   --haldi-soft: #3a2d14;
-  --live: #6fcb8f;
+  --live: #4ade80;
   --bad: #f0a899;
   --bad-soft: #3b1f1b;
-  --v2-card: #161e1a;
+  --v2-card: #2a2a2a;
 }
 
 /* The app's own tokens, re-pointed at the v2 palette inside the shell. */
@@ -99,7 +103,7 @@
 .shell-v2 h2,
 .shell-v2 h3 {
   font-family: var(--display);
-  letter-spacing: -0.01em;
+  letter-spacing: -0.015em;
 }
 
 /* Content sits on paper, not in a floating white card. */
@@ -139,10 +143,10 @@
   width: 100%;
   min-width: 0;
   flex-direction: column;
-  gap: 16px;
-  padding: 16px 12px 10px;
+  gap: 18px;
+  padding: 14px 10px 10px;
   background: var(--paper-2);
-  border-right: 1px solid var(--line);
+  border-right: 0;
   font-size: 14px;
 }
 .v2-rail[data-collapsed] {
@@ -170,9 +174,9 @@
   place-items: center;
   width: 24px;
   height: 24px;
-  border-radius: 7px;
-  background: var(--teal);
-  color: var(--teal-ink);
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--paper);
   font-size: 13px;
   line-height: 1;
 }
@@ -182,11 +186,8 @@
   color: var(--ink-3);
 }
 .v2-eyebrow {
-  font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: 13px;
   font-weight: 400;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
   color: var(--ink-3);
 }
 .v2-eyebrow-row {
@@ -207,22 +208,21 @@
 .v2-homes a {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
-  border-radius: 6px;
-  color: var(--ink-2);
-  font-weight: 500;
+  gap: 10px;
+  height: 36px;
+  padding: 0 8px;
+  border-radius: 10px;
+  color: var(--ink);
+  font-weight: 400;
   text-decoration: none;
   transition: background-color 120ms ease, color 120ms ease;
 }
 .v2-homes a:hover {
-  background: var(--paper);
-  color: var(--ink);
+  background: var(--line);
 }
 .v2-homes a[aria-current="page"] {
-  background: var(--paper);
-  color: var(--ink);
-  box-shadow: inset 0 0 0 1px var(--line);
+  background: var(--line);
+  font-weight: 500;
 }
 .v2-rail[data-collapsed] .v2-homes a {
   justify-content: center;
@@ -230,9 +230,8 @@
 }
 .v2-count {
   margin-left: auto;
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--ink-3);
+  font-size: 12px;
+  color: var(--ink-2);
 }
 .v2-scroll {
   min-height: 0;
@@ -242,16 +241,16 @@
 .v2-roster a {
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: 10px;
   width: 100%;
   padding: 5px 8px;
-  border-radius: 6px;
+  border-radius: 10px;
   color: var(--ink);
   text-decoration: none;
 }
 .v2-roster a:hover,
 .v2-roster a[aria-current="page"] {
-  background: var(--paper);
+  background: var(--line);
 }
 .v2-roster-text {
   display: flex;
@@ -264,8 +263,8 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-weight: 500;
-  font-size: 13.5px;
+  font-weight: 400;
+  font-size: 14px;
 }
 .v2-roster-sub {
   overflow: hidden;
@@ -355,7 +354,7 @@
   color: var(--ink);
 }
 .v2-account:hover {
-  background: var(--paper);
+  background: var(--line);
 }
 .v2-account-collapsed {
   flex: none;
@@ -367,10 +366,11 @@
   width: 28px;
   height: 28px;
   flex: none;
-  border: 1px solid var(--line);
+  border: 0;
   border-radius: 50%;
-  font-family: var(--mono);
-  font-size: 10.5px;
+  background: var(--line);
+  font-size: 11px;
+  font-weight: 500;
 }
 .v2-account-name {
   overflow: hidden;
@@ -384,8 +384,8 @@
   display: inline-grid;
   place-items: center;
   flex: none;
-  border-radius: 6px;
-  color: var(--ink-3);
+  border-radius: 8px;
+  color: var(--ink-2);
 }
 .v2-icon-button {
   width: 32px;
@@ -396,7 +396,7 @@
 }
 .v2-icon-button:hover,
 .v2-icon-link:hover {
-  background: var(--paper);
+  background: var(--line);
   color: var(--ink);
 }
 .v2-rail a:focus-visible,

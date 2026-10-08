@@ -229,6 +229,94 @@ export type AcceptInvitationRequest = {
 };
 
 /**
+ * AcceptInvite
+ */
+export type AcceptInvite = {
+    /**
+     * Code
+     */
+    code: string;
+};
+
+/**
+ * Accepted
+ */
+export type Accepted = {
+    /**
+     * Person
+     */
+    person: string;
+    /**
+     * Shares
+     */
+    shares: Array<string>;
+};
+
+/**
+ * ActionRequest
+ */
+export type ActionRequest = {
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Organization Id
+     */
+    organization_id: number;
+    /**
+     * Target User Id
+     */
+    target_user_id?: number | null;
+    /**
+     * Ticket Id
+     */
+    ticket_id?: number | null;
+    /**
+     * Params
+     */
+    params?: {
+        [key: string]: unknown;
+    };
+    /**
+     * Reason
+     */
+    reason: string;
+    /**
+     * Expected Version
+     */
+    expected_version?: string | null;
+};
+
+/**
+ * ActionTarget
+ */
+export type ActionTarget = {
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Organization Id
+     */
+    organization_id: number;
+    /**
+     * Target User Id
+     */
+    target_user_id?: number | null;
+    /**
+     * Ticket Id
+     */
+    ticket_id?: number | null;
+    /**
+     * Params
+     */
+    params?: {
+        [key: string]: unknown;
+    };
+};
+
+/**
  * ActiveCallsResponse
  */
 export type ActiveCallsResponse = {
@@ -286,6 +374,20 @@ export type AddNumbersResponse = {
      * Rejected
      */
     rejected: Array<string>;
+};
+
+/**
+ * Affected
+ */
+export type Affected = {
+    /**
+     * Kind
+     */
+    kind: 'task' | 'reply';
+    /**
+     * Id
+     */
+    id: number;
 };
 
 /**
@@ -382,6 +484,68 @@ export type AgentSetupResponse = {
      * Missing
      */
     missing: Array<string>;
+};
+
+/**
+ * AliasCheck
+ */
+export type AliasCheck = {
+    /**
+     * Alias
+     */
+    alias: string;
+    /**
+     * Available
+     */
+    available: boolean;
+    /**
+     * Reason
+     */
+    reason?: 'invalid' | 'reserved' | 'taken' | 'yours' | null;
+    /**
+     * Message
+     */
+    message?: string | null;
+};
+
+/**
+ * AliasRequest
+ */
+export type AliasRequest = {
+    /**
+     * Alias
+     */
+    alias: string;
+};
+
+/**
+ * AllowanceRow
+ */
+export type AllowanceRow = {
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Unit
+     */
+    unit: string;
+    /**
+     * Used
+     */
+    used: number;
+    /**
+     * Limit
+     */
+    limit: number;
+    /**
+     * Remaining
+     */
+    remaining: number;
+    /**
+     * Resets At
+     */
+    resets_at: string;
 };
 
 /**
@@ -513,6 +677,68 @@ export type AnthropicLlmConfiguration = {
 };
 
 /**
+ * AppItem
+ */
+export type AppItem = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Toolkit
+     */
+    toolkit: string;
+    /**
+     * App Name
+     */
+    app_name: string;
+    /**
+     * Account
+     */
+    account?: string | null;
+    /**
+     * Owner
+     */
+    owner: 'you' | 'workspace';
+    /**
+     * Scope
+     */
+    scope: string;
+    /**
+     * State
+     */
+    state: string;
+    /**
+     * Reason
+     */
+    reason?: string | null;
+    /**
+     * Connected At
+     */
+    connected_at?: string | null;
+    /**
+     * Last Success At
+     */
+    last_success_at?: string | null;
+    /**
+     * Access
+     */
+    access?: Array<string>;
+    /**
+     * Purpose
+     */
+    purpose?: string | null;
+    /**
+     * Can Disconnect
+     */
+    can_disconnect?: boolean;
+    /**
+     * Consent Id
+     */
+    consent_id?: number | null;
+};
+
+/**
  * AppTool
  *
  * One thing an app can be asked to do, as a person reads it.
@@ -566,6 +792,140 @@ export type AppendTextChatMessageRequest = {
      * Expected Revision
      */
     expected_revision?: number | null;
+};
+
+/**
+ * Appointment
+ */
+export type Appointment = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Starts At
+     */
+    starts_at: string;
+    /**
+     * Ends At
+     */
+    ends_at: string;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Service
+     */
+    service: string | null;
+    /**
+     * Caller Name
+     */
+    caller_name: string | null;
+    /**
+     * Caller Number
+     */
+    caller_number: string | null;
+    /**
+     * Reason
+     */
+    reason: string | null;
+    /**
+     * Source
+     */
+    source: string;
+    /**
+     * Workflow Run Id
+     */
+    workflow_run_id: number | null;
+};
+
+/**
+ * AppointmentPolicy
+ */
+export type AppointmentPolicy = {
+    /**
+     * Booking
+     */
+    booking: 'off' | 'suggest' | 'book';
+    /**
+     * Duration Minutes
+     */
+    duration_minutes: number;
+    /**
+     * Lead Minutes
+     */
+    lead_minutes: number;
+    /**
+     * Horizon Days
+     */
+    horizon_days: number;
+    /**
+     * Services
+     */
+    services: Array<string>;
+    /**
+     * Verification
+     */
+    verification: 'details' | 'known_caller';
+    /**
+     * Escalate To
+     */
+    escalate_to: string | null;
+    /**
+     * Call Workflow Id
+     */
+    call_workflow_id: number | null;
+    /**
+     * Revision
+     */
+    revision: number;
+    /**
+     * Updated At
+     */
+    updated_at: string | null;
+};
+
+/**
+ * AppointmentPolicyWrite
+ */
+export type AppointmentPolicyWrite = {
+    /**
+     * Revision
+     */
+    revision: number;
+    /**
+     * Booking
+     */
+    booking?: 'off' | 'suggest' | 'book' | null;
+    /**
+     * Duration Minutes
+     */
+    duration_minutes?: number | null;
+    /**
+     * Lead Minutes
+     */
+    lead_minutes?: number | null;
+    /**
+     * Horizon Days
+     */
+    horizon_days?: number | null;
+    /**
+     * Services
+     */
+    services?: Array<string> | null;
+    /**
+     * Verification
+     */
+    verification?: 'details' | 'known_caller' | null;
+    /**
+     * Escalate To
+     */
+    escalate_to?: string | null;
+    /**
+     * Call Workflow Id
+     */
+    call_workflow_id?: number | null;
 };
 
 /**
@@ -649,6 +1009,16 @@ export type ApprovalRulesResponse = {
 };
 
 /**
+ * Approve
+ */
+export type Approve = {
+    /**
+     * Version
+     */
+    version: string;
+};
+
+/**
  * ApproveRequest
  */
 export type ApproveRequest = {
@@ -670,6 +1040,28 @@ export type ApproveRequest = {
      * Why this rate. Shown to the applicant.
      */
     note?: string | null;
+};
+
+/**
+ * AppsSection
+ */
+export type AppsSection = {
+    /**
+     * State
+     */
+    state: 'ok' | 'needs_setup' | 'error';
+    /**
+     * Reason
+     */
+    reason?: string | null;
+    /**
+     * Per Person
+     */
+    per_person: boolean;
+    /**
+     * Items
+     */
+    items: Array<AppItem>;
 };
 
 /**
@@ -881,6 +1273,24 @@ export type AutoTopupRequest = {
      * Never top up more than this many times in a calendar month.
      */
     max_per_month?: number;
+};
+
+/**
+ * AutopayState
+ */
+export type AutopayState = {
+    /**
+     * Required
+     */
+    required: boolean;
+    /**
+     * Authorised
+     */
+    authorised: boolean;
+    /**
+     * Status
+     */
+    status?: string | null;
 };
 
 /**
@@ -1514,9 +1924,51 @@ export type BlockedWay = {
 };
 
 /**
+ * Body_add_segment_api_v1_meetings__meeting_id__segments_post
+ */
+export type BodyAddSegmentApiV1MeetingsMeetingIdSegmentsPost = {
+    /**
+     * File
+     */
+    file: Blob | File;
+    /**
+     * Seq
+     */
+    seq: number;
+    /**
+     * Start Ms
+     */
+    start_ms: number;
+    /**
+     * End Ms
+     */
+    end_ms: number;
+};
+
+/**
+ * Body_attach_api_v1_help_tickets__ticket_id__attachments_post
+ */
+export type BodyAttachApiV1HelpTicketsTicketIdAttachmentsPost = {
+    /**
+     * File
+     */
+    file: Blob | File;
+};
+
+/**
  * Body_import_contacts_api_v1_contact_lists__contact_list_id__import_post
  */
 export type BodyImportContactsApiV1ContactListsContactListIdImportPost = {
+    /**
+     * File
+     */
+    file: Blob | File;
+};
+
+/**
+ * Body_import_people_api_v1_people_import_post
+ */
+export type BodyImportPeopleApiV1PeopleImportPost = {
     /**
      * File
      */
@@ -1565,6 +2017,16 @@ export type BodyUploadEmbedLogoApiV1WorkflowWorkflowIdEmbedTokenLogoPost = {
  * Body_upload_numbers_api_v1_do_not_call_upload_post
  */
 export type BodyUploadNumbersApiV1DoNotCallUploadPost = {
+    /**
+     * File
+     */
+    file: Blob | File;
+};
+
+/**
+ * Body_upload_recording_api_v1_meetings__meeting_id__upload_post
+ */
+export type BodyUploadRecordingApiV1MeetingsMeetingIdUploadPost = {
     /**
      * File
      */
@@ -1731,6 +2193,308 @@ export type BrainsResponse = {
      * Vendors
      */
     vendors: Array<BrainVendor>;
+};
+
+/**
+ * BriefSettingsWrite
+ */
+export type BriefSettingsWrite = {
+    /**
+     * Revision
+     */
+    revision: number;
+    /**
+     * Enabled
+     */
+    enabled?: boolean | null;
+    /**
+     * Paused
+     */
+    paused?: boolean | null;
+    /**
+     * Local Time
+     */
+    local_time?: string | null;
+    /**
+     * Timezone
+     */
+    timezone?: string | null;
+    /**
+     * Days
+     */
+    days?: Array<number> | null;
+    /**
+     * Channels
+     */
+    channels?: Array<string> | null;
+    /**
+     * Quiet Start
+     */
+    quiet_start?: string | null;
+    /**
+     * Quiet End
+     */
+    quiet_end?: string | null;
+    /**
+     * End Of Day Enabled
+     */
+    end_of_day_enabled?: boolean | null;
+    /**
+     * End Of Day Time
+     */
+    end_of_day_time?: string | null;
+};
+
+/**
+ * BrowserHandback
+ */
+export type BrowserHandback = {
+    /**
+     * Keep Login
+     */
+    keep_login?: boolean;
+};
+
+/**
+ * BrowserInput
+ */
+export type BrowserInput = {
+    /**
+     * Kind
+     */
+    kind: 'click' | 'type' | 'key' | 'scroll';
+    /**
+     * X
+     */
+    x?: number | null;
+    /**
+     * Y
+     */
+    y?: number | null;
+    /**
+     * Text
+     */
+    text?: string | null;
+    /**
+     * Key
+     */
+    key?: string | null;
+    /**
+     * Dy
+     */
+    dy?: number | null;
+};
+
+/**
+ * BrowserLogin
+ */
+export type BrowserLogin = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Site
+     */
+    site: string;
+    /**
+     * Cookie Count
+     */
+    cookie_count: number;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+    /**
+     * Last Used At
+     */
+    last_used_at?: string | null;
+};
+
+/**
+ * BrowserLogins
+ */
+export type BrowserLogins = {
+    /**
+     * Logins
+     */
+    logins: Array<BrowserLogin>;
+    /**
+     * Can Keep Logins
+     */
+    can_keep_logins: boolean;
+};
+
+/**
+ * BrowserScreen
+ */
+export type BrowserScreen = {
+    /**
+     * Jpeg
+     */
+    jpeg?: string | null;
+    /**
+     * W
+     */
+    w?: number | null;
+    /**
+     * H
+     */
+    h?: number | null;
+    /**
+     * Url
+     */
+    url?: string | null;
+    /**
+     * Title
+     */
+    title?: string | null;
+    /**
+     * At
+     */
+    at?: string | null;
+};
+
+/**
+ * BrowserSessionView
+ */
+export type BrowserSessionView = {
+    /**
+     * Session Uuid
+     */
+    session_uuid: string;
+    /**
+     * Task
+     */
+    task: string;
+    /**
+     * Sites
+     */
+    sites: Array<string>;
+    /**
+     * Allowed Verbs
+     */
+    allowed_verbs: Array<string>;
+    /**
+     * State
+     */
+    state: string;
+    /**
+     * State Note
+     */
+    state_note?: string | null;
+    /**
+     * Limits
+     */
+    limits: {
+        [key: string]: number;
+    };
+    /**
+     * Used
+     */
+    used: {
+        [key: string]: number;
+    };
+    /**
+     * Steps
+     */
+    steps: Array<BrowserStep>;
+    /**
+     * Pending Label
+     */
+    pending_label?: string | null;
+    /**
+     * Pending Event Id
+     */
+    pending_event_id?: number | null;
+    /**
+     * Keep Login Sites
+     */
+    keep_login_sites: Array<string>;
+    /**
+     * Receipt
+     */
+    receipt?: {
+        [key: string]: unknown;
+    } | null;
+    /**
+     * Can Keep Logins
+     */
+    can_keep_logins: boolean;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Ended At
+     */
+    ended_at?: string | null;
+};
+
+/**
+ * BrowserSiteRule
+ */
+export type BrowserSiteRule = {
+    /**
+     * Site
+     */
+    site: string;
+    /**
+     * Rule
+     */
+    rule: 'allow' | 'deny';
+    /**
+     * Reason
+     */
+    reason?: string;
+    /**
+     * Source
+     */
+    source?: string;
+};
+
+/**
+ * BrowserSiteRuleIn
+ */
+export type BrowserSiteRuleIn = {
+    /**
+     * Site
+     */
+    site: string;
+    /**
+     * Rule
+     */
+    rule: 'allow' | 'deny';
+    /**
+     * Reason
+     */
+    reason?: string;
+};
+
+/**
+ * BrowserStep
+ */
+export type BrowserStep = {
+    /**
+     * At
+     */
+    at: string;
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Text
+     */
+    text: string;
+    /**
+     * N
+     */
+    n?: number | null;
+    /**
+     * Url
+     */
+    url?: string | null;
 };
 
 /**
@@ -2329,6 +3093,118 @@ export type CampaignsResponse = {
 };
 
 /**
+ * CapabilityLine
+ */
+export type CapabilityLine = {
+    /**
+     * State
+     */
+    state: string;
+    /**
+     * Reason
+     */
+    reason?: string | null;
+};
+
+/**
+ * CardArgs
+ */
+export type CardArgs = {
+    /**
+     * Task
+     */
+    task?: string | null;
+    /**
+     * Owner Name
+     */
+    owner_name?: string | null;
+    /**
+     * Due At
+     */
+    due_at?: string | null;
+    /**
+     * Due Text
+     */
+    due_text?: string | null;
+    /**
+     * Excerpt
+     */
+    excerpt?: string | null;
+};
+
+/**
+ * CardInterest
+ */
+export type CardInterest = {
+    /**
+     * Interested
+     */
+    interested: boolean;
+};
+
+/**
+ * CarePart
+ */
+export type CarePart = {
+    /**
+     * Key
+     */
+    key: string;
+    /**
+     * State
+     */
+    state: string;
+    /**
+     * Reason
+     */
+    reason?: string | null;
+};
+
+/**
+ * CareStatus
+ */
+export type CareStatus = {
+    /**
+     * Parts
+     */
+    parts: Array<CarePart>;
+    /**
+     * Shares
+     */
+    shares: Array<ShareOption>;
+};
+
+/**
+ * CaredFor
+ */
+export type CaredFor = {
+    /**
+     * Member Id
+     */
+    member_id: number;
+    /**
+     * Person
+     */
+    person: string;
+    /**
+     * Shares
+     */
+    shares: Array<string>;
+    /**
+     * Alerts
+     */
+    alerts: Array<FamilyAlert>;
+    /**
+     * Medicines
+     */
+    medicines?: Array<FamilyMedicine> | null;
+    /**
+     * Scam Checks
+     */
+    scam_checks?: Array<FamilyScamCheck> | null;
+};
+
+/**
  * CarrierVerdictRequest
  *
  * Records what the carrier decided.
@@ -2434,6 +3310,46 @@ export type CartesiaTtsConfiguration = {
 };
 
 /**
+ * CaseUpdate
+ */
+export type CaseUpdate = {
+    /**
+     * Expected Version
+     */
+    expected_version: number;
+    /**
+     * Assignee User Id
+     */
+    assignee_user_id?: number | null;
+    /**
+     * Severity
+     */
+    severity?: string | null;
+    /**
+     * Status
+     */
+    status?: string | null;
+    /**
+     * Linked Incident
+     */
+    linked_incident?: string | null;
+};
+
+/**
+ * Category
+ */
+export type Category = {
+    /**
+     * Key
+     */
+    key: string;
+    /**
+     * Label
+     */
+    label: string;
+};
+
+/**
  * Cerebras
  *
  * The fastest inference available, which on a phone call is worth more than a cleverer model: the caller hears every millisecond before the agent starts speaking.
@@ -2477,6 +3393,70 @@ export type CerebrasLlmConfiguration = {
      * How long a reasoning model may think before answering. Only models that accept it are sent it. Thinking time is dead air on a phone call, but too little of it and the model answers in words where it should have called a tool -- which, in a workflow, means never moving off the first step. One of: minimal, low, medium, high.
      */
     reasoning_effort?: string | null;
+};
+
+/**
+ * ChannelAvailability
+ */
+export type ChannelAvailability = {
+    /**
+     * Available
+     */
+    available: boolean;
+    /**
+     * Reason
+     */
+    reason?: string | null;
+};
+
+/**
+ * ChannelItem
+ */
+export type ChannelItem = {
+    /**
+     * Channel
+     */
+    channel: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Capability
+     */
+    capability: 'available' | 'needs_setup' | 'disabled_by_policy' | 'unavailable';
+    /**
+     * Reason
+     */
+    reason?: string | null;
+    /**
+     * Verified At
+     */
+    verified_at?: string | null;
+    /**
+     * Last Delivery Ok At
+     */
+    last_delivery_ok_at?: string | null;
+    /**
+     * Delivery Failing
+     */
+    delivery_failing: boolean;
+    /**
+     * Proactive
+     */
+    proactive: string;
+    /**
+     * Reads Other Messages
+     */
+    reads_other_messages: boolean;
+    /**
+     * State
+     */
+    state: string;
+    /**
+     * Linked
+     */
+    linked: Array<LinkedChannel>;
 };
 
 /**
@@ -2624,6 +3604,80 @@ export type ChunkSearchResponseSchema = {
 };
 
 /**
+ * Circle
+ */
+export type Circle = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Display Name
+     */
+    display_name: string | null;
+    /**
+     * Members
+     */
+    members: Array<CircleMember>;
+    /**
+     * Shares
+     */
+    shares: Array<ShareOption>;
+};
+
+/**
+ * CircleMember
+ */
+export type CircleMember = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Email
+     */
+    email: string;
+    /**
+     * Shares
+     */
+    shares: Array<string>;
+    /**
+     * Pending Shares
+     */
+    pending_shares: Array<string>;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Consent Event Id
+     */
+    consent_event_id?: number | null;
+    /**
+     * Invite Expires At
+     */
+    invite_expires_at?: string | null;
+    /**
+     * Accepted At
+     */
+    accepted_at?: string | null;
+};
+
+/**
+ * CircleName
+ */
+export type CircleName = {
+    /**
+     * Display Name
+     */
+    display_name: string;
+};
+
+/**
  * CircuitBreakerConfigRequest
  */
 export type CircuitBreakerConfigRequest = {
@@ -2665,6 +3719,42 @@ export type CircuitBreakerConfigResponse = {
      * Min Calls In Window
      */
     min_calls_in_window?: number;
+};
+
+/**
+ * ClaimRequest
+ */
+export type ClaimRequest = {
+    /**
+     * Fingerprint
+     */
+    fingerprint: string;
+};
+
+/**
+ * ClientEvent
+ */
+export type ClientEvent = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Properties
+     */
+    properties?: {
+        [key: string]: unknown;
+    };
+};
+
+/**
+ * ClientEventAccepted
+ */
+export type ClientEventAccepted = {
+    /**
+     * Event Id
+     */
+    event_id: string | null;
 };
 
 /**
@@ -2732,6 +3822,30 @@ export type CloudonixConfigurationResponse = {
 };
 
 /**
+ * Colleague
+ */
+export type Colleague = {
+    /**
+     * User Id
+     */
+    user_id: number;
+    /**
+     * Label
+     */
+    label: string;
+};
+
+/**
+ * ColleagueList
+ */
+export type ColleagueList = {
+    /**
+     * Colleagues
+     */
+    colleagues: Array<Colleague>;
+};
+
+/**
  * CommentWrite
  */
 export type CommentWrite = {
@@ -2739,6 +3853,129 @@ export type CommentWrite = {
      * Body
      */
     body: string;
+};
+
+/**
+ * CommitmentChange
+ */
+export type CommitmentChange = {
+    /**
+     * Revision
+     */
+    revision: number;
+    /**
+     * Status
+     */
+    status?: 'open' | 'settled' | 'cancelled' | null;
+    /**
+     * Visibility
+     */
+    visibility?: 'private' | 'workspace' | null;
+};
+
+/**
+ * CommitmentCreate
+ */
+export type CommitmentCreate = {
+    /**
+     * Direction
+     */
+    direction?: 'owed_to_me' | 'i_owe';
+    /**
+     * Counterparty
+     */
+    counterparty: string;
+    /**
+     * Description
+     */
+    description: string;
+    /**
+     * Contact
+     */
+    contact?: string | null;
+    /**
+     * Amount
+     */
+    amount?: string | null;
+    /**
+     * Currency
+     */
+    currency?: string | null;
+    /**
+     * Due On
+     */
+    due_on?: string | null;
+    /**
+     * Visibility
+     */
+    visibility?: 'private' | 'workspace';
+};
+
+/**
+ * CommitmentOut
+ */
+export type CommitmentOut = {
+    /**
+     * Uuid
+     */
+    uuid: string;
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Direction
+     */
+    direction: string;
+    /**
+     * Counterparty
+     */
+    counterparty: string;
+    /**
+     * Contact
+     */
+    contact?: string | null;
+    /**
+     * Description
+     */
+    description: string;
+    /**
+     * Amount Minor
+     */
+    amount_minor?: number | null;
+    /**
+     * Currency
+     */
+    currency?: string | null;
+    /**
+     * Amount
+     */
+    amount?: string | null;
+    /**
+     * Due On
+     */
+    due_on?: string | null;
+    /**
+     * Overdue
+     */
+    overdue: boolean;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Visibility
+     */
+    visibility: string;
+    /**
+     * Mine
+     */
+    mine: boolean;
+    /**
+     * Revision
+     */
+    revision: number;
+    follow_up?: FollowUpState | null;
 };
 
 /**
@@ -2820,6 +4057,66 @@ export type ComposioToolDefinition = {
 };
 
 /**
+ * ConfirmAllItem
+ */
+export type ConfirmAllItem = {
+    /**
+     * Event Id
+     */
+    event_id: number;
+    /**
+     * Version
+     */
+    version?: string | null;
+};
+
+/**
+ * ConfirmAllRequest
+ */
+export type ConfirmAllRequest = {
+    /**
+     * Items
+     */
+    items: Array<ConfirmAllItem>;
+};
+
+/**
+ * ConfirmAllResponse
+ */
+export type ConfirmAllResponse = {
+    /**
+     * Confirmed
+     */
+    confirmed: number;
+    /**
+     * Results
+     */
+    results: Array<ConfirmAllResult>;
+};
+
+/**
+ * ConfirmAllResult
+ */
+export type ConfirmAllResult = {
+    /**
+     * Event Id
+     */
+    event_id?: number | null;
+    /**
+     * Ok
+     */
+    ok: boolean;
+    /**
+     * State
+     */
+    state?: string | null;
+    /**
+     * Reason
+     */
+    reason?: string | null;
+};
+
+/**
  * ConfirmRequest
  */
 export type ConfirmRequest = {
@@ -2831,6 +4128,20 @@ export type ConfirmRequest = {
      * Code
      */
     code: string;
+};
+
+/**
+ * ConnectLink
+ */
+export type ConnectLink = {
+    /**
+     * Provider
+     */
+    provider: string;
+    /**
+     * Connect Url
+     */
+    connect_url: string;
 };
 
 /**
@@ -2919,6 +4230,47 @@ export type ConnectedAccountsResponse = {
      * Accounts
      */
     accounts: Array<ConnectedAccount>;
+};
+
+/**
+ * ConnectionPreview
+ */
+export type ConnectionPreview = {
+    /**
+     * Toolkit
+     */
+    toolkit: string;
+    /**
+     * App Name
+     */
+    app_name: string;
+    /**
+     * Access
+     */
+    access: Array<string>;
+    /**
+     * Per Person
+     */
+    per_person: boolean;
+    /**
+     * Can Connect For Workspace
+     */
+    can_connect_for_workspace: boolean;
+};
+
+/**
+ * ConnectionsResponse
+ */
+export type ConnectionsResponse = {
+    apps: AppsSection;
+    /**
+     * Channels
+     */
+    channels: Array<ChannelItem>;
+    /**
+     * Is Admin
+     */
+    is_admin: boolean;
 };
 
 /**
@@ -3048,6 +4400,60 @@ export type ConnectorResponse = {
 };
 
 /**
+ * ConsentView
+ */
+export type ConsentView = {
+    /**
+     * Consent Id
+     */
+    consent_id: number;
+    /**
+     * Toolkit
+     */
+    toolkit: string;
+    /**
+     * Scope
+     */
+    scope: string;
+    /**
+     * State
+     */
+    state: string;
+    /**
+     * Reason
+     */
+    reason?: string | null;
+    /**
+     * Reason Code
+     */
+    reason_code?: string | null;
+    /**
+     * Purpose
+     */
+    purpose?: string | null;
+    /**
+     * Access
+     */
+    access: Array<string>;
+    /**
+     * Return To
+     */
+    return_to?: string | null;
+    /**
+     * Connected Account Id
+     */
+    connected_account_id?: string | null;
+    /**
+     * Started At
+     */
+    started_at?: string | null;
+    /**
+     * Ready At
+     */
+    ready_at?: string | null;
+};
+
+/**
  * ContactListRequest
  */
 export type ContactListRequest = {
@@ -3168,6 +4574,16 @@ export type CopyRequest = {
      * Organization Id
      */
     organization_id: number;
+};
+
+/**
+ * CorrectRequest
+ */
+export type CorrectRequest = {
+    /**
+     * Text
+     */
+    text: string;
 };
 
 /**
@@ -3398,6 +4814,40 @@ export type CreateFromTemplateRequest = {
      * Which screen created it, for the funnel. Omit for the template grid.
      */
     source?: string | null;
+};
+
+/**
+ * CreateMeetingRequest
+ */
+export type CreateMeetingRequest = {
+    /**
+     * Source
+     */
+    source: 'microphone' | 'upload' | 'notes';
+    /**
+     * Title
+     */
+    title?: string | null;
+    /**
+     * Language
+     */
+    language?: string;
+    /**
+     * Participants
+     */
+    participants?: Array<string> | null;
+    /**
+     * Consent Confirmed
+     */
+    consent_confirmed?: boolean;
+    /**
+     * Origin Thread Id
+     */
+    origin_thread_id?: string | null;
+    /**
+     * Notes
+     */
+    notes?: string | null;
 };
 
 /**
@@ -3941,6 +5391,85 @@ export type DailyUsageItem = {
 };
 
 /**
+ * DataPreview
+ */
+export type DataPreview = {
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Stores
+     */
+    stores: Array<{
+        [key: string]: unknown;
+    }>;
+    /**
+     * Exceptions
+     */
+    exceptions: Array<{
+        [key: string]: unknown;
+    }>;
+    /**
+     * Scope
+     */
+    scope: string;
+    /**
+     * Lines
+     */
+    lines: Array<string>;
+};
+
+/**
+ * DataRequest
+ */
+export type DataRequest = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Stores
+     */
+    stores: Array<{
+        [key: string]: unknown;
+    }>;
+    /**
+     * Card Event Id
+     */
+    card_event_id?: number | null;
+    /**
+     * Card Organization Id
+     */
+    card_organization_id?: number | null;
+    /**
+     * Error
+     */
+    error?: string | null;
+    /**
+     * Expires At
+     */
+    expires_at?: string | null;
+    /**
+     * Completed At
+     */
+    completed_at?: string | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+    card?: SettingsCard | null;
+};
+
+/**
  * Decibyl
  */
 export type DecibylEmbeddingsConfiguration = {
@@ -4038,6 +5567,12 @@ export type DecibylManagedAiModelConfiguration = {
      * Llm Tier
      */
     llm_tier?: string;
+    /**
+     * Slots
+     */
+    slots?: {
+        [key: string]: string;
+    };
     /**
      * Bundle
      */
@@ -4345,6 +5880,60 @@ export type DefaultConfigurationsResponse = {
 };
 
 /**
+ * DeletionPreview
+ */
+export type DeletionPreview = {
+    /**
+     * Linked Tasks
+     */
+    linked_tasks: Array<LinkedTask>;
+    /**
+     * Waiting Cards
+     */
+    waiting_cards: number;
+    /**
+     * Memory
+     */
+    memory: string;
+    /**
+     * Cards Note
+     */
+    cards_note: string;
+};
+
+/**
+ * DeletionRequest
+ */
+export type DeletionRequest = {
+    /**
+     * Phrase
+     */
+    phrase?: string | null;
+    /**
+     * Code
+     */
+    code?: string | null;
+};
+
+/**
+ * DeletionResult
+ */
+export type DeletionResult = {
+    /**
+     * Deleted
+     */
+    deleted: boolean;
+    /**
+     * Tasks Cancelled
+     */
+    tasks_cancelled: number;
+    /**
+     * Tasks Kept
+     */
+    tasks_kept: number;
+};
+
+/**
  * DemoAgentRequest
  */
 export type DemoAgentRequest = {
@@ -4352,6 +5941,156 @@ export type DemoAgentRequest = {
      * Demo
      */
     demo: boolean;
+};
+
+/**
+ * Device
+ */
+export type Device = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Last Success At
+     */
+    last_success_at?: string | null;
+    /**
+     * Last Failure At
+     */
+    last_failure_at?: string | null;
+    /**
+     * State
+     */
+    state: 'active' | 'failing' | 'revoked';
+};
+
+/**
+ * DeviceContactIn
+ *
+ * One contact as the phone holds it.
+ */
+export type DeviceContactIn = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Name
+     */
+    name?: string | null;
+    /**
+     * Phones
+     */
+    phones?: Array<string>;
+    /**
+     * Emails
+     */
+    emails?: Array<string>;
+    /**
+     * Company
+     */
+    company?: string | null;
+};
+
+/**
+ * DeviceSyncRequest
+ */
+export type DeviceSyncRequest = {
+    /**
+     * Device Id
+     */
+    device_id: string;
+    /**
+     * Cursor
+     */
+    cursor?: string | null;
+    /**
+     * Full
+     */
+    full?: boolean;
+    /**
+     * Final
+     */
+    final?: boolean;
+    /**
+     * Contacts
+     */
+    contacts?: Array<DeviceContactIn>;
+    /**
+     * Removed
+     */
+    removed?: Array<string>;
+};
+
+/**
+ * DeviceSyncResult
+ */
+export type DeviceSyncResult = {
+    /**
+     * Cursor
+     */
+    cursor?: string | null;
+    /**
+     * Full Required
+     */
+    full_required?: boolean;
+    /**
+     * Added
+     */
+    added?: number;
+    /**
+     * Updated
+     */
+    updated?: number;
+    /**
+     * Unchanged
+     */
+    unchanged?: number;
+    /**
+     * Removed
+     */
+    removed?: number;
+    /**
+     * Skipped
+     */
+    skipped?: number;
+    /**
+     * Open Merges
+     */
+    open_merges?: number;
+};
+
+/**
+ * Disconnect
+ */
+export type Disconnect = {
+    /**
+     * Scope
+     */
+    scope: 'mine' | 'workspace';
+    /**
+     * Connected Account Id
+     */
+    connected_account_id: string;
+};
+
+/**
+ * DismissRequest
+ */
+export type DismissRequest = {
+    /**
+     * Later Minutes
+     */
+    later_minutes?: number | null;
 };
 
 /**
@@ -4607,6 +6346,32 @@ export type DoorAnswers = {
 };
 
 /**
+ * Dose
+ */
+export type Dose = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Due At
+     */
+    due_at: string;
+    /**
+     * State
+     */
+    state: string;
+    /**
+     * Reason
+     */
+    reason?: string | null;
+    /**
+     * Alerted
+     */
+    alerted: boolean;
+};
+
+/**
  * DraftResponse
  */
 export type DraftResponse = {
@@ -4638,6 +6403,28 @@ export type EarlyAdopterRequest = {
      * Until
      */
     until?: string | null;
+};
+
+/**
+ * EditItemRequest
+ */
+export type EditItemRequest = {
+    /**
+     * Text
+     */
+    text?: string | null;
+    /**
+     * Owner Name
+     */
+    owner_name?: string | null;
+    /**
+     * Due At
+     */
+    due_at?: string | null;
+    /**
+     * Due Text
+     */
+    due_text?: string | null;
 };
 
 /**
@@ -4764,6 +6551,112 @@ export type ElevenlabsTtsConfiguration = {
      * ElevenLabs API base URL. Override to use a Data Residency endpoint (e.g. https://api.eu.residency.elevenlabs.io) for GDPR / HIPAA / regional compliance.
      */
     base_url?: string;
+};
+
+/**
+ * EmailIdentityView
+ */
+export type EmailIdentityView = {
+    /**
+     * State
+     */
+    state: string;
+    /**
+     * Alias
+     */
+    alias?: string | null;
+    /**
+     * Address
+     */
+    address?: string | null;
+    /**
+     * Pending Address
+     */
+    pending_address?: string | null;
+    /**
+     * Domain
+     */
+    domain: string;
+    /**
+     * Next Step
+     */
+    next_step?: string | null;
+    /**
+     * Issue Code
+     */
+    issue_code?: string | null;
+    /**
+     * Revision
+     */
+    revision: number;
+    /**
+     * Reserved At
+     */
+    reserved_at?: string | null;
+    /**
+     * Active At
+     */
+    active_at?: string | null;
+    inbound: EmailReady;
+    outbound: EmailReady;
+    /**
+     * Card Interest
+     */
+    card_interest: boolean;
+    /**
+     * Threads
+     */
+    threads?: Array<EmailThread>;
+};
+
+/**
+ * EmailReady
+ */
+export type EmailReady = {
+    /**
+     * Ready
+     */
+    ready: boolean;
+    /**
+     * Reason
+     */
+    reason?: string | null;
+};
+
+/**
+ * EmailThread
+ */
+export type EmailThread = {
+    /**
+     * Thread Key
+     */
+    thread_key: string;
+    /**
+     * From Address
+     */
+    from_address?: string | null;
+    /**
+     * Subject
+     */
+    subject?: string | null;
+    /**
+     * Received At
+     */
+    received_at: string;
+    /**
+     * Messages
+     */
+    messages: number;
+    /**
+     * Attachments
+     */
+    attachments: Array<{
+        [key: string]: unknown;
+    }>;
+    /**
+     * Preview
+     */
+    preview: string;
 };
 
 /**
@@ -4977,6 +6870,16 @@ export type EndCallToolDefinition = {
 };
 
 /**
+ * EndSession
+ */
+export type EndSession = {
+    /**
+     * Reason
+     */
+    reason?: string | null;
+};
+
+/**
  * ErasureRequest
  */
 export type ErasureRequest = {
@@ -5016,6 +6919,54 @@ export type EvalCaseRequest = {
      * Max Turns
      */
     max_turns?: number;
+};
+
+/**
+ * EventCreate
+ */
+export type EventCreate = {
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Date
+     */
+    date: string;
+    /**
+     * Local Time
+     */
+    local_time: string;
+    /**
+     * Timezone
+     */
+    timezone?: string | null;
+    /**
+     * Reminders
+     */
+    reminders?: Array<number>;
+    /**
+     * Channel
+     */
+    channel?: string;
+};
+
+/**
+ * EventMove
+ */
+export type EventMove = {
+    /**
+     * Date
+     */
+    date: string;
+    /**
+     * Local Time
+     */
+    local_time: string;
+    /**
+     * Revision
+     */
+    revision: number;
 };
 
 /**
@@ -5085,6 +7036,34 @@ export type EventWebhookWrite = {
 };
 
 /**
+ * EvidenceRequest
+ */
+export type EvidenceRequest = {
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Outcome
+     */
+    outcome: string;
+    /**
+     * Summary
+     */
+    summary: string;
+    /**
+     * Metrics
+     */
+    metrics?: {
+        [key: string]: unknown;
+    };
+    /**
+     * Link
+     */
+    link?: string | null;
+};
+
+/**
  * ExchangeRateRequest
  */
 export type ExchangeRateRequest = {
@@ -5148,6 +7127,10 @@ export type FactsRequest = {
     facts?: {
         [key: string]: string;
     };
+    /**
+     * Workflow Id
+     */
+    workflow_id?: number | null;
 };
 
 /**
@@ -5178,6 +7161,160 @@ export type FallbackServiceConfiguration = {
      * Language
      */
     language?: string;
+};
+
+/**
+ * FamilyAlert
+ */
+export type FamilyAlert = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * At
+     */
+    at: string;
+    /**
+     * Read
+     */
+    read: boolean;
+};
+
+/**
+ * FamilyDose
+ */
+export type FamilyDose = {
+    /**
+     * Due At
+     */
+    due_at: string;
+    /**
+     * State
+     */
+    state: string;
+};
+
+/**
+ * FamilyMedicine
+ */
+export type FamilyMedicine = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Times
+     */
+    times: Array<string>;
+    /**
+     * Timezone
+     */
+    timezone: string;
+    /**
+     * State
+     */
+    state: string;
+    /**
+     * Doses
+     */
+    doses: Array<FamilyDose>;
+};
+
+/**
+ * FamilyScamCheck
+ */
+export type FamilyScamCheck = {
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Verdict
+     */
+    verdict: string;
+    /**
+     * Signals
+     */
+    signals: Array<string>;
+    /**
+     * At
+     */
+    at: string;
+};
+
+/**
+ * FamilyView
+ */
+export type FamilyView = {
+    /**
+     * People
+     */
+    people: Array<CaredFor>;
+};
+
+/**
+ * FeedbackSaved
+ */
+export type FeedbackSaved = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Subject Kind
+     */
+    subject_kind: string;
+    /**
+     * Subject Id
+     */
+    subject_id: number;
+    /**
+     * Verdict
+     */
+    verdict: string;
+    /**
+     * Reasons
+     */
+    reasons: Array<string>;
+    /**
+     * Output Version
+     */
+    output_version: string;
+};
+
+/**
+ * FeedbackWrite
+ */
+export type FeedbackWrite = {
+    /**
+     * Subject Kind
+     */
+    subject_kind: 'reply' | 'task' | 'lesson';
+    /**
+     * Subject Id
+     */
+    subject_id: number;
+    /**
+     * Verdict
+     */
+    verdict: 'yes' | 'not_quite';
+    /**
+     * Reasons
+     */
+    reasons?: Array<string>;
 };
 
 /**
@@ -5311,6 +7448,77 @@ export type FolderResponse = {
 };
 
 /**
+ * FollowUpCard
+ *
+ * The action card behind one suggested action (controls).
+ */
+export type FollowUpCard = {
+    /**
+     * Event Id
+     */
+    event_id: number;
+    /**
+     * State
+     */
+    state?: string | null;
+    /**
+     * Version
+     */
+    version?: string | null;
+    /**
+     * Revision
+     */
+    revision: number;
+    /**
+     * Label
+     */
+    label?: string | null;
+    /**
+     * Effect
+     */
+    effect?: string | null;
+    /**
+     * Fires At
+     */
+    fires_at?: string | null;
+    /**
+     * Error
+     */
+    error?: string | null;
+    /**
+     * Done Note
+     */
+    done_note?: string | null;
+    /**
+     * Task Id
+     */
+    task_id?: number | null;
+    args: CardArgs;
+};
+
+/**
+ * FollowUpState
+ */
+export type FollowUpState = {
+    /**
+     * Card Id
+     */
+    card_id: number;
+    /**
+     * Delivery
+     */
+    delivery: string;
+    /**
+     * Label
+     */
+    label?: string | null;
+    /**
+     * Error
+     */
+    error?: string | null;
+};
+
+/**
  * ForgetEverythingRequest
  */
 export type ForgetEverythingRequest = {
@@ -5362,6 +7570,34 @@ export type ForwardRequest = {
      * Carrier
      */
     carrier?: string | null;
+};
+
+/**
+ * FromReplyRequest
+ */
+export type FromReplyRequest = {
+    /**
+     * Event Id
+     */
+    event_id: number;
+};
+
+/**
+ * GapRequest
+ */
+export type GapRequest = {
+    /**
+     * At Ms
+     */
+    at_ms: number;
+    /**
+     * Duration Ms
+     */
+    duration_ms?: number | null;
+    /**
+     * Reason
+     */
+    reason: 'microphone_lost' | 'backgrounded' | 'offline' | 'recorder_error';
 };
 
 /**
@@ -5770,6 +8006,46 @@ export type GoogleVertexRealtimeLlmConfiguration = {
 };
 
 /**
+ * GrantRequest
+ */
+export type GrantRequest = {
+    /**
+     * Workflow Run Id
+     */
+    workflow_run_id?: number | null;
+    /**
+     * Days
+     */
+    days?: number;
+    /**
+     * Reason
+     */
+    reason?: string | null;
+};
+
+/**
+ * GrantWrite
+ */
+export type GrantWrite = {
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Extra
+     */
+    extra: number;
+    /**
+     * Reason
+     */
+    reason: string;
+    /**
+     * Hours
+     */
+    hours: number;
+};
+
+/**
  * GraphConstraints
  *
  * Per-node-type graph rules. WorkflowGraph enforces these at validation.
@@ -6055,6 +8331,274 @@ export type HealthResponse = {
     features?: {
         [key: string]: boolean;
     };
+};
+
+/**
+ * HelpAnswer
+ */
+export type HelpAnswer = {
+    /**
+     * Worked
+     */
+    worked: boolean;
+    /**
+     * Version
+     */
+    version: number;
+};
+
+/**
+ * HelpOptions
+ */
+export type HelpOptions = {
+    /**
+     * Categories
+     */
+    categories: Array<Category>;
+    /**
+     * Not Shared
+     */
+    not_shared: string;
+    /**
+     * Max Attachment Bytes
+     */
+    max_attachment_bytes: number;
+    /**
+     * Attachment Types
+     */
+    attachment_types: Array<string>;
+};
+
+/**
+ * HelpSession
+ */
+export type HelpSession = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Guide
+     */
+    guide: string;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * State
+     */
+    state: string;
+    /**
+     * Step Number
+     */
+    step_number: number;
+    /**
+     * Steps Total
+     */
+    steps_total: number;
+    /**
+     * Say
+     */
+    say: string;
+    /**
+     * Is Alternative
+     */
+    is_alternative: boolean;
+    /**
+     * Version
+     */
+    version: number;
+    /**
+     * Note
+     */
+    note?: string | null;
+    /**
+     * Family Told
+     */
+    family_told?: Array<string>;
+};
+
+/**
+ * HelpStart
+ */
+export type HelpStart = {
+    /**
+     * Guide
+     */
+    guide?: string | null;
+    /**
+     * Question
+     */
+    question?: string;
+};
+
+/**
+ * HelpStarted
+ */
+export type HelpStarted = {
+    /**
+     * Matched
+     */
+    matched: boolean;
+    session?: HelpSession | null;
+    /**
+     * Note
+     */
+    note?: string | null;
+    /**
+     * Topics
+     */
+    topics?: Array<HelpTopic>;
+};
+
+/**
+ * HelpTopic
+ */
+export type HelpTopic = {
+    /**
+     * Slug
+     */
+    slug: string;
+    /**
+     * Title
+     */
+    title: string;
+};
+
+/**
+ * HelpTopics
+ */
+export type HelpTopics = {
+    /**
+     * Topics
+     */
+    topics: Array<HelpTopic>;
+};
+
+/**
+ * HelperAdvanced
+ */
+export type HelperAdvanced = {
+    /**
+     * Tools
+     */
+    tools: Array<string>;
+    /**
+     * Skills
+     */
+    skills: Array<string>;
+    /**
+     * Model
+     */
+    model: string;
+    /**
+     * Voice
+     */
+    voice: string;
+};
+
+/**
+ * HelperOut
+ */
+export type HelperOut = {
+    /**
+     * Key
+     */
+    key: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Job
+     */
+    job: string;
+    /**
+     * Evidence
+     */
+    evidence: string;
+    /**
+     * Boundary
+     */
+    boundary: string;
+    /**
+     * Example
+     */
+    example: string;
+    /**
+     * Permissions
+     */
+    permissions: Array<string>;
+    /**
+     * Connections
+     */
+    connections: Array<string>;
+    /**
+     * Templates
+     */
+    templates: Array<string>;
+    /**
+     * State
+     */
+    state: string;
+    /**
+     * Reason
+     */
+    reason?: string | null;
+    setup?: HelperSetup | null;
+    /**
+     * Notes
+     */
+    notes: Array<string>;
+    advanced?: HelperAdvanced | null;
+};
+
+/**
+ * HelperRow
+ */
+export type HelperRow = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Name
+     */
+    name: string;
+};
+
+/**
+ * HelperSetup
+ */
+export type HelperSetup = {
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * App
+     */
+    app?: string | null;
+};
+
+/**
+ * HelpersResponse
+ */
+export type HelpersResponse = {
+    /**
+     * Helpers
+     */
+    helpers: Array<HelperOut>;
+    builder?: HelperOut | null;
+    /**
+     * Can Manage
+     */
+    can_manage: boolean;
 };
 
 /**
@@ -6405,6 +8949,88 @@ export type HuggingFaceSttConfiguration = {
 };
 
 /**
+ * IdentityCard
+ *
+ * One private card, in the shape the screen's approval panel reads.
+ */
+export type IdentityCard = {
+    /**
+     * Event Id
+     */
+    event_id: number;
+    /**
+     * Action
+     */
+    action: string;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Effect
+     */
+    effect?: string | null;
+    /**
+     * State
+     */
+    state: string;
+    /**
+     * Version
+     */
+    version?: string | null;
+    /**
+     * Revisions
+     */
+    revisions?: number;
+    /**
+     * Args
+     */
+    args?: {
+        [key: string]: unknown;
+    };
+    /**
+     * Affected
+     */
+    affected?: Array<string>;
+    /**
+     * Error
+     */
+    error?: string | null;
+    /**
+     * Done Note
+     */
+    done_note?: string | null;
+    /**
+     * Fires At
+     */
+    fires_at?: string | null;
+    /**
+     * Needs Person
+     */
+    needs_person?: boolean;
+    /**
+     * Reconciled
+     */
+    reconciled?: {
+        [key: string]: unknown;
+    } | null;
+    /**
+     * At
+     */
+    at?: string | null;
+};
+
+/**
+ * IdentityCards
+ */
+export type IdentityCards = {
+    /**
+     * Cards
+     */
+    cards: Array<IdentityCard>;
+};
+
+/**
  * ImpersonateRequest
  *
  * Request payload for superadmin impersonation.
@@ -6426,6 +9052,14 @@ export type ImpersonateRequest = {
      * Email
      */
     email?: string | null;
+    /**
+     * Reason
+     */
+    reason: string;
+    /**
+     * Mode
+     */
+    mode?: string;
 };
 
 /**
@@ -6435,11 +9069,23 @@ export type ImpersonateResponse = {
     /**
      * Refresh Token
      */
-    refresh_token: string;
+    refresh_token?: string | null;
     /**
      * Access Token
      */
     access_token: string;
+    /**
+     * Mode
+     */
+    mode?: string;
+    /**
+     * Auth Provider
+     */
+    auth_provider?: string;
+    /**
+     * Expires In Seconds
+     */
+    expires_in_seconds?: number;
 };
 
 /**
@@ -6472,6 +9118,36 @@ export type ImportResponse = {
      * Truncated
      */
     truncated?: boolean;
+};
+
+/**
+ * ImportResult
+ */
+export type ImportResult = {
+    /**
+     * Source
+     */
+    source: string;
+    /**
+     * Added
+     */
+    added: number;
+    /**
+     * Updated
+     */
+    updated: number;
+    /**
+     * Unchanged
+     */
+    unchanged: number;
+    /**
+     * Skipped
+     */
+    skipped: number;
+    /**
+     * Open Merges
+     */
+    open_merges: number;
 };
 
 /**
@@ -6599,6 +9275,52 @@ export type InstallRequest = {
 };
 
 /**
+ * Interest
+ */
+export type Interest = {
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Kind
+     */
+    kind?: 'ticker' | 'sector' | 'topic';
+};
+
+/**
+ * InterestsOut
+ */
+export type InterestsOut = {
+    /**
+     * Interests
+     */
+    interests: Array<Interest>;
+    /**
+     * Revision
+     */
+    revision: number;
+    /**
+     * Notice
+     */
+    notice: string;
+};
+
+/**
+ * InterestsWrite
+ */
+export type InterestsWrite = {
+    /**
+     * Interests
+     */
+    interests: Array<Interest>;
+    /**
+     * Revision
+     */
+    revision: number;
+};
+
+/**
  * InternalBillingRequest
  */
 export type InternalBillingRequest = {
@@ -6624,6 +9346,28 @@ export type InviteRequest = {
      * The seat they get. member, admin or owner.
      */
     role?: string;
+};
+
+/**
+ * InviteStatusResponse
+ */
+export type InviteStatusResponse = {
+    /**
+     * State
+     */
+    state: string;
+    /**
+     * Email Hint
+     */
+    email_hint?: string | null;
+    /**
+     * Expires At
+     */
+    expires_at?: string | null;
+    /**
+     * Code
+     */
+    code?: string | null;
 };
 
 /**
@@ -6711,6 +9455,16 @@ export type KnowledgeBaseUsageSchema = {
 };
 
 /**
+ * LandingResponse
+ */
+export type LandingResponse = {
+    /**
+     * Path
+     */
+    path?: string | null;
+};
+
+/**
  * LangfuseCredentialsRequest
  */
 export type LangfuseCredentialsRequest = {
@@ -6751,6 +9505,28 @@ export type LangfuseCredentialsResponse = {
 };
 
 /**
+ * LanguageOption
+ */
+export type LanguageOption = {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Native
+     */
+    native: string;
+    /**
+     * English
+     */
+    english: string;
+    /**
+     * Voice
+     */
+    voice: boolean;
+};
+
+/**
  * LastAction
  */
 export type LastAction = {
@@ -6783,6 +9559,724 @@ export type LastCampaignSettingsResponse = {
     max_concurrency?: number | null;
     schedule_config?: ScheduleConfigResponse | null;
     circuit_breaker?: CircuitBreakerConfigResponse | null;
+};
+
+/**
+ * LearnerProfile
+ */
+export type LearnerProfile = {
+    /**
+     * Explanation Language
+     */
+    explanation_language?: string | null;
+    /**
+     * Suggested Language
+     */
+    suggested_language?: string | null;
+    /**
+     * Learner Kind
+     */
+    learner_kind: string;
+    /**
+     * Studying For
+     */
+    studying_for?: string | null;
+    /**
+     * Adult Confirmed
+     */
+    adult_confirmed: boolean;
+    /**
+     * Revision
+     */
+    revision: number;
+    /**
+     * Updated At
+     */
+    updated_at?: string | null;
+};
+
+/**
+ * LearnerProfileWrite
+ */
+export type LearnerProfileWrite = {
+    /**
+     * Explanation Language
+     */
+    explanation_language?: string | null;
+    /**
+     * Learner Kind
+     */
+    learner_kind?: 'adult' | 'student' | 'course_learner' | null;
+    /**
+     * Studying For
+     */
+    studying_for?: string | null;
+    /**
+     * Adult Confirmed
+     */
+    adult_confirmed?: boolean | null;
+    /**
+     * Revision
+     */
+    revision: number;
+};
+
+/**
+ * LearningAttempt
+ */
+export type LearningAttempt = {
+    /**
+     * Attempt Id
+     */
+    attempt_id: number;
+    /**
+     * Answer
+     */
+    answer: string;
+    /**
+     * Outcome
+     */
+    outcome: string;
+    /**
+     * Rubric Results
+     */
+    rubric_results: Array<LearningRubricResult>;
+    /**
+     * Feedback
+     */
+    feedback: string;
+    /**
+     * Created At
+     */
+    created_at?: string | null;
+    /**
+     * Exercise Prompt
+     */
+    exercise_prompt?: string | null;
+    /**
+     * Exercise Kind
+     */
+    exercise_kind?: string | null;
+};
+
+/**
+ * LearningAttemptResult
+ */
+export type LearningAttemptResult = {
+    attempt: LearningAttempt;
+    /**
+     * Replayed
+     */
+    replayed: boolean;
+    session: LearningSession;
+};
+
+/**
+ * LearningAttemptWrite
+ */
+export type LearningAttemptWrite = {
+    /**
+     * Exercise Id
+     */
+    exercise_id: string;
+    /**
+     * Answer
+     */
+    answer: string;
+};
+
+/**
+ * LearningBaselineAnswer
+ */
+export type LearningBaselineAnswer = {
+    /**
+     * Answer
+     */
+    answer: string;
+};
+
+/**
+ * LearningDeletionCard
+ */
+export type LearningDeletionCard = {
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Event Id
+     */
+    event_id: number;
+    /**
+     * Payload
+     */
+    payload: {
+        [key: string]: unknown;
+    };
+};
+
+/**
+ * LearningExercise
+ */
+export type LearningExercise = {
+    /**
+     * Exercise Id
+     */
+    exercise_id: string;
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Prompt
+     */
+    prompt: string;
+    /**
+     * Rubric
+     */
+    rubric: Array<LearningRubricItem>;
+    /**
+     * Status
+     */
+    status: string;
+};
+
+/**
+ * LearningGoal
+ */
+export type LearningGoal = {
+    /**
+     * Goal Id
+     */
+    goal_id: string;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Studying For
+     */
+    studying_for?: string | null;
+    /**
+     * Explanation Language
+     */
+    explanation_language: string;
+    /**
+     * Has Material
+     */
+    has_material: boolean;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Baseline Level
+     */
+    baseline_level?: string | null;
+    /**
+     * Thread Id
+     */
+    thread_id?: string | null;
+    /**
+     * Review Reminders
+     */
+    review_reminders: boolean;
+    /**
+     * Revision
+     */
+    revision: number;
+    /**
+     * Created At
+     */
+    created_at?: string | null;
+    /**
+     * Last Practised At
+     */
+    last_practised_at?: string | null;
+};
+
+/**
+ * LearningGoalStart
+ */
+export type LearningGoalStart = {
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Studying For
+     */
+    studying_for?: string | null;
+    /**
+     * Explanation Language
+     */
+    explanation_language?: string | null;
+    /**
+     * Material
+     */
+    material?: string | null;
+    /**
+     * Thread Id
+     */
+    thread_id?: string | null;
+    /**
+     * Confirm Sensitive
+     */
+    confirm_sensitive?: boolean;
+};
+
+/**
+ * LearningGoalUpdate
+ */
+export type LearningGoalUpdate = {
+    /**
+     * Title
+     */
+    title?: string | null;
+    /**
+     * Explanation Language
+     */
+    explanation_language?: string | null;
+    /**
+     * Review Reminders
+     */
+    review_reminders?: boolean | null;
+    /**
+     * Revision
+     */
+    revision: number;
+    /**
+     * Confirm Sensitive
+     */
+    confirm_sensitive?: boolean;
+};
+
+/**
+ * LearningLesson
+ */
+export type LearningLesson = {
+    /**
+     * Lesson Id
+     */
+    lesson_id: number;
+    /**
+     * Objective
+     */
+    objective: string;
+    /**
+     * Explanation
+     */
+    explanation: string;
+    /**
+     * Source Kind
+     */
+    source_kind: string;
+    /**
+     * Sources
+     */
+    sources: Array<string>;
+    /**
+     * Skill
+     */
+    skill: string;
+    /**
+     * Skill Id
+     */
+    skill_id: number;
+};
+
+/**
+ * LearningNextExercise
+ */
+export type LearningNextExercise = {
+    /**
+     * Easier
+     */
+    easier?: boolean;
+    /**
+     * Skill Id
+     */
+    skill_id?: number | null;
+};
+
+/**
+ * LearningNextStep
+ */
+export type LearningNextStep = {
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Text
+     */
+    text: string;
+    /**
+     * Skill Id
+     */
+    skill_id?: number | null;
+};
+
+/**
+ * LearningPlanItem
+ */
+export type LearningPlanItem = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Skill Id
+     */
+    skill_id?: number | null;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Label
+     */
+    label: string;
+};
+
+/**
+ * LearningProgress
+ */
+export type LearningProgress = {
+    goal: LearningGoal;
+    /**
+     * Plan
+     */
+    plan?: Array<LearningPlanItem>;
+    /**
+     * Practice Count
+     */
+    practice_count: number;
+    /**
+     * State
+     */
+    state: string;
+    /**
+     * Skills
+     */
+    skills: Array<LearningSkill>;
+    /**
+     * Recent
+     */
+    recent: Array<LearningAttempt>;
+    next_step: LearningNextStep;
+};
+
+/**
+ * LearningReviewDue
+ */
+export type LearningReviewDue = {
+    /**
+     * Goal Id
+     */
+    goal_id: string;
+    /**
+     * Goal Title
+     */
+    goal_title: string;
+    /**
+     * Skill Id
+     */
+    skill_id: number;
+    /**
+     * Skill Name
+     */
+    skill_name: string;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Due At
+     */
+    due_at?: string | null;
+};
+
+/**
+ * LearningReviewStart
+ */
+export type LearningReviewStart = {
+    /**
+     * Skill Id
+     */
+    skill_id: number;
+};
+
+/**
+ * LearningRubricItem
+ */
+export type LearningRubricItem = {
+    /**
+     * Criterion
+     */
+    criterion: string;
+    /**
+     * Description
+     */
+    description: string;
+};
+
+/**
+ * LearningRubricResult
+ */
+export type LearningRubricResult = {
+    /**
+     * Criterion
+     */
+    criterion?: string | null;
+    /**
+     * Met
+     */
+    met: boolean;
+    /**
+     * Note
+     */
+    note?: string | null;
+};
+
+/**
+ * LearningSession
+ */
+export type LearningSession = {
+    goal: LearningGoal;
+    /**
+     * State
+     */
+    state: string;
+    /**
+     * Baseline Question
+     */
+    baseline_question?: string | null;
+    /**
+     * Baseline Feedback
+     */
+    baseline_feedback?: string | null;
+    lesson?: LearningLesson | null;
+    exercise?: LearningExercise | null;
+    /**
+     * Attempts
+     */
+    attempts?: Array<LearningAttempt>;
+};
+
+/**
+ * LearningSkill
+ */
+export type LearningSkill = {
+    /**
+     * Skill Id
+     */
+    skill_id: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Evaluated Attempts
+     */
+    evaluated_attempts: number;
+    /**
+     * Passed Attempts
+     */
+    passed_attempts: number;
+    /**
+     * Last Outcome
+     */
+    last_outcome?: string | null;
+    /**
+     * Next Review At
+     */
+    next_review_at?: string | null;
+    /**
+     * Review Due
+     */
+    review_due: boolean;
+};
+
+/**
+ * LearningSkillDetail
+ */
+export type LearningSkillDetail = {
+    skill: LearningSkill;
+    /**
+     * Rubric
+     */
+    rubric: Array<LearningRubricItem>;
+    /**
+     * Attempts
+     */
+    attempts: Array<LearningAttempt>;
+};
+
+/**
+ * LearningStatus
+ */
+export type LearningStatus = {
+    /**
+     * State
+     */
+    state: string;
+    /**
+     * Reason
+     */
+    reason?: string | null;
+    /**
+     * Teacher
+     */
+    teacher: string;
+    profile: LearnerProfile;
+    /**
+     * Languages
+     */
+    languages: Array<string>;
+    /**
+     * Today
+     */
+    today: boolean;
+};
+
+/**
+ * LearningStreak
+ */
+export type LearningStreak = {
+    /**
+     * Days
+     */
+    days: number;
+    /**
+     * Practised Today
+     */
+    practised_today: boolean;
+};
+
+/**
+ * LearningSuggestion
+ */
+export type LearningSuggestion = {
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Goal Id
+     */
+    goal_id: string;
+    /**
+     * Skill Id
+     */
+    skill_id: number;
+    /**
+     * Text
+     */
+    text: string;
+    /**
+     * Action
+     */
+    action: string;
+};
+
+/**
+ * LearningTodayLesson
+ */
+export type LearningTodayLesson = {
+    /**
+     * Goal Id
+     */
+    goal_id: string;
+    /**
+     * Goal Title
+     */
+    goal_title: string;
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Skill Id
+     */
+    skill_id?: number | null;
+    /**
+     * Text
+     */
+    text: string;
+    /**
+     * Done Today
+     */
+    done_today: boolean;
+};
+
+/**
+ * LearningTodayResponse
+ */
+export type LearningTodayResponse = {
+    streak: LearningStreak;
+    /**
+     * Lessons
+     */
+    lessons: Array<LearningTodayLesson>;
+};
+
+/**
+ * LedgerMove
+ */
+export type LedgerMove = {
+    /**
+     * To
+     */
+    to: string;
+    /**
+     * Expected Version
+     */
+    expected_version: number;
+    /**
+     * Reason Code
+     */
+    reason_code?: string | null;
+    /**
+     * Evidence
+     */
+    evidence?: {
+        [key: string]: unknown;
+    } | null;
+};
+
+/**
+ * LedgerTaskWrite
+ */
+export type LedgerTaskWrite = {
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Brief
+     */
+    brief?: string;
+    /**
+     * State
+     */
+    state?: string;
+    /**
+     * Due
+     */
+    due?: string | null;
 };
 
 /**
@@ -6947,6 +10441,50 @@ export type LibraryToolParameter = {
 };
 
 /**
+ * LinkedChannel
+ */
+export type LinkedChannel = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Display Name
+     */
+    display_name?: string | null;
+    /**
+     * Handle
+     */
+    handle: string;
+    /**
+     * Linked At
+     */
+    linked_at?: string | null;
+};
+
+/**
+ * LinkedTask
+ */
+export type LinkedTask = {
+    /**
+     * Task Id
+     */
+    task_id: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Can Cancel
+     */
+    can_cancel: boolean;
+};
+
+/**
  * ListResponse
  */
 export type ListResponse = {
@@ -7002,6 +10540,16 @@ export type MarkReadRequest = {
      * Ids
      */
     ids?: Array<number> | null;
+};
+
+/**
+ * MarkTaken
+ */
+export type MarkTaken = {
+    /**
+     * Due At
+     */
+    due_at: string;
 };
 
 /**
@@ -7163,6 +10711,598 @@ export type McpToolDefinition = {
 };
 
 /**
+ * Medicine
+ */
+export type Medicine = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Times
+     */
+    times: Array<string>;
+    /**
+     * Timezone
+     */
+    timezone: string;
+    /**
+     * Language
+     */
+    language: string;
+    /**
+     * Language Name
+     */
+    language_name: string;
+    /**
+     * Channel
+     */
+    channel: string;
+    /**
+     * Phone Masked
+     */
+    phone_masked?: string | null;
+    /**
+     * Alert Member Ids
+     */
+    alert_member_ids: Array<number>;
+    /**
+     * State
+     */
+    state: string;
+    /**
+     * Card Event Id
+     */
+    card_event_id?: number | null;
+    /**
+     * Doses
+     */
+    doses?: Array<Dose>;
+};
+
+/**
+ * MedicineList
+ */
+export type MedicineList = {
+    /**
+     * Medicines
+     */
+    medicines: Array<Medicine>;
+    /**
+     * Calls
+     */
+    calls: {
+        [key: string]: string;
+    };
+    /**
+     * App
+     */
+    app: {
+        [key: string]: string;
+    };
+    /**
+     * Languages
+     */
+    languages: {
+        [key: string]: string;
+    };
+};
+
+/**
+ * MedicineProposed
+ */
+export type MedicineProposed = {
+    medicine: Medicine;
+    card?: TimelineEvent | null;
+};
+
+/**
+ * MedicineWrite
+ */
+export type MedicineWrite = {
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Times
+     */
+    times: Array<string>;
+    /**
+     * Phone
+     */
+    phone?: string | null;
+    /**
+     * Channel
+     */
+    channel?: 'call' | 'app' | null;
+    /**
+     * Language
+     */
+    language?: string | null;
+    /**
+     * Alert Member Ids
+     */
+    alert_member_ids?: Array<number>;
+};
+
+/**
+ * MeetingAction
+ */
+export type MeetingAction = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Text
+     */
+    text: string;
+    /**
+     * Owner Name
+     */
+    owner_name?: string | null;
+    /**
+     * Due Text
+     */
+    due_text?: string | null;
+    /**
+     * Due At
+     */
+    due_at?: string | null;
+    /**
+     * Confidence
+     */
+    confidence?: string | null;
+    /**
+     * Missing
+     */
+    missing: Array<string>;
+    /**
+     * Segment Seq
+     */
+    segment_seq?: number | null;
+    /**
+     * Excerpt
+     */
+    excerpt?: string | null;
+    /**
+     * Source Found
+     */
+    source_found: boolean;
+    /**
+     * Edited
+     */
+    edited: boolean;
+    /**
+     * Task Id
+     */
+    task_id?: number | null;
+    card?: FollowUpCard | null;
+};
+
+/**
+ * MeetingBreak
+ */
+export type MeetingBreak = {
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Reason
+     */
+    reason?: string | null;
+    /**
+     * Reason Label
+     */
+    reason_label: string;
+    /**
+     * At Ms
+     */
+    at_ms: number;
+    /**
+     * Duration Ms
+     */
+    duration_ms?: number | null;
+};
+
+/**
+ * MeetingCapabilities
+ */
+export type MeetingCapabilities = {
+    /**
+     * Sources
+     */
+    sources: {
+        [key: string]: CapabilityLine;
+    };
+    transcription: TranscriptionCapability;
+    summary: CapabilityLine;
+    /**
+     * Languages
+     */
+    languages: Array<MeetingLanguage>;
+    /**
+     * Max Upload Mb
+     */
+    max_upload_mb: number;
+    /**
+     * Max Minutes
+     */
+    max_minutes: number;
+    /**
+     * Segment Seconds
+     */
+    segment_seconds: number;
+    /**
+     * Limits Note
+     */
+    limits_note: string;
+    /**
+     * Retention Note
+     */
+    retention_note: string;
+};
+
+/**
+ * MeetingItem
+ */
+export type MeetingItem = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Text
+     */
+    text: string;
+    /**
+     * Owner Name
+     */
+    owner_name?: string | null;
+    /**
+     * Due Text
+     */
+    due_text?: string | null;
+    /**
+     * Due At
+     */
+    due_at?: string | null;
+    /**
+     * Confidence
+     */
+    confidence?: string | null;
+    /**
+     * Missing
+     */
+    missing: Array<string>;
+    /**
+     * Segment Seq
+     */
+    segment_seq?: number | null;
+    /**
+     * Excerpt
+     */
+    excerpt?: string | null;
+    /**
+     * Source Found
+     */
+    source_found: boolean;
+    /**
+     * Edited
+     */
+    edited: boolean;
+    /**
+     * Task Id
+     */
+    task_id?: number | null;
+};
+
+/**
+ * MeetingLanguage
+ */
+export type MeetingLanguage = {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Native
+     */
+    native: string;
+    /**
+     * English
+     */
+    english: string;
+};
+
+/**
+ * MeetingList
+ */
+export type MeetingList = {
+    /**
+     * Meetings
+     */
+    meetings: Array<MeetingSummary>;
+};
+
+/**
+ * MeetingRecord
+ */
+export type MeetingRecord = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Source
+     */
+    source: string;
+    /**
+     * Source Label
+     */
+    source_label: string;
+    /**
+     * Language
+     */
+    language: string;
+    /**
+     * Participants
+     */
+    participants: Array<string>;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Status Reason
+     */
+    status_reason?: string | null;
+    /**
+     * Captured Ms
+     */
+    captured_ms: number;
+    /**
+     * Created At
+     */
+    created_at?: string | null;
+    /**
+     * Capture Started At
+     */
+    capture_started_at?: string | null;
+    /**
+     * Capture Ended At
+     */
+    capture_ended_at?: string | null;
+    /**
+     * Consent Confirmed At
+     */
+    consent_confirmed_at?: string | null;
+    /**
+     * Origin Thread Id
+     */
+    origin_thread_id?: string | null;
+    /**
+     * Upload Name
+     */
+    upload_name?: string | null;
+    /**
+     * Revision
+     */
+    revision: number;
+    /**
+     * Reading Status
+     */
+    reading_status: string;
+    /**
+     * Reading Note
+     */
+    reading_note?: string | null;
+    /**
+     * Summary
+     */
+    summary: Array<string>;
+    /**
+     * Transcript
+     */
+    transcript: Array<TranscriptPart>;
+    /**
+     * Breaks
+     */
+    breaks: Array<MeetingBreak>;
+    /**
+     * Decisions
+     */
+    decisions: Array<MeetingItem>;
+    /**
+     * Actions
+     */
+    actions: Array<MeetingAction>;
+    /**
+     * Possible Actions
+     */
+    possible_actions: Array<PossibleAction>;
+};
+
+/**
+ * MeetingSummary
+ */
+export type MeetingSummary = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Source
+     */
+    source: string;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Captured Ms
+     */
+    captured_ms: number;
+    /**
+     * Created At
+     */
+    created_at?: string | null;
+    /**
+     * Reading Status
+     */
+    reading_status: string;
+};
+
+/**
+ * MemberPreferences
+ */
+export type MemberPreferences = {
+    /**
+     * Language
+     */
+    language?: string | null;
+    /**
+     * Timezone
+     */
+    timezone?: string | null;
+    /**
+     * Voice
+     */
+    voice?: string | null;
+    /**
+     * Summary Time
+     */
+    summary_time?: string | null;
+    /**
+     * Simple Mode
+     */
+    simple_mode?: boolean | null;
+    /**
+     * Revision
+     */
+    revision: number;
+    /**
+     * Updated At
+     */
+    updated_at?: string | null;
+    /**
+     * Languages
+     */
+    languages?: Array<string>;
+};
+
+/**
+ * MemberPreferencesWrite
+ *
+ * Only the fields sent change; null clears one. ``revision`` is the one
+ * the screen read; an older one is a 409 carrying the stored value.
+ */
+export type MemberPreferencesWrite = {
+    /**
+     * Language
+     */
+    language?: string | null;
+    /**
+     * Timezone
+     */
+    timezone?: string | null;
+    /**
+     * Voice
+     */
+    voice?: string | null;
+    /**
+     * Summary Time
+     */
+    summary_time?: string | null;
+    /**
+     * Simple Mode
+     */
+    simple_mode?: boolean | null;
+    /**
+     * Revision
+     */
+    revision: number;
+};
+
+/**
+ * MemberProposed
+ */
+export type MemberProposed = {
+    member: CircleMember;
+    card?: TimelineEvent | null;
+};
+
+/**
+ * MemberWrite
+ */
+export type MemberWrite = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Email
+     */
+    email: string;
+    /**
+     * Shares
+     */
+    shares: Array<string>;
+};
+
+/**
+ * MemoryChange
+ */
+export type MemoryChange = {
+    /**
+     * Change
+     */
+    change: string;
+    /**
+     * Before
+     */
+    before?: string | null;
+    /**
+     * After
+     */
+    after?: string | null;
+    /**
+     * Note
+     */
+    note?: string | null;
+    /**
+     * At
+     */
+    at: string;
+    /**
+     * By You
+     */
+    by_you?: boolean;
+};
+
+/**
  * MemoryConnection
  */
 export type MemoryConnection = {
@@ -7205,6 +11345,20 @@ export type MemoryConnection = {
 };
 
 /**
+ * MemoryEdit
+ */
+export type MemoryEdit = {
+    /**
+     * Value
+     */
+    value: string;
+    /**
+     * Expected Value
+     */
+    expected_value: string;
+};
+
+/**
  * MemoryEntry
  */
 export type MemoryEntry = {
@@ -7244,6 +11398,89 @@ export type MemoryEntry = {
      * Source Run Id
      */
     source_run_id: number | null;
+};
+
+/**
+ * MemoryFact
+ */
+export type MemoryFact = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Key
+     */
+    key: string;
+    /**
+     * Value
+     */
+    value: string;
+    /**
+     * Subject
+     */
+    subject?: {
+        [key: string]: string;
+    } | null;
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Scope
+     */
+    scope: 'mine' | 'workspace';
+    source: MemoryFactSource;
+    /**
+     * Saved At
+     */
+    saved_at: string;
+    /**
+     * Revisions
+     */
+    revisions?: number;
+    /**
+     * History
+     */
+    history?: Array<MemoryChange> | null;
+};
+
+/**
+ * MemoryFactSource
+ */
+export type MemoryFactSource = {
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Line
+     */
+    line: string;
+    /**
+     * Run Id
+     */
+    run_id?: number | null;
+    /**
+     * First Seen At
+     */
+    first_seen_at?: string | null;
+    /**
+     * Last Seen At
+     */
+    last_seen_at?: string | null;
+    /**
+     * Confirmed At
+     */
+    confirmed_at?: string | null;
+    /**
+     * Times Seen
+     */
+    times_seen?: number;
 };
 
 /**
@@ -7446,6 +11683,40 @@ export type MemoryNodeDetail = {
 };
 
 /**
+ * MemoryOverview
+ */
+export type MemoryOverview = {
+    /**
+     * Memory Enabled
+     */
+    memory_enabled: boolean;
+    /**
+     * Memory Chosen
+     */
+    memory_chosen: boolean;
+    /**
+     * Revision
+     */
+    revision: number;
+    /**
+     * Personal Memory
+     */
+    personal_memory: boolean;
+    /**
+     * Mine
+     */
+    mine: Array<MemoryFact>;
+    /**
+     * Workspace
+     */
+    workspace: Array<MemoryFact>;
+    /**
+     * Temporary Retention
+     */
+    temporary_retention: string;
+};
+
+/**
  * MemoryResponse
  */
 export type MemoryResponse = {
@@ -7457,6 +11728,42 @@ export type MemoryResponse = {
      * Gaps
      */
     gaps: Array<MemoryItem>;
+};
+
+/**
+ * MemorySharePreview
+ */
+export type MemorySharePreview = {
+    /**
+     * Fact Id
+     */
+    fact_id: number;
+    /**
+     * Key
+     */
+    key: string;
+    /**
+     * Value
+     */
+    value: string;
+    /**
+     * Destination
+     */
+    destination: {
+        [key: string]: unknown;
+    };
+    /**
+     * Members
+     */
+    members: number;
+    /**
+     * Moves
+     */
+    moves: boolean;
+    /**
+     * Lines
+     */
+    lines: Array<string>;
 };
 
 /**
@@ -7487,6 +11794,60 @@ export type MemorySource = {
      * Run Id
      */
     run_id?: number | null;
+};
+
+/**
+ * MemorySwitch
+ */
+export type MemorySwitch = {
+    /**
+     * Memory Enabled
+     */
+    memory_enabled: boolean;
+    /**
+     * Revision
+     */
+    revision: number;
+};
+
+/**
+ * MergeDecision
+ */
+export type MergeDecision = {
+    /**
+     * Action
+     */
+    action: 'merge' | 'keep_both';
+};
+
+/**
+ * MergeList
+ */
+export type MergeList = {
+    /**
+     * Merges
+     */
+    merges: Array<MergeSuggestion>;
+};
+
+/**
+ * MergeSuggestion
+ */
+export type MergeSuggestion = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Reason
+     */
+    reason: string;
+    /**
+     * Value
+     */
+    value: string;
+    keep: PersonSummary;
+    other: PersonSummary;
 };
 
 /**
@@ -7751,6 +12112,118 @@ export type MistralLlmConfiguration = {
 };
 
 /**
+ * MobileDevice
+ */
+export type MobileDevice = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Platform
+     */
+    platform: string;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * App Version
+     */
+    app_version?: string | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Last Seen At
+     */
+    last_seen_at: string;
+    /**
+     * Last Success At
+     */
+    last_success_at?: string | null;
+    /**
+     * Last Failure At
+     */
+    last_failure_at?: string | null;
+    /**
+     * State
+     */
+    state: 'active' | 'failing' | 'revoked';
+};
+
+/**
+ * MobileDevices
+ */
+export type MobileDevices = {
+    /**
+     * Devices
+     */
+    devices: Array<MobileDevice>;
+};
+
+/**
+ * MobileTokenRegistration
+ */
+export type MobileTokenRegistration = {
+    /**
+     * Token
+     */
+    token: string;
+    /**
+     * Platform
+     */
+    platform: 'ios' | 'android';
+    /**
+     * Device Label
+     */
+    device_label?: string | null;
+    /**
+     * App Version
+     */
+    app_version?: string | null;
+};
+
+/**
+ * MobileTokenRemoval
+ */
+export type MobileTokenRemoval = {
+    /**
+     * Token
+     */
+    token: string;
+};
+
+/**
+ * MobileTokenRemoved
+ */
+export type MobileTokenRemoved = {
+    /**
+     * Removed
+     */
+    removed: boolean;
+};
+
+/**
+ * ModelChoice
+ */
+export type ModelChoice = {
+    /**
+     * Slot
+     */
+    slot: string;
+    /**
+     * Value
+     */
+    value: string;
+    /**
+     * Revision
+     */
+    revision?: string | null;
+};
+
+/**
  * ModelPresetRequest
  */
 export type ModelPresetRequest = {
@@ -7806,6 +12279,50 @@ export type ModelSlotRequest = {
 };
 
 /**
+ * MoneyTotal
+ */
+export type MoneyTotal = {
+    /**
+     * Currency
+     */
+    currency: string;
+    /**
+     * Amount Minor
+     */
+    amount_minor: number;
+    /**
+     * Amount
+     */
+    amount?: string | null;
+};
+
+/**
+ * MoveSession
+ */
+export type MoveSession = {
+    /**
+     * Expected Version
+     */
+    expected_version: number;
+    /**
+     * To
+     */
+    to: 'live' | 'reconnecting' | 'ended' | 'failed';
+    /**
+     * Phase
+     */
+    phase?: 'listening' | 'processing' | 'speaking' | null;
+    /**
+     * Muted
+     */
+    muted?: boolean | null;
+    /**
+     * End Reason
+     */
+    end_reason?: string | null;
+};
+
+/**
  * MoveWorkflowToFolderRequest
  *
  * Move a workflow into a folder, or to "Uncategorized" when null.
@@ -7815,6 +12332,24 @@ export type MoveWorkflowToFolderRequest = {
      * Folder Id
      */
     folder_id?: number | null;
+};
+
+/**
+ * MyFeedback
+ */
+export type MyFeedback = {
+    /**
+     * Answers
+     */
+    answers: {
+        [key: string]: {
+            [key: string]: unknown;
+        };
+    };
+    /**
+     * Reasons
+     */
+    reasons: Array<string>;
 };
 
 /**
@@ -7934,6 +12469,20 @@ export type NoiseSuppressionConfigurationDefaults = {
 };
 
 /**
+ * NoteWrite
+ */
+export type NoteWrite = {
+    /**
+     * Body
+     */
+    body: string;
+    /**
+     * Client Key
+     */
+    client_key?: string | null;
+};
+
+/**
  * NoticeOption
  */
 export type NoticeOption = {
@@ -7956,6 +12505,102 @@ export type NoticeOption = {
 };
 
 /**
+ * NotificationsChange
+ */
+export type NotificationsChange = {
+    /**
+     * Revision
+     */
+    revision: number;
+    /**
+     * Channels
+     */
+    channels?: {
+        [key: string]: boolean;
+    } | null;
+    /**
+     * Topics
+     */
+    topics?: {
+        [key: string]: {
+            [key: string]: unknown;
+        };
+    } | null;
+    /**
+     * Quiet Start
+     */
+    quiet_start?: string | null;
+    /**
+     * Quiet End
+     */
+    quiet_end?: string | null;
+    /**
+     * Private Previews
+     */
+    private_previews?: boolean | null;
+};
+
+/**
+ * NotificationsView
+ */
+export type NotificationsView = {
+    /**
+     * Channels
+     */
+    channels: {
+        [key: string]: boolean;
+    };
+    /**
+     * Topics
+     */
+    topics: {
+        [key: string]: TopicSetting;
+    };
+    /**
+     * Quiet Start
+     */
+    quiet_start?: string | null;
+    /**
+     * Quiet End
+     */
+    quiet_end?: string | null;
+    /**
+     * Private Previews
+     */
+    private_previews: boolean;
+    /**
+     * Revision
+     */
+    revision: number;
+    /**
+     * Updated At
+     */
+    updated_at?: string | null;
+    /**
+     * Topic List
+     */
+    topic_list: Array<TopicMeta>;
+    /**
+     * Availability
+     */
+    availability: {
+        [key: string]: ChannelAvailability;
+    };
+    /**
+     * Devices
+     */
+    devices: Array<Device>;
+    /**
+     * Push Public Key
+     */
+    push_public_key?: string | null;
+    /**
+     * Suggestion Daily Cap
+     */
+    suggestion_daily_cap: number;
+};
+
+/**
  * NumberInputOptions
  *
  * Renderer hints for numeric inputs.
@@ -7967,6 +12612,24 @@ export type NumberInputOptions = {
      * Allow arbitrary fractional values via step='any'.
      */
     fractional?: boolean;
+};
+
+/**
+ * NumberRequest
+ */
+export type NumberRequest = {
+    /**
+     * Telephony Configuration Id
+     */
+    telephony_configuration_id?: number | null;
+    /**
+     * Address
+     */
+    address: string;
+    /**
+     * Helper Id
+     */
+    helper_id: number;
 };
 
 /**
@@ -8000,6 +12663,20 @@ export type NumberSearchRequest = {
 };
 
 /**
+ * OffRequest
+ */
+export type OffRequest = {
+    /**
+     * Slug
+     */
+    slug: string;
+    /**
+     * Workflow Id
+     */
+    workflow_id: number;
+};
+
+/**
  * OfferedModelsRequest
  *
  * Exactly the models Decibyl offers for this slot on this provider.
@@ -8029,6 +12706,66 @@ export type OfferedModelsRequest = {
     labels?: {
         [key: string]: string;
     };
+};
+
+/**
+ * OnboardingResponse
+ */
+export type OnboardingResponse = {
+    /**
+     * Enabled
+     */
+    enabled: boolean;
+    /**
+     * Language
+     */
+    language?: string | null;
+    /**
+     * Timezone
+     */
+    timezone?: string | null;
+    /**
+     * Timezone Confirmed
+     */
+    timezone_confirmed?: boolean;
+    /**
+     * Preferred Name
+     */
+    preferred_name?: string | null;
+    /**
+     * Completed
+     */
+    completed?: boolean;
+    /**
+     * Languages
+     */
+    languages: Array<LanguageOption>;
+};
+
+/**
+ * OnboardingSaveRequest
+ */
+export type OnboardingSaveRequest = {
+    /**
+     * Language
+     */
+    language: string;
+    /**
+     * Timezone
+     */
+    timezone: string;
+    /**
+     * Timezone Confirmed
+     */
+    timezone_confirmed: boolean;
+    /**
+     * Preferred Name
+     */
+    preferred_name?: string | null;
+    /**
+     * Complete
+     */
+    complete?: boolean;
 };
 
 /**
@@ -8635,6 +13372,16 @@ export type OutcomeAction = {
 };
 
 /**
+ * OutcomeAnswer
+ */
+export type OutcomeAnswer = {
+    /**
+     * Arrived
+     */
+    arrived: boolean;
+};
+
+/**
  * OutcomeCountResponse
  */
 export type OutcomeCountResponse = {
@@ -8660,6 +13407,36 @@ export type OutcomeRateResponse = {
      * Versions
      */
     versions: Array<VersionOutcome>;
+};
+
+/**
+ * OutcomeRequest
+ */
+export type OutcomeRequest = {
+    /**
+     * Ok
+     */
+    ok: boolean | null;
+    /**
+     * Note
+     */
+    note?: string;
+};
+
+/**
+ * OutcomeSettled
+ */
+export type OutcomeSettled = {
+    /**
+     * State
+     */
+    state: string;
+    /**
+     * Reconciled
+     */
+    reconciled?: {
+        [key: string]: unknown;
+    } | null;
 };
 
 /**
@@ -8695,6 +13472,24 @@ export type OwnKeysRequest = {
      * Allowed
      */
     allowed: boolean;
+};
+
+/**
+ * OwnSkillRequest
+ */
+export type OwnSkillRequest = {
+    /**
+     * Workflow Id
+     */
+    workflow_id: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Description
+     */
+    description: string;
 };
 
 /**
@@ -8856,6 +13651,343 @@ export type PartnerApplicationRequest = {
      * Anything the fixed answers cannot carry.
      */
     note?: string | null;
+};
+
+/**
+ * PaymentPolicy
+ */
+export type PaymentPolicy = {
+    /**
+     * Key
+     */
+    key?: string | null;
+    /**
+     * Decided
+     */
+    decided: boolean;
+    /**
+     * Who Pays
+     */
+    who_pays: string;
+    /**
+     * Amount
+     */
+    amount: string;
+    /**
+     * Steps
+     */
+    steps: Array<string>;
+};
+
+/**
+ * PeopleList
+ */
+export type PeopleList = {
+    /**
+     * People
+     */
+    people: Array<PersonSummary>;
+    /**
+     * Total
+     */
+    total: number;
+    /**
+     * Shared
+     */
+    shared?: Array<SharedCard>;
+};
+
+/**
+ * PeopleSettings
+ */
+export type PeopleSettings = {
+    /**
+     * Agents May Read
+     */
+    agents_may_read: boolean;
+};
+
+/**
+ * PeopleStatus
+ */
+export type PeopleStatus = {
+    /**
+     * Providers
+     */
+    providers: Array<ProviderStatus>;
+    /**
+     * Total
+     */
+    total: number;
+    /**
+     * Open Merges
+     */
+    open_merges: number;
+    /**
+     * Agents May Read
+     */
+    agents_may_read: boolean;
+};
+
+/**
+ * PersonCreate
+ */
+export type PersonCreate = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Phones
+     */
+    phones?: Array<string>;
+    /**
+     * Emails
+     */
+    emails?: Array<string>;
+    /**
+     * Company
+     */
+    company?: string | null;
+    /**
+     * Relation
+     */
+    relation?: string | null;
+};
+
+/**
+ * PersonDetail
+ */
+export type PersonDetail = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Company
+     */
+    company?: string | null;
+    /**
+     * Relation
+     */
+    relation?: string | null;
+    /**
+     * Phones
+     */
+    phones?: Array<string>;
+    /**
+     * Emails
+     */
+    emails?: Array<string>;
+    /**
+     * Sources
+     */
+    sources?: Array<string>;
+    /**
+     * Brief
+     */
+    brief?: string | null;
+    /**
+     * Last Interaction At
+     */
+    last_interaction_at?: string | null;
+    /**
+     * Brief By
+     */
+    brief_by?: string | null;
+    /**
+     * Brief At
+     */
+    brief_at?: string | null;
+    /**
+     * Brief Pending
+     */
+    brief_pending?: boolean;
+    /**
+     * Interactions
+     */
+    interactions?: Array<PersonInteraction>;
+    /**
+     * Shared With
+     */
+    shared_with?: Array<number>;
+};
+
+/**
+ * PersonEdit
+ */
+export type PersonEdit = {
+    /**
+     * Name
+     */
+    name?: string | null;
+    /**
+     * Phones
+     */
+    phones?: Array<string> | null;
+    /**
+     * Emails
+     */
+    emails?: Array<string> | null;
+    /**
+     * Company
+     */
+    company?: string | null;
+    /**
+     * Relation
+     */
+    relation?: string | null;
+    /**
+     * Brief
+     */
+    brief?: string | null;
+};
+
+/**
+ * PersonInteraction
+ */
+export type PersonInteraction = {
+    /**
+     * Channel
+     */
+    channel: string;
+    /**
+     * Direction
+     */
+    direction: string;
+    /**
+     * At
+     */
+    at?: string | null;
+    /**
+     * Line
+     */
+    line: string;
+};
+
+/**
+ * PersonShareRequest
+ */
+export type PersonShareRequest = {
+    /**
+     * User Id
+     */
+    user_id: number;
+};
+
+/**
+ * PersonSummary
+ */
+export type PersonSummary = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Company
+     */
+    company?: string | null;
+    /**
+     * Relation
+     */
+    relation?: string | null;
+    /**
+     * Phones
+     */
+    phones?: Array<string>;
+    /**
+     * Emails
+     */
+    emails?: Array<string>;
+    /**
+     * Sources
+     */
+    sources?: Array<string>;
+    /**
+     * Brief
+     */
+    brief?: string | null;
+    /**
+     * Last Interaction At
+     */
+    last_interaction_at?: string | null;
+};
+
+/**
+ * PersonalSpace
+ */
+export type PersonalSpace = {
+    /**
+     * Organization Id
+     */
+    organization_id: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Owner User Id
+     */
+    owner_user_id: number;
+    /**
+     * Selected
+     */
+    selected: boolean;
+};
+
+/**
+ * PhoneIdentityView
+ */
+export type PhoneIdentityView = {
+    /**
+     * State
+     */
+    state: string;
+    /**
+     * Next Step
+     */
+    next_step?: string | null;
+    /**
+     * Verification Status
+     */
+    verification_status?: string | null;
+    /**
+     * Sources
+     */
+    sources: {
+        [key: string]: string;
+    };
+    /**
+     * Numbers
+     */
+    numbers?: Array<PhoneNumberRow> | null;
+    /**
+     * Helpers
+     */
+    helpers?: Array<HelperRow> | null;
+    autopay?: AutopayState | null;
+    payment: PaymentPolicy;
+    request: RequestState;
+    /**
+     * Chat Needs Number
+     */
+    chat_needs_number: boolean;
+    /**
+     * Is Admin
+     */
+    is_admin?: boolean;
 };
 
 /**
@@ -9024,6 +14156,44 @@ export type PhoneNumberResponse = {
 };
 
 /**
+ * PhoneNumberRow
+ */
+export type PhoneNumberRow = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Address
+     */
+    address: string;
+    /**
+     * Label
+     */
+    label?: string | null;
+    /**
+     * State
+     */
+    state: string;
+    /**
+     * Assigned Helper Id
+     */
+    assigned_helper_id?: number | null;
+    /**
+     * Incoming Call Ok At
+     */
+    incoming_call_ok_at?: string | null;
+    /**
+     * Escalation Ok At
+     */
+    escalation_ok_at?: string | null;
+    /**
+     * Provisioned At
+     */
+    provisioned_at?: string | null;
+};
+
+/**
  * PhoneNumberUpdateRequest
  *
  * Partial update. ``address`` is intentionally immutable — to change a
@@ -9088,6 +14258,34 @@ export type PhoneNumberUpdateRequest = {
      * Inbound Allow List
      */
     inbound_allow_list?: Array<string> | null;
+};
+
+/**
+ * PickerContact
+ */
+export type PickerContact = {
+    /**
+     * Name
+     */
+    name?: Array<string>;
+    /**
+     * Tel
+     */
+    tel?: Array<string>;
+    /**
+     * Email
+     */
+    email?: Array<string>;
+};
+
+/**
+ * PickerImport
+ */
+export type PickerImport = {
+    /**
+     * Contacts
+     */
+    contacts: Array<PickerContact>;
 };
 
 /**
@@ -9314,6 +14512,20 @@ export type PlivoConfigurationResponse = {
 };
 
 /**
+ * PossibleAction
+ */
+export type PossibleAction = {
+    /**
+     * Seq
+     */
+    seq: number;
+    /**
+     * Text
+     */
+    text: string;
+};
+
+/**
  * PostMessageRequest
  */
 export type PostMessageRequest = {
@@ -9345,6 +14557,10 @@ export type PostMessageRequest = {
      * Thread Id
      */
     thread_id?: string | null;
+    /**
+     * Helper
+     */
+    helper?: string | null;
 };
 
 /**
@@ -9512,6 +14728,56 @@ export type PresignedUploadUrlResponse = {
 };
 
 /**
+ * PreviewRequest
+ */
+export type PreviewRequest = {
+    /**
+     * Command
+     */
+    command: string;
+    /**
+     * Target
+     */
+    target?: {
+        [key: string]: unknown;
+    };
+};
+
+/**
+ * PrivacyOverview
+ */
+export type PrivacyOverview = {
+    /**
+     * Retention
+     */
+    retention: {
+        [key: string]: unknown;
+    };
+    /**
+     * Security
+     */
+    security: {
+        [key: string]: unknown;
+    };
+    /**
+     * Deletion Available
+     */
+    deletion_available: boolean;
+    /**
+     * Workspace Owner
+     */
+    workspace_owner: boolean;
+    /**
+     * Delete Phrase
+     */
+    delete_phrase: string;
+    /**
+     * Requests
+     */
+    requests: Array<DataRequest>;
+};
+
+/**
  * ProcessDocumentRequestSchema
  *
  * Request schema for triggering document processing.
@@ -9553,6 +14819,153 @@ export type ProcessDocumentRequestSchema = {
      * Retrieval mode: 'chunked' for vector search or 'full_document' for full text retrieval
      */
     retrieval_mode?: string;
+};
+
+/**
+ * Profile
+ */
+export type Profile = {
+    /**
+     * Preferred Name
+     */
+    preferred_name?: string | null;
+    /**
+     * Email
+     */
+    email?: string | null;
+    /**
+     * Email Verified
+     */
+    email_verified?: boolean;
+    /**
+     * Language
+     */
+    language?: string | null;
+    /**
+     * Explanation Language
+     */
+    explanation_language?: string | null;
+    /**
+     * Timezone
+     */
+    timezone?: string | null;
+    /**
+     * Voice
+     */
+    voice?: string | null;
+    /**
+     * Summary Time
+     */
+    summary_time?: string | null;
+    /**
+     * Response Length
+     */
+    response_length?: string | null;
+    /**
+     * Custom Instructions
+     */
+    custom_instructions?: string | null;
+    /**
+     * Memory Enabled
+     */
+    memory_enabled?: boolean | null;
+    /**
+     * Speaking Speed
+     */
+    speaking_speed?: number | null;
+    /**
+     * Captions
+     */
+    captions?: boolean | null;
+    /**
+     * Auto Detect Language
+     */
+    auto_detect_language?: boolean | null;
+    /**
+     * Revision
+     */
+    revision: number;
+    /**
+     * Updated At
+     */
+    updated_at?: string | null;
+    /**
+     * Onboarding Absorbed At
+     */
+    onboarding_absorbed_at?: string | null;
+    /**
+     * Languages
+     */
+    languages?: Array<SettingsLanguage>;
+    /**
+     * Max Instructions
+     */
+    max_instructions?: number;
+    /**
+     * Workspace Name
+     */
+    workspace_name?: string | null;
+};
+
+/**
+ * ProfileWrite
+ *
+ * Only the fields sent change; null clears one. ``revision`` is the one
+ * the screen read; an older one is a 409 carrying what is stored.
+ */
+export type ProfileWrite = {
+    /**
+     * Preferred Name
+     */
+    preferred_name?: string | null;
+    /**
+     * Language
+     */
+    language?: string | null;
+    /**
+     * Explanation Language
+     */
+    explanation_language?: string | null;
+    /**
+     * Timezone
+     */
+    timezone?: string | null;
+    /**
+     * Voice
+     */
+    voice?: string | null;
+    /**
+     * Summary Time
+     */
+    summary_time?: string | null;
+    /**
+     * Response Length
+     */
+    response_length?: string | null;
+    /**
+     * Custom Instructions
+     */
+    custom_instructions?: string | null;
+    /**
+     * Memory Enabled
+     */
+    memory_enabled?: boolean | null;
+    /**
+     * Speaking Speed
+     */
+    speaking_speed?: number | number | null;
+    /**
+     * Captions
+     */
+    captions?: boolean | null;
+    /**
+     * Auto Detect Language
+     */
+    auto_detect_language?: boolean | null;
+    /**
+     * Revision
+     */
+    revision: number;
 };
 
 /**
@@ -9943,6 +15356,42 @@ export type ProviderRatesRequest = {
 };
 
 /**
+ * ProviderStatus
+ */
+export type ProviderStatus = {
+    /**
+     * Provider
+     */
+    provider: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Toolkit
+     */
+    toolkit: string;
+    /**
+     * State
+     */
+    state: string;
+    /**
+     * Detail
+     */
+    detail?: string | null;
+    /**
+     * Last Synced At
+     */
+    last_synced_at?: string | null;
+    /**
+     * Counts
+     */
+    counts?: {
+        [key: string]: number;
+    };
+};
+
+/**
  * ProviderSyncStatus
  *
  * Result of pushing a phone-number change to the upstream provider.
@@ -10025,6 +15474,45 @@ export type PublicPackDetail = {
      * Runs
      */
     runs?: string | null;
+};
+
+/**
+ * PushKeys
+ */
+export type PushKeys = {
+    /**
+     * P256Dh
+     */
+    p256dh: string;
+    /**
+     * Auth
+     */
+    auth: string;
+};
+
+/**
+ * PushSubscription
+ */
+export type PushSubscription = {
+    /**
+     * Endpoint
+     */
+    endpoint: string;
+    keys: PushKeys;
+    /**
+     * Device Label
+     */
+    device_label?: string | null;
+};
+
+/**
+ * QuotasResponse
+ */
+export type QuotasResponse = {
+    /**
+     * Allowances
+     */
+    allowances: Array<AllowanceRow>;
 };
 
 /**
@@ -10190,6 +15678,375 @@ export type RateTableToolDefinition = {
 };
 
 /**
+ * ReachConnectRequest
+ */
+export type ReachConnectRequest = {
+    /**
+     * Kind
+     */
+    kind: 'tool' | 'ordering';
+    /**
+     * Provider
+     */
+    provider?: string | null;
+    /**
+     * Name
+     */
+    name?: string | null;
+    /**
+     * Server Url
+     */
+    server_url?: string | null;
+    /**
+     * Token
+     */
+    token?: string | null;
+};
+
+/**
+ * ReachConnectResponse
+ */
+export type ReachConnectResponse = {
+    connection: ReachConnection;
+    /**
+     * Authorize Url
+     */
+    authorize_url?: string | null;
+};
+
+/**
+ * ReachConnection
+ */
+export type ReachConnection = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Provider
+     */
+    provider: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Server Url
+     */
+    server_url: string;
+    /**
+     * Auth
+     */
+    auth: string;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Tools
+     */
+    tools: Array<ReachToolSummary>;
+    /**
+     * Last Error
+     */
+    last_error?: string | null;
+    /**
+     * Connected At
+     */
+    connected_at?: string | null;
+};
+
+/**
+ * ReachConnectionList
+ */
+export type ReachConnectionList = {
+    /**
+     * Connections
+     */
+    connections: Array<ReachConnection>;
+};
+
+/**
+ * ReachOrderChange
+ */
+export type ReachOrderChange = {
+    /**
+     * Item Id
+     */
+    item_id: string;
+    /**
+     * Quantity
+     */
+    quantity: number;
+};
+
+/**
+ * ReachOrderCharge
+ */
+export type ReachOrderCharge = {
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Amount Paise
+     */
+    amount_paise: number;
+};
+
+/**
+ * ReachOrderDetail
+ */
+export type ReachOrderDetail = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Provider
+     */
+    provider: string;
+    /**
+     * Provider Name
+     */
+    provider_name: string;
+    /**
+     * Store
+     */
+    store: {
+        [key: string]: unknown;
+    };
+    /**
+     * Items
+     */
+    items: Array<ReachOrderItem>;
+    /**
+     * Charges
+     */
+    charges: Array<ReachOrderCharge>;
+    /**
+     * Discount Paise
+     */
+    discount_paise: number;
+    /**
+     * Subtotal Paise
+     */
+    subtotal_paise?: number | null;
+    /**
+     * Total Paise
+     */
+    total_paise?: number | null;
+    /**
+     * Currency
+     */
+    currency: string;
+    /**
+     * Coupon
+     */
+    coupon?: string | null;
+    /**
+     * Address
+     */
+    address: {
+        [key: string]: unknown;
+    };
+    /**
+     * Payment
+     */
+    payment: {
+        [key: string]: unknown;
+    };
+    /**
+     * Offers
+     */
+    offers: Array<ReachOrderOffer>;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Digest
+     */
+    digest: string;
+    /**
+     * Card Event Id
+     */
+    card_event_id?: number | null;
+    /**
+     * Quoted At
+     */
+    quoted_at?: string | null;
+    /**
+     * Provider Order Id
+     */
+    provider_order_id?: string | null;
+    /**
+     * Payment Link
+     */
+    payment_link?: string | null;
+    /**
+     * Error
+     */
+    error?: string | null;
+};
+
+/**
+ * ReachOrderItem
+ */
+export type ReachOrderItem = {
+    /**
+     * Item Id
+     */
+    item_id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Quantity
+     */
+    quantity: number;
+    /**
+     * Unit Price Paise
+     */
+    unit_price_paise: number;
+    /**
+     * Line Total Paise
+     */
+    line_total_paise: number;
+};
+
+/**
+ * ReachOrderOffer
+ */
+export type ReachOrderOffer = {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Description
+     */
+    description?: string;
+    /**
+     * Saving Paise
+     */
+    saving_paise?: number | null;
+};
+
+/**
+ * ReachProviderList
+ */
+export type ReachProviderList = {
+    /**
+     * Providers
+     */
+    providers: Array<ReachProviderState>;
+};
+
+/**
+ * ReachProviderState
+ */
+export type ReachProviderState = {
+    /**
+     * Provider
+     */
+    provider: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Kinds
+     */
+    kinds: Array<string>;
+    /**
+     * State
+     */
+    state: string;
+    /**
+     * Reason
+     */
+    reason?: string | null;
+    /**
+     * Connection Id
+     */
+    connection_id?: string | null;
+};
+
+/**
+ * ReachReviseOrderRequest
+ */
+export type ReachReviseOrderRequest = {
+    /**
+     * Items
+     */
+    items?: Array<ReachOrderChange> | null;
+    /**
+     * Address Id
+     */
+    address_id?: string | null;
+    /**
+     * Payment Method
+     */
+    payment_method?: string | null;
+    /**
+     * Coupon
+     */
+    coupon?: string | null;
+};
+
+/**
+ * ReachReviseOrderResponse
+ */
+export type ReachReviseOrderResponse = {
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Note
+     */
+    note?: string | null;
+    /**
+     * Event Id
+     */
+    event_id?: number | null;
+};
+
+/**
+ * ReachToolSummary
+ */
+export type ReachToolSummary = {
+    /**
+     * Name
+     */
+    name?: string | null;
+    /**
+     * Read
+     */
+    read: boolean;
+};
+
+/**
+ * Readiness
+ */
+export type Readiness = {
+    /**
+     * Incoming Call Ok
+     */
+    incoming_call_ok: boolean;
+    /**
+     * Escalation Ok
+     */
+    escalation_ok: boolean;
+};
+
+/**
  * ReadinessItem
  */
 export type ReadinessItem = {
@@ -10234,6 +16091,28 @@ export type ReadinessResponse = {
 };
 
 /**
+ * ReadinessState
+ */
+export type ReadinessState = {
+    /**
+     * State
+     */
+    state: 'available' | 'needs_setup' | 'disabled_by_policy' | 'unavailable';
+    /**
+     * Reason
+     */
+    reason?: string | null;
+    /**
+     * Next Step
+     */
+    next_step?: string | null;
+    /**
+     * Notes
+     */
+    notes?: Array<string>;
+};
+
+/**
  * RealtimeEstimateRequest
  *
  * The call to price. Defaults describe a typical Indian outbound call —
@@ -10261,6 +16140,20 @@ export type RealtimeEstimateRequest = {
      * Caching Enabled
      */
     caching_enabled?: boolean;
+};
+
+/**
+ * ReceiptRequest
+ */
+export type ReceiptRequest = {
+    /**
+     * Text
+     */
+    text: string;
+    /**
+     * Thread Id
+     */
+    thread_id?: string | null;
 };
 
 /**
@@ -10563,6 +16456,16 @@ export type RegisterList = {
 };
 
 /**
+ * Reject
+ */
+export type Reject = {
+    /**
+     * Note
+     */
+    note: string;
+};
+
+/**
  * ReleaseRequest
  */
 export type ReleaseRequest = {
@@ -10579,6 +16482,116 @@ export type ReleaseRequest = {
 };
 
 /**
+ * ReminderDraft
+ */
+export type ReminderDraft = {
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Note
+     */
+    note?: string;
+    /**
+     * Event Id
+     */
+    event_id?: number | null;
+    /**
+     * Offset Minutes
+     */
+    offset_minutes?: number | null;
+    /**
+     * Recurrence
+     */
+    recurrence?: string;
+    /**
+     * Date
+     */
+    date?: string | null;
+    /**
+     * Local Time
+     */
+    local_time?: string | null;
+    /**
+     * Weekday
+     */
+    weekday?: number | null;
+    /**
+     * Timezone
+     */
+    timezone?: string | null;
+    /**
+     * Channel
+     */
+    channel?: string;
+};
+
+/**
+ * ReminderSave
+ */
+export type ReminderSave = {
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Note
+     */
+    note?: string;
+    /**
+     * Event Id
+     */
+    event_id?: number | null;
+    /**
+     * Offset Minutes
+     */
+    offset_minutes?: number | null;
+    /**
+     * Recurrence
+     */
+    recurrence?: string;
+    /**
+     * Date
+     */
+    date?: string | null;
+    /**
+     * Local Time
+     */
+    local_time?: string | null;
+    /**
+     * Weekday
+     */
+    weekday?: number | null;
+    /**
+     * Timezone
+     */
+    timezone?: string | null;
+    /**
+     * Channel
+     */
+    channel?: string;
+    /**
+     * Schedule Key
+     */
+    schedule_key: string;
+    /**
+     * Revision
+     */
+    revision?: number | null;
+};
+
+/**
+ * ReminderStatus
+ */
+export type ReminderStatus = {
+    /**
+     * Verb
+     */
+    verb: string;
+};
+
+/**
  * RenameOrganizationRequest
  */
 export type RenameOrganizationRequest = {
@@ -10586,6 +16599,226 @@ export type RenameOrganizationRequest = {
      * Name
      */
     name: string;
+};
+
+/**
+ * RenameRequest
+ */
+export type RenameRequest = {
+    /**
+     * Title
+     */
+    title: string;
+};
+
+/**
+ * ReopenWrite
+ */
+export type ReopenWrite = {
+    /**
+     * Body
+     */
+    body?: string | null;
+};
+
+/**
+ * ReplyWrite
+ */
+export type ReplyWrite = {
+    /**
+     * Body
+     */
+    body: string;
+    /**
+     * Client Key
+     */
+    client_key?: string | null;
+};
+
+/**
+ * ReportConflict
+ */
+export type ReportConflict = {
+    /**
+     * Statement
+     */
+    statement: string;
+    /**
+     * Sources
+     */
+    sources?: Array<number>;
+};
+
+/**
+ * ReportFinding
+ */
+export type ReportFinding = {
+    /**
+     * Statement
+     */
+    statement: string;
+    /**
+     * Basis
+     */
+    basis: string;
+    /**
+     * Sources
+     */
+    sources?: Array<number>;
+    /**
+     * As Of
+     */
+    as_of?: string | null;
+};
+
+/**
+ * ReportInaccessible
+ */
+export type ReportInaccessible = {
+    /**
+     * Url
+     */
+    url: string;
+    /**
+     * Reason
+     */
+    reason: string;
+};
+
+/**
+ * ReportOut
+ */
+export type ReportOut = {
+    /**
+     * Uuid
+     */
+    uuid: string;
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Question
+     */
+    question?: string | null;
+    /**
+     * Summary
+     */
+    summary?: string | null;
+    /**
+     * Findings
+     */
+    findings: Array<ReportFinding>;
+    /**
+     * Conflicts
+     */
+    conflicts: Array<ReportConflict>;
+    /**
+     * Inaccessible
+     */
+    inaccessible: Array<ReportInaccessible>;
+    /**
+     * Sources
+     */
+    sources: Array<ReportSource>;
+    /**
+     * Body
+     */
+    body: string;
+    /**
+     * Content Hash
+     */
+    content_hash: string;
+    /**
+     * Visibility
+     */
+    visibility: string;
+    /**
+     * Mine
+     */
+    mine: boolean;
+    /**
+     * Thread Id
+     */
+    thread_id?: string | null;
+    /**
+     * Created At
+     */
+    created_at?: string | null;
+    /**
+     * Notice
+     */
+    notice?: string | null;
+};
+
+/**
+ * ReportSource
+ */
+export type ReportSource = {
+    /**
+     * N
+     */
+    n: number;
+    /**
+     * Url
+     */
+    url: string;
+    /**
+     * Title
+     */
+    title?: string | null;
+    /**
+     * Accessed
+     */
+    accessed?: string | null;
+};
+
+/**
+ * ReportSummary
+ */
+export type ReportSummary = {
+    /**
+     * Uuid
+     */
+    uuid: string;
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Visibility
+     */
+    visibility: string;
+    /**
+     * Mine
+     */
+    mine: boolean;
+    /**
+     * Created At
+     */
+    created_at?: string | null;
+};
+
+/**
+ * RequestState
+ */
+export type RequestState = {
+    /**
+     * Available
+     */
+    available: boolean;
+    /**
+     * Reason
+     */
+    reason?: string | null;
 };
 
 /**
@@ -10604,6 +16837,38 @@ export type ResetPasswordRequest = {
      * New Password
      */
     new_password: string;
+};
+
+/**
+ * ResolveDate
+ */
+export type ResolveDate = {
+    /**
+     * Words
+     */
+    words: string;
+    /**
+     * Local Time
+     */
+    local_time: string;
+    /**
+     * Timezone
+     */
+    timezone?: string | null;
+};
+
+/**
+ * ResumeRequest
+ */
+export type ResumeRequest = {
+    /**
+     * At Ms
+     */
+    at_ms: number;
+    /**
+     * Paused Ms
+     */
+    paused_ms?: number | null;
 };
 
 /**
@@ -10685,6 +16950,34 @@ export type RetryConfigResponse = {
 };
 
 /**
+ * Revise
+ */
+export type Revise = {
+    /**
+     * Params
+     */
+    params: {
+        [key: string]: unknown;
+    };
+};
+
+/**
+ * ReviseActionRequest
+ */
+export type ReviseActionRequest = {
+    /**
+     * Event Id
+     */
+    event_id: number;
+    /**
+     * Arguments
+     */
+    arguments: {
+        [key: string]: unknown;
+    };
+};
+
+/**
  * RewindTextChatSessionRequest
  */
 export type RewindTextChatSessionRequest = {
@@ -10750,6 +17043,32 @@ export type RoutineListResponse = {
      * Routines
      */
     routines?: Array<RoutineResponse>;
+};
+
+/**
+ * RoutinePreviewRequest
+ */
+export type RoutinePreviewRequest = {
+    /**
+     * Cadence
+     */
+    cadence: string;
+    /**
+     * Anchor
+     */
+    anchor: string;
+    /**
+     * At Minute
+     */
+    at_minute?: number;
+    /**
+     * Offset Minutes
+     */
+    offset_minutes?: number;
+    /**
+     * Weekday
+     */
+    weekday?: number;
 };
 
 /**
@@ -11110,6 +17429,234 @@ export type SaveRequest = {
 };
 
 /**
+ * SavedItem
+ */
+export type SavedItem = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Organization Id
+     */
+    organization_id: number;
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Body
+     */
+    body?: string | null;
+    /**
+     * Visibility
+     */
+    visibility: string;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Mine
+     */
+    mine: boolean;
+    /**
+     * Source Event Id
+     */
+    source_event_id?: number | null;
+    /**
+     * Thread Id
+     */
+    thread_id?: string | null;
+    /**
+     * Conversation Href
+     */
+    conversation_href?: string | null;
+    /**
+     * File
+     */
+    file?: {
+        [key: string]: unknown;
+    } | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+    /**
+     * Deletion Effects
+     */
+    deletion_effects?: Array<string>;
+};
+
+/**
+ * SavedItemRename
+ */
+export type SavedItemRename = {
+    /**
+     * Title
+     */
+    title: string;
+};
+
+/**
+ * SavedItemWrite
+ */
+export type SavedItemWrite = {
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Kind
+     */
+    kind?: 'reply' | 'note' | 'file' | 'link';
+    /**
+     * Body
+     */
+    body?: string | null;
+    /**
+     * Visibility
+     */
+    visibility?: 'private' | 'workspace';
+    /**
+     * Source Event Id
+     */
+    source_event_id?: number | null;
+    /**
+     * Thread Id
+     */
+    thread_id?: string | null;
+};
+
+/**
+ * SavedList
+ */
+export type SavedList = {
+    /**
+     * Scope
+     */
+    scope: string;
+    /**
+     * Items
+     */
+    items: Array<SavedItem>;
+};
+
+/**
+ * ScamAnswer
+ */
+export type ScamAnswer = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Verdict
+     */
+    verdict: string;
+    /**
+     * Headline
+     */
+    headline: string;
+    /**
+     * Reasons
+     */
+    reasons: Array<ScamReason>;
+    /**
+     * What To Do
+     */
+    what_to_do: Array<string>;
+    /**
+     * Never Asks
+     */
+    never_asks: string;
+    /**
+     * Limits
+     */
+    limits: string;
+};
+
+/**
+ * ScamCheckWrite
+ */
+export type ScamCheckWrite = {
+    /**
+     * Text
+     */
+    text: string;
+    /**
+     * Kind
+     */
+    kind?: 'message' | 'call';
+};
+
+/**
+ * ScamHistory
+ */
+export type ScamHistory = {
+    /**
+     * Checks
+     */
+    checks: Array<ScamHistoryItem>;
+};
+
+/**
+ * ScamHistoryItem
+ */
+export type ScamHistoryItem = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Verdict
+     */
+    verdict: string;
+    /**
+     * Headline
+     */
+    headline: string;
+    /**
+     * Signals
+     */
+    signals: Array<string>;
+    /**
+     * At
+     */
+    at: string;
+};
+
+/**
+ * ScamReason
+ */
+export type ScamReason = {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Why
+     */
+    why: string;
+};
+
+/**
  * ScheduleConfigRequest
  */
 export type ScheduleConfigRequest = {
@@ -11146,6 +17693,54 @@ export type ScheduleConfigResponse = {
 };
 
 /**
+ * SearchResponse
+ */
+export type SearchResponse = {
+    /**
+     * Scope
+     */
+    scope: string;
+    /**
+     * Query
+     */
+    query: string;
+    /**
+     * Results
+     */
+    results: Array<SearchResult>;
+};
+
+/**
+ * SearchResult
+ */
+export type SearchResult = {
+    /**
+     * Type
+     */
+    type: 'saved' | 'memory';
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Snippet
+     */
+    snippet: string;
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Href
+     */
+    href: string;
+};
+
+/**
  * SeedRatesRequest
  *
  * Load the starter price book, or bring seeded rows up to it.
@@ -11159,6 +17754,24 @@ export type SeedRatesRequest = {
      * Dry Run
      */
     dry_run?: boolean;
+};
+
+/**
+ * SendFromAddress
+ */
+export type SendFromAddress = {
+    /**
+     * To
+     */
+    to: string;
+    /**
+     * Subject
+     */
+    subject: string;
+    /**
+     * Body
+     */
+    body: string;
 };
 
 /**
@@ -11285,6 +17898,88 @@ export type SetWorkflowAvatarRequest = {
 };
 
 /**
+ * SettingsCard
+ */
+export type SettingsCard = {
+    /**
+     * Event Id
+     */
+    event_id: number;
+    /**
+     * Organization Id
+     */
+    organization_id: number;
+    /**
+     * Action
+     */
+    action?: string | null;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Effect
+     */
+    effect: string;
+    /**
+     * State
+     */
+    state: string;
+    /**
+     * Ledger State
+     */
+    ledger_state?: string | null;
+    /**
+     * Version
+     */
+    version?: string | null;
+    /**
+     * Reversible
+     */
+    reversible: boolean;
+    /**
+     * Fires At
+     */
+    fires_at?: string | null;
+    /**
+     * Note
+     */
+    note?: string | null;
+    /**
+     * Error
+     */
+    error?: string | null;
+    /**
+     * Args
+     */
+    args?: {
+        [key: string]: unknown;
+    };
+};
+
+/**
+ * SettingsLanguage
+ */
+export type SettingsLanguage = {
+    /**
+     * Tag
+     */
+    tag: string;
+    /**
+     * Native
+     */
+    native: string;
+    /**
+     * English
+     */
+    english: string;
+    /**
+     * Voice
+     */
+    voice: boolean;
+};
+
+/**
  * SettleActionRequest
  */
 export type SettleActionRequest = {
@@ -11296,6 +17991,28 @@ export type SettleActionRequest = {
      * Verb
      */
     verb: string;
+    /**
+     * Version
+     */
+    version?: string | null;
+};
+
+/**
+ * SettleCard
+ */
+export type SettleCard = {
+    /**
+     * Organization Id
+     */
+    organization_id: number;
+    /**
+     * Verb
+     */
+    verb: 'confirm' | 'decline' | 'undo';
+    /**
+     * Version
+     */
+    version?: string | null;
 };
 
 /**
@@ -11310,6 +18027,20 @@ export type SettleEditRequest = {
      * Action
      */
     action: string;
+};
+
+/**
+ * SettleItemRequest
+ */
+export type SettleItemRequest = {
+    /**
+     * Verb
+     */
+    verb: 'confirm' | 'decline' | 'undo';
+    /**
+     * Version
+     */
+    version?: string | null;
 };
 
 /**
@@ -11336,6 +18067,44 @@ export type SetupFieldResponse = {
      * Value
      */
     value?: string;
+};
+
+/**
+ * SetupRequest
+ */
+export type SetupRequest = {
+    /**
+     * Thread Id
+     */
+    thread_id?: string | null;
+};
+
+/**
+ * SetupResponse
+ */
+export type SetupResponse = {
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Note
+     */
+    note?: string | null;
+};
+
+/**
+ * ShareField
+ */
+export type ShareField = {
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Value
+     */
+    value?: unknown;
 };
 
 /**
@@ -11393,6 +18162,126 @@ export type ShareLinkSettings = {
 };
 
 /**
+ * ShareOption
+ */
+export type ShareOption = {
+    /**
+     * Key
+     */
+    key: string;
+    /**
+     * Label
+     */
+    label: string;
+};
+
+/**
+ * SharePreview
+ */
+export type SharePreview = {
+    affected?: Affected | null;
+    /**
+     * Sections
+     */
+    sections: Array<ShareSection>;
+    /**
+     * Not Shared
+     */
+    not_shared: string;
+};
+
+/**
+ * SharePreviewRequest
+ */
+export type SharePreviewRequest = {
+    /**
+     * Affected Kind
+     */
+    affected_kind?: 'task' | 'reply' | null;
+    /**
+     * Affected Id
+     */
+    affected_id?: number | null;
+    /**
+     * Share
+     */
+    share?: Array<string> | null;
+};
+
+/**
+ * ShareRequest
+ */
+export type ShareRequest = {
+    /**
+     * Destination Organization Id
+     */
+    destination_organization_id: number;
+    /**
+     * Expected Value
+     */
+    expected_value: string;
+};
+
+/**
+ * ShareSection
+ */
+export type ShareSection = {
+    /**
+     * Key
+     */
+    key: string;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Included
+     */
+    included: boolean;
+    /**
+     * Required
+     */
+    required: boolean;
+    /**
+     * Fields
+     */
+    fields: Array<ShareField>;
+};
+
+/**
+ * SharedCard
+ *
+ * A colleague's contact they chose to show you. Never their brief or
+ * their interactions.
+ */
+export type SharedCard = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Company
+     */
+    company?: string | null;
+    /**
+     * Phones
+     */
+    phones?: Array<string>;
+    /**
+     * Emails
+     */
+    emails?: Array<string>;
+    /**
+     * Shared By
+     */
+    shared_by?: string | null;
+};
+
+/**
  * SharedOutboundRequest
  */
 export type SharedOutboundRequest = {
@@ -11400,6 +18289,53 @@ export type SharedOutboundRequest = {
      * Shared
      */
     shared?: boolean;
+};
+
+/**
+ * SharedSection
+ */
+export type SharedSection = {
+    /**
+     * Key
+     */
+    key: string;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Fields
+     */
+    fields: Array<ShareField>;
+};
+
+/**
+ * SharedSnapshot
+ */
+export type SharedSnapshot = {
+    affected?: Affected | null;
+    /**
+     * Sections
+     */
+    sections?: Array<SharedSection>;
+    /**
+     * Left Out
+     */
+    left_out?: Array<string>;
+    /**
+     * Shared At
+     */
+    shared_at?: string | null;
+};
+
+/**
+ * SharesWrite
+ */
+export type SharesWrite = {
+    /**
+     * Shares
+     */
+    shares: Array<string>;
 };
 
 /**
@@ -11537,6 +18473,40 @@ export type SkillOnBot = {
 };
 
 /**
+ * Slots
+ */
+export type Slots = {
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Slots
+     */
+    slots?: Array<string>;
+    /**
+     * Date
+     */
+    date?: string | null;
+    /**
+     * Timezone
+     */
+    timezone?: string | null;
+    /**
+     * Duration Minutes
+     */
+    duration_minutes?: number | null;
+    /**
+     * May Book
+     */
+    may_book?: boolean;
+    /**
+     * Say
+     */
+    say?: string | null;
+};
+
+/**
  * Smallest AI
  *
  * Smallest AI ultralow-latency TTS (Waves) and STT (Pulse) APIs.
@@ -11614,6 +18584,16 @@ export type SmallestAittsConfiguration = {
      * Speech speed multiplier (0.5 to 2.0).
      */
     speed?: number;
+};
+
+/**
+ * Snooze
+ */
+export type Snooze = {
+    /**
+     * Minutes
+     */
+    minutes: number;
 };
 
 /**
@@ -11805,6 +18785,50 @@ export type SpendCapRequest = {
 };
 
 /**
+ * StaffReply
+ */
+export type StaffReply = {
+    /**
+     * Body
+     */
+    body: string;
+    /**
+     * Client Key
+     */
+    client_key?: string | null;
+    /**
+     * Then Status
+     */
+    then_status?: string | null;
+};
+
+/**
+ * StageRequest
+ */
+export type StageRequest = {
+    /**
+     * Component
+     */
+    component: string;
+    /**
+     * Provider
+     */
+    provider: string;
+    /**
+     * Api Key
+     */
+    api_key: string;
+    /**
+     * Reason
+     */
+    reason: string;
+    /**
+     * Label
+     */
+    label?: string | null;
+};
+
+/**
  * StartCampaignRequest
  */
 export type StartCampaignRequest = {
@@ -11812,6 +18836,28 @@ export type StartCampaignRequest = {
      * Consent Attested
      */
     consent_attested?: boolean;
+};
+
+/**
+ * StartConnection
+ */
+export type StartConnection = {
+    /**
+     * Toolkit
+     */
+    toolkit: string;
+    /**
+     * Scope
+     */
+    scope?: 'mine' | 'workspace';
+    /**
+     * Purpose
+     */
+    purpose?: string | null;
+    /**
+     * Return To
+     */
+    return_to?: string | null;
 };
 
 /**
@@ -11865,6 +18911,42 @@ export type StartResponse = {
 };
 
 /**
+ * StartSession
+ */
+export type StartSession = {
+    /**
+     * Thread Id
+     */
+    thread_id?: string | null;
+};
+
+/**
+ * StartedConnection
+ */
+export type StartedConnection = {
+    /**
+     * Consent Id
+     */
+    consent_id: number;
+    /**
+     * Url
+     */
+    url: string;
+    /**
+     * Expires At
+     */
+    expires_at?: string | null;
+    /**
+     * Access
+     */
+    access: Array<string>;
+    /**
+     * App Name
+     */
+    app_name: string;
+};
+
+/**
  * StatusRequest
  */
 export type StatusRequest = {
@@ -11872,6 +18954,16 @@ export type StatusRequest = {
      * Status
      */
     status: string;
+};
+
+/**
+ * StopResponse
+ */
+export type StopResponse = {
+    /**
+     * Requested
+     */
+    requested: boolean;
 };
 
 /**
@@ -11938,6 +19030,26 @@ export type Suggestion = {
 };
 
 /**
+ * SummaryRequest
+ */
+export type SummaryRequest = {
+    /**
+     * Thread Id
+     */
+    thread_id?: string | null;
+};
+
+/**
+ * SummaryResponse
+ */
+export type SummaryResponse = {
+    /**
+     * Asked
+     */
+    asked: string;
+};
+
+/**
  * SuperuserWorkflowRunResponse
  */
 export type SuperuserWorkflowRunResponse = {
@@ -11985,6 +19097,10 @@ export type SuperuserWorkflowRunResponse = {
      * Transcript Url
      */
     transcript_url: string | null;
+    /**
+     * Content Access
+     */
+    content_access?: string;
     /**
      * Usage Info
      */
@@ -12049,6 +19165,20 @@ export type SwitchOrganizationRequest = {
      * Organization Id
      */
     organization_id: number;
+};
+
+/**
+ * SyncStarted
+ */
+export type SyncStarted = {
+    /**
+     * Provider
+     */
+    provider: string;
+    /**
+     * State
+     */
+    state: string;
 };
 
 /**
@@ -12570,6 +19700,42 @@ export type TelnyxConfigurationResponse = {
 };
 
 /**
+ * TemporaryConversation
+ */
+export type TemporaryConversation = {
+    /**
+     * Thread Id
+     */
+    thread_id: string;
+    /**
+     * Href
+     */
+    href?: string | null;
+    /**
+     * Expires At
+     */
+    expires_at: string;
+    /**
+     * Retention
+     */
+    retention: string;
+    /**
+     * Purged
+     */
+    purged?: boolean;
+};
+
+/**
+ * TestResult
+ */
+export type TestResult = {
+    /**
+     * Push
+     */
+    push: string;
+};
+
+/**
  * TextArtifactResponse
  */
 export type TextArtifactResponse = {
@@ -12602,6 +19768,10 @@ export type ThreadChip = {
      * Text
      */
     text: string;
+    /**
+     * Helper
+     */
+    helper?: string | null;
 };
 
 /**
@@ -12644,6 +19814,228 @@ export type ThreadsResponse = {
      * Threads
      */
     threads: Array<ThreadSummary>;
+    /**
+     * Original Is Yours
+     */
+    original_is_yours?: boolean;
+};
+
+/**
+ * TicketAction
+ */
+export type TicketAction = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Summary
+     */
+    summary?: string | null;
+    /**
+     * State
+     */
+    state: string;
+    /**
+     * Finished At
+     */
+    finished_at?: string | null;
+};
+
+/**
+ * TicketAttachment
+ */
+export type TicketAttachment = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * File Name
+     */
+    file_name: string;
+    /**
+     * Content Type
+     */
+    content_type: string;
+    /**
+     * Size Bytes
+     */
+    size_bytes: number;
+    /**
+     * Created At
+     */
+    created_at?: string | null;
+};
+
+/**
+ * TicketCreate
+ */
+export type TicketCreate = {
+    /**
+     * Affected Kind
+     */
+    affected_kind?: 'task' | 'reply' | null;
+    /**
+     * Affected Id
+     */
+    affected_id?: number | null;
+    /**
+     * Share
+     */
+    share?: Array<string> | null;
+    /**
+     * Category
+     */
+    category: string;
+    /**
+     * Description
+     */
+    description: string;
+    /**
+     * Subject
+     */
+    subject?: string | null;
+};
+
+/**
+ * TicketCreated
+ */
+export type TicketCreated = {
+    ticket: TicketSummary;
+    /**
+     * Created
+     */
+    created: boolean;
+};
+
+/**
+ * TicketDetail
+ */
+export type TicketDetail = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Category
+     */
+    category: string;
+    /**
+     * Category Label
+     */
+    category_label: string;
+    /**
+     * Subject
+     */
+    subject: string;
+    /**
+     * Status
+     */
+    status: string;
+    affected?: Affected | null;
+    /**
+     * Reopened Count
+     */
+    reopened_count: number;
+    /**
+     * Created At
+     */
+    created_at?: string | null;
+    /**
+     * Updated At
+     */
+    updated_at?: string | null;
+    /**
+     * Resolved At
+     */
+    resolved_at?: string | null;
+    /**
+     * Support Replied
+     */
+    support_replied?: boolean;
+    shared: SharedSnapshot;
+    /**
+     * Messages
+     */
+    messages: Array<TicketMessage>;
+    /**
+     * Attachments
+     */
+    attachments: Array<TicketAttachment>;
+    /**
+     * Actions
+     */
+    actions: Array<TicketAction>;
+};
+
+/**
+ * TicketMessage
+ */
+export type TicketMessage = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Author Kind
+     */
+    author_kind: string;
+    /**
+     * Body
+     */
+    body: string;
+    /**
+     * Created At
+     */
+    created_at?: string | null;
+};
+
+/**
+ * TicketSummary
+ */
+export type TicketSummary = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Category
+     */
+    category: string;
+    /**
+     * Category Label
+     */
+    category_label: string;
+    /**
+     * Subject
+     */
+    subject: string;
+    /**
+     * Status
+     */
+    status: string;
+    affected?: Affected | null;
+    /**
+     * Reopened Count
+     */
+    reopened_count: number;
+    /**
+     * Created At
+     */
+    created_at?: string | null;
+    /**
+     * Updated At
+     */
+    updated_at?: string | null;
+    /**
+     * Resolved At
+     */
+    resolved_at?: string | null;
+    /**
+     * Support Replied
+     */
+    support_replied?: boolean;
 };
 
 /**
@@ -12891,6 +20283,38 @@ export type ToolResponse = {
 };
 
 /**
+ * TopicMeta
+ */
+export type TopicMeta = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Requested
+     */
+    requested: boolean;
+};
+
+/**
+ * TopicSetting
+ */
+export type TopicSetting = {
+    /**
+     * On
+     */
+    on: boolean;
+    /**
+     * Snoozed Until
+     */
+    snoozed_until?: string | null;
+};
+
+/**
  * TopupRequest
  *
  * A pack, or a free amount. One of the two.
@@ -12914,6 +20338,180 @@ export type TopupRequest = {
      * A promo code (KAN-134). Checked before the order is made.
      */
     promo_code?: string | null;
+};
+
+/**
+ * TrackerColumn
+ */
+export type TrackerColumn = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Type
+     */
+    type: string;
+};
+
+/**
+ * TrackerDetail
+ */
+export type TrackerDetail = {
+    /**
+     * Uuid
+     */
+    uuid: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Columns
+     */
+    columns: Array<TrackerColumn>;
+    /**
+     * Visibility
+     */
+    visibility: string;
+    /**
+     * Mine
+     */
+    mine: boolean;
+    /**
+     * Created At
+     */
+    created_at?: string | null;
+    /**
+     * Rows
+     */
+    rows: Array<TrackerRow>;
+};
+
+/**
+ * TrackerOut
+ */
+export type TrackerOut = {
+    /**
+     * Uuid
+     */
+    uuid: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Columns
+     */
+    columns: Array<TrackerColumn>;
+    /**
+     * Visibility
+     */
+    visibility: string;
+    /**
+     * Mine
+     */
+    mine: boolean;
+    /**
+     * Created At
+     */
+    created_at?: string | null;
+};
+
+/**
+ * TrackerRow
+ */
+export type TrackerRow = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Values
+     */
+    values: {
+        [key: string]: unknown;
+    };
+    /**
+     * At
+     */
+    at: string;
+};
+
+/**
+ * TrackerRowWrite
+ */
+export type TrackerRowWrite = {
+    /**
+     * Values
+     */
+    values: {
+        [key: string]: unknown;
+    };
+};
+
+/**
+ * TranscriptPart
+ */
+export type TranscriptPart = {
+    /**
+     * Seq
+     */
+    seq: number;
+    /**
+     * Start Ms
+     */
+    start_ms: number;
+    /**
+     * End Ms
+     */
+    end_ms: number;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Text
+     */
+    text: string;
+    /**
+     * Original Text
+     */
+    original_text?: string | null;
+    /**
+     * Corrected
+     */
+    corrected: boolean;
+    /**
+     * Error
+     */
+    error?: string | null;
+    /**
+     * Has Action Cue
+     */
+    has_action_cue: boolean;
+};
+
+/**
+ * TranscriptionCapability
+ */
+export type TranscriptionCapability = {
+    /**
+     * State
+     */
+    state: string;
+    /**
+     * Reason
+     */
+    reason?: string | null;
+    /**
+     * Provider
+     */
+    provider: string;
+    /**
+     * Key Source
+     */
+    key_source?: string | null;
 };
 
 /**
@@ -13398,6 +20996,54 @@ export type TurnCredentialsResponse = {
      * Uris
      */
     uris: Array<string>;
+};
+
+/**
+ * TurnTiming
+ */
+export type TurnTiming = {
+    /**
+     * Turn Index
+     */
+    turn_index: number;
+    /**
+     * Response Ms
+     */
+    response_ms?: number | null;
+    /**
+     * Interruption Ms
+     */
+    interruption_ms?: number | null;
+    /**
+     * Interrupted
+     */
+    interrupted?: boolean;
+};
+
+/**
+ * TurnTimingRecorded
+ */
+export type TurnTimingRecorded = {
+    /**
+     * Session Id
+     */
+    session_id: number;
+    /**
+     * Turn Index
+     */
+    turn_index: number;
+    /**
+     * Response Ms
+     */
+    response_ms: number | null;
+    /**
+     * Interruption Ms
+     */
+    interruption_ms: number | null;
+    /**
+     * Interrupted
+     */
+    interrupted: boolean;
 };
 
 /**
@@ -13918,6 +21564,16 @@ export type VersionOutcome = {
 };
 
 /**
+ * VisibilityRequest
+ */
+export type VisibilityRequest = {
+    /**
+     * Visibility
+     */
+    visibility: 'private' | 'workspace';
+};
+
+/**
  * VobizConfigurationRequest
  *
  * Request schema for Vobiz configuration.
@@ -13979,6 +21635,52 @@ export type VobizConfigurationResponse = {
      * From Numbers
      */
     from_numbers: Array<string>;
+};
+
+/**
+ * VoiceCatalogue
+ */
+export type VoiceCatalogue = {
+    /**
+     * Provider
+     */
+    provider: string;
+    /**
+     * Provider Label
+     */
+    provider_label: string;
+    /**
+     * Model
+     */
+    model?: string | null;
+    /**
+     * Language
+     */
+    language?: string | null;
+    /**
+     * Language Supported
+     */
+    language_supported?: boolean | null;
+    /**
+     * Readiness
+     */
+    readiness: 'ready' | 'needs_setup';
+    /**
+     * Readiness Reason
+     */
+    readiness_reason?: string | null;
+    /**
+     * Unavailable Reason
+     */
+    unavailable_reason?: string | null;
+    /**
+     * Voices
+     */
+    voices: Array<VoiceOption>;
+    /**
+     * Previews Available
+     */
+    previews_available?: boolean;
 };
 
 /**
@@ -14047,6 +21749,122 @@ export type VoiceLanguage = {
      * Label
      */
     label: string;
+};
+
+/**
+ * VoiceOption
+ */
+export type VoiceOption = {
+    /**
+     * Voice Id
+     */
+    voice_id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Gender
+     */
+    gender?: string | null;
+    /**
+     * Sample Url
+     */
+    sample_url?: string | null;
+};
+
+/**
+ * VoiceReadiness
+ */
+export type VoiceReadiness = {
+    live_voice: ReadinessState;
+    calls?: ReadinessState | null;
+    /**
+     * Language
+     */
+    language?: string | null;
+    /**
+     * Voice
+     */
+    voice?: string | null;
+    /**
+     * Captions
+     */
+    captions?: boolean;
+};
+
+/**
+ * VoiceSession
+ */
+export type VoiceSession = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Thread Id
+     */
+    thread_id: string | null;
+    /**
+     * State
+     */
+    state: string;
+    /**
+     * Phase
+     */
+    phase: string | null;
+    /**
+     * State Version
+     */
+    state_version: number;
+    /**
+     * Muted
+     */
+    muted: boolean;
+    /**
+     * Language
+     */
+    language: string | null;
+    /**
+     * Voice
+     */
+    voice: string | null;
+    /**
+     * Config
+     */
+    config: {
+        [key: string]: unknown;
+    };
+    /**
+     * Reconnects
+     */
+    reconnects: number;
+    /**
+     * Gaps
+     */
+    gaps: Array<{
+        [key: string]: unknown;
+    }>;
+    /**
+     * Lost Ms
+     */
+    lost_ms: number;
+    /**
+     * End Reason
+     */
+    end_reason: string | null;
+    /**
+     * Created At
+     */
+    created_at: string | null;
+    /**
+     * Connected At
+     */
+    connected_at: string | null;
+    /**
+     * Ended At
+     */
+    ended_at: string | null;
 };
 
 /**
@@ -14193,6 +22011,50 @@ export type VonageConfigurationResponse = {
 };
 
 /**
+ * WaitlistJoinRequest
+ */
+export type WaitlistJoinRequest = {
+    /**
+     * Email
+     */
+    email: string;
+    /**
+     * Language
+     */
+    language?: string;
+    /**
+     * First Task
+     */
+    first_task?: string | null;
+    /**
+     * Phone
+     */
+    phone?: string | null;
+    /**
+     * Occupation
+     */
+    occupation?: string | null;
+    /**
+     * Renewal
+     */
+    renewal?: boolean;
+};
+
+/**
+ * WaitlistJoinResponse
+ */
+export type WaitlistJoinResponse = {
+    /**
+     * State
+     */
+    state: string;
+    /**
+     * Created
+     */
+    created: boolean;
+};
+
+/**
  * WebToolConfig
  *
  * What an agent's web tool is kept to (OP-2). Both optional: an empty
@@ -14251,6 +22113,24 @@ export type WebToolDefinition = {
  * Webhook credential authentication types
  */
 export type WebhookCredentialType = 'none' | 'api_key' | 'bearer_token' | 'basic_auth' | 'custom_header' | 'oauth2';
+
+/**
+ * WhoOwesMeResponse
+ */
+export type WhoOwesMeResponse = {
+    /**
+     * Items
+     */
+    items: Array<CommitmentOut>;
+    /**
+     * Totals
+     */
+    totals: Array<MoneyTotal>;
+    /**
+     * Overdue
+     */
+    overdue: number;
+};
 
 /**
  * WorkerHealthResponse
@@ -14338,7 +22218,7 @@ export type WorkflowConfigurationDefaults = {
     /**
      * Caller Environment
      */
-    caller_environment?: 'quiet' | 'normal' | 'noisy';
+    caller_environment?: 'auto' | 'quiet' | 'normal' | 'noisy';
     /**
      * Dictionary
      */
@@ -15048,6 +22928,30 @@ export type WorkspaceClosureRequest = {
 };
 
 /**
+ * WorkspaceModelChoice
+ */
+export type WorkspaceModelChoice = {
+    /**
+     * Slot
+     */
+    slot: string;
+    /**
+     * Value
+     */
+    value: string;
+};
+
+/**
+ * WorkspaceSwitch
+ */
+export type WorkspaceSwitch = {
+    /**
+     * Enabled
+     */
+    enabled: boolean;
+};
+
+/**
  * WriteFilesRequest
  */
 export type WriteFilesRequest = {
@@ -15096,6 +23000,54 @@ export type XaittsConfiguration = {
 };
 
 /**
+ * StepRequest
+ */
+export type ApiRoutesDesktopStepRequest = {
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * App
+     */
+    app: string;
+    /**
+     * Summary
+     */
+    summary: string;
+    /**
+     * Detail
+     */
+    detail: string;
+    /**
+     * Fingerprint
+     */
+    fingerprint: string;
+    /**
+     * Step
+     */
+    step?: {
+        [key: string]: unknown;
+    };
+    /**
+     * Session Id
+     */
+    session_id?: string;
+    /**
+     * Request Id
+     */
+    request_id?: string;
+    /**
+     * Device
+     */
+    device?: string;
+    /**
+     * Thread Id
+     */
+    thread_id?: string | null;
+};
+
+/**
  * RejectRequest
  */
 export type ApiRoutesKycAdminRejectRequest = {
@@ -15103,6 +23055,72 @@ export type ApiRoutesKycAdminRejectRequest = {
      * Reason
      */
     reason: string;
+};
+
+/**
+ * StopRequest
+ */
+export type ApiRoutesMeetingsStopRequest = {
+    /**
+     * Last Seq
+     */
+    last_seq?: number | null;
+    /**
+     * Captured Ms
+     */
+    captured_ms?: number | null;
+};
+
+/**
+ * CommandRequest
+ */
+export type ApiRoutesOpsConsoleCommandRequest = {
+    /**
+     * Command
+     */
+    command: string;
+    /**
+     * Target
+     */
+    target?: {
+        [key: string]: unknown;
+    };
+    /**
+     * Reason
+     */
+    reason: string;
+    /**
+     * Idempotency Key
+     */
+    idempotency_key: string;
+    /**
+     * Environment
+     */
+    environment?: string | null;
+};
+
+/**
+ * RejectRequest
+ */
+export type ApiRoutesOpsConsoleRejectRequest = {
+    /**
+     * Note
+     */
+    note?: string;
+};
+
+/**
+ * StepRequest
+ */
+export type ApiRoutesOpsConsoleStepRequest = {
+    /**
+     * Reason
+     */
+    reason?: string | null;
+    /**
+     * Force
+     */
+    force?: boolean;
 };
 
 /**
@@ -15132,6 +23150,16 @@ export type ApiRoutesPartnerAdminRejectRequest = {
 };
 
 /**
+ * StopRequest
+ */
+export type ApiRoutesShellStopRequest = {
+    /**
+     * Thread Id
+     */
+    thread_id?: string | null;
+};
+
+/**
  * ShelfResponse
  */
 export type ApiRoutesSkillsShelfResponse = {
@@ -15155,6 +23183,44 @@ export type ApiRoutesSkillsShelfResponse = {
      * Max Per Bot
      */
     max_per_bot: number;
+};
+
+/**
+ * CommandRequest
+ */
+export type ApiRoutesStaffConsoleCommandRequest = {
+    /**
+     * Command
+     */
+    command: string;
+    /**
+     * Target
+     */
+    target?: {
+        [key: string]: unknown;
+    };
+    /**
+     * Reason
+     */
+    reason: string;
+    /**
+     * Idempotency Key
+     */
+    idempotency_key: string;
+    /**
+     * Environment
+     */
+    environment?: string | null;
+};
+
+/**
+ * RejectRequest
+ */
+export type ApiRoutesStaffConsoleRejectRequest = {
+    /**
+     * Note
+     */
+    note?: string;
 };
 
 export type InitiateCallApiV1TelephonyInitiateCallPostData = {
@@ -15944,6 +24010,66 @@ export type SetPlatformManagedApiV1AdminTelephonyConfigurationsConfigIdPlatformM
 
 export type SetPlatformManagedApiV1AdminTelephonyConfigurationsConfigIdPlatformManagedPutResponse = SetPlatformManagedApiV1AdminTelephonyConfigurationsConfigIdPlatformManagedPutResponses[keyof SetPlatformManagedApiV1AdminTelephonyConfigurationsConfigIdPlatformManagedPutResponses];
 
+export type ListPhoneNumbersApiV1AdminTelephonyPhoneNumbersGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Q
+         */
+        q?: string | null;
+        /**
+         * Organization Id
+         */
+        organization_id?: number | null;
+        /**
+         * Shared
+         */
+        shared?: boolean | null;
+        /**
+         * Limit
+         */
+        limit?: number;
+    };
+    url: '/api/v1/admin/telephony/phone-numbers';
+};
+
+export type ListPhoneNumbersApiV1AdminTelephonyPhoneNumbersGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListPhoneNumbersApiV1AdminTelephonyPhoneNumbersGetError = ListPhoneNumbersApiV1AdminTelephonyPhoneNumbersGetErrors[keyof ListPhoneNumbersApiV1AdminTelephonyPhoneNumbersGetErrors];
+
+export type ListPhoneNumbersApiV1AdminTelephonyPhoneNumbersGetResponses = {
+    /**
+     * Response List Phone Numbers Api V1 Admin Telephony Phone Numbers Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ListPhoneNumbersApiV1AdminTelephonyPhoneNumbersGetResponse = ListPhoneNumbersApiV1AdminTelephonyPhoneNumbersGetResponses[keyof ListPhoneNumbersApiV1AdminTelephonyPhoneNumbersGetResponses];
+
 export type ListSharedOutboundApiV1AdminTelephonySharedOutboundGetData = {
     body?: never;
     headers?: {
@@ -16417,6 +24543,43 @@ export type SetTrialEndApiV1SuperuserOrganizationsOrganizationIdTrialPostRespons
 
 export type SetTrialEndApiV1SuperuserOrganizationsOrganizationIdTrialPostResponse = SetTrialEndApiV1SuperuserOrganizationsOrganizationIdTrialPostResponses[keyof SetTrialEndApiV1SuperuserOrganizationsOrganizationIdTrialPostResponses];
 
+export type AwsGatewayStatusApiV1SuperuserAwsGatewayGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/superuser/aws-gateway';
+};
+
+export type AwsGatewayStatusApiV1SuperuserAwsGatewayGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AwsGatewayStatusApiV1SuperuserAwsGatewayGetError = AwsGatewayStatusApiV1SuperuserAwsGatewayGetErrors[keyof AwsGatewayStatusApiV1SuperuserAwsGatewayGetErrors];
+
+export type AwsGatewayStatusApiV1SuperuserAwsGatewayGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
 export type ListFeaturesApiV1AdminFeaturesGetData = {
     body?: never;
     headers?: {
@@ -16714,6 +24877,658 @@ export type SetGlobalOverrideApiV1AdminFeaturesNameGlobalPutResponses = {
 };
 
 export type SetGlobalOverrideApiV1AdminFeaturesNameGlobalPutResponse = SetGlobalOverrideApiV1AdminFeaturesNameGlobalPutResponses[keyof SetGlobalOverrideApiV1AdminFeaturesNameGlobalPutResponses];
+
+export type OpsHealthApiV1AdminOpsHealthGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/ops/health';
+};
+
+export type OpsHealthApiV1AdminOpsHealthGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type OpsHealthApiV1AdminOpsHealthGetError = OpsHealthApiV1AdminOpsHealthGetErrors[keyof OpsHealthApiV1AdminOpsHealthGetErrors];
+
+export type OpsHealthApiV1AdminOpsHealthGetResponses = {
+    /**
+     * Response Ops Health Api V1 Admin Ops Health Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type OpsHealthApiV1AdminOpsHealthGetResponse = OpsHealthApiV1AdminOpsHealthGetResponses[keyof OpsHealthApiV1AdminOpsHealthGetResponses];
+
+export type OpsEvidenceApiV1AdminOpsEvidenceGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Kind
+         */
+        kind?: string | null;
+        /**
+         * Limit
+         */
+        limit?: number;
+    };
+    url: '/api/v1/admin/ops/evidence';
+};
+
+export type OpsEvidenceApiV1AdminOpsEvidenceGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type OpsEvidenceApiV1AdminOpsEvidenceGetError = OpsEvidenceApiV1AdminOpsEvidenceGetErrors[keyof OpsEvidenceApiV1AdminOpsEvidenceGetErrors];
+
+export type OpsEvidenceApiV1AdminOpsEvidenceGetResponses = {
+    /**
+     * Response Ops Evidence Api V1 Admin Ops Evidence Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type OpsEvidenceApiV1AdminOpsEvidenceGetResponse = OpsEvidenceApiV1AdminOpsEvidenceGetResponses[keyof OpsEvidenceApiV1AdminOpsEvidenceGetResponses];
+
+export type RecordEvidenceApiV1AdminOpsEvidencePostData = {
+    body: EvidenceRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/ops/evidence';
+};
+
+export type RecordEvidenceApiV1AdminOpsEvidencePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RecordEvidenceApiV1AdminOpsEvidencePostError = RecordEvidenceApiV1AdminOpsEvidencePostErrors[keyof RecordEvidenceApiV1AdminOpsEvidencePostErrors];
+
+export type RecordEvidenceApiV1AdminOpsEvidencePostResponses = {
+    /**
+     * Response Record Evidence Api V1 Admin Ops Evidence Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type RecordEvidenceApiV1AdminOpsEvidencePostResponse = RecordEvidenceApiV1AdminOpsEvidencePostResponses[keyof RecordEvidenceApiV1AdminOpsEvidencePostResponses];
+
+export type ProviderKeysApiV1AdminOpsCredentialsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/ops/credentials';
+};
+
+export type ProviderKeysApiV1AdminOpsCredentialsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ProviderKeysApiV1AdminOpsCredentialsGetError = ProviderKeysApiV1AdminOpsCredentialsGetErrors[keyof ProviderKeysApiV1AdminOpsCredentialsGetErrors];
+
+export type ProviderKeysApiV1AdminOpsCredentialsGetResponses = {
+    /**
+     * Response Provider Keys Api V1 Admin Ops Credentials Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ProviderKeysApiV1AdminOpsCredentialsGetResponse = ProviderKeysApiV1AdminOpsCredentialsGetResponses[keyof ProviderKeysApiV1AdminOpsCredentialsGetResponses];
+
+export type StageRotationApiV1AdminOpsCredentialsRotationsPostData = {
+    body: StageRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/ops/credentials/rotations';
+};
+
+export type StageRotationApiV1AdminOpsCredentialsRotationsPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type StageRotationApiV1AdminOpsCredentialsRotationsPostError = StageRotationApiV1AdminOpsCredentialsRotationsPostErrors[keyof StageRotationApiV1AdminOpsCredentialsRotationsPostErrors];
+
+export type StageRotationApiV1AdminOpsCredentialsRotationsPostResponses = {
+    /**
+     * Response Stage Rotation Api V1 Admin Ops Credentials Rotations Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type StageRotationApiV1AdminOpsCredentialsRotationsPostResponse = StageRotationApiV1AdminOpsCredentialsRotationsPostResponses[keyof StageRotationApiV1AdminOpsCredentialsRotationsPostResponses];
+
+export type RotationStepApiV1AdminOpsCredentialsRotationsRotationIdStepPostData = {
+    /**
+     * Body
+     */
+    body?: ApiRoutesOpsConsoleStepRequest | null;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Rotation Id
+         */
+        rotation_id: number;
+        /**
+         * Step
+         */
+        step: string;
+    };
+    query?: never;
+    url: '/api/v1/admin/ops/credentials/rotations/{rotation_id}/{step}';
+};
+
+export type RotationStepApiV1AdminOpsCredentialsRotationsRotationIdStepPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RotationStepApiV1AdminOpsCredentialsRotationsRotationIdStepPostError = RotationStepApiV1AdminOpsCredentialsRotationsRotationIdStepPostErrors[keyof RotationStepApiV1AdminOpsCredentialsRotationsRotationIdStepPostErrors];
+
+export type RotationStepApiV1AdminOpsCredentialsRotationsRotationIdStepPostResponses = {
+    /**
+     * Response Rotation Step Api V1 Admin Ops Credentials Rotations  Rotation Id   Step  Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type RotationStepApiV1AdminOpsCredentialsRotationsRotationIdStepPostResponse = RotationStepApiV1AdminOpsCredentialsRotationsRotationIdStepPostResponses[keyof RotationStepApiV1AdminOpsCredentialsRotationsRotationIdStepPostResponses];
+
+export type CommandCatalogueApiV1AdminOpsCommandsCatalogueGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/ops/commands/catalogue';
+};
+
+export type CommandCatalogueApiV1AdminOpsCommandsCatalogueGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CommandCatalogueApiV1AdminOpsCommandsCatalogueGetError = CommandCatalogueApiV1AdminOpsCommandsCatalogueGetErrors[keyof CommandCatalogueApiV1AdminOpsCommandsCatalogueGetErrors];
+
+export type CommandCatalogueApiV1AdminOpsCommandsCatalogueGetResponses = {
+    /**
+     * Response Command Catalogue Api V1 Admin Ops Commands Catalogue Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type CommandCatalogueApiV1AdminOpsCommandsCatalogueGetResponse = CommandCatalogueApiV1AdminOpsCommandsCatalogueGetResponses[keyof CommandCatalogueApiV1AdminOpsCommandsCatalogueGetResponses];
+
+export type ListCommandsApiV1AdminOpsCommandsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * State
+         */
+        state?: string | null;
+        /**
+         * Limit
+         */
+        limit?: number;
+    };
+    url: '/api/v1/admin/ops/commands';
+};
+
+export type ListCommandsApiV1AdminOpsCommandsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListCommandsApiV1AdminOpsCommandsGetError = ListCommandsApiV1AdminOpsCommandsGetErrors[keyof ListCommandsApiV1AdminOpsCommandsGetErrors];
+
+export type ListCommandsApiV1AdminOpsCommandsGetResponses = {
+    /**
+     * Response List Commands Api V1 Admin Ops Commands Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ListCommandsApiV1AdminOpsCommandsGetResponse = ListCommandsApiV1AdminOpsCommandsGetResponses[keyof ListCommandsApiV1AdminOpsCommandsGetResponses];
+
+export type RequestCommandApiV1AdminOpsCommandsPostData = {
+    body: ApiRoutesOpsConsoleCommandRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/ops/commands';
+};
+
+export type RequestCommandApiV1AdminOpsCommandsPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RequestCommandApiV1AdminOpsCommandsPostError = RequestCommandApiV1AdminOpsCommandsPostErrors[keyof RequestCommandApiV1AdminOpsCommandsPostErrors];
+
+export type RequestCommandApiV1AdminOpsCommandsPostResponses = {
+    /**
+     * Response Request Command Api V1 Admin Ops Commands Post
+     *
+     * Successful Response
+     */
+    202: {
+        [key: string]: unknown;
+    };
+};
+
+export type RequestCommandApiV1AdminOpsCommandsPostResponse = RequestCommandApiV1AdminOpsCommandsPostResponses[keyof RequestCommandApiV1AdminOpsCommandsPostResponses];
+
+export type GetCommandApiV1AdminOpsCommandsCommandIdGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Command Id
+         */
+        command_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/ops/commands/{command_id}';
+};
+
+export type GetCommandApiV1AdminOpsCommandsCommandIdGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetCommandApiV1AdminOpsCommandsCommandIdGetError = GetCommandApiV1AdminOpsCommandsCommandIdGetErrors[keyof GetCommandApiV1AdminOpsCommandsCommandIdGetErrors];
+
+export type GetCommandApiV1AdminOpsCommandsCommandIdGetResponses = {
+    /**
+     * Response Get Command Api V1 Admin Ops Commands  Command Id  Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetCommandApiV1AdminOpsCommandsCommandIdGetResponse = GetCommandApiV1AdminOpsCommandsCommandIdGetResponses[keyof GetCommandApiV1AdminOpsCommandsCommandIdGetResponses];
+
+export type ApproveCommandApiV1AdminOpsCommandsCommandIdApprovePostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Command Id
+         */
+        command_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/ops/commands/{command_id}/approve';
+};
+
+export type ApproveCommandApiV1AdminOpsCommandsCommandIdApprovePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ApproveCommandApiV1AdminOpsCommandsCommandIdApprovePostError = ApproveCommandApiV1AdminOpsCommandsCommandIdApprovePostErrors[keyof ApproveCommandApiV1AdminOpsCommandsCommandIdApprovePostErrors];
+
+export type ApproveCommandApiV1AdminOpsCommandsCommandIdApprovePostResponses = {
+    /**
+     * Response Approve Command Api V1 Admin Ops Commands  Command Id  Approve Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ApproveCommandApiV1AdminOpsCommandsCommandIdApprovePostResponse = ApproveCommandApiV1AdminOpsCommandsCommandIdApprovePostResponses[keyof ApproveCommandApiV1AdminOpsCommandsCommandIdApprovePostResponses];
+
+export type RejectCommandApiV1AdminOpsCommandsCommandIdRejectPostData = {
+    body: ApiRoutesOpsConsoleRejectRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Command Id
+         */
+        command_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/ops/commands/{command_id}/reject';
+};
+
+export type RejectCommandApiV1AdminOpsCommandsCommandIdRejectPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RejectCommandApiV1AdminOpsCommandsCommandIdRejectPostError = RejectCommandApiV1AdminOpsCommandsCommandIdRejectPostErrors[keyof RejectCommandApiV1AdminOpsCommandsCommandIdRejectPostErrors];
+
+export type RejectCommandApiV1AdminOpsCommandsCommandIdRejectPostResponses = {
+    /**
+     * Response Reject Command Api V1 Admin Ops Commands  Command Id  Reject Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type RejectCommandApiV1AdminOpsCommandsCommandIdRejectPostResponse = RejectCommandApiV1AdminOpsCommandsCommandIdRejectPostResponses[keyof RejectCommandApiV1AdminOpsCommandsCommandIdRejectPostResponses];
+
+export type LayaReportApiV1AdminOpsLayaGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Days
+         */
+        days?: number;
+    };
+    url: '/api/v1/admin/ops/laya';
+};
+
+export type LayaReportApiV1AdminOpsLayaGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type LayaReportApiV1AdminOpsLayaGetError = LayaReportApiV1AdminOpsLayaGetErrors[keyof LayaReportApiV1AdminOpsLayaGetErrors];
+
+export type LayaReportApiV1AdminOpsLayaGetResponses = {
+    /**
+     * Response Laya Report Api V1 Admin Ops Laya Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type LayaReportApiV1AdminOpsLayaGetResponse = LayaReportApiV1AdminOpsLayaGetResponses[keyof LayaReportApiV1AdminOpsLayaGetResponses];
+
+export type CostStopStatusApiV1AdminOpsCostStopGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/ops/cost-stop';
+};
+
+export type CostStopStatusApiV1AdminOpsCostStopGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CostStopStatusApiV1AdminOpsCostStopGetError = CostStopStatusApiV1AdminOpsCostStopGetErrors[keyof CostStopStatusApiV1AdminOpsCostStopGetErrors];
+
+export type CostStopStatusApiV1AdminOpsCostStopGetResponses = {
+    /**
+     * Response Cost Stop Status Api V1 Admin Ops Cost Stop Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type CostStopStatusApiV1AdminOpsCostStopGetResponse = CostStopStatusApiV1AdminOpsCostStopGetResponses[keyof CostStopStatusApiV1AdminOpsCostStopGetResponses];
 
 export type GetOverviewApiV1AdminBillingOverviewGetData = {
     body?: never;
@@ -17360,6 +26175,54 @@ export type GetCallApiV1AdminBillingCallsWorkflowRunIdGetResponses = {
 };
 
 export type GetCallApiV1AdminBillingCallsWorkflowRunIdGetResponse = GetCallApiV1AdminBillingCallsWorkflowRunIdGetResponses[keyof GetCallApiV1AdminBillingCallsWorkflowRunIdGetResponses];
+
+export type GetCallTranscriptApiV1AdminBillingCallsWorkflowRunIdTranscriptGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Run Id
+         */
+        workflow_run_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/billing/calls/{workflow_run_id}/transcript';
+};
+
+export type GetCallTranscriptApiV1AdminBillingCallsWorkflowRunIdTranscriptGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetCallTranscriptApiV1AdminBillingCallsWorkflowRunIdTranscriptGetError = GetCallTranscriptApiV1AdminBillingCallsWorkflowRunIdTranscriptGetErrors[keyof GetCallTranscriptApiV1AdminBillingCallsWorkflowRunIdTranscriptGetErrors];
+
+export type GetCallTranscriptApiV1AdminBillingCallsWorkflowRunIdTranscriptGetResponses = {
+    /**
+     * Response Get Call Transcript Api V1 Admin Billing Calls  Workflow Run Id  Transcript Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetCallTranscriptApiV1AdminBillingCallsWorkflowRunIdTranscriptGetResponse = GetCallTranscriptApiV1AdminBillingCallsWorkflowRunIdTranscriptGetResponses[keyof GetCallTranscriptApiV1AdminBillingCallsWorkflowRunIdTranscriptGetResponses];
 
 export type ListCampaignsApiV1AdminBillingCampaignsGetData = {
     body?: never;
@@ -20405,6 +29268,822 @@ export type DownloadSiteApiV1StudioSitesSiteIdDownloadGetResponses = {
     200: unknown;
 };
 
+export type DesktopStatusApiV1DesktopStatusGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/desktop/status';
+};
+
+export type DesktopStatusApiV1DesktopStatusGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DesktopStatusApiV1DesktopStatusGetError = DesktopStatusApiV1DesktopStatusGetErrors[keyof DesktopStatusApiV1DesktopStatusGetErrors];
+
+export type DesktopStatusApiV1DesktopStatusGetResponses = {
+    /**
+     * Response Desktop Status Api V1 Desktop Status Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type DesktopStatusApiV1DesktopStatusGetResponse = DesktopStatusApiV1DesktopStatusGetResponses[keyof DesktopStatusApiV1DesktopStatusGetResponses];
+
+export type ProposeStepApiV1DesktopStepsPostData = {
+    body: ApiRoutesDesktopStepRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/desktop/steps';
+};
+
+export type ProposeStepApiV1DesktopStepsPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ProposeStepApiV1DesktopStepsPostError = ProposeStepApiV1DesktopStepsPostErrors[keyof ProposeStepApiV1DesktopStepsPostErrors];
+
+export type ProposeStepApiV1DesktopStepsPostResponses = {
+    /**
+     * Response Propose Step Api V1 Desktop Steps Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ProposeStepApiV1DesktopStepsPostResponse = ProposeStepApiV1DesktopStepsPostResponses[keyof ProposeStepApiV1DesktopStepsPostResponses];
+
+export type GetStepApiV1DesktopStepsEventIdGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Event Id
+         */
+        event_id: number;
+    };
+    query?: never;
+    url: '/api/v1/desktop/steps/{event_id}';
+};
+
+export type GetStepApiV1DesktopStepsEventIdGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetStepApiV1DesktopStepsEventIdGetError = GetStepApiV1DesktopStepsEventIdGetErrors[keyof GetStepApiV1DesktopStepsEventIdGetErrors];
+
+export type GetStepApiV1DesktopStepsEventIdGetResponses = {
+    /**
+     * Response Get Step Api V1 Desktop Steps  Event Id  Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetStepApiV1DesktopStepsEventIdGetResponse = GetStepApiV1DesktopStepsEventIdGetResponses[keyof GetStepApiV1DesktopStepsEventIdGetResponses];
+
+export type ClaimStepApiV1DesktopStepsEventIdClaimPostData = {
+    body: ClaimRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Event Id
+         */
+        event_id: number;
+    };
+    query?: never;
+    url: '/api/v1/desktop/steps/{event_id}/claim';
+};
+
+export type ClaimStepApiV1DesktopStepsEventIdClaimPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ClaimStepApiV1DesktopStepsEventIdClaimPostError = ClaimStepApiV1DesktopStepsEventIdClaimPostErrors[keyof ClaimStepApiV1DesktopStepsEventIdClaimPostErrors];
+
+export type ClaimStepApiV1DesktopStepsEventIdClaimPostResponses = {
+    /**
+     * Response Claim Step Api V1 Desktop Steps  Event Id  Claim Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ClaimStepApiV1DesktopStepsEventIdClaimPostResponse = ClaimStepApiV1DesktopStepsEventIdClaimPostResponses[keyof ClaimStepApiV1DesktopStepsEventIdClaimPostResponses];
+
+export type ReportStepApiV1DesktopStepsEventIdOutcomePostData = {
+    body: OutcomeRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Event Id
+         */
+        event_id: number;
+    };
+    query?: never;
+    url: '/api/v1/desktop/steps/{event_id}/outcome';
+};
+
+export type ReportStepApiV1DesktopStepsEventIdOutcomePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReportStepApiV1DesktopStepsEventIdOutcomePostError = ReportStepApiV1DesktopStepsEventIdOutcomePostErrors[keyof ReportStepApiV1DesktopStepsEventIdOutcomePostErrors];
+
+export type ReportStepApiV1DesktopStepsEventIdOutcomePostResponses = {
+    /**
+     * Response Report Step Api V1 Desktop Steps  Event Id  Outcome Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ReportStepApiV1DesktopStepsEventIdOutcomePostResponse = ReportStepApiV1DesktopStepsEventIdOutcomePostResponses[keyof ReportStepApiV1DesktopStepsEventIdOutcomePostResponses];
+
+export type CancelStepApiV1DesktopStepsEventIdCancelPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Event Id
+         */
+        event_id: number;
+    };
+    query?: never;
+    url: '/api/v1/desktop/steps/{event_id}/cancel';
+};
+
+export type CancelStepApiV1DesktopStepsEventIdCancelPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CancelStepApiV1DesktopStepsEventIdCancelPostError = CancelStepApiV1DesktopStepsEventIdCancelPostErrors[keyof CancelStepApiV1DesktopStepsEventIdCancelPostErrors];
+
+export type CancelStepApiV1DesktopStepsEventIdCancelPostResponses = {
+    /**
+     * Response Cancel Step Api V1 Desktop Steps  Event Id  Cancel Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type CancelStepApiV1DesktopStepsEventIdCancelPostResponse = CancelStepApiV1DesktopStepsEventIdCancelPostResponses[keyof CancelStepApiV1DesktopStepsEventIdCancelPostResponses];
+
+export type PostReceiptApiV1DesktopReceiptsPostData = {
+    body: ReceiptRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/desktop/receipts';
+};
+
+export type PostReceiptApiV1DesktopReceiptsPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type PostReceiptApiV1DesktopReceiptsPostError = PostReceiptApiV1DesktopReceiptsPostErrors[keyof PostReceiptApiV1DesktopReceiptsPostErrors];
+
+export type PostReceiptApiV1DesktopReceiptsPostResponses = {
+    /**
+     * Response Post Receipt Api V1 Desktop Receipts Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type PostReceiptApiV1DesktopReceiptsPostResponse = PostReceiptApiV1DesktopReceiptsPostResponses[keyof PostReceiptApiV1DesktopReceiptsPostResponses];
+
+export type GetBrowserSessionApiV1BrowserSessionsSessionUuidGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Session Uuid
+         */
+        session_uuid: string;
+    };
+    query?: never;
+    url: '/api/v1/browser/sessions/{session_uuid}';
+};
+
+export type GetBrowserSessionApiV1BrowserSessionsSessionUuidGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetBrowserSessionApiV1BrowserSessionsSessionUuidGetError = GetBrowserSessionApiV1BrowserSessionsSessionUuidGetErrors[keyof GetBrowserSessionApiV1BrowserSessionsSessionUuidGetErrors];
+
+export type GetBrowserSessionApiV1BrowserSessionsSessionUuidGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: BrowserSessionView;
+};
+
+export type GetBrowserSessionApiV1BrowserSessionsSessionUuidGetResponse = GetBrowserSessionApiV1BrowserSessionsSessionUuidGetResponses[keyof GetBrowserSessionApiV1BrowserSessionsSessionUuidGetResponses];
+
+export type GetBrowserScreenApiV1BrowserSessionsSessionUuidScreenGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Session Uuid
+         */
+        session_uuid: string;
+    };
+    query?: never;
+    url: '/api/v1/browser/sessions/{session_uuid}/screen';
+};
+
+export type GetBrowserScreenApiV1BrowserSessionsSessionUuidScreenGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetBrowserScreenApiV1BrowserSessionsSessionUuidScreenGetError = GetBrowserScreenApiV1BrowserSessionsSessionUuidScreenGetErrors[keyof GetBrowserScreenApiV1BrowserSessionsSessionUuidScreenGetErrors];
+
+export type GetBrowserScreenApiV1BrowserSessionsSessionUuidScreenGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: BrowserScreen;
+};
+
+export type GetBrowserScreenApiV1BrowserSessionsSessionUuidScreenGetResponse = GetBrowserScreenApiV1BrowserSessionsSessionUuidScreenGetResponses[keyof GetBrowserScreenApiV1BrowserSessionsSessionUuidScreenGetResponses];
+
+export type TakeOverBrowserApiV1BrowserSessionsSessionUuidTakeoverPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Session Uuid
+         */
+        session_uuid: string;
+    };
+    query?: never;
+    url: '/api/v1/browser/sessions/{session_uuid}/takeover';
+};
+
+export type TakeOverBrowserApiV1BrowserSessionsSessionUuidTakeoverPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type TakeOverBrowserApiV1BrowserSessionsSessionUuidTakeoverPostError = TakeOverBrowserApiV1BrowserSessionsSessionUuidTakeoverPostErrors[keyof TakeOverBrowserApiV1BrowserSessionsSessionUuidTakeoverPostErrors];
+
+export type TakeOverBrowserApiV1BrowserSessionsSessionUuidTakeoverPostResponses = {
+    /**
+     * Response Take Over Browser Api V1 Browser Sessions  Session Uuid  Takeover Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: boolean;
+    };
+};
+
+export type TakeOverBrowserApiV1BrowserSessionsSessionUuidTakeoverPostResponse = TakeOverBrowserApiV1BrowserSessionsSessionUuidTakeoverPostResponses[keyof TakeOverBrowserApiV1BrowserSessionsSessionUuidTakeoverPostResponses];
+
+export type SendBrowserInputApiV1BrowserSessionsSessionUuidInputPostData = {
+    body: BrowserInput;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Session Uuid
+         */
+        session_uuid: string;
+    };
+    query?: never;
+    url: '/api/v1/browser/sessions/{session_uuid}/input';
+};
+
+export type SendBrowserInputApiV1BrowserSessionsSessionUuidInputPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SendBrowserInputApiV1BrowserSessionsSessionUuidInputPostError = SendBrowserInputApiV1BrowserSessionsSessionUuidInputPostErrors[keyof SendBrowserInputApiV1BrowserSessionsSessionUuidInputPostErrors];
+
+export type SendBrowserInputApiV1BrowserSessionsSessionUuidInputPostResponses = {
+    /**
+     * Response Send Browser Input Api V1 Browser Sessions  Session Uuid  Input Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: boolean;
+    };
+};
+
+export type SendBrowserInputApiV1BrowserSessionsSessionUuidInputPostResponse = SendBrowserInputApiV1BrowserSessionsSessionUuidInputPostResponses[keyof SendBrowserInputApiV1BrowserSessionsSessionUuidInputPostResponses];
+
+export type HandBackBrowserApiV1BrowserSessionsSessionUuidHandbackPostData = {
+    body: BrowserHandback;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Session Uuid
+         */
+        session_uuid: string;
+    };
+    query?: never;
+    url: '/api/v1/browser/sessions/{session_uuid}/handback';
+};
+
+export type HandBackBrowserApiV1BrowserSessionsSessionUuidHandbackPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type HandBackBrowserApiV1BrowserSessionsSessionUuidHandbackPostError = HandBackBrowserApiV1BrowserSessionsSessionUuidHandbackPostErrors[keyof HandBackBrowserApiV1BrowserSessionsSessionUuidHandbackPostErrors];
+
+export type HandBackBrowserApiV1BrowserSessionsSessionUuidHandbackPostResponses = {
+    /**
+     * Response Hand Back Browser Api V1 Browser Sessions  Session Uuid  Handback Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: boolean;
+    };
+};
+
+export type HandBackBrowserApiV1BrowserSessionsSessionUuidHandbackPostResponse = HandBackBrowserApiV1BrowserSessionsSessionUuidHandbackPostResponses[keyof HandBackBrowserApiV1BrowserSessionsSessionUuidHandbackPostResponses];
+
+export type StopBrowserApiV1BrowserSessionsSessionUuidStopPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Session Uuid
+         */
+        session_uuid: string;
+    };
+    query?: never;
+    url: '/api/v1/browser/sessions/{session_uuid}/stop';
+};
+
+export type StopBrowserApiV1BrowserSessionsSessionUuidStopPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type StopBrowserApiV1BrowserSessionsSessionUuidStopPostError = StopBrowserApiV1BrowserSessionsSessionUuidStopPostErrors[keyof StopBrowserApiV1BrowserSessionsSessionUuidStopPostErrors];
+
+export type StopBrowserApiV1BrowserSessionsSessionUuidStopPostResponses = {
+    /**
+     * Response Stop Browser Api V1 Browser Sessions  Session Uuid  Stop Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: boolean;
+    };
+};
+
+export type StopBrowserApiV1BrowserSessionsSessionUuidStopPostResponse = StopBrowserApiV1BrowserSessionsSessionUuidStopPostResponses[keyof StopBrowserApiV1BrowserSessionsSessionUuidStopPostResponses];
+
+export type ListBrowserLoginsApiV1BrowserLoginsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/browser/logins';
+};
+
+export type ListBrowserLoginsApiV1BrowserLoginsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListBrowserLoginsApiV1BrowserLoginsGetError = ListBrowserLoginsApiV1BrowserLoginsGetErrors[keyof ListBrowserLoginsApiV1BrowserLoginsGetErrors];
+
+export type ListBrowserLoginsApiV1BrowserLoginsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: BrowserLogins;
+};
+
+export type ListBrowserLoginsApiV1BrowserLoginsGetResponse = ListBrowserLoginsApiV1BrowserLoginsGetResponses[keyof ListBrowserLoginsApiV1BrowserLoginsGetResponses];
+
+export type DeleteBrowserLoginApiV1BrowserLoginsLoginIdDeleteData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Login Id
+         */
+        login_id: number;
+    };
+    query?: never;
+    url: '/api/v1/browser/logins/{login_id}';
+};
+
+export type DeleteBrowserLoginApiV1BrowserLoginsLoginIdDeleteErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteBrowserLoginApiV1BrowserLoginsLoginIdDeleteError = DeleteBrowserLoginApiV1BrowserLoginsLoginIdDeleteErrors[keyof DeleteBrowserLoginApiV1BrowserLoginsLoginIdDeleteErrors];
+
+export type DeleteBrowserLoginApiV1BrowserLoginsLoginIdDeleteResponses = {
+    /**
+     * Response Delete Browser Login Api V1 Browser Logins  Login Id  Delete
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: boolean;
+    };
+};
+
+export type DeleteBrowserLoginApiV1BrowserLoginsLoginIdDeleteResponse = DeleteBrowserLoginApiV1BrowserLoginsLoginIdDeleteResponses[keyof DeleteBrowserLoginApiV1BrowserLoginsLoginIdDeleteResponses];
+
+export type ListBrowserSiteRulesApiV1AdminBrowserSitesGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/browser/sites';
+};
+
+export type ListBrowserSiteRulesApiV1AdminBrowserSitesGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListBrowserSiteRulesApiV1AdminBrowserSitesGetError = ListBrowserSiteRulesApiV1AdminBrowserSitesGetErrors[keyof ListBrowserSiteRulesApiV1AdminBrowserSitesGetErrors];
+
+export type ListBrowserSiteRulesApiV1AdminBrowserSitesGetResponses = {
+    /**
+     * Response List Browser Site Rules Api V1 Admin Browser Sites Get
+     *
+     * Successful Response
+     */
+    200: Array<BrowserSiteRule>;
+};
+
+export type ListBrowserSiteRulesApiV1AdminBrowserSitesGetResponse = ListBrowserSiteRulesApiV1AdminBrowserSitesGetResponses[keyof ListBrowserSiteRulesApiV1AdminBrowserSitesGetResponses];
+
+export type SetBrowserSiteRuleApiV1AdminBrowserSitesPutData = {
+    body: BrowserSiteRuleIn;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/browser/sites';
+};
+
+export type SetBrowserSiteRuleApiV1AdminBrowserSitesPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SetBrowserSiteRuleApiV1AdminBrowserSitesPutError = SetBrowserSiteRuleApiV1AdminBrowserSitesPutErrors[keyof SetBrowserSiteRuleApiV1AdminBrowserSitesPutErrors];
+
+export type SetBrowserSiteRuleApiV1AdminBrowserSitesPutResponses = {
+    /**
+     * Successful Response
+     */
+    200: BrowserSiteRule;
+};
+
+export type SetBrowserSiteRuleApiV1AdminBrowserSitesPutResponse = SetBrowserSiteRuleApiV1AdminBrowserSitesPutResponses[keyof SetBrowserSiteRuleApiV1AdminBrowserSitesPutResponses];
+
+export type DeleteBrowserSiteRuleApiV1AdminBrowserSitesSiteDeleteData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Site
+         */
+        site: string;
+    };
+    query?: never;
+    url: '/api/v1/admin/browser/sites/{site}';
+};
+
+export type DeleteBrowserSiteRuleApiV1AdminBrowserSitesSiteDeleteErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteBrowserSiteRuleApiV1AdminBrowserSitesSiteDeleteError = DeleteBrowserSiteRuleApiV1AdminBrowserSitesSiteDeleteErrors[keyof DeleteBrowserSiteRuleApiV1AdminBrowserSitesSiteDeleteErrors];
+
+export type DeleteBrowserSiteRuleApiV1AdminBrowserSitesSiteDeleteResponses = {
+    /**
+     * Response Delete Browser Site Rule Api V1 Admin Browser Sites  Site  Delete
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: boolean;
+    };
+};
+
+export type DeleteBrowserSiteRuleApiV1AdminBrowserSitesSiteDeleteResponse = DeleteBrowserSiteRuleApiV1AdminBrowserSitesSiteDeleteResponses[keyof DeleteBrowserSiteRuleApiV1AdminBrowserSitesSiteDeleteResponses];
+
 export type ListAgentTemplatesApiV1AgentTemplatesGetData = {
     body?: never;
     headers?: {
@@ -22500,6 +32179,140 @@ export type AcceptInvitationApiV1OrganizationsInvitationsAcceptPostResponses = {
 };
 
 export type AcceptInvitationApiV1OrganizationsInvitationsAcceptPostResponse = AcceptInvitationApiV1OrganizationsInvitationsAcceptPostResponses[keyof AcceptInvitationApiV1OrganizationsInvitationsAcceptPostResponses];
+
+export type ListStaffAccessApiV1OrganizationsStaffAccessGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/organizations/staff-access';
+};
+
+export type ListStaffAccessApiV1OrganizationsStaffAccessGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListStaffAccessApiV1OrganizationsStaffAccessGetError = ListStaffAccessApiV1OrganizationsStaffAccessGetErrors[keyof ListStaffAccessApiV1OrganizationsStaffAccessGetErrors];
+
+export type ListStaffAccessApiV1OrganizationsStaffAccessGetResponses = {
+    /**
+     * Response List Staff Access Api V1 Organizations Staff Access Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ListStaffAccessApiV1OrganizationsStaffAccessGetResponse = ListStaffAccessApiV1OrganizationsStaffAccessGetResponses[keyof ListStaffAccessApiV1OrganizationsStaffAccessGetResponses];
+
+export type GrantStaffAccessApiV1OrganizationsStaffAccessPostData = {
+    body: GrantRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/organizations/staff-access';
+};
+
+export type GrantStaffAccessApiV1OrganizationsStaffAccessPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GrantStaffAccessApiV1OrganizationsStaffAccessPostError = GrantStaffAccessApiV1OrganizationsStaffAccessPostErrors[keyof GrantStaffAccessApiV1OrganizationsStaffAccessPostErrors];
+
+export type GrantStaffAccessApiV1OrganizationsStaffAccessPostResponses = {
+    /**
+     * Response Grant Staff Access Api V1 Organizations Staff Access Post
+     *
+     * Successful Response
+     */
+    201: {
+        [key: string]: unknown;
+    };
+};
+
+export type GrantStaffAccessApiV1OrganizationsStaffAccessPostResponse = GrantStaffAccessApiV1OrganizationsStaffAccessPostResponses[keyof GrantStaffAccessApiV1OrganizationsStaffAccessPostResponses];
+
+export type RevokeStaffAccessApiV1OrganizationsStaffAccessGrantIdDeleteData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Grant Id
+         */
+        grant_id: number;
+    };
+    query?: never;
+    url: '/api/v1/organizations/staff-access/{grant_id}';
+};
+
+export type RevokeStaffAccessApiV1OrganizationsStaffAccessGrantIdDeleteErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RevokeStaffAccessApiV1OrganizationsStaffAccessGrantIdDeleteError = RevokeStaffAccessApiV1OrganizationsStaffAccessGrantIdDeleteErrors[keyof RevokeStaffAccessApiV1OrganizationsStaffAccessGrantIdDeleteErrors];
+
+export type RevokeStaffAccessApiV1OrganizationsStaffAccessGrantIdDeleteResponses = {
+    /**
+     * Response Revoke Staff Access Api V1 Organizations Staff Access  Grant Id  Delete
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type RevokeStaffAccessApiV1OrganizationsStaffAccessGrantIdDeleteResponse = RevokeStaffAccessApiV1OrganizationsStaffAccessGrantIdDeleteResponses[keyof RevokeStaffAccessApiV1OrganizationsStaffAccessGrantIdDeleteResponses];
 
 export type DeleteProviderKeyApiV1AdminProviderKeysDeleteData = {
     body?: never;
@@ -30962,6 +40775,92 @@ export type SetSkillBotsApiV1SkillsBotsPostResponses = {
 
 export type SetSkillBotsApiV1SkillsBotsPostResponse = SetSkillBotsApiV1SkillsBotsPostResponses[keyof SetSkillBotsApiV1SkillsBotsPostResponses];
 
+export type WriteOwnSkillApiV1SkillsOwnPostData = {
+    body: OwnSkillRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/skills/own';
+};
+
+export type WriteOwnSkillApiV1SkillsOwnPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type WriteOwnSkillApiV1SkillsOwnPostError = WriteOwnSkillApiV1SkillsOwnPostErrors[keyof WriteOwnSkillApiV1SkillsOwnPostErrors];
+
+export type WriteOwnSkillApiV1SkillsOwnPostResponses = {
+    /**
+     * Response Write Own Skill Api V1 Skills Own Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type WriteOwnSkillApiV1SkillsOwnPostResponse = WriteOwnSkillApiV1SkillsOwnPostResponses[keyof WriteOwnSkillApiV1SkillsOwnPostResponses];
+
+export type TakeSkillOffApiV1SkillsOffPostData = {
+    body: OffRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/skills/off';
+};
+
+export type TakeSkillOffApiV1SkillsOffPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type TakeSkillOffApiV1SkillsOffPostError = TakeSkillOffApiV1SkillsOffPostErrors[keyof TakeSkillOffApiV1SkillsOffPostErrors];
+
+export type TakeSkillOffApiV1SkillsOffPostResponses = {
+    /**
+     * Response Take Skill Off Api V1 Skills Off Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type TakeSkillOffApiV1SkillsOffPostResponse = TakeSkillOffApiV1SkillsOffPostResponses[keyof TakeSkillOffApiV1SkillsOffPostResponses];
+
 export type SkillsOnWorkflowApiV1SkillsOnWorkflowIdGetData = {
     body?: never;
     headers?: {
@@ -31327,6 +41226,6974 @@ export type SetTaskStatusApiV1TasksTaskIdStatusPostResponses = {
 };
 
 export type SetTaskStatusApiV1TasksTaskIdStatusPostResponse = SetTaskStatusApiV1TasksTaskIdStatusPostResponses[keyof SetTaskStatusApiV1TasksTaskIdStatusPostResponses];
+
+export type CreateLedgerTaskApiV1TasksLedgerPostData = {
+    body: LedgerTaskWrite;
+    headers?: {
+        /**
+         * Idempotency-Key
+         */
+        'idempotency-key'?: string | null;
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/tasks/ledger';
+};
+
+export type CreateLedgerTaskApiV1TasksLedgerPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateLedgerTaskApiV1TasksLedgerPostError = CreateLedgerTaskApiV1TasksLedgerPostErrors[keyof CreateLedgerTaskApiV1TasksLedgerPostErrors];
+
+export type CreateLedgerTaskApiV1TasksLedgerPostResponses = {
+    /**
+     * Response Create Ledger Task Api V1 Tasks Ledger Post
+     *
+     * Successful Response
+     */
+    201: {
+        [key: string]: unknown;
+    };
+};
+
+export type CreateLedgerTaskApiV1TasksLedgerPostResponse = CreateLedgerTaskApiV1TasksLedgerPostResponses[keyof CreateLedgerTaskApiV1TasksLedgerPostResponses];
+
+export type LedgerOfTaskApiV1TasksTaskIdLedgerGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Task Id
+         */
+        task_id: number;
+    };
+    query?: never;
+    url: '/api/v1/tasks/{task_id}/ledger';
+};
+
+export type LedgerOfTaskApiV1TasksTaskIdLedgerGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type LedgerOfTaskApiV1TasksTaskIdLedgerGetError = LedgerOfTaskApiV1TasksTaskIdLedgerGetErrors[keyof LedgerOfTaskApiV1TasksTaskIdLedgerGetErrors];
+
+export type LedgerOfTaskApiV1TasksTaskIdLedgerGetResponses = {
+    /**
+     * Response Ledger Of Task Api V1 Tasks  Task Id  Ledger Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type LedgerOfTaskApiV1TasksTaskIdLedgerGetResponse = LedgerOfTaskApiV1TasksTaskIdLedgerGetResponses[keyof LedgerOfTaskApiV1TasksTaskIdLedgerGetResponses];
+
+export type MoveLedgerTaskApiV1TasksTaskIdLedgerTransitionPostData = {
+    body: LedgerMove;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Task Id
+         */
+        task_id: number;
+    };
+    query?: never;
+    url: '/api/v1/tasks/{task_id}/ledger/transition';
+};
+
+export type MoveLedgerTaskApiV1TasksTaskIdLedgerTransitionPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MoveLedgerTaskApiV1TasksTaskIdLedgerTransitionPostError = MoveLedgerTaskApiV1TasksTaskIdLedgerTransitionPostErrors[keyof MoveLedgerTaskApiV1TasksTaskIdLedgerTransitionPostErrors];
+
+export type MoveLedgerTaskApiV1TasksTaskIdLedgerTransitionPostResponses = {
+    /**
+     * Response Move Ledger Task Api V1 Tasks  Task Id  Ledger Transition Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type MoveLedgerTaskApiV1TasksTaskIdLedgerTransitionPostResponse = MoveLedgerTaskApiV1TasksTaskIdLedgerTransitionPostResponses[keyof MoveLedgerTaskApiV1TasksTaskIdLedgerTransitionPostResponses];
+
+export type MyQuotasApiV1MeQuotasGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/me/quotas';
+};
+
+export type MyQuotasApiV1MeQuotasGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MyQuotasApiV1MeQuotasGetError = MyQuotasApiV1MeQuotasGetErrors[keyof MyQuotasApiV1MeQuotasGetErrors];
+
+export type MyQuotasApiV1MeQuotasGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: QuotasResponse;
+};
+
+export type MyQuotasApiV1MeQuotasGetResponse = MyQuotasApiV1MeQuotasGetResponses[keyof MyQuotasApiV1MeQuotasGetResponses];
+
+export type MyPreferencesApiV1MePreferencesGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/me/preferences';
+};
+
+export type MyPreferencesApiV1MePreferencesGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MyPreferencesApiV1MePreferencesGetError = MyPreferencesApiV1MePreferencesGetErrors[keyof MyPreferencesApiV1MePreferencesGetErrors];
+
+export type MyPreferencesApiV1MePreferencesGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: MemberPreferences;
+};
+
+export type MyPreferencesApiV1MePreferencesGetResponse = MyPreferencesApiV1MePreferencesGetResponses[keyof MyPreferencesApiV1MePreferencesGetResponses];
+
+export type SaveMyPreferencesApiV1MePreferencesPutData = {
+    body: MemberPreferencesWrite;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/me/preferences';
+};
+
+export type SaveMyPreferencesApiV1MePreferencesPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SaveMyPreferencesApiV1MePreferencesPutError = SaveMyPreferencesApiV1MePreferencesPutErrors[keyof SaveMyPreferencesApiV1MePreferencesPutErrors];
+
+export type SaveMyPreferencesApiV1MePreferencesPutResponses = {
+    /**
+     * Successful Response
+     */
+    200: MemberPreferences;
+};
+
+export type SaveMyPreferencesApiV1MePreferencesPutResponse = SaveMyPreferencesApiV1MePreferencesPutResponses[keyof SaveMyPreferencesApiV1MePreferencesPutResponses];
+
+export type MyPersonalSpaceApiV1MePersonalSpaceGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/me/personal-space';
+};
+
+export type MyPersonalSpaceApiV1MePersonalSpaceGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MyPersonalSpaceApiV1MePersonalSpaceGetError = MyPersonalSpaceApiV1MePersonalSpaceGetErrors[keyof MyPersonalSpaceApiV1MePersonalSpaceGetErrors];
+
+export type MyPersonalSpaceApiV1MePersonalSpaceGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: PersonalSpace;
+};
+
+export type MyPersonalSpaceApiV1MePersonalSpaceGetResponse = MyPersonalSpaceApiV1MePersonalSpaceGetResponses[keyof MyPersonalSpaceApiV1MePersonalSpaceGetResponses];
+
+export type GiveFeedbackApiV1FeedbackPostData = {
+    body: FeedbackWrite;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/feedback';
+};
+
+export type GiveFeedbackApiV1FeedbackPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GiveFeedbackApiV1FeedbackPostError = GiveFeedbackApiV1FeedbackPostErrors[keyof GiveFeedbackApiV1FeedbackPostErrors];
+
+export type GiveFeedbackApiV1FeedbackPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: FeedbackSaved;
+};
+
+export type GiveFeedbackApiV1FeedbackPostResponse = GiveFeedbackApiV1FeedbackPostResponses[keyof GiveFeedbackApiV1FeedbackPostResponses];
+
+export type MyFeedbackApiV1FeedbackMineGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Subject Kind
+         */
+        subject_kind?: 'reply' | 'task' | 'lesson';
+        /**
+         * Ids
+         */
+        ids?: Array<number>;
+    };
+    url: '/api/v1/feedback/mine';
+};
+
+export type MyFeedbackApiV1FeedbackMineGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MyFeedbackApiV1FeedbackMineGetError = MyFeedbackApiV1FeedbackMineGetErrors[keyof MyFeedbackApiV1FeedbackMineGetErrors];
+
+export type MyFeedbackApiV1FeedbackMineGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: MyFeedback;
+};
+
+export type MyFeedbackApiV1FeedbackMineGetResponse = MyFeedbackApiV1FeedbackMineGetResponses[keyof MyFeedbackApiV1FeedbackMineGetResponses];
+
+export type ClientEventApiV1EventsClientPostData = {
+    body: ClientEvent;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/events/client';
+};
+
+export type ClientEventApiV1EventsClientPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ClientEventApiV1EventsClientPostError = ClientEventApiV1EventsClientPostErrors[keyof ClientEventApiV1EventsClientPostErrors];
+
+export type ClientEventApiV1EventsClientPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: ClientEventAccepted;
+};
+
+export type ClientEventApiV1EventsClientPostResponse = ClientEventApiV1EventsClientPostResponses[keyof ClientEventApiV1EventsClientPostResponses];
+
+export type ListHelpersApiV1HelpersGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/helpers';
+};
+
+export type ListHelpersApiV1HelpersGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListHelpersApiV1HelpersGetError = ListHelpersApiV1HelpersGetErrors[keyof ListHelpersApiV1HelpersGetErrors];
+
+export type ListHelpersApiV1HelpersGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: HelpersResponse;
+};
+
+export type ListHelpersApiV1HelpersGetResponse = ListHelpersApiV1HelpersGetResponses[keyof ListHelpersApiV1HelpersGetResponses];
+
+export type SetWorkspaceSwitchApiV1HelpersKeyWorkspacePutData = {
+    body: WorkspaceSwitch;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Key
+         */
+        key: string;
+    };
+    query?: never;
+    url: '/api/v1/helpers/{key}/workspace';
+};
+
+export type SetWorkspaceSwitchApiV1HelpersKeyWorkspacePutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SetWorkspaceSwitchApiV1HelpersKeyWorkspacePutError = SetWorkspaceSwitchApiV1HelpersKeyWorkspacePutErrors[keyof SetWorkspaceSwitchApiV1HelpersKeyWorkspacePutErrors];
+
+export type SetWorkspaceSwitchApiV1HelpersKeyWorkspacePutResponses = {
+    /**
+     * Successful Response
+     */
+    200: HelpersResponse;
+};
+
+export type SetWorkspaceSwitchApiV1HelpersKeyWorkspacePutResponse = SetWorkspaceSwitchApiV1HelpersKeyWorkspacePutResponses[keyof SetWorkspaceSwitchApiV1HelpersKeyWorkspacePutResponses];
+
+export type SetupHelperApiV1HelpersKeySetupPostData = {
+    body: SetupRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Key
+         */
+        key: string;
+    };
+    query?: never;
+    url: '/api/v1/helpers/{key}/setup';
+};
+
+export type SetupHelperApiV1HelpersKeySetupPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SetupHelperApiV1HelpersKeySetupPostError = SetupHelperApiV1HelpersKeySetupPostErrors[keyof SetupHelperApiV1HelpersKeySetupPostErrors];
+
+export type SetupHelperApiV1HelpersKeySetupPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: SetupResponse;
+};
+
+export type SetupHelperApiV1HelpersKeySetupPostResponse = SetupHelperApiV1HelpersKeySetupPostResponses[keyof SetupHelperApiV1HelpersKeySetupPostResponses];
+
+export type ListReportsApiV1HelpersReportsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/helpers/reports';
+};
+
+export type ListReportsApiV1HelpersReportsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListReportsApiV1HelpersReportsGetError = ListReportsApiV1HelpersReportsGetErrors[keyof ListReportsApiV1HelpersReportsGetErrors];
+
+export type ListReportsApiV1HelpersReportsGetResponses = {
+    /**
+     * Response List Reports Api V1 Helpers Reports Get
+     *
+     * Successful Response
+     */
+    200: Array<ReportSummary>;
+};
+
+export type ListReportsApiV1HelpersReportsGetResponse = ListReportsApiV1HelpersReportsGetResponses[keyof ListReportsApiV1HelpersReportsGetResponses];
+
+export type GetReportApiV1HelpersReportsReportUuidGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Report Uuid
+         */
+        report_uuid: string;
+    };
+    query?: never;
+    url: '/api/v1/helpers/reports/{report_uuid}';
+};
+
+export type GetReportApiV1HelpersReportsReportUuidGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetReportApiV1HelpersReportsReportUuidGetError = GetReportApiV1HelpersReportsReportUuidGetErrors[keyof GetReportApiV1HelpersReportsReportUuidGetErrors];
+
+export type GetReportApiV1HelpersReportsReportUuidGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: ReportOut;
+};
+
+export type GetReportApiV1HelpersReportsReportUuidGetResponse = GetReportApiV1HelpersReportsReportUuidGetResponses[keyof GetReportApiV1HelpersReportsReportUuidGetResponses];
+
+export type ExportReportApiV1HelpersReportsReportUuidExportGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Report Uuid
+         */
+        report_uuid: string;
+    };
+    query?: {
+        /**
+         * Format
+         */
+        format?: 'md' | 'html';
+    };
+    url: '/api/v1/helpers/reports/{report_uuid}/export';
+};
+
+export type ExportReportApiV1HelpersReportsReportUuidExportGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ExportReportApiV1HelpersReportsReportUuidExportGetError = ExportReportApiV1HelpersReportsReportUuidExportGetErrors[keyof ExportReportApiV1HelpersReportsReportUuidExportGetErrors];
+
+export type ExportReportApiV1HelpersReportsReportUuidExportGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type ShareReportApiV1HelpersReportsReportUuidVisibilityPutData = {
+    body: VisibilityRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Report Uuid
+         */
+        report_uuid: string;
+    };
+    query?: never;
+    url: '/api/v1/helpers/reports/{report_uuid}/visibility';
+};
+
+export type ShareReportApiV1HelpersReportsReportUuidVisibilityPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ShareReportApiV1HelpersReportsReportUuidVisibilityPutError = ShareReportApiV1HelpersReportsReportUuidVisibilityPutErrors[keyof ShareReportApiV1HelpersReportsReportUuidVisibilityPutErrors];
+
+export type ShareReportApiV1HelpersReportsReportUuidVisibilityPutResponses = {
+    /**
+     * Successful Response
+     */
+    200: ReportOut;
+};
+
+export type ShareReportApiV1HelpersReportsReportUuidVisibilityPutResponse = ShareReportApiV1HelpersReportsReportUuidVisibilityPutResponses[keyof ShareReportApiV1HelpersReportsReportUuidVisibilityPutResponses];
+
+export type SaveReplyAsReportApiV1HelpersReportsFromReplyPostData = {
+    body: FromReplyRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/helpers/reports/from-reply';
+};
+
+export type SaveReplyAsReportApiV1HelpersReportsFromReplyPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SaveReplyAsReportApiV1HelpersReportsFromReplyPostError = SaveReplyAsReportApiV1HelpersReportsFromReplyPostErrors[keyof SaveReplyAsReportApiV1HelpersReportsFromReplyPostErrors];
+
+export type SaveReplyAsReportApiV1HelpersReportsFromReplyPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: ReportOut;
+};
+
+export type SaveReplyAsReportApiV1HelpersReportsFromReplyPostResponse = SaveReplyAsReportApiV1HelpersReportsFromReplyPostResponses[keyof SaveReplyAsReportApiV1HelpersReportsFromReplyPostResponses];
+
+export type WhoOwesMeApiV1HelpersWhoOwesMeGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/helpers/who-owes-me';
+};
+
+export type WhoOwesMeApiV1HelpersWhoOwesMeGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type WhoOwesMeApiV1HelpersWhoOwesMeGetError = WhoOwesMeApiV1HelpersWhoOwesMeGetErrors[keyof WhoOwesMeApiV1HelpersWhoOwesMeGetErrors];
+
+export type WhoOwesMeApiV1HelpersWhoOwesMeGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: WhoOwesMeResponse;
+};
+
+export type WhoOwesMeApiV1HelpersWhoOwesMeGetResponse = WhoOwesMeApiV1HelpersWhoOwesMeGetResponses[keyof WhoOwesMeApiV1HelpersWhoOwesMeGetResponses];
+
+export type ListCommitmentsApiV1HelpersCommitmentsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Direction
+         */
+        direction?: 'owed_to_me' | 'i_owe' | null;
+        /**
+         * Status
+         */
+        status?: 'open' | 'settled' | 'cancelled' | null;
+    };
+    url: '/api/v1/helpers/commitments';
+};
+
+export type ListCommitmentsApiV1HelpersCommitmentsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListCommitmentsApiV1HelpersCommitmentsGetError = ListCommitmentsApiV1HelpersCommitmentsGetErrors[keyof ListCommitmentsApiV1HelpersCommitmentsGetErrors];
+
+export type ListCommitmentsApiV1HelpersCommitmentsGetResponses = {
+    /**
+     * Response List Commitments Api V1 Helpers Commitments Get
+     *
+     * Successful Response
+     */
+    200: Array<CommitmentOut>;
+};
+
+export type ListCommitmentsApiV1HelpersCommitmentsGetResponse = ListCommitmentsApiV1HelpersCommitmentsGetResponses[keyof ListCommitmentsApiV1HelpersCommitmentsGetResponses];
+
+export type AddCommitmentApiV1HelpersCommitmentsPostData = {
+    body: CommitmentCreate;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/helpers/commitments';
+};
+
+export type AddCommitmentApiV1HelpersCommitmentsPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AddCommitmentApiV1HelpersCommitmentsPostError = AddCommitmentApiV1HelpersCommitmentsPostErrors[keyof AddCommitmentApiV1HelpersCommitmentsPostErrors];
+
+export type AddCommitmentApiV1HelpersCommitmentsPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: CommitmentOut;
+};
+
+export type AddCommitmentApiV1HelpersCommitmentsPostResponse = AddCommitmentApiV1HelpersCommitmentsPostResponses[keyof AddCommitmentApiV1HelpersCommitmentsPostResponses];
+
+export type ChangeCommitmentApiV1HelpersCommitmentsCommitmentUuidPatchData = {
+    body: CommitmentChange;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Commitment Uuid
+         */
+        commitment_uuid: string;
+    };
+    query?: never;
+    url: '/api/v1/helpers/commitments/{commitment_uuid}';
+};
+
+export type ChangeCommitmentApiV1HelpersCommitmentsCommitmentUuidPatchErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ChangeCommitmentApiV1HelpersCommitmentsCommitmentUuidPatchError = ChangeCommitmentApiV1HelpersCommitmentsCommitmentUuidPatchErrors[keyof ChangeCommitmentApiV1HelpersCommitmentsCommitmentUuidPatchErrors];
+
+export type ChangeCommitmentApiV1HelpersCommitmentsCommitmentUuidPatchResponses = {
+    /**
+     * Successful Response
+     */
+    200: CommitmentOut;
+};
+
+export type ChangeCommitmentApiV1HelpersCommitmentsCommitmentUuidPatchResponse = ChangeCommitmentApiV1HelpersCommitmentsCommitmentUuidPatchResponses[keyof ChangeCommitmentApiV1HelpersCommitmentsCommitmentUuidPatchResponses];
+
+export type MyInterestsApiV1HelpersResearchInterestsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/helpers/research/interests';
+};
+
+export type MyInterestsApiV1HelpersResearchInterestsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MyInterestsApiV1HelpersResearchInterestsGetError = MyInterestsApiV1HelpersResearchInterestsGetErrors[keyof MyInterestsApiV1HelpersResearchInterestsGetErrors];
+
+export type MyInterestsApiV1HelpersResearchInterestsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: InterestsOut;
+};
+
+export type MyInterestsApiV1HelpersResearchInterestsGetResponse = MyInterestsApiV1HelpersResearchInterestsGetResponses[keyof MyInterestsApiV1HelpersResearchInterestsGetResponses];
+
+export type SaveMyInterestsApiV1HelpersResearchInterestsPutData = {
+    body: InterestsWrite;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/helpers/research/interests';
+};
+
+export type SaveMyInterestsApiV1HelpersResearchInterestsPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SaveMyInterestsApiV1HelpersResearchInterestsPutError = SaveMyInterestsApiV1HelpersResearchInterestsPutErrors[keyof SaveMyInterestsApiV1HelpersResearchInterestsPutErrors];
+
+export type SaveMyInterestsApiV1HelpersResearchInterestsPutResponses = {
+    /**
+     * Successful Response
+     */
+    200: InterestsOut;
+};
+
+export type SaveMyInterestsApiV1HelpersResearchInterestsPutResponse = SaveMyInterestsApiV1HelpersResearchInterestsPutResponses[keyof SaveMyInterestsApiV1HelpersResearchInterestsPutResponses];
+
+export type AskTradingSummaryApiV1HelpersResearchTradingSummaryPostData = {
+    body: SummaryRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/helpers/research/trading-summary';
+};
+
+export type AskTradingSummaryApiV1HelpersResearchTradingSummaryPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AskTradingSummaryApiV1HelpersResearchTradingSummaryPostError = AskTradingSummaryApiV1HelpersResearchTradingSummaryPostErrors[keyof AskTradingSummaryApiV1HelpersResearchTradingSummaryPostErrors];
+
+export type AskTradingSummaryApiV1HelpersResearchTradingSummaryPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: SummaryResponse;
+};
+
+export type AskTradingSummaryApiV1HelpersResearchTradingSummaryPostResponse = AskTradingSummaryApiV1HelpersResearchTradingSummaryPostResponses[keyof AskTradingSummaryApiV1HelpersResearchTradingSummaryPostResponses];
+
+export type ListTrackersApiV1HelpersTrackersGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/helpers/trackers';
+};
+
+export type ListTrackersApiV1HelpersTrackersGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListTrackersApiV1HelpersTrackersGetError = ListTrackersApiV1HelpersTrackersGetErrors[keyof ListTrackersApiV1HelpersTrackersGetErrors];
+
+export type ListTrackersApiV1HelpersTrackersGetResponses = {
+    /**
+     * Response List Trackers Api V1 Helpers Trackers Get
+     *
+     * Successful Response
+     */
+    200: Array<TrackerOut>;
+};
+
+export type ListTrackersApiV1HelpersTrackersGetResponse = ListTrackersApiV1HelpersTrackersGetResponses[keyof ListTrackersApiV1HelpersTrackersGetResponses];
+
+export type GetTrackerApiV1HelpersTrackersTrackerUuidGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Tracker Uuid
+         */
+        tracker_uuid: string;
+    };
+    query?: never;
+    url: '/api/v1/helpers/trackers/{tracker_uuid}';
+};
+
+export type GetTrackerApiV1HelpersTrackersTrackerUuidGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetTrackerApiV1HelpersTrackersTrackerUuidGetError = GetTrackerApiV1HelpersTrackersTrackerUuidGetErrors[keyof GetTrackerApiV1HelpersTrackersTrackerUuidGetErrors];
+
+export type GetTrackerApiV1HelpersTrackersTrackerUuidGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: TrackerDetail;
+};
+
+export type GetTrackerApiV1HelpersTrackersTrackerUuidGetResponse = GetTrackerApiV1HelpersTrackersTrackerUuidGetResponses[keyof GetTrackerApiV1HelpersTrackersTrackerUuidGetResponses];
+
+export type AddTrackerRowApiV1HelpersTrackersTrackerUuidRowsPostData = {
+    body: TrackerRowWrite;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Tracker Uuid
+         */
+        tracker_uuid: string;
+    };
+    query?: never;
+    url: '/api/v1/helpers/trackers/{tracker_uuid}/rows';
+};
+
+export type AddTrackerRowApiV1HelpersTrackersTrackerUuidRowsPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AddTrackerRowApiV1HelpersTrackersTrackerUuidRowsPostError = AddTrackerRowApiV1HelpersTrackersTrackerUuidRowsPostErrors[keyof AddTrackerRowApiV1HelpersTrackersTrackerUuidRowsPostErrors];
+
+export type AddTrackerRowApiV1HelpersTrackersTrackerUuidRowsPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: TrackerDetail;
+};
+
+export type AddTrackerRowApiV1HelpersTrackersTrackerUuidRowsPostResponse = AddTrackerRowApiV1HelpersTrackersTrackerUuidRowsPostResponses[keyof AddTrackerRowApiV1HelpersTrackersTrackerUuidRowsPostResponses];
+
+export type CareStatusApiV1CareStatusGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/care/status';
+};
+
+export type CareStatusApiV1CareStatusGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CareStatusApiV1CareStatusGetError = CareStatusApiV1CareStatusGetErrors[keyof CareStatusApiV1CareStatusGetErrors];
+
+export type CareStatusApiV1CareStatusGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: CareStatus;
+};
+
+export type CareStatusApiV1CareStatusGetResponse = CareStatusApiV1CareStatusGetResponses[keyof CareStatusApiV1CareStatusGetResponses];
+
+export type CareCardApiV1CareCardsEventIdGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Event Id
+         */
+        event_id: number;
+    };
+    query?: never;
+    url: '/api/v1/care/cards/{event_id}';
+};
+
+export type CareCardApiV1CareCardsEventIdGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CareCardApiV1CareCardsEventIdGetError = CareCardApiV1CareCardsEventIdGetErrors[keyof CareCardApiV1CareCardsEventIdGetErrors];
+
+export type CareCardApiV1CareCardsEventIdGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: TimelineEvent;
+};
+
+export type CareCardApiV1CareCardsEventIdGetResponse = CareCardApiV1CareCardsEventIdGetResponses[keyof CareCardApiV1CareCardsEventIdGetResponses];
+
+export type MyCircleApiV1CareCircleGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/care/circle';
+};
+
+export type MyCircleApiV1CareCircleGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MyCircleApiV1CareCircleGetError = MyCircleApiV1CareCircleGetErrors[keyof MyCircleApiV1CareCircleGetErrors];
+
+export type MyCircleApiV1CareCircleGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: Circle;
+};
+
+export type MyCircleApiV1CareCircleGetResponse = MyCircleApiV1CareCircleGetResponses[keyof MyCircleApiV1CareCircleGetResponses];
+
+export type NameMyCircleApiV1CareCirclePutData = {
+    body: CircleName;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/care/circle';
+};
+
+export type NameMyCircleApiV1CareCirclePutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type NameMyCircleApiV1CareCirclePutError = NameMyCircleApiV1CareCirclePutErrors[keyof NameMyCircleApiV1CareCirclePutErrors];
+
+export type NameMyCircleApiV1CareCirclePutResponses = {
+    /**
+     * Successful Response
+     */
+    200: Circle;
+};
+
+export type NameMyCircleApiV1CareCirclePutResponse = NameMyCircleApiV1CareCirclePutResponses[keyof NameMyCircleApiV1CareCirclePutResponses];
+
+export type AddMemberApiV1CareCircleMembersPostData = {
+    body: MemberWrite;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/care/circle/members';
+};
+
+export type AddMemberApiV1CareCircleMembersPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AddMemberApiV1CareCircleMembersPostError = AddMemberApiV1CareCircleMembersPostErrors[keyof AddMemberApiV1CareCircleMembersPostErrors];
+
+export type AddMemberApiV1CareCircleMembersPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: MemberProposed;
+};
+
+export type AddMemberApiV1CareCircleMembersPostResponse = AddMemberApiV1CareCircleMembersPostResponses[keyof AddMemberApiV1CareCircleMembersPostResponses];
+
+export type ChangeMemberSharesApiV1CareCircleMembersMemberIdSharesPutData = {
+    body: SharesWrite;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Member Id
+         */
+        member_id: number;
+    };
+    query?: never;
+    url: '/api/v1/care/circle/members/{member_id}/shares';
+};
+
+export type ChangeMemberSharesApiV1CareCircleMembersMemberIdSharesPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ChangeMemberSharesApiV1CareCircleMembersMemberIdSharesPutError = ChangeMemberSharesApiV1CareCircleMembersMemberIdSharesPutErrors[keyof ChangeMemberSharesApiV1CareCircleMembersMemberIdSharesPutErrors];
+
+export type ChangeMemberSharesApiV1CareCircleMembersMemberIdSharesPutResponses = {
+    /**
+     * Successful Response
+     */
+    200: MemberProposed;
+};
+
+export type ChangeMemberSharesApiV1CareCircleMembersMemberIdSharesPutResponse = ChangeMemberSharesApiV1CareCircleMembersMemberIdSharesPutResponses[keyof ChangeMemberSharesApiV1CareCircleMembersMemberIdSharesPutResponses];
+
+export type RemoveMemberApiV1CareCircleMembersMemberIdDeleteData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Member Id
+         */
+        member_id: number;
+    };
+    query?: never;
+    url: '/api/v1/care/circle/members/{member_id}';
+};
+
+export type RemoveMemberApiV1CareCircleMembersMemberIdDeleteErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RemoveMemberApiV1CareCircleMembersMemberIdDeleteError = RemoveMemberApiV1CareCircleMembersMemberIdDeleteErrors[keyof RemoveMemberApiV1CareCircleMembersMemberIdDeleteErrors];
+
+export type RemoveMemberApiV1CareCircleMembersMemberIdDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    200: CircleMember;
+};
+
+export type RemoveMemberApiV1CareCircleMembersMemberIdDeleteResponse = RemoveMemberApiV1CareCircleMembersMemberIdDeleteResponses[keyof RemoveMemberApiV1CareCircleMembersMemberIdDeleteResponses];
+
+export type AcceptInviteApiV1CareFamilyAcceptPostData = {
+    body: AcceptInvite;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/care/family/accept';
+};
+
+export type AcceptInviteApiV1CareFamilyAcceptPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AcceptInviteApiV1CareFamilyAcceptPostError = AcceptInviteApiV1CareFamilyAcceptPostErrors[keyof AcceptInviteApiV1CareFamilyAcceptPostErrors];
+
+export type AcceptInviteApiV1CareFamilyAcceptPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: Accepted;
+};
+
+export type AcceptInviteApiV1CareFamilyAcceptPostResponse = AcceptInviteApiV1CareFamilyAcceptPostResponses[keyof AcceptInviteApiV1CareFamilyAcceptPostResponses];
+
+export type FamilyApiV1CareFamilyGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/care/family';
+};
+
+export type FamilyApiV1CareFamilyGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type FamilyApiV1CareFamilyGetError = FamilyApiV1CareFamilyGetErrors[keyof FamilyApiV1CareFamilyGetErrors];
+
+export type FamilyApiV1CareFamilyGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: FamilyView;
+};
+
+export type FamilyApiV1CareFamilyGetResponse = FamilyApiV1CareFamilyGetResponses[keyof FamilyApiV1CareFamilyGetResponses];
+
+export type ReadAlertApiV1CareFamilyAlertsAlertIdReadPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Alert Id
+         */
+        alert_id: number;
+    };
+    query?: never;
+    url: '/api/v1/care/family/alerts/{alert_id}/read';
+};
+
+export type ReadAlertApiV1CareFamilyAlertsAlertIdReadPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReadAlertApiV1CareFamilyAlertsAlertIdReadPostError = ReadAlertApiV1CareFamilyAlertsAlertIdReadPostErrors[keyof ReadAlertApiV1CareFamilyAlertsAlertIdReadPostErrors];
+
+export type ReadAlertApiV1CareFamilyAlertsAlertIdReadPostResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type ReadAlertApiV1CareFamilyAlertsAlertIdReadPostResponse = ReadAlertApiV1CareFamilyAlertsAlertIdReadPostResponses[keyof ReadAlertApiV1CareFamilyAlertsAlertIdReadPostResponses];
+
+export type MyMedicinesApiV1CareMedicinesGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/care/medicines';
+};
+
+export type MyMedicinesApiV1CareMedicinesGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MyMedicinesApiV1CareMedicinesGetError = MyMedicinesApiV1CareMedicinesGetErrors[keyof MyMedicinesApiV1CareMedicinesGetErrors];
+
+export type MyMedicinesApiV1CareMedicinesGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: MedicineList;
+};
+
+export type MyMedicinesApiV1CareMedicinesGetResponse = MyMedicinesApiV1CareMedicinesGetResponses[keyof MyMedicinesApiV1CareMedicinesGetResponses];
+
+export type AddMedicineApiV1CareMedicinesPostData = {
+    body: MedicineWrite;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/care/medicines';
+};
+
+export type AddMedicineApiV1CareMedicinesPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AddMedicineApiV1CareMedicinesPostError = AddMedicineApiV1CareMedicinesPostErrors[keyof AddMedicineApiV1CareMedicinesPostErrors];
+
+export type AddMedicineApiV1CareMedicinesPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: MedicineProposed;
+};
+
+export type AddMedicineApiV1CareMedicinesPostResponse = AddMedicineApiV1CareMedicinesPostResponses[keyof AddMedicineApiV1CareMedicinesPostResponses];
+
+export type PauseMedicineApiV1CareMedicinesMedicineIdPausePostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Medicine Id
+         */
+        medicine_id: number;
+    };
+    query?: never;
+    url: '/api/v1/care/medicines/{medicine_id}/pause';
+};
+
+export type PauseMedicineApiV1CareMedicinesMedicineIdPausePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type PauseMedicineApiV1CareMedicinesMedicineIdPausePostError = PauseMedicineApiV1CareMedicinesMedicineIdPausePostErrors[keyof PauseMedicineApiV1CareMedicinesMedicineIdPausePostErrors];
+
+export type PauseMedicineApiV1CareMedicinesMedicineIdPausePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: Medicine;
+};
+
+export type PauseMedicineApiV1CareMedicinesMedicineIdPausePostResponse = PauseMedicineApiV1CareMedicinesMedicineIdPausePostResponses[keyof PauseMedicineApiV1CareMedicinesMedicineIdPausePostResponses];
+
+export type ResumeMedicineApiV1CareMedicinesMedicineIdResumePostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Medicine Id
+         */
+        medicine_id: number;
+    };
+    query?: never;
+    url: '/api/v1/care/medicines/{medicine_id}/resume';
+};
+
+export type ResumeMedicineApiV1CareMedicinesMedicineIdResumePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ResumeMedicineApiV1CareMedicinesMedicineIdResumePostError = ResumeMedicineApiV1CareMedicinesMedicineIdResumePostErrors[keyof ResumeMedicineApiV1CareMedicinesMedicineIdResumePostErrors];
+
+export type ResumeMedicineApiV1CareMedicinesMedicineIdResumePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: MedicineProposed;
+};
+
+export type ResumeMedicineApiV1CareMedicinesMedicineIdResumePostResponse = ResumeMedicineApiV1CareMedicinesMedicineIdResumePostResponses[keyof ResumeMedicineApiV1CareMedicinesMedicineIdResumePostResponses];
+
+export type MarkTakenApiV1CareMedicinesMedicineIdTakenPostData = {
+    body: MarkTaken;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Medicine Id
+         */
+        medicine_id: number;
+    };
+    query?: never;
+    url: '/api/v1/care/medicines/{medicine_id}/taken';
+};
+
+export type MarkTakenApiV1CareMedicinesMedicineIdTakenPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MarkTakenApiV1CareMedicinesMedicineIdTakenPostError = MarkTakenApiV1CareMedicinesMedicineIdTakenPostErrors[keyof MarkTakenApiV1CareMedicinesMedicineIdTakenPostErrors];
+
+export type MarkTakenApiV1CareMedicinesMedicineIdTakenPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: Dose;
+};
+
+export type MarkTakenApiV1CareMedicinesMedicineIdTakenPostResponse = MarkTakenApiV1CareMedicinesMedicineIdTakenPostResponses[keyof MarkTakenApiV1CareMedicinesMedicineIdTakenPostResponses];
+
+export type CheckForScamApiV1CareScamCheckPostData = {
+    body: ScamCheckWrite;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/care/scam-check';
+};
+
+export type CheckForScamApiV1CareScamCheckPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CheckForScamApiV1CareScamCheckPostError = CheckForScamApiV1CareScamCheckPostErrors[keyof CheckForScamApiV1CareScamCheckPostErrors];
+
+export type CheckForScamApiV1CareScamCheckPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: ScamAnswer;
+};
+
+export type CheckForScamApiV1CareScamCheckPostResponse = CheckForScamApiV1CareScamCheckPostResponses[keyof CheckForScamApiV1CareScamCheckPostResponses];
+
+export type RecentScamChecksApiV1CareScamCheckRecentGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/care/scam-check/recent';
+};
+
+export type RecentScamChecksApiV1CareScamCheckRecentGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RecentScamChecksApiV1CareScamCheckRecentGetError = RecentScamChecksApiV1CareScamCheckRecentGetErrors[keyof RecentScamChecksApiV1CareScamCheckRecentGetErrors];
+
+export type RecentScamChecksApiV1CareScamCheckRecentGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: ScamHistory;
+};
+
+export type RecentScamChecksApiV1CareScamCheckRecentGetResponse = RecentScamChecksApiV1CareScamCheckRecentGetResponses[keyof RecentScamChecksApiV1CareScamCheckRecentGetResponses];
+
+export type HelpTopicsApiV1CareHelpTopicsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/care/help/topics';
+};
+
+export type HelpTopicsApiV1CareHelpTopicsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type HelpTopicsApiV1CareHelpTopicsGetError = HelpTopicsApiV1CareHelpTopicsGetErrors[keyof HelpTopicsApiV1CareHelpTopicsGetErrors];
+
+export type HelpTopicsApiV1CareHelpTopicsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: HelpTopics;
+};
+
+export type HelpTopicsApiV1CareHelpTopicsGetResponse = HelpTopicsApiV1CareHelpTopicsGetResponses[keyof HelpTopicsApiV1CareHelpTopicsGetResponses];
+
+export type StartHelpApiV1CareHelpSessionsPostData = {
+    body: HelpStart;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/care/help/sessions';
+};
+
+export type StartHelpApiV1CareHelpSessionsPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type StartHelpApiV1CareHelpSessionsPostError = StartHelpApiV1CareHelpSessionsPostErrors[keyof StartHelpApiV1CareHelpSessionsPostErrors];
+
+export type StartHelpApiV1CareHelpSessionsPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: HelpStarted;
+};
+
+export type StartHelpApiV1CareHelpSessionsPostResponse = StartHelpApiV1CareHelpSessionsPostResponses[keyof StartHelpApiV1CareHelpSessionsPostResponses];
+
+export type GetHelpApiV1CareHelpSessionsSessionIdGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: number;
+    };
+    query?: never;
+    url: '/api/v1/care/help/sessions/{session_id}';
+};
+
+export type GetHelpApiV1CareHelpSessionsSessionIdGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetHelpApiV1CareHelpSessionsSessionIdGetError = GetHelpApiV1CareHelpSessionsSessionIdGetErrors[keyof GetHelpApiV1CareHelpSessionsSessionIdGetErrors];
+
+export type GetHelpApiV1CareHelpSessionsSessionIdGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: HelpSession;
+};
+
+export type GetHelpApiV1CareHelpSessionsSessionIdGetResponse = GetHelpApiV1CareHelpSessionsSessionIdGetResponses[keyof GetHelpApiV1CareHelpSessionsSessionIdGetResponses];
+
+export type AnswerHelpApiV1CareHelpSessionsSessionIdAnswerPostData = {
+    body: HelpAnswer;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: number;
+    };
+    query?: never;
+    url: '/api/v1/care/help/sessions/{session_id}/answer';
+};
+
+export type AnswerHelpApiV1CareHelpSessionsSessionIdAnswerPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AnswerHelpApiV1CareHelpSessionsSessionIdAnswerPostError = AnswerHelpApiV1CareHelpSessionsSessionIdAnswerPostErrors[keyof AnswerHelpApiV1CareHelpSessionsSessionIdAnswerPostErrors];
+
+export type AnswerHelpApiV1CareHelpSessionsSessionIdAnswerPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: HelpSession;
+};
+
+export type AnswerHelpApiV1CareHelpSessionsSessionIdAnswerPostResponse = AnswerHelpApiV1CareHelpSessionsSessionIdAnswerPostResponses[keyof AnswerHelpApiV1CareHelpSessionsSessionIdAnswerPostResponses];
+
+export type CapabilityChecklistApiV1AdminControlsCapabilitiesGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Organization Id
+         */
+        organization_id?: number | null;
+    };
+    url: '/api/v1/admin/controls/capabilities';
+};
+
+export type CapabilityChecklistApiV1AdminControlsCapabilitiesGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CapabilityChecklistApiV1AdminControlsCapabilitiesGetError = CapabilityChecklistApiV1AdminControlsCapabilitiesGetErrors[keyof CapabilityChecklistApiV1AdminControlsCapabilitiesGetErrors];
+
+export type CapabilityChecklistApiV1AdminControlsCapabilitiesGetResponses = {
+    /**
+     * Response Capability Checklist Api V1 Admin Controls Capabilities Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type CapabilityChecklistApiV1AdminControlsCapabilitiesGetResponse = CapabilityChecklistApiV1AdminControlsCapabilitiesGetResponses[keyof CapabilityChecklistApiV1AdminControlsCapabilitiesGetResponses];
+
+export type EventCatalogueApiV1AdminControlsEventsCatalogueGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/controls/events/catalogue';
+};
+
+export type EventCatalogueApiV1AdminControlsEventsCatalogueGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type EventCatalogueApiV1AdminControlsEventsCatalogueGetError = EventCatalogueApiV1AdminControlsEventsCatalogueGetErrors[keyof EventCatalogueApiV1AdminControlsEventsCatalogueGetErrors];
+
+export type EventCatalogueApiV1AdminControlsEventsCatalogueGetResponses = {
+    /**
+     * Response Event Catalogue Api V1 Admin Controls Events Catalogue Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type EventCatalogueApiV1AdminControlsEventsCatalogueGetResponse = EventCatalogueApiV1AdminControlsEventsCatalogueGetResponses[keyof EventCatalogueApiV1AdminControlsEventsCatalogueGetResponses];
+
+export type FeedbackSummaryApiV1AdminControlsFeedbackSummaryGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Organization Id
+         */
+        organization_id?: number | null;
+    };
+    url: '/api/v1/admin/controls/feedback/summary';
+};
+
+export type FeedbackSummaryApiV1AdminControlsFeedbackSummaryGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type FeedbackSummaryApiV1AdminControlsFeedbackSummaryGetError = FeedbackSummaryApiV1AdminControlsFeedbackSummaryGetErrors[keyof FeedbackSummaryApiV1AdminControlsFeedbackSummaryGetErrors];
+
+export type FeedbackSummaryApiV1AdminControlsFeedbackSummaryGetResponses = {
+    /**
+     * Response Feedback Summary Api V1 Admin Controls Feedback Summary Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type FeedbackSummaryApiV1AdminControlsFeedbackSummaryGetResponse = FeedbackSummaryApiV1AdminControlsFeedbackSummaryGetResponses[keyof FeedbackSummaryApiV1AdminControlsFeedbackSummaryGetResponses];
+
+export type UserQuotasApiV1AdminControlsQuotasUsersUserIdGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * User Id
+         */
+        user_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/controls/quotas/users/{user_id}';
+};
+
+export type UserQuotasApiV1AdminControlsQuotasUsersUserIdGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UserQuotasApiV1AdminControlsQuotasUsersUserIdGetError = UserQuotasApiV1AdminControlsQuotasUsersUserIdGetErrors[keyof UserQuotasApiV1AdminControlsQuotasUsersUserIdGetErrors];
+
+export type UserQuotasApiV1AdminControlsQuotasUsersUserIdGetResponses = {
+    /**
+     * Response User Quotas Api V1 Admin Controls Quotas Users  User Id  Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type UserQuotasApiV1AdminControlsQuotasUsersUserIdGetResponse = UserQuotasApiV1AdminControlsQuotasUsersUserIdGetResponses[keyof UserQuotasApiV1AdminControlsQuotasUsersUserIdGetResponses];
+
+export type GrantAllowanceApiV1AdminControlsQuotasUsersUserIdGrantsPostData = {
+    body: GrantWrite;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * User Id
+         */
+        user_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/controls/quotas/users/{user_id}/grants';
+};
+
+export type GrantAllowanceApiV1AdminControlsQuotasUsersUserIdGrantsPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GrantAllowanceApiV1AdminControlsQuotasUsersUserIdGrantsPostError = GrantAllowanceApiV1AdminControlsQuotasUsersUserIdGrantsPostErrors[keyof GrantAllowanceApiV1AdminControlsQuotasUsersUserIdGrantsPostErrors];
+
+export type GrantAllowanceApiV1AdminControlsQuotasUsersUserIdGrantsPostResponses = {
+    /**
+     * Response Grant Allowance Api V1 Admin Controls Quotas Users  User Id  Grants Post
+     *
+     * Successful Response
+     */
+    201: {
+        [key: string]: unknown;
+    };
+};
+
+export type GrantAllowanceApiV1AdminControlsQuotasUsersUserIdGrantsPostResponse = GrantAllowanceApiV1AdminControlsQuotasUsersUserIdGrantsPostResponses[keyof GrantAllowanceApiV1AdminControlsQuotasUsersUserIdGrantsPostResponses];
+
+export type RevokeAllowanceApiV1AdminControlsQuotasGrantsAllowanceIdDeleteData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Allowance Id
+         */
+        allowance_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/controls/quotas/grants/{allowance_id}';
+};
+
+export type RevokeAllowanceApiV1AdminControlsQuotasGrantsAllowanceIdDeleteErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RevokeAllowanceApiV1AdminControlsQuotasGrantsAllowanceIdDeleteError = RevokeAllowanceApiV1AdminControlsQuotasGrantsAllowanceIdDeleteErrors[keyof RevokeAllowanceApiV1AdminControlsQuotasGrantsAllowanceIdDeleteErrors];
+
+export type RevokeAllowanceApiV1AdminControlsQuotasGrantsAllowanceIdDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type RevokeAllowanceApiV1AdminControlsQuotasGrantsAllowanceIdDeleteResponse = RevokeAllowanceApiV1AdminControlsQuotasGrantsAllowanceIdDeleteResponses[keyof RevokeAllowanceApiV1AdminControlsQuotasGrantsAllowanceIdDeleteResponses];
+
+export type GetTodayApiV1TodayGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/today';
+};
+
+export type GetTodayApiV1TodayGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetTodayApiV1TodayGetError = GetTodayApiV1TodayGetErrors[keyof GetTodayApiV1TodayGetErrors];
+
+export type GetTodayApiV1TodayGetResponses = {
+    /**
+     * Response Get Today Api V1 Today Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetTodayApiV1TodayGetResponse = GetTodayApiV1TodayGetResponses[keyof GetTodayApiV1TodayGetResponses];
+
+export type DismissSuggestionApiV1TodaySuggestionsKeyDismissPostData = {
+    body: DismissRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Key
+         */
+        key: string;
+    };
+    query?: never;
+    url: '/api/v1/today/suggestions/{key}/dismiss';
+};
+
+export type DismissSuggestionApiV1TodaySuggestionsKeyDismissPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DismissSuggestionApiV1TodaySuggestionsKeyDismissPostError = DismissSuggestionApiV1TodaySuggestionsKeyDismissPostErrors[keyof DismissSuggestionApiV1TodaySuggestionsKeyDismissPostErrors];
+
+export type DismissSuggestionApiV1TodaySuggestionsKeyDismissPostResponses = {
+    /**
+     * Response Dismiss Suggestion Api V1 Today Suggestions  Key  Dismiss Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type DismissSuggestionApiV1TodaySuggestionsKeyDismissPostResponse = DismissSuggestionApiV1TodaySuggestionsKeyDismissPostResponses[keyof DismissSuggestionApiV1TodaySuggestionsKeyDismissPostResponses];
+
+export type ProposeCallBackApiV1TodayMissedCallsMissedCallIdCallBackPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Missed Call Id
+         */
+        missed_call_id: number;
+    };
+    query?: never;
+    url: '/api/v1/today/missed-calls/{missed_call_id}/call-back';
+};
+
+export type ProposeCallBackApiV1TodayMissedCallsMissedCallIdCallBackPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ProposeCallBackApiV1TodayMissedCallsMissedCallIdCallBackPostError = ProposeCallBackApiV1TodayMissedCallsMissedCallIdCallBackPostErrors[keyof ProposeCallBackApiV1TodayMissedCallsMissedCallIdCallBackPostErrors];
+
+export type ProposeCallBackApiV1TodayMissedCallsMissedCallIdCallBackPostResponses = {
+    /**
+     * Response Propose Call Back Api V1 Today Missed Calls  Missed Call Id  Call Back Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ProposeCallBackApiV1TodayMissedCallsMissedCallIdCallBackPostResponse = ProposeCallBackApiV1TodayMissedCallsMissedCallIdCallBackPostResponses[keyof ProposeCallBackApiV1TodayMissedCallsMissedCallIdCallBackPostResponses];
+
+export type PendingApprovalsApiV1TodayApprovalsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/today/approvals';
+};
+
+export type PendingApprovalsApiV1TodayApprovalsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type PendingApprovalsApiV1TodayApprovalsGetError = PendingApprovalsApiV1TodayApprovalsGetErrors[keyof PendingApprovalsApiV1TodayApprovalsGetErrors];
+
+export type PendingApprovalsApiV1TodayApprovalsGetResponses = {
+    /**
+     * Response Pending Approvals Api V1 Today Approvals Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type PendingApprovalsApiV1TodayApprovalsGetResponse = PendingApprovalsApiV1TodayApprovalsGetResponses[keyof PendingApprovalsApiV1TodayApprovalsGetResponses];
+
+export type ApprovalPreviewApiV1TodayApprovalsEventIdGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Event Id
+         */
+        event_id: number;
+    };
+    query?: never;
+    url: '/api/v1/today/approvals/{event_id}';
+};
+
+export type ApprovalPreviewApiV1TodayApprovalsEventIdGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ApprovalPreviewApiV1TodayApprovalsEventIdGetError = ApprovalPreviewApiV1TodayApprovalsEventIdGetErrors[keyof ApprovalPreviewApiV1TodayApprovalsEventIdGetErrors];
+
+export type ApprovalPreviewApiV1TodayApprovalsEventIdGetResponses = {
+    /**
+     * Response Approval Preview Api V1 Today Approvals  Event Id  Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ApprovalPreviewApiV1TodayApprovalsEventIdGetResponse = ApprovalPreviewApiV1TodayApprovalsEventIdGetResponses[keyof ApprovalPreviewApiV1TodayApprovalsEventIdGetResponses];
+
+export type ListActivityApiV1TodayActivityGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * State
+         */
+        state?: string | null;
+        /**
+         * Helper
+         */
+        helper?: string | null;
+        /**
+         * Days
+         */
+        days?: number;
+    };
+    url: '/api/v1/today/activity';
+};
+
+export type ListActivityApiV1TodayActivityGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListActivityApiV1TodayActivityGetError = ListActivityApiV1TodayActivityGetErrors[keyof ListActivityApiV1TodayActivityGetErrors];
+
+export type ListActivityApiV1TodayActivityGetResponses = {
+    /**
+     * Response List Activity Api V1 Today Activity Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ListActivityApiV1TodayActivityGetResponse = ListActivityApiV1TodayActivityGetResponses[keyof ListActivityApiV1TodayActivityGetResponses];
+
+export type ActivityDetailApiV1TodayActivityKindItemIdGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Kind
+         */
+        kind: string;
+        /**
+         * Item Id
+         */
+        item_id: number;
+    };
+    query?: never;
+    url: '/api/v1/today/activity/{kind}/{item_id}';
+};
+
+export type ActivityDetailApiV1TodayActivityKindItemIdGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ActivityDetailApiV1TodayActivityKindItemIdGetError = ActivityDetailApiV1TodayActivityKindItemIdGetErrors[keyof ActivityDetailApiV1TodayActivityKindItemIdGetErrors];
+
+export type ActivityDetailApiV1TodayActivityKindItemIdGetResponses = {
+    /**
+     * Response Activity Detail Api V1 Today Activity  Kind   Item Id  Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ActivityDetailApiV1TodayActivityKindItemIdGetResponse = ActivityDetailApiV1TodayActivityKindItemIdGetResponses[keyof ActivityDetailApiV1TodayActivityKindItemIdGetResponses];
+
+export type RoutinePreviewApiV1TodayRoutinesPreviewPostData = {
+    body: RoutinePreviewRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/today/routines/preview';
+};
+
+export type RoutinePreviewApiV1TodayRoutinesPreviewPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RoutinePreviewApiV1TodayRoutinesPreviewPostError = RoutinePreviewApiV1TodayRoutinesPreviewPostErrors[keyof RoutinePreviewApiV1TodayRoutinesPreviewPostErrors];
+
+export type RoutinePreviewApiV1TodayRoutinesPreviewPostResponses = {
+    /**
+     * Response Routine Preview Api V1 Today Routines Preview Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type RoutinePreviewApiV1TodayRoutinesPreviewPostResponse = RoutinePreviewApiV1TodayRoutinesPreviewPostResponses[keyof RoutinePreviewApiV1TodayRoutinesPreviewPostResponses];
+
+export type ListRemindersApiV1TodayRemindersGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Include Finished
+         */
+        include_finished?: boolean;
+    };
+    url: '/api/v1/today/reminders';
+};
+
+export type ListRemindersApiV1TodayRemindersGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListRemindersApiV1TodayRemindersGetError = ListRemindersApiV1TodayRemindersGetErrors[keyof ListRemindersApiV1TodayRemindersGetErrors];
+
+export type ListRemindersApiV1TodayRemindersGetResponses = {
+    /**
+     * Response List Reminders Api V1 Today Reminders Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ListRemindersApiV1TodayRemindersGetResponse = ListRemindersApiV1TodayRemindersGetResponses[keyof ListRemindersApiV1TodayRemindersGetResponses];
+
+export type CreateReminderApiV1TodayRemindersPostData = {
+    body: ReminderSave;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/today/reminders';
+};
+
+export type CreateReminderApiV1TodayRemindersPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateReminderApiV1TodayRemindersPostError = CreateReminderApiV1TodayRemindersPostErrors[keyof CreateReminderApiV1TodayRemindersPostErrors];
+
+export type CreateReminderApiV1TodayRemindersPostResponses = {
+    /**
+     * Response Create Reminder Api V1 Today Reminders Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type CreateReminderApiV1TodayRemindersPostResponse = CreateReminderApiV1TodayRemindersPostResponses[keyof CreateReminderApiV1TodayRemindersPostResponses];
+
+export type PreviewReminderApiV1TodayRemindersPreviewPostData = {
+    body: ReminderDraft;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/today/reminders/preview';
+};
+
+export type PreviewReminderApiV1TodayRemindersPreviewPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type PreviewReminderApiV1TodayRemindersPreviewPostError = PreviewReminderApiV1TodayRemindersPreviewPostErrors[keyof PreviewReminderApiV1TodayRemindersPreviewPostErrors];
+
+export type PreviewReminderApiV1TodayRemindersPreviewPostResponses = {
+    /**
+     * Response Preview Reminder Api V1 Today Reminders Preview Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type PreviewReminderApiV1TodayRemindersPreviewPostResponse = PreviewReminderApiV1TodayRemindersPreviewPostResponses[keyof PreviewReminderApiV1TodayRemindersPreviewPostResponses];
+
+export type GetReminderApiV1TodayRemindersReminderIdGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Reminder Id
+         */
+        reminder_id: number;
+    };
+    query?: never;
+    url: '/api/v1/today/reminders/{reminder_id}';
+};
+
+export type GetReminderApiV1TodayRemindersReminderIdGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetReminderApiV1TodayRemindersReminderIdGetError = GetReminderApiV1TodayRemindersReminderIdGetErrors[keyof GetReminderApiV1TodayRemindersReminderIdGetErrors];
+
+export type GetReminderApiV1TodayRemindersReminderIdGetResponses = {
+    /**
+     * Response Get Reminder Api V1 Today Reminders  Reminder Id  Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetReminderApiV1TodayRemindersReminderIdGetResponse = GetReminderApiV1TodayRemindersReminderIdGetResponses[keyof GetReminderApiV1TodayRemindersReminderIdGetResponses];
+
+export type UpdateReminderApiV1TodayRemindersReminderIdPutData = {
+    body: ReminderSave;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Reminder Id
+         */
+        reminder_id: number;
+    };
+    query?: never;
+    url: '/api/v1/today/reminders/{reminder_id}';
+};
+
+export type UpdateReminderApiV1TodayRemindersReminderIdPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateReminderApiV1TodayRemindersReminderIdPutError = UpdateReminderApiV1TodayRemindersReminderIdPutErrors[keyof UpdateReminderApiV1TodayRemindersReminderIdPutErrors];
+
+export type UpdateReminderApiV1TodayRemindersReminderIdPutResponses = {
+    /**
+     * Response Update Reminder Api V1 Today Reminders  Reminder Id  Put
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type UpdateReminderApiV1TodayRemindersReminderIdPutResponse = UpdateReminderApiV1TodayRemindersReminderIdPutResponses[keyof UpdateReminderApiV1TodayRemindersReminderIdPutResponses];
+
+export type SetReminderStatusApiV1TodayRemindersReminderIdStatusPostData = {
+    body: ReminderStatus;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Reminder Id
+         */
+        reminder_id: number;
+    };
+    query?: never;
+    url: '/api/v1/today/reminders/{reminder_id}/status';
+};
+
+export type SetReminderStatusApiV1TodayRemindersReminderIdStatusPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SetReminderStatusApiV1TodayRemindersReminderIdStatusPostError = SetReminderStatusApiV1TodayRemindersReminderIdStatusPostErrors[keyof SetReminderStatusApiV1TodayRemindersReminderIdStatusPostErrors];
+
+export type SetReminderStatusApiV1TodayRemindersReminderIdStatusPostResponses = {
+    /**
+     * Response Set Reminder Status Api V1 Today Reminders  Reminder Id  Status Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SetReminderStatusApiV1TodayRemindersReminderIdStatusPostResponse = SetReminderStatusApiV1TodayRemindersReminderIdStatusPostResponses[keyof SetReminderStatusApiV1TodayRemindersReminderIdStatusPostResponses];
+
+export type SnoozeReminderApiV1TodayRemindersReminderIdSnoozePostData = {
+    body: Snooze;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Reminder Id
+         */
+        reminder_id: number;
+    };
+    query?: never;
+    url: '/api/v1/today/reminders/{reminder_id}/snooze';
+};
+
+export type SnoozeReminderApiV1TodayRemindersReminderIdSnoozePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SnoozeReminderApiV1TodayRemindersReminderIdSnoozePostError = SnoozeReminderApiV1TodayRemindersReminderIdSnoozePostErrors[keyof SnoozeReminderApiV1TodayRemindersReminderIdSnoozePostErrors];
+
+export type SnoozeReminderApiV1TodayRemindersReminderIdSnoozePostResponses = {
+    /**
+     * Response Snooze Reminder Api V1 Today Reminders  Reminder Id  Snooze Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SnoozeReminderApiV1TodayRemindersReminderIdSnoozePostResponse = SnoozeReminderApiV1TodayRemindersReminderIdSnoozePostResponses[keyof SnoozeReminderApiV1TodayRemindersReminderIdSnoozePostResponses];
+
+export type TestReminderApiV1TodayRemindersReminderIdTestPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Reminder Id
+         */
+        reminder_id: number;
+    };
+    query?: never;
+    url: '/api/v1/today/reminders/{reminder_id}/test';
+};
+
+export type TestReminderApiV1TodayRemindersReminderIdTestPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type TestReminderApiV1TodayRemindersReminderIdTestPostError = TestReminderApiV1TodayRemindersReminderIdTestPostErrors[keyof TestReminderApiV1TodayRemindersReminderIdTestPostErrors];
+
+export type TestReminderApiV1TodayRemindersReminderIdTestPostResponses = {
+    /**
+     * Response Test Reminder Api V1 Today Reminders  Reminder Id  Test Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type TestReminderApiV1TodayRemindersReminderIdTestPostResponse = TestReminderApiV1TodayRemindersReminderIdTestPostResponses[keyof TestReminderApiV1TodayRemindersReminderIdTestPostResponses];
+
+export type ResolveDateApiV1TodayResolveDatePostData = {
+    body: ResolveDate;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/today/resolve-date';
+};
+
+export type ResolveDateApiV1TodayResolveDatePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ResolveDateApiV1TodayResolveDatePostError = ResolveDateApiV1TodayResolveDatePostErrors[keyof ResolveDateApiV1TodayResolveDatePostErrors];
+
+export type ResolveDateApiV1TodayResolveDatePostResponses = {
+    /**
+     * Response Resolve Date Api V1 Today Resolve Date Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ResolveDateApiV1TodayResolveDatePostResponse = ResolveDateApiV1TodayResolveDatePostResponses[keyof ResolveDateApiV1TodayResolveDatePostResponses];
+
+export type CreateEventApiV1TodayEventsPostData = {
+    body: EventCreate;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/today/events';
+};
+
+export type CreateEventApiV1TodayEventsPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateEventApiV1TodayEventsPostError = CreateEventApiV1TodayEventsPostErrors[keyof CreateEventApiV1TodayEventsPostErrors];
+
+export type CreateEventApiV1TodayEventsPostResponses = {
+    /**
+     * Response Create Event Api V1 Today Events Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type CreateEventApiV1TodayEventsPostResponse = CreateEventApiV1TodayEventsPostResponses[keyof CreateEventApiV1TodayEventsPostResponses];
+
+export type MoveEventApiV1TodayEventsEventIdMovePostData = {
+    body: EventMove;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Event Id
+         */
+        event_id: number;
+    };
+    query?: never;
+    url: '/api/v1/today/events/{event_id}/move';
+};
+
+export type MoveEventApiV1TodayEventsEventIdMovePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MoveEventApiV1TodayEventsEventIdMovePostError = MoveEventApiV1TodayEventsEventIdMovePostErrors[keyof MoveEventApiV1TodayEventsEventIdMovePostErrors];
+
+export type MoveEventApiV1TodayEventsEventIdMovePostResponses = {
+    /**
+     * Response Move Event Api V1 Today Events  Event Id  Move Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type MoveEventApiV1TodayEventsEventIdMovePostResponse = MoveEventApiV1TodayEventsEventIdMovePostResponses[keyof MoveEventApiV1TodayEventsEventIdMovePostResponses];
+
+export type CancelEventApiV1TodayEventsEventIdCancelPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Event Id
+         */
+        event_id: number;
+    };
+    query?: never;
+    url: '/api/v1/today/events/{event_id}/cancel';
+};
+
+export type CancelEventApiV1TodayEventsEventIdCancelPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CancelEventApiV1TodayEventsEventIdCancelPostError = CancelEventApiV1TodayEventsEventIdCancelPostErrors[keyof CancelEventApiV1TodayEventsEventIdCancelPostErrors];
+
+export type CancelEventApiV1TodayEventsEventIdCancelPostResponses = {
+    /**
+     * Response Cancel Event Api V1 Today Events  Event Id  Cancel Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type CancelEventApiV1TodayEventsEventIdCancelPostResponse = CancelEventApiV1TodayEventsEventIdCancelPostResponses[keyof CancelEventApiV1TodayEventsEventIdCancelPostResponses];
+
+export type GetBriefApiV1TodayBriefGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/today/brief';
+};
+
+export type GetBriefApiV1TodayBriefGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetBriefApiV1TodayBriefGetError = GetBriefApiV1TodayBriefGetErrors[keyof GetBriefApiV1TodayBriefGetErrors];
+
+export type GetBriefApiV1TodayBriefGetResponses = {
+    /**
+     * Response Get Brief Api V1 Today Brief Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetBriefApiV1TodayBriefGetResponse = GetBriefApiV1TodayBriefGetResponses[keyof GetBriefApiV1TodayBriefGetResponses];
+
+export type RefreshBriefApiV1TodayBriefRefreshPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/today/brief/refresh';
+};
+
+export type RefreshBriefApiV1TodayBriefRefreshPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RefreshBriefApiV1TodayBriefRefreshPostError = RefreshBriefApiV1TodayBriefRefreshPostErrors[keyof RefreshBriefApiV1TodayBriefRefreshPostErrors];
+
+export type RefreshBriefApiV1TodayBriefRefreshPostResponses = {
+    /**
+     * Response Refresh Brief Api V1 Today Brief Refresh Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type RefreshBriefApiV1TodayBriefRefreshPostResponse = RefreshBriefApiV1TodayBriefRefreshPostResponses[keyof RefreshBriefApiV1TodayBriefRefreshPostResponses];
+
+export type GetBriefSettingsApiV1TodayBriefSettingsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/today/brief/settings';
+};
+
+export type GetBriefSettingsApiV1TodayBriefSettingsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetBriefSettingsApiV1TodayBriefSettingsGetError = GetBriefSettingsApiV1TodayBriefSettingsGetErrors[keyof GetBriefSettingsApiV1TodayBriefSettingsGetErrors];
+
+export type GetBriefSettingsApiV1TodayBriefSettingsGetResponses = {
+    /**
+     * Response Get Brief Settings Api V1 Today Brief Settings Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetBriefSettingsApiV1TodayBriefSettingsGetResponse = GetBriefSettingsApiV1TodayBriefSettingsGetResponses[keyof GetBriefSettingsApiV1TodayBriefSettingsGetResponses];
+
+export type SaveBriefSettingsApiV1TodayBriefSettingsPutData = {
+    body: BriefSettingsWrite;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/today/brief/settings';
+};
+
+export type SaveBriefSettingsApiV1TodayBriefSettingsPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SaveBriefSettingsApiV1TodayBriefSettingsPutError = SaveBriefSettingsApiV1TodayBriefSettingsPutErrors[keyof SaveBriefSettingsApiV1TodayBriefSettingsPutErrors];
+
+export type SaveBriefSettingsApiV1TodayBriefSettingsPutResponses = {
+    /**
+     * Response Save Brief Settings Api V1 Today Brief Settings Put
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SaveBriefSettingsApiV1TodayBriefSettingsPutResponse = SaveBriefSettingsApiV1TodayBriefSettingsPutResponses[keyof SaveBriefSettingsApiV1TodayBriefSettingsPutResponses];
+
+export type TestBriefApiV1TodayBriefTestPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/today/brief/test';
+};
+
+export type TestBriefApiV1TodayBriefTestPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type TestBriefApiV1TodayBriefTestPostError = TestBriefApiV1TodayBriefTestPostErrors[keyof TestBriefApiV1TodayBriefTestPostErrors];
+
+export type TestBriefApiV1TodayBriefTestPostResponses = {
+    /**
+     * Response Test Brief Api V1 Today Brief Test Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type TestBriefApiV1TodayBriefTestPostResponse = TestBriefApiV1TodayBriefTestPostResponses[keyof TestBriefApiV1TodayBriefTestPostResponses];
+
+export type GetEndOfDayApiV1TodayEndOfDayGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/today/end-of-day';
+};
+
+export type GetEndOfDayApiV1TodayEndOfDayGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetEndOfDayApiV1TodayEndOfDayGetError = GetEndOfDayApiV1TodayEndOfDayGetErrors[keyof GetEndOfDayApiV1TodayEndOfDayGetErrors];
+
+export type GetEndOfDayApiV1TodayEndOfDayGetResponses = {
+    /**
+     * Response Get End Of Day Api V1 Today End Of Day Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetEndOfDayApiV1TodayEndOfDayGetResponse = GetEndOfDayApiV1TodayEndOfDayGetResponses[keyof GetEndOfDayApiV1TodayEndOfDayGetResponses];
+
+export type RefreshEndOfDayApiV1TodayEndOfDayRefreshPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/today/end-of-day/refresh';
+};
+
+export type RefreshEndOfDayApiV1TodayEndOfDayRefreshPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RefreshEndOfDayApiV1TodayEndOfDayRefreshPostError = RefreshEndOfDayApiV1TodayEndOfDayRefreshPostErrors[keyof RefreshEndOfDayApiV1TodayEndOfDayRefreshPostErrors];
+
+export type RefreshEndOfDayApiV1TodayEndOfDayRefreshPostResponses = {
+    /**
+     * Response Refresh End Of Day Api V1 Today End Of Day Refresh Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type RefreshEndOfDayApiV1TodayEndOfDayRefreshPostResponse = RefreshEndOfDayApiV1TodayEndOfDayRefreshPostResponses[keyof RefreshEndOfDayApiV1TodayEndOfDayRefreshPostResponses];
+
+export type MeApiV1AdminStaffMeGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/staff/me';
+};
+
+export type MeApiV1AdminStaffMeGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MeApiV1AdminStaffMeGetError = MeApiV1AdminStaffMeGetErrors[keyof MeApiV1AdminStaffMeGetErrors];
+
+export type MeApiV1AdminStaffMeGetResponses = {
+    /**
+     * Response Me Api V1 Admin Staff Me Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type MeApiV1AdminStaffMeGetResponse = MeApiV1AdminStaffMeGetResponses[keyof MeApiV1AdminStaffMeGetResponses];
+
+export type FounderOverviewApiV1AdminStaffOverviewGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/staff/overview';
+};
+
+export type FounderOverviewApiV1AdminStaffOverviewGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type FounderOverviewApiV1AdminStaffOverviewGetError = FounderOverviewApiV1AdminStaffOverviewGetErrors[keyof FounderOverviewApiV1AdminStaffOverviewGetErrors];
+
+export type FounderOverviewApiV1AdminStaffOverviewGetResponses = {
+    /**
+     * Response Founder Overview Api V1 Admin Staff Overview Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type FounderOverviewApiV1AdminStaffOverviewGetResponse = FounderOverviewApiV1AdminStaffOverviewGetResponses[keyof FounderOverviewApiV1AdminStaffOverviewGetResponses];
+
+export type ListUsersApiV1AdminStaffUsersGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Q
+         */
+        q?: string | null;
+        /**
+         * State
+         */
+        state?: string | null;
+        /**
+         * Limit
+         */
+        limit?: number;
+    };
+    url: '/api/v1/admin/staff/users';
+};
+
+export type ListUsersApiV1AdminStaffUsersGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListUsersApiV1AdminStaffUsersGetError = ListUsersApiV1AdminStaffUsersGetErrors[keyof ListUsersApiV1AdminStaffUsersGetErrors];
+
+export type ListUsersApiV1AdminStaffUsersGetResponses = {
+    /**
+     * Response List Users Api V1 Admin Staff Users Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ListUsersApiV1AdminStaffUsersGetResponse = ListUsersApiV1AdminStaffUsersGetResponses[keyof ListUsersApiV1AdminStaffUsersGetResponses];
+
+export type WaitlistApiV1AdminStaffWaitlistGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Status
+         */
+        status?: string | null;
+    };
+    url: '/api/v1/admin/staff/waitlist';
+};
+
+export type WaitlistApiV1AdminStaffWaitlistGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type WaitlistApiV1AdminStaffWaitlistGetError = WaitlistApiV1AdminStaffWaitlistGetErrors[keyof WaitlistApiV1AdminStaffWaitlistGetErrors];
+
+export type WaitlistApiV1AdminStaffWaitlistGetResponses = {
+    /**
+     * Response Waitlist Api V1 Admin Staff Waitlist Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type WaitlistApiV1AdminStaffWaitlistGetResponse = WaitlistApiV1AdminStaffWaitlistGetResponses[keyof WaitlistApiV1AdminStaffWaitlistGetResponses];
+
+export type UserDetailApiV1AdminStaffUsersUserIdGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * User Id
+         */
+        user_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/staff/users/{user_id}';
+};
+
+export type UserDetailApiV1AdminStaffUsersUserIdGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UserDetailApiV1AdminStaffUsersUserIdGetError = UserDetailApiV1AdminStaffUsersUserIdGetErrors[keyof UserDetailApiV1AdminStaffUsersUserIdGetErrors];
+
+export type UserDetailApiV1AdminStaffUsersUserIdGetResponses = {
+    /**
+     * Response User Detail Api V1 Admin Staff Users  User Id  Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type UserDetailApiV1AdminStaffUsersUserIdGetResponse = UserDetailApiV1AdminStaffUsersUserIdGetResponses[keyof UserDetailApiV1AdminStaffUsersUserIdGetResponses];
+
+export type EndAssistedAccessApiV1AdminStaffUsersUserIdAssistedAccessEndPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * User Id
+         */
+        user_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/staff/users/{user_id}/assisted-access/end';
+};
+
+export type EndAssistedAccessApiV1AdminStaffUsersUserIdAssistedAccessEndPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type EndAssistedAccessApiV1AdminStaffUsersUserIdAssistedAccessEndPostError = EndAssistedAccessApiV1AdminStaffUsersUserIdAssistedAccessEndPostErrors[keyof EndAssistedAccessApiV1AdminStaffUsersUserIdAssistedAccessEndPostErrors];
+
+export type EndAssistedAccessApiV1AdminStaffUsersUserIdAssistedAccessEndPostResponses = {
+    /**
+     * Response End Assisted Access Api V1 Admin Staff Users  User Id  Assisted Access End Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type EndAssistedAccessApiV1AdminStaffUsersUserIdAssistedAccessEndPostResponse = EndAssistedAccessApiV1AdminStaffUsersUserIdAssistedAccessEndPostResponses[keyof EndAssistedAccessApiV1AdminStaffUsersUserIdAssistedAccessEndPostResponses];
+
+export type UserTasksApiV1AdminStaffUsersUserIdTasksGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * User Id
+         */
+        user_id: number;
+    };
+    query?: {
+        /**
+         * Organization Id
+         */
+        organization_id?: number | null;
+    };
+    url: '/api/v1/admin/staff/users/{user_id}/tasks';
+};
+
+export type UserTasksApiV1AdminStaffUsersUserIdTasksGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UserTasksApiV1AdminStaffUsersUserIdTasksGetError = UserTasksApiV1AdminStaffUsersUserIdTasksGetErrors[keyof UserTasksApiV1AdminStaffUsersUserIdTasksGetErrors];
+
+export type UserTasksApiV1AdminStaffUsersUserIdTasksGetResponses = {
+    /**
+     * Response User Tasks Api V1 Admin Staff Users  User Id  Tasks Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type UserTasksApiV1AdminStaffUsersUserIdTasksGetResponse = UserTasksApiV1AdminStaffUsersUserIdTasksGetResponses[keyof UserTasksApiV1AdminStaffUsersUserIdTasksGetResponses];
+
+export type CommandCatalogueApiV1AdminStaffCommandsCatalogueGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/staff/commands/catalogue';
+};
+
+export type CommandCatalogueApiV1AdminStaffCommandsCatalogueGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CommandCatalogueApiV1AdminStaffCommandsCatalogueGetError = CommandCatalogueApiV1AdminStaffCommandsCatalogueGetErrors[keyof CommandCatalogueApiV1AdminStaffCommandsCatalogueGetErrors];
+
+export type CommandCatalogueApiV1AdminStaffCommandsCatalogueGetResponses = {
+    /**
+     * Response Command Catalogue Api V1 Admin Staff Commands Catalogue Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type CommandCatalogueApiV1AdminStaffCommandsCatalogueGetResponse = CommandCatalogueApiV1AdminStaffCommandsCatalogueGetResponses[keyof CommandCatalogueApiV1AdminStaffCommandsCatalogueGetResponses];
+
+export type ListCommandsApiV1AdminStaffCommandsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * State
+         */
+        state?: string | null;
+        /**
+         * Prefix
+         */
+        prefix?: string | null;
+        /**
+         * Limit
+         */
+        limit?: number;
+    };
+    url: '/api/v1/admin/staff/commands';
+};
+
+export type ListCommandsApiV1AdminStaffCommandsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListCommandsApiV1AdminStaffCommandsGetError = ListCommandsApiV1AdminStaffCommandsGetErrors[keyof ListCommandsApiV1AdminStaffCommandsGetErrors];
+
+export type ListCommandsApiV1AdminStaffCommandsGetResponses = {
+    /**
+     * Response List Commands Api V1 Admin Staff Commands Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ListCommandsApiV1AdminStaffCommandsGetResponse = ListCommandsApiV1AdminStaffCommandsGetResponses[keyof ListCommandsApiV1AdminStaffCommandsGetResponses];
+
+export type RequestCommandApiV1AdminStaffCommandsPostData = {
+    body: ApiRoutesStaffConsoleCommandRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/staff/commands';
+};
+
+export type RequestCommandApiV1AdminStaffCommandsPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RequestCommandApiV1AdminStaffCommandsPostError = RequestCommandApiV1AdminStaffCommandsPostErrors[keyof RequestCommandApiV1AdminStaffCommandsPostErrors];
+
+export type RequestCommandApiV1AdminStaffCommandsPostResponses = {
+    /**
+     * Response Request Command Api V1 Admin Staff Commands Post
+     *
+     * Successful Response
+     */
+    202: {
+        [key: string]: unknown;
+    };
+};
+
+export type RequestCommandApiV1AdminStaffCommandsPostResponse = RequestCommandApiV1AdminStaffCommandsPostResponses[keyof RequestCommandApiV1AdminStaffCommandsPostResponses];
+
+export type PreviewCommandApiV1AdminStaffCommandsPreviewPostData = {
+    body: PreviewRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/staff/commands/preview';
+};
+
+export type PreviewCommandApiV1AdminStaffCommandsPreviewPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type PreviewCommandApiV1AdminStaffCommandsPreviewPostError = PreviewCommandApiV1AdminStaffCommandsPreviewPostErrors[keyof PreviewCommandApiV1AdminStaffCommandsPreviewPostErrors];
+
+export type PreviewCommandApiV1AdminStaffCommandsPreviewPostResponses = {
+    /**
+     * Response Preview Command Api V1 Admin Staff Commands Preview Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type PreviewCommandApiV1AdminStaffCommandsPreviewPostResponse = PreviewCommandApiV1AdminStaffCommandsPreviewPostResponses[keyof PreviewCommandApiV1AdminStaffCommandsPreviewPostResponses];
+
+export type GetCommandApiV1AdminStaffCommandsCommandIdGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Command Id
+         */
+        command_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/staff/commands/{command_id}';
+};
+
+export type GetCommandApiV1AdminStaffCommandsCommandIdGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetCommandApiV1AdminStaffCommandsCommandIdGetError = GetCommandApiV1AdminStaffCommandsCommandIdGetErrors[keyof GetCommandApiV1AdminStaffCommandsCommandIdGetErrors];
+
+export type GetCommandApiV1AdminStaffCommandsCommandIdGetResponses = {
+    /**
+     * Response Get Command Api V1 Admin Staff Commands  Command Id  Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetCommandApiV1AdminStaffCommandsCommandIdGetResponse = GetCommandApiV1AdminStaffCommandsCommandIdGetResponses[keyof GetCommandApiV1AdminStaffCommandsCommandIdGetResponses];
+
+export type ApproveCommandApiV1AdminStaffCommandsCommandIdApprovePostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Command Id
+         */
+        command_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/staff/commands/{command_id}/approve';
+};
+
+export type ApproveCommandApiV1AdminStaffCommandsCommandIdApprovePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ApproveCommandApiV1AdminStaffCommandsCommandIdApprovePostError = ApproveCommandApiV1AdminStaffCommandsCommandIdApprovePostErrors[keyof ApproveCommandApiV1AdminStaffCommandsCommandIdApprovePostErrors];
+
+export type ApproveCommandApiV1AdminStaffCommandsCommandIdApprovePostResponses = {
+    /**
+     * Response Approve Command Api V1 Admin Staff Commands  Command Id  Approve Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ApproveCommandApiV1AdminStaffCommandsCommandIdApprovePostResponse = ApproveCommandApiV1AdminStaffCommandsCommandIdApprovePostResponses[keyof ApproveCommandApiV1AdminStaffCommandsCommandIdApprovePostResponses];
+
+export type RejectCommandApiV1AdminStaffCommandsCommandIdRejectPostData = {
+    body: ApiRoutesStaffConsoleRejectRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Command Id
+         */
+        command_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/staff/commands/{command_id}/reject';
+};
+
+export type RejectCommandApiV1AdminStaffCommandsCommandIdRejectPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RejectCommandApiV1AdminStaffCommandsCommandIdRejectPostError = RejectCommandApiV1AdminStaffCommandsCommandIdRejectPostErrors[keyof RejectCommandApiV1AdminStaffCommandsCommandIdRejectPostErrors];
+
+export type RejectCommandApiV1AdminStaffCommandsCommandIdRejectPostResponses = {
+    /**
+     * Response Reject Command Api V1 Admin Staff Commands  Command Id  Reject Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type RejectCommandApiV1AdminStaffCommandsCommandIdRejectPostResponse = RejectCommandApiV1AdminStaffCommandsCommandIdRejectPostResponses[keyof RejectCommandApiV1AdminStaffCommandsCommandIdRejectPostResponses];
+
+export type EvalDatasetsApiV1AdminStaffQualityDatasetsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/staff/quality/datasets';
+};
+
+export type EvalDatasetsApiV1AdminStaffQualityDatasetsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type EvalDatasetsApiV1AdminStaffQualityDatasetsGetError = EvalDatasetsApiV1AdminStaffQualityDatasetsGetErrors[keyof EvalDatasetsApiV1AdminStaffQualityDatasetsGetErrors];
+
+export type EvalDatasetsApiV1AdminStaffQualityDatasetsGetResponses = {
+    /**
+     * Response Eval Datasets Api V1 Admin Staff Quality Datasets Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type EvalDatasetsApiV1AdminStaffQualityDatasetsGetResponse = EvalDatasetsApiV1AdminStaffQualityDatasetsGetResponses[keyof EvalDatasetsApiV1AdminStaffQualityDatasetsGetResponses];
+
+export type EvalCasesApiV1AdminStaffQualityDatasetsDatasetCasesGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Dataset
+         */
+        dataset: string;
+    };
+    query?: never;
+    url: '/api/v1/admin/staff/quality/datasets/{dataset}/cases';
+};
+
+export type EvalCasesApiV1AdminStaffQualityDatasetsDatasetCasesGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type EvalCasesApiV1AdminStaffQualityDatasetsDatasetCasesGetError = EvalCasesApiV1AdminStaffQualityDatasetsDatasetCasesGetErrors[keyof EvalCasesApiV1AdminStaffQualityDatasetsDatasetCasesGetErrors];
+
+export type EvalCasesApiV1AdminStaffQualityDatasetsDatasetCasesGetResponses = {
+    /**
+     * Response Eval Cases Api V1 Admin Staff Quality Datasets  Dataset  Cases Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type EvalCasesApiV1AdminStaffQualityDatasetsDatasetCasesGetResponse = EvalCasesApiV1AdminStaffQualityDatasetsDatasetCasesGetResponses[keyof EvalCasesApiV1AdminStaffQualityDatasetsDatasetCasesGetResponses];
+
+export type EvalRunsApiV1AdminStaffQualityRunsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Dataset
+         */
+        dataset?: string | null;
+    };
+    url: '/api/v1/admin/staff/quality/runs';
+};
+
+export type EvalRunsApiV1AdminStaffQualityRunsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type EvalRunsApiV1AdminStaffQualityRunsGetError = EvalRunsApiV1AdminStaffQualityRunsGetErrors[keyof EvalRunsApiV1AdminStaffQualityRunsGetErrors];
+
+export type EvalRunsApiV1AdminStaffQualityRunsGetResponses = {
+    /**
+     * Response Eval Runs Api V1 Admin Staff Quality Runs Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type EvalRunsApiV1AdminStaffQualityRunsGetResponse = EvalRunsApiV1AdminStaffQualityRunsGetResponses[keyof EvalRunsApiV1AdminStaffQualityRunsGetResponses];
+
+export type EvalRunApiV1AdminStaffQualityRunsRunIdGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Run Id
+         */
+        run_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/staff/quality/runs/{run_id}';
+};
+
+export type EvalRunApiV1AdminStaffQualityRunsRunIdGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type EvalRunApiV1AdminStaffQualityRunsRunIdGetError = EvalRunApiV1AdminStaffQualityRunsRunIdGetErrors[keyof EvalRunApiV1AdminStaffQualityRunsRunIdGetErrors];
+
+export type EvalRunApiV1AdminStaffQualityRunsRunIdGetResponses = {
+    /**
+     * Response Eval Run Api V1 Admin Staff Quality Runs  Run Id  Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type EvalRunApiV1AdminStaffQualityRunsRunIdGetResponse = EvalRunApiV1AdminStaffQualityRunsRunIdGetResponses[keyof EvalRunApiV1AdminStaffQualityRunsRunIdGetResponses];
+
+export type EvalCompareApiV1AdminStaffQualityRunsRunIdCasesCaseIdGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Run Id
+         */
+        run_id: number;
+        /**
+         * Case Id
+         */
+        case_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/staff/quality/runs/{run_id}/cases/{case_id}';
+};
+
+export type EvalCompareApiV1AdminStaffQualityRunsRunIdCasesCaseIdGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type EvalCompareApiV1AdminStaffQualityRunsRunIdCasesCaseIdGetError = EvalCompareApiV1AdminStaffQualityRunsRunIdCasesCaseIdGetErrors[keyof EvalCompareApiV1AdminStaffQualityRunsRunIdCasesCaseIdGetErrors];
+
+export type EvalCompareApiV1AdminStaffQualityRunsRunIdCasesCaseIdGetResponses = {
+    /**
+     * Response Eval Compare Api V1 Admin Staff Quality Runs  Run Id  Cases  Case Id  Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type EvalCompareApiV1AdminStaffQualityRunsRunIdCasesCaseIdGetResponse = EvalCompareApiV1AdminStaffQualityRunsRunIdCasesCaseIdGetResponses[keyof EvalCompareApiV1AdminStaffQualityRunsRunIdCasesCaseIdGetResponses];
+
+export type ProductAnalyticsApiV1AdminStaffAnalyticsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Days
+         */
+        days?: number;
+    };
+    url: '/api/v1/admin/staff/analytics';
+};
+
+export type ProductAnalyticsApiV1AdminStaffAnalyticsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ProductAnalyticsApiV1AdminStaffAnalyticsGetError = ProductAnalyticsApiV1AdminStaffAnalyticsGetErrors[keyof ProductAnalyticsApiV1AdminStaffAnalyticsGetErrors];
+
+export type ProductAnalyticsApiV1AdminStaffAnalyticsGetResponses = {
+    /**
+     * Response Product Analytics Api V1 Admin Staff Analytics Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ProductAnalyticsApiV1AdminStaffAnalyticsGetResponse = ProductAnalyticsApiV1AdminStaffAnalyticsGetResponses[keyof ProductAnalyticsApiV1AdminStaffAnalyticsGetResponses];
+
+export type AnalyticsRecordsApiV1AdminStaffAnalyticsRecordsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Days
+         */
+        days?: number;
+    };
+    url: '/api/v1/admin/staff/analytics/records';
+};
+
+export type AnalyticsRecordsApiV1AdminStaffAnalyticsRecordsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AnalyticsRecordsApiV1AdminStaffAnalyticsRecordsGetError = AnalyticsRecordsApiV1AdminStaffAnalyticsRecordsGetErrors[keyof AnalyticsRecordsApiV1AdminStaffAnalyticsRecordsGetErrors];
+
+export type AnalyticsRecordsApiV1AdminStaffAnalyticsRecordsGetResponses = {
+    /**
+     * Response Analytics Records Api V1 Admin Staff Analytics Records Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type AnalyticsRecordsApiV1AdminStaffAnalyticsRecordsGetResponse = AnalyticsRecordsApiV1AdminStaffAnalyticsRecordsGetResponses[keyof AnalyticsRecordsApiV1AdminStaffAnalyticsRecordsGetResponses];
+
+export type RevenueReportApiV1AdminStaffRevenueGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Days
+         */
+        days?: number;
+    };
+    url: '/api/v1/admin/staff/revenue';
+};
+
+export type RevenueReportApiV1AdminStaffRevenueGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RevenueReportApiV1AdminStaffRevenueGetError = RevenueReportApiV1AdminStaffRevenueGetErrors[keyof RevenueReportApiV1AdminStaffRevenueGetErrors];
+
+export type RevenueReportApiV1AdminStaffRevenueGetResponses = {
+    /**
+     * Response Revenue Report Api V1 Admin Staff Revenue Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type RevenueReportApiV1AdminStaffRevenueGetResponse = RevenueReportApiV1AdminStaffRevenueGetResponses[keyof RevenueReportApiV1AdminStaffRevenueGetResponses];
+
+export type LedgerApiV1AdminStaffLedgerGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Status
+         */
+        status?: string | null;
+        /**
+         * Organization Id
+         */
+        organization_id?: number | null;
+        /**
+         * Limit
+         */
+        limit?: number;
+    };
+    url: '/api/v1/admin/staff/ledger';
+};
+
+export type LedgerApiV1AdminStaffLedgerGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type LedgerApiV1AdminStaffLedgerGetError = LedgerApiV1AdminStaffLedgerGetErrors[keyof LedgerApiV1AdminStaffLedgerGetErrors];
+
+export type LedgerApiV1AdminStaffLedgerGetResponses = {
+    /**
+     * Response Ledger Api V1 Admin Staff Ledger Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type LedgerApiV1AdminStaffLedgerGetResponse = LedgerApiV1AdminStaffLedgerGetResponses[keyof LedgerApiV1AdminStaffLedgerGetResponses];
+
+export type LedgerExportApiV1AdminStaffLedgerExportCsvGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Status
+         */
+        status?: string | null;
+        /**
+         * Organization Id
+         */
+        organization_id?: number | null;
+        /**
+         * Limit
+         */
+        limit?: number;
+    };
+    url: '/api/v1/admin/staff/ledger/export.csv';
+};
+
+export type LedgerExportApiV1AdminStaffLedgerExportCsvGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type LedgerExportApiV1AdminStaffLedgerExportCsvGetError = LedgerExportApiV1AdminStaffLedgerExportCsvGetErrors[keyof LedgerExportApiV1AdminStaffLedgerExportCsvGetErrors];
+
+export type LedgerExportApiV1AdminStaffLedgerExportCsvGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: string;
+};
+
+export type LedgerExportApiV1AdminStaffLedgerExportCsvGetResponse = LedgerExportApiV1AdminStaffLedgerExportCsvGetResponses[keyof LedgerExportApiV1AdminStaffLedgerExportCsvGetResponses];
+
+export type LedgerTransactionApiV1AdminStaffLedgerPaymentIdGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Payment Id
+         */
+        payment_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/staff/ledger/{payment_id}';
+};
+
+export type LedgerTransactionApiV1AdminStaffLedgerPaymentIdGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type LedgerTransactionApiV1AdminStaffLedgerPaymentIdGetError = LedgerTransactionApiV1AdminStaffLedgerPaymentIdGetErrors[keyof LedgerTransactionApiV1AdminStaffLedgerPaymentIdGetErrors];
+
+export type LedgerTransactionApiV1AdminStaffLedgerPaymentIdGetResponses = {
+    /**
+     * Response Ledger Transaction Api V1 Admin Staff Ledger  Payment Id  Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type LedgerTransactionApiV1AdminStaffLedgerPaymentIdGetResponse = LedgerTransactionApiV1AdminStaffLedgerPaymentIdGetResponses[keyof LedgerTransactionApiV1AdminStaffLedgerPaymentIdGetResponses];
+
+export type OperationsSummaryApiV1AdminStaffOperationsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Hours
+         */
+        hours?: number;
+    };
+    url: '/api/v1/admin/staff/operations';
+};
+
+export type OperationsSummaryApiV1AdminStaffOperationsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type OperationsSummaryApiV1AdminStaffOperationsGetError = OperationsSummaryApiV1AdminStaffOperationsGetErrors[keyof OperationsSummaryApiV1AdminStaffOperationsGetErrors];
+
+export type OperationsSummaryApiV1AdminStaffOperationsGetResponses = {
+    /**
+     * Response Operations Summary Api V1 Admin Staff Operations Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type OperationsSummaryApiV1AdminStaffOperationsGetResponse = OperationsSummaryApiV1AdminStaffOperationsGetResponses[keyof OperationsSummaryApiV1AdminStaffOperationsGetResponses];
+
+export type TaskTraceApiV1AdminStaffOperationsTraceTaskIdGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Task Id
+         */
+        task_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/staff/operations/trace/{task_id}';
+};
+
+export type TaskTraceApiV1AdminStaffOperationsTraceTaskIdGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type TaskTraceApiV1AdminStaffOperationsTraceTaskIdGetError = TaskTraceApiV1AdminStaffOperationsTraceTaskIdGetErrors[keyof TaskTraceApiV1AdminStaffOperationsTraceTaskIdGetErrors];
+
+export type TaskTraceApiV1AdminStaffOperationsTraceTaskIdGetResponses = {
+    /**
+     * Response Task Trace Api V1 Admin Staff Operations Trace  Task Id  Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type TaskTraceApiV1AdminStaffOperationsTraceTaskIdGetResponse = TaskTraceApiV1AdminStaffOperationsTraceTaskIdGetResponses[keyof TaskTraceApiV1AdminStaffOperationsTraceTaskIdGetResponses];
+
+export type VoiceLatencyApiV1AdminStaffOperationsLatencyGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Days
+         */
+        days?: number;
+        /**
+         * Language
+         */
+        language?: string | null;
+        /**
+         * Organization Id
+         */
+        organization_id?: number | null;
+    };
+    url: '/api/v1/admin/staff/operations/latency';
+};
+
+export type VoiceLatencyApiV1AdminStaffOperationsLatencyGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type VoiceLatencyApiV1AdminStaffOperationsLatencyGetError = VoiceLatencyApiV1AdminStaffOperationsLatencyGetErrors[keyof VoiceLatencyApiV1AdminStaffOperationsLatencyGetErrors];
+
+export type VoiceLatencyApiV1AdminStaffOperationsLatencyGetResponses = {
+    /**
+     * Response Voice Latency Api V1 Admin Staff Operations Latency Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type VoiceLatencyApiV1AdminStaffOperationsLatencyGetResponse = VoiceLatencyApiV1AdminStaffOperationsLatencyGetResponses[keyof VoiceLatencyApiV1AdminStaffOperationsLatencyGetResponses];
+
+export type ListIncidentsApiV1AdminStaffIncidentsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Open Only
+         */
+        open_only?: boolean;
+    };
+    url: '/api/v1/admin/staff/incidents';
+};
+
+export type ListIncidentsApiV1AdminStaffIncidentsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListIncidentsApiV1AdminStaffIncidentsGetError = ListIncidentsApiV1AdminStaffIncidentsGetErrors[keyof ListIncidentsApiV1AdminStaffIncidentsGetErrors];
+
+export type ListIncidentsApiV1AdminStaffIncidentsGetResponses = {
+    /**
+     * Response List Incidents Api V1 Admin Staff Incidents Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ListIncidentsApiV1AdminStaffIncidentsGetResponse = ListIncidentsApiV1AdminStaffIncidentsGetResponses[keyof ListIncidentsApiV1AdminStaffIncidentsGetResponses];
+
+export type IncidentApiV1AdminStaffIncidentsIncidentIdGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Incident Id
+         */
+        incident_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/staff/incidents/{incident_id}';
+};
+
+export type IncidentApiV1AdminStaffIncidentsIncidentIdGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type IncidentApiV1AdminStaffIncidentsIncidentIdGetError = IncidentApiV1AdminStaffIncidentsIncidentIdGetErrors[keyof IncidentApiV1AdminStaffIncidentsIncidentIdGetErrors];
+
+export type IncidentApiV1AdminStaffIncidentsIncidentIdGetResponses = {
+    /**
+     * Response Incident Api V1 Admin Staff Incidents  Incident Id  Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type IncidentApiV1AdminStaffIncidentsIncidentIdGetResponse = IncidentApiV1AdminStaffIncidentsIncidentIdGetResponses[keyof IncidentApiV1AdminStaffIncidentsIncidentIdGetResponses];
+
+export type PolicyReportApiV1AdminStaffPolicyGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/staff/policy';
+};
+
+export type PolicyReportApiV1AdminStaffPolicyGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type PolicyReportApiV1AdminStaffPolicyGetError = PolicyReportApiV1AdminStaffPolicyGetErrors[keyof PolicyReportApiV1AdminStaffPolicyGetErrors];
+
+export type PolicyReportApiV1AdminStaffPolicyGetResponses = {
+    /**
+     * Response Policy Report Api V1 Admin Staff Policy Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type PolicyReportApiV1AdminStaffPolicyGetResponse = PolicyReportApiV1AdminStaffPolicyGetResponses[keyof PolicyReportApiV1AdminStaffPolicyGetResponses];
+
+export type StaffRolesApiV1AdminStaffRolesGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/staff/roles';
+};
+
+export type StaffRolesApiV1AdminStaffRolesGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type StaffRolesApiV1AdminStaffRolesGetError = StaffRolesApiV1AdminStaffRolesGetErrors[keyof StaffRolesApiV1AdminStaffRolesGetErrors];
+
+export type StaffRolesApiV1AdminStaffRolesGetResponses = {
+    /**
+     * Response Staff Roles Api V1 Admin Staff Roles Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type StaffRolesApiV1AdminStaffRolesGetResponse = StaffRolesApiV1AdminStaffRolesGetResponses[keyof StaffRolesApiV1AdminStaffRolesGetResponses];
+
+export type StaffAuditApiV1AdminStaffAuditGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Actor User Id
+         */
+        actor_user_id?: number | null;
+        /**
+         * Action
+         */
+        action?: string | null;
+        /**
+         * Before
+         */
+        before?: string | null;
+        /**
+         * Limit
+         */
+        limit?: number;
+    };
+    url: '/api/v1/admin/staff/audit';
+};
+
+export type StaffAuditApiV1AdminStaffAuditGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type StaffAuditApiV1AdminStaffAuditGetError = StaffAuditApiV1AdminStaffAuditGetErrors[keyof StaffAuditApiV1AdminStaffAuditGetErrors];
+
+export type StaffAuditApiV1AdminStaffAuditGetResponses = {
+    /**
+     * Response Staff Audit Api V1 Admin Staff Audit Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type StaffAuditApiV1AdminStaffAuditGetResponse = StaffAuditApiV1AdminStaffAuditGetResponses[keyof StaffAuditApiV1AdminStaffAuditGetResponses];
+
+export type MyProfileApiV1MeSettingsProfileGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/me/settings/profile';
+};
+
+export type MyProfileApiV1MeSettingsProfileGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MyProfileApiV1MeSettingsProfileGetError = MyProfileApiV1MeSettingsProfileGetErrors[keyof MyProfileApiV1MeSettingsProfileGetErrors];
+
+export type MyProfileApiV1MeSettingsProfileGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: Profile;
+};
+
+export type MyProfileApiV1MeSettingsProfileGetResponse = MyProfileApiV1MeSettingsProfileGetResponses[keyof MyProfileApiV1MeSettingsProfileGetResponses];
+
+export type SaveMyProfileApiV1MeSettingsProfilePutData = {
+    body: ProfileWrite;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/me/settings/profile';
+};
+
+export type SaveMyProfileApiV1MeSettingsProfilePutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SaveMyProfileApiV1MeSettingsProfilePutError = SaveMyProfileApiV1MeSettingsProfilePutErrors[keyof SaveMyProfileApiV1MeSettingsProfilePutErrors];
+
+export type SaveMyProfileApiV1MeSettingsProfilePutResponses = {
+    /**
+     * Successful Response
+     */
+    200: Profile;
+};
+
+export type SaveMyProfileApiV1MeSettingsProfilePutResponse = SaveMyProfileApiV1MeSettingsProfilePutResponses[keyof SaveMyProfileApiV1MeSettingsProfilePutResponses];
+
+export type MyVoicesApiV1MeSettingsVoicesGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Language
+         */
+        language?: string | null;
+    };
+    url: '/api/v1/me/settings/voices';
+};
+
+export type MyVoicesApiV1MeSettingsVoicesGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MyVoicesApiV1MeSettingsVoicesGetError = MyVoicesApiV1MeSettingsVoicesGetErrors[keyof MyVoicesApiV1MeSettingsVoicesGetErrors];
+
+export type MyVoicesApiV1MeSettingsVoicesGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: VoiceCatalogue;
+};
+
+export type MyVoicesApiV1MeSettingsVoicesGetResponse = MyVoicesApiV1MeSettingsVoicesGetResponses[keyof MyVoicesApiV1MeSettingsVoicesGetResponses];
+
+export type MyMemoryApiV1MeMemoryGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/me/memory';
+};
+
+export type MyMemoryApiV1MeMemoryGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MyMemoryApiV1MeMemoryGetError = MyMemoryApiV1MeMemoryGetErrors[keyof MyMemoryApiV1MeMemoryGetErrors];
+
+export type MyMemoryApiV1MeMemoryGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: MemoryOverview;
+};
+
+export type MyMemoryApiV1MeMemoryGetResponse = MyMemoryApiV1MeMemoryGetResponses[keyof MyMemoryApiV1MeMemoryGetResponses];
+
+export type SetMemorySwitchApiV1MeMemorySwitchPutData = {
+    body: MemorySwitch;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/me/memory/switch';
+};
+
+export type SetMemorySwitchApiV1MeMemorySwitchPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SetMemorySwitchApiV1MeMemorySwitchPutError = SetMemorySwitchApiV1MeMemorySwitchPutErrors[keyof SetMemorySwitchApiV1MeMemorySwitchPutErrors];
+
+export type SetMemorySwitchApiV1MeMemorySwitchPutResponses = {
+    /**
+     * Successful Response
+     */
+    200: MemoryOverview;
+};
+
+export type SetMemorySwitchApiV1MeMemorySwitchPutResponse = SetMemorySwitchApiV1MeMemorySwitchPutResponses[keyof SetMemorySwitchApiV1MeMemorySwitchPutResponses];
+
+export type MemoryDestinationsApiV1MeMemoryDestinationsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/me/memory/destinations';
+};
+
+export type MemoryDestinationsApiV1MeMemoryDestinationsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MemoryDestinationsApiV1MeMemoryDestinationsGetError = MemoryDestinationsApiV1MeMemoryDestinationsGetErrors[keyof MemoryDestinationsApiV1MeMemoryDestinationsGetErrors];
+
+export type MemoryDestinationsApiV1MeMemoryDestinationsGetResponses = {
+    /**
+     * Response Memory Destinations Api V1 Me Memory Destinations Get
+     *
+     * Successful Response
+     */
+    200: Array<{
+        [key: string]: unknown;
+    }>;
+};
+
+export type MemoryDestinationsApiV1MeMemoryDestinationsGetResponse = MemoryDestinationsApiV1MeMemoryDestinationsGetResponses[keyof MemoryDestinationsApiV1MeMemoryDestinationsGetResponses];
+
+export type MemoryFactApiV1MeMemoryFactIdGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Fact Id
+         */
+        fact_id: number;
+    };
+    query?: never;
+    url: '/api/v1/me/memory/{fact_id}';
+};
+
+export type MemoryFactApiV1MeMemoryFactIdGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MemoryFactApiV1MeMemoryFactIdGetError = MemoryFactApiV1MeMemoryFactIdGetErrors[keyof MemoryFactApiV1MeMemoryFactIdGetErrors];
+
+export type MemoryFactApiV1MeMemoryFactIdGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: MemoryFact;
+};
+
+export type MemoryFactApiV1MeMemoryFactIdGetResponse = MemoryFactApiV1MeMemoryFactIdGetResponses[keyof MemoryFactApiV1MeMemoryFactIdGetResponses];
+
+export type EditMemoryFactApiV1MeMemoryFactIdPatchData = {
+    body: MemoryEdit;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Fact Id
+         */
+        fact_id: number;
+    };
+    query?: never;
+    url: '/api/v1/me/memory/{fact_id}';
+};
+
+export type EditMemoryFactApiV1MeMemoryFactIdPatchErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type EditMemoryFactApiV1MeMemoryFactIdPatchError = EditMemoryFactApiV1MeMemoryFactIdPatchErrors[keyof EditMemoryFactApiV1MeMemoryFactIdPatchErrors];
+
+export type EditMemoryFactApiV1MeMemoryFactIdPatchResponses = {
+    /**
+     * Successful Response
+     */
+    200: MemoryFact;
+};
+
+export type EditMemoryFactApiV1MeMemoryFactIdPatchResponse = EditMemoryFactApiV1MeMemoryFactIdPatchResponses[keyof EditMemoryFactApiV1MeMemoryFactIdPatchResponses];
+
+export type ConfirmMemoryFactApiV1MeMemoryFactIdConfirmPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Fact Id
+         */
+        fact_id: number;
+    };
+    query?: never;
+    url: '/api/v1/me/memory/{fact_id}/confirm';
+};
+
+export type ConfirmMemoryFactApiV1MeMemoryFactIdConfirmPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ConfirmMemoryFactApiV1MeMemoryFactIdConfirmPostError = ConfirmMemoryFactApiV1MeMemoryFactIdConfirmPostErrors[keyof ConfirmMemoryFactApiV1MeMemoryFactIdConfirmPostErrors];
+
+export type ConfirmMemoryFactApiV1MeMemoryFactIdConfirmPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: MemoryFact;
+};
+
+export type ConfirmMemoryFactApiV1MeMemoryFactIdConfirmPostResponse = ConfirmMemoryFactApiV1MeMemoryFactIdConfirmPostResponses[keyof ConfirmMemoryFactApiV1MeMemoryFactIdConfirmPostResponses];
+
+export type ForgetMemoryFactApiV1MeMemoryFactIdForgetPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Fact Id
+         */
+        fact_id: number;
+    };
+    query?: never;
+    url: '/api/v1/me/memory/{fact_id}/forget';
+};
+
+export type ForgetMemoryFactApiV1MeMemoryFactIdForgetPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ForgetMemoryFactApiV1MeMemoryFactIdForgetPostError = ForgetMemoryFactApiV1MeMemoryFactIdForgetPostErrors[keyof ForgetMemoryFactApiV1MeMemoryFactIdForgetPostErrors];
+
+export type ForgetMemoryFactApiV1MeMemoryFactIdForgetPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: SettingsCard;
+};
+
+export type ForgetMemoryFactApiV1MeMemoryFactIdForgetPostResponse = ForgetMemoryFactApiV1MeMemoryFactIdForgetPostResponses[keyof ForgetMemoryFactApiV1MeMemoryFactIdForgetPostResponses];
+
+export type ShareMemoryPreviewApiV1MeMemoryFactIdSharePreviewGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Fact Id
+         */
+        fact_id: number;
+    };
+    query: {
+        /**
+         * Destination
+         */
+        destination: number;
+    };
+    url: '/api/v1/me/memory/{fact_id}/share-preview';
+};
+
+export type ShareMemoryPreviewApiV1MeMemoryFactIdSharePreviewGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ShareMemoryPreviewApiV1MeMemoryFactIdSharePreviewGetError = ShareMemoryPreviewApiV1MeMemoryFactIdSharePreviewGetErrors[keyof ShareMemoryPreviewApiV1MeMemoryFactIdSharePreviewGetErrors];
+
+export type ShareMemoryPreviewApiV1MeMemoryFactIdSharePreviewGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: MemorySharePreview;
+};
+
+export type ShareMemoryPreviewApiV1MeMemoryFactIdSharePreviewGetResponse = ShareMemoryPreviewApiV1MeMemoryFactIdSharePreviewGetResponses[keyof ShareMemoryPreviewApiV1MeMemoryFactIdSharePreviewGetResponses];
+
+export type ShareMemoryFactApiV1MeMemoryFactIdSharePostData = {
+    body: ShareRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Fact Id
+         */
+        fact_id: number;
+    };
+    query?: never;
+    url: '/api/v1/me/memory/{fact_id}/share';
+};
+
+export type ShareMemoryFactApiV1MeMemoryFactIdSharePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ShareMemoryFactApiV1MeMemoryFactIdSharePostError = ShareMemoryFactApiV1MeMemoryFactIdSharePostErrors[keyof ShareMemoryFactApiV1MeMemoryFactIdSharePostErrors];
+
+export type ShareMemoryFactApiV1MeMemoryFactIdSharePostResponses = {
+    /**
+     * Response Share Memory Fact Api V1 Me Memory  Fact Id  Share Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ShareMemoryFactApiV1MeMemoryFactIdSharePostResponse = ShareMemoryFactApiV1MeMemoryFactIdSharePostResponses[keyof ShareMemoryFactApiV1MeMemoryFactIdSharePostResponses];
+
+export type StartTemporaryConversationApiV1MeTemporaryConversationsPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/me/temporary-conversations';
+};
+
+export type StartTemporaryConversationApiV1MeTemporaryConversationsPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type StartTemporaryConversationApiV1MeTemporaryConversationsPostError = StartTemporaryConversationApiV1MeTemporaryConversationsPostErrors[keyof StartTemporaryConversationApiV1MeTemporaryConversationsPostErrors];
+
+export type StartTemporaryConversationApiV1MeTemporaryConversationsPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: TemporaryConversation;
+};
+
+export type StartTemporaryConversationApiV1MeTemporaryConversationsPostResponse = StartTemporaryConversationApiV1MeTemporaryConversationsPostResponses[keyof StartTemporaryConversationApiV1MeTemporaryConversationsPostResponses];
+
+export type TemporaryConversationApiV1MeTemporaryConversationsThreadIdGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Thread Id
+         */
+        thread_id: string;
+    };
+    query?: never;
+    url: '/api/v1/me/temporary-conversations/{thread_id}';
+};
+
+export type TemporaryConversationApiV1MeTemporaryConversationsThreadIdGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type TemporaryConversationApiV1MeTemporaryConversationsThreadIdGetError = TemporaryConversationApiV1MeTemporaryConversationsThreadIdGetErrors[keyof TemporaryConversationApiV1MeTemporaryConversationsThreadIdGetErrors];
+
+export type TemporaryConversationApiV1MeTemporaryConversationsThreadIdGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: TemporaryConversation;
+};
+
+export type TemporaryConversationApiV1MeTemporaryConversationsThreadIdGetResponse = TemporaryConversationApiV1MeTemporaryConversationsThreadIdGetResponses[keyof TemporaryConversationApiV1MeTemporaryConversationsThreadIdGetResponses];
+
+export type SettingsCardApiV1MeSettingsCardsEventIdGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Event Id
+         */
+        event_id: number;
+    };
+    query: {
+        /**
+         * Organization Id
+         */
+        organization_id: number;
+    };
+    url: '/api/v1/me/settings/cards/{event_id}';
+};
+
+export type SettingsCardApiV1MeSettingsCardsEventIdGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SettingsCardApiV1MeSettingsCardsEventIdGetError = SettingsCardApiV1MeSettingsCardsEventIdGetErrors[keyof SettingsCardApiV1MeSettingsCardsEventIdGetErrors];
+
+export type SettingsCardApiV1MeSettingsCardsEventIdGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: SettingsCard;
+};
+
+export type SettingsCardApiV1MeSettingsCardsEventIdGetResponse = SettingsCardApiV1MeSettingsCardsEventIdGetResponses[keyof SettingsCardApiV1MeSettingsCardsEventIdGetResponses];
+
+export type SettleSettingsCardApiV1MeSettingsCardsEventIdSettlePostData = {
+    body: SettleCard;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Event Id
+         */
+        event_id: number;
+    };
+    query?: never;
+    url: '/api/v1/me/settings/cards/{event_id}/settle';
+};
+
+export type SettleSettingsCardApiV1MeSettingsCardsEventIdSettlePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SettleSettingsCardApiV1MeSettingsCardsEventIdSettlePostError = SettleSettingsCardApiV1MeSettingsCardsEventIdSettlePostErrors[keyof SettleSettingsCardApiV1MeSettingsCardsEventIdSettlePostErrors];
+
+export type SettleSettingsCardApiV1MeSettingsCardsEventIdSettlePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: SettingsCard;
+};
+
+export type SettleSettingsCardApiV1MeSettingsCardsEventIdSettlePostResponse = SettleSettingsCardApiV1MeSettingsCardsEventIdSettlePostResponses[keyof SettleSettingsCardApiV1MeSettingsCardsEventIdSettlePostResponses];
+
+export type MySavedApiV1MeSavedGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Scope
+         */
+        scope?: 'personal' | 'workspace';
+    };
+    url: '/api/v1/me/saved';
+};
+
+export type MySavedApiV1MeSavedGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MySavedApiV1MeSavedGetError = MySavedApiV1MeSavedGetErrors[keyof MySavedApiV1MeSavedGetErrors];
+
+export type MySavedApiV1MeSavedGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: SavedList;
+};
+
+export type MySavedApiV1MeSavedGetResponse = MySavedApiV1MeSavedGetResponses[keyof MySavedApiV1MeSavedGetResponses];
+
+export type SaveItemApiV1MeSavedPostData = {
+    body: SavedItemWrite;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/me/saved';
+};
+
+export type SaveItemApiV1MeSavedPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SaveItemApiV1MeSavedPostError = SaveItemApiV1MeSavedPostErrors[keyof SaveItemApiV1MeSavedPostErrors];
+
+export type SaveItemApiV1MeSavedPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: SavedItem;
+};
+
+export type SaveItemApiV1MeSavedPostResponse = SaveItemApiV1MeSavedPostResponses[keyof SaveItemApiV1MeSavedPostResponses];
+
+export type SavedItemApiV1MeSavedItemIdGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Item Id
+         */
+        item_id: number;
+    };
+    query?: never;
+    url: '/api/v1/me/saved/{item_id}';
+};
+
+export type SavedItemApiV1MeSavedItemIdGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SavedItemApiV1MeSavedItemIdGetError = SavedItemApiV1MeSavedItemIdGetErrors[keyof SavedItemApiV1MeSavedItemIdGetErrors];
+
+export type SavedItemApiV1MeSavedItemIdGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: SavedItem;
+};
+
+export type SavedItemApiV1MeSavedItemIdGetResponse = SavedItemApiV1MeSavedItemIdGetResponses[keyof SavedItemApiV1MeSavedItemIdGetResponses];
+
+export type RenameSavedItemApiV1MeSavedItemIdPatchData = {
+    body: SavedItemRename;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Item Id
+         */
+        item_id: number;
+    };
+    query?: never;
+    url: '/api/v1/me/saved/{item_id}';
+};
+
+export type RenameSavedItemApiV1MeSavedItemIdPatchErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RenameSavedItemApiV1MeSavedItemIdPatchError = RenameSavedItemApiV1MeSavedItemIdPatchErrors[keyof RenameSavedItemApiV1MeSavedItemIdPatchErrors];
+
+export type RenameSavedItemApiV1MeSavedItemIdPatchResponses = {
+    /**
+     * Successful Response
+     */
+    200: SavedItem;
+};
+
+export type RenameSavedItemApiV1MeSavedItemIdPatchResponse = RenameSavedItemApiV1MeSavedItemIdPatchResponses[keyof RenameSavedItemApiV1MeSavedItemIdPatchResponses];
+
+export type DeleteSavedItemApiV1MeSavedItemIdDeletePostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Item Id
+         */
+        item_id: number;
+    };
+    query?: never;
+    url: '/api/v1/me/saved/{item_id}/delete';
+};
+
+export type DeleteSavedItemApiV1MeSavedItemIdDeletePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteSavedItemApiV1MeSavedItemIdDeletePostError = DeleteSavedItemApiV1MeSavedItemIdDeletePostErrors[keyof DeleteSavedItemApiV1MeSavedItemIdDeletePostErrors];
+
+export type DeleteSavedItemApiV1MeSavedItemIdDeletePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: SettingsCard;
+};
+
+export type DeleteSavedItemApiV1MeSavedItemIdDeletePostResponse = DeleteSavedItemApiV1MeSavedItemIdDeletePostResponses[keyof DeleteSavedItemApiV1MeSavedItemIdDeletePostResponses];
+
+export type SearchMineApiV1MeSearchGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Q
+         */
+        q?: string;
+        /**
+         * Scope
+         */
+        scope?: 'personal' | 'workspace';
+    };
+    url: '/api/v1/me/search';
+};
+
+export type SearchMineApiV1MeSearchGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SearchMineApiV1MeSearchGetError = SearchMineApiV1MeSearchGetErrors[keyof SearchMineApiV1MeSearchGetErrors];
+
+export type SearchMineApiV1MeSearchGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: SearchResponse;
+};
+
+export type SearchMineApiV1MeSearchGetResponse = SearchMineApiV1MeSearchGetResponses[keyof SearchMineApiV1MeSearchGetResponses];
+
+export type MyPrivacyApiV1MePrivacyGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/me/privacy';
+};
+
+export type MyPrivacyApiV1MePrivacyGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MyPrivacyApiV1MePrivacyGetError = MyPrivacyApiV1MePrivacyGetErrors[keyof MyPrivacyApiV1MePrivacyGetErrors];
+
+export type MyPrivacyApiV1MePrivacyGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: PrivacyOverview;
+};
+
+export type MyPrivacyApiV1MePrivacyGetResponse = MyPrivacyApiV1MePrivacyGetResponses[keyof MyPrivacyApiV1MePrivacyGetResponses];
+
+export type PrivacyPreviewApiV1MePrivacyPreviewGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query: {
+        /**
+         * Kind
+         */
+        kind: 'export' | 'deletion';
+    };
+    url: '/api/v1/me/privacy/preview';
+};
+
+export type PrivacyPreviewApiV1MePrivacyPreviewGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type PrivacyPreviewApiV1MePrivacyPreviewGetError = PrivacyPreviewApiV1MePrivacyPreviewGetErrors[keyof PrivacyPreviewApiV1MePrivacyPreviewGetErrors];
+
+export type PrivacyPreviewApiV1MePrivacyPreviewGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: DataPreview;
+};
+
+export type PrivacyPreviewApiV1MePrivacyPreviewGetResponse = PrivacyPreviewApiV1MePrivacyPreviewGetResponses[keyof PrivacyPreviewApiV1MePrivacyPreviewGetResponses];
+
+export type RequestMyExportApiV1MePrivacyExportPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/me/privacy/export';
+};
+
+export type RequestMyExportApiV1MePrivacyExportPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RequestMyExportApiV1MePrivacyExportPostError = RequestMyExportApiV1MePrivacyExportPostErrors[keyof RequestMyExportApiV1MePrivacyExportPostErrors];
+
+export type RequestMyExportApiV1MePrivacyExportPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: DataRequest;
+};
+
+export type RequestMyExportApiV1MePrivacyExportPostResponse = RequestMyExportApiV1MePrivacyExportPostResponses[keyof RequestMyExportApiV1MePrivacyExportPostResponses];
+
+export type MyDataRequestApiV1MePrivacyRequestsRequestIdGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Request Id
+         */
+        request_id: number;
+    };
+    query?: never;
+    url: '/api/v1/me/privacy/requests/{request_id}';
+};
+
+export type MyDataRequestApiV1MePrivacyRequestsRequestIdGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MyDataRequestApiV1MePrivacyRequestsRequestIdGetError = MyDataRequestApiV1MePrivacyRequestsRequestIdGetErrors[keyof MyDataRequestApiV1MePrivacyRequestsRequestIdGetErrors];
+
+export type MyDataRequestApiV1MePrivacyRequestsRequestIdGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: DataRequest;
+};
+
+export type MyDataRequestApiV1MePrivacyRequestsRequestIdGetResponse = MyDataRequestApiV1MePrivacyRequestsRequestIdGetResponses[keyof MyDataRequestApiV1MePrivacyRequestsRequestIdGetResponses];
+
+export type DownloadMyExportApiV1MePrivacyRequestsRequestIdDownloadGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Request Id
+         */
+        request_id: number;
+    };
+    query?: never;
+    url: '/api/v1/me/privacy/requests/{request_id}/download';
+};
+
+export type DownloadMyExportApiV1MePrivacyRequestsRequestIdDownloadGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DownloadMyExportApiV1MePrivacyRequestsRequestIdDownloadGetError = DownloadMyExportApiV1MePrivacyRequestsRequestIdDownloadGetErrors[keyof DownloadMyExportApiV1MePrivacyRequestsRequestIdDownloadGetErrors];
+
+export type DownloadMyExportApiV1MePrivacyRequestsRequestIdDownloadGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type RequestMyDeletionApiV1MePrivacyDeletionPostData = {
+    body: DeletionRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/me/privacy/deletion';
+};
+
+export type RequestMyDeletionApiV1MePrivacyDeletionPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RequestMyDeletionApiV1MePrivacyDeletionPostError = RequestMyDeletionApiV1MePrivacyDeletionPostErrors[keyof RequestMyDeletionApiV1MePrivacyDeletionPostErrors];
+
+export type RequestMyDeletionApiV1MePrivacyDeletionPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: DataRequest;
+};
+
+export type RequestMyDeletionApiV1MePrivacyDeletionPostResponse = RequestMyDeletionApiV1MePrivacyDeletionPostResponses[keyof RequestMyDeletionApiV1MePrivacyDeletionPostResponses];
+
+export type ModelInheritanceApiV1SettingsModelsInheritanceGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/settings/models/inheritance';
+};
+
+export type ModelInheritanceApiV1SettingsModelsInheritanceGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ModelInheritanceApiV1SettingsModelsInheritanceGetError = ModelInheritanceApiV1SettingsModelsInheritanceGetErrors[keyof ModelInheritanceApiV1SettingsModelsInheritanceGetErrors];
+
+export type ModelInheritanceApiV1SettingsModelsInheritanceGetResponses = {
+    /**
+     * Response Model Inheritance Api V1 Settings Models Inheritance Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ModelInheritanceApiV1SettingsModelsInheritanceGetResponse = ModelInheritanceApiV1SettingsModelsInheritanceGetResponses[keyof ModelInheritanceApiV1SettingsModelsInheritanceGetResponses];
+
+export type ChooseModelDefaultApiV1SettingsModelsInheritancePutData = {
+    body: ModelChoice;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/settings/models/inheritance';
+};
+
+export type ChooseModelDefaultApiV1SettingsModelsInheritancePutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ChooseModelDefaultApiV1SettingsModelsInheritancePutError = ChooseModelDefaultApiV1SettingsModelsInheritancePutErrors[keyof ChooseModelDefaultApiV1SettingsModelsInheritancePutErrors];
+
+export type ChooseModelDefaultApiV1SettingsModelsInheritancePutResponses = {
+    /**
+     * Response Choose Model Default Api V1 Settings Models Inheritance Put
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ChooseModelDefaultApiV1SettingsModelsInheritancePutResponse = ChooseModelDefaultApiV1SettingsModelsInheritancePutResponses[keyof ChooseModelDefaultApiV1SettingsModelsInheritancePutResponses];
+
+export type VoiceReadinessApiV1VoiceReadinessGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/voice/readiness';
+};
+
+export type VoiceReadinessApiV1VoiceReadinessGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type VoiceReadinessApiV1VoiceReadinessGetError = VoiceReadinessApiV1VoiceReadinessGetErrors[keyof VoiceReadinessApiV1VoiceReadinessGetErrors];
+
+export type VoiceReadinessApiV1VoiceReadinessGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: VoiceReadiness;
+};
+
+export type VoiceReadinessApiV1VoiceReadinessGetResponse = VoiceReadinessApiV1VoiceReadinessGetResponses[keyof VoiceReadinessApiV1VoiceReadinessGetResponses];
+
+export type StartSessionApiV1VoiceSessionsPostData = {
+    body: StartSession;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/voice/sessions';
+};
+
+export type StartSessionApiV1VoiceSessionsPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type StartSessionApiV1VoiceSessionsPostError = StartSessionApiV1VoiceSessionsPostErrors[keyof StartSessionApiV1VoiceSessionsPostErrors];
+
+export type StartSessionApiV1VoiceSessionsPostResponses = {
+    /**
+     * Successful Response
+     */
+    201: VoiceSession;
+};
+
+export type StartSessionApiV1VoiceSessionsPostResponse = StartSessionApiV1VoiceSessionsPostResponses[keyof StartSessionApiV1VoiceSessionsPostResponses];
+
+export type GetSessionApiV1VoiceSessionsSessionIdGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: number;
+    };
+    query?: never;
+    url: '/api/v1/voice/sessions/{session_id}';
+};
+
+export type GetSessionApiV1VoiceSessionsSessionIdGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetSessionApiV1VoiceSessionsSessionIdGetError = GetSessionApiV1VoiceSessionsSessionIdGetErrors[keyof GetSessionApiV1VoiceSessionsSessionIdGetErrors];
+
+export type GetSessionApiV1VoiceSessionsSessionIdGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: VoiceSession;
+};
+
+export type GetSessionApiV1VoiceSessionsSessionIdGetResponse = GetSessionApiV1VoiceSessionsSessionIdGetResponses[keyof GetSessionApiV1VoiceSessionsSessionIdGetResponses];
+
+export type MoveSessionApiV1VoiceSessionsSessionIdMovePostData = {
+    body: MoveSession;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: number;
+    };
+    query?: never;
+    url: '/api/v1/voice/sessions/{session_id}/move';
+};
+
+export type MoveSessionApiV1VoiceSessionsSessionIdMovePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MoveSessionApiV1VoiceSessionsSessionIdMovePostError = MoveSessionApiV1VoiceSessionsSessionIdMovePostErrors[keyof MoveSessionApiV1VoiceSessionsSessionIdMovePostErrors];
+
+export type MoveSessionApiV1VoiceSessionsSessionIdMovePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: VoiceSession;
+};
+
+export type MoveSessionApiV1VoiceSessionsSessionIdMovePostResponse = MoveSessionApiV1VoiceSessionsSessionIdMovePostResponses[keyof MoveSessionApiV1VoiceSessionsSessionIdMovePostResponses];
+
+export type HeartbeatApiV1VoiceSessionsSessionIdHeartbeatPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: number;
+    };
+    query?: never;
+    url: '/api/v1/voice/sessions/{session_id}/heartbeat';
+};
+
+export type HeartbeatApiV1VoiceSessionsSessionIdHeartbeatPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type HeartbeatApiV1VoiceSessionsSessionIdHeartbeatPostError = HeartbeatApiV1VoiceSessionsSessionIdHeartbeatPostErrors[keyof HeartbeatApiV1VoiceSessionsSessionIdHeartbeatPostErrors];
+
+export type HeartbeatApiV1VoiceSessionsSessionIdHeartbeatPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: VoiceSession;
+};
+
+export type HeartbeatApiV1VoiceSessionsSessionIdHeartbeatPostResponse = HeartbeatApiV1VoiceSessionsSessionIdHeartbeatPostResponses[keyof HeartbeatApiV1VoiceSessionsSessionIdHeartbeatPostResponses];
+
+export type EndSessionApiV1VoiceSessionsSessionIdEndPostData = {
+    body: EndSession;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: number;
+    };
+    query?: never;
+    url: '/api/v1/voice/sessions/{session_id}/end';
+};
+
+export type EndSessionApiV1VoiceSessionsSessionIdEndPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type EndSessionApiV1VoiceSessionsSessionIdEndPostError = EndSessionApiV1VoiceSessionsSessionIdEndPostErrors[keyof EndSessionApiV1VoiceSessionsSessionIdEndPostErrors];
+
+export type EndSessionApiV1VoiceSessionsSessionIdEndPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: VoiceSession;
+};
+
+export type EndSessionApiV1VoiceSessionsSessionIdEndPostResponse = EndSessionApiV1VoiceSessionsSessionIdEndPostResponses[keyof EndSessionApiV1VoiceSessionsSessionIdEndPostResponses];
+
+export type RecordTurnApiV1VoiceSessionsSessionIdTurnsPostData = {
+    body: TurnTiming;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: number;
+    };
+    query?: never;
+    url: '/api/v1/voice/sessions/{session_id}/turns';
+};
+
+export type RecordTurnApiV1VoiceSessionsSessionIdTurnsPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RecordTurnApiV1VoiceSessionsSessionIdTurnsPostError = RecordTurnApiV1VoiceSessionsSessionIdTurnsPostErrors[keyof RecordTurnApiV1VoiceSessionsSessionIdTurnsPostErrors];
+
+export type RecordTurnApiV1VoiceSessionsSessionIdTurnsPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: TurnTimingRecorded;
+};
+
+export type RecordTurnApiV1VoiceSessionsSessionIdTurnsPostResponse = RecordTurnApiV1VoiceSessionsSessionIdTurnsPostResponses[keyof RecordTurnApiV1VoiceSessionsSessionIdTurnsPostResponses];
+
+export type AppointmentPolicyApiV1VoiceAppointmentsPolicyGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/voice/appointments/policy';
+};
+
+export type AppointmentPolicyApiV1VoiceAppointmentsPolicyGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AppointmentPolicyApiV1VoiceAppointmentsPolicyGetError = AppointmentPolicyApiV1VoiceAppointmentsPolicyGetErrors[keyof AppointmentPolicyApiV1VoiceAppointmentsPolicyGetErrors];
+
+export type AppointmentPolicyApiV1VoiceAppointmentsPolicyGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: AppointmentPolicy;
+};
+
+export type AppointmentPolicyApiV1VoiceAppointmentsPolicyGetResponse = AppointmentPolicyApiV1VoiceAppointmentsPolicyGetResponses[keyof AppointmentPolicyApiV1VoiceAppointmentsPolicyGetResponses];
+
+export type SaveAppointmentPolicyApiV1VoiceAppointmentsPolicyPutData = {
+    body: AppointmentPolicyWrite;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/voice/appointments/policy';
+};
+
+export type SaveAppointmentPolicyApiV1VoiceAppointmentsPolicyPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SaveAppointmentPolicyApiV1VoiceAppointmentsPolicyPutError = SaveAppointmentPolicyApiV1VoiceAppointmentsPolicyPutErrors[keyof SaveAppointmentPolicyApiV1VoiceAppointmentsPolicyPutErrors];
+
+export type SaveAppointmentPolicyApiV1VoiceAppointmentsPolicyPutResponses = {
+    /**
+     * Successful Response
+     */
+    200: AppointmentPolicy;
+};
+
+export type SaveAppointmentPolicyApiV1VoiceAppointmentsPolicyPutResponse = SaveAppointmentPolicyApiV1VoiceAppointmentsPolicyPutResponses[keyof SaveAppointmentPolicyApiV1VoiceAppointmentsPolicyPutResponses];
+
+export type UpcomingAppointmentsApiV1VoiceAppointmentsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/voice/appointments';
+};
+
+export type UpcomingAppointmentsApiV1VoiceAppointmentsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpcomingAppointmentsApiV1VoiceAppointmentsGetError = UpcomingAppointmentsApiV1VoiceAppointmentsGetErrors[keyof UpcomingAppointmentsApiV1VoiceAppointmentsGetErrors];
+
+export type UpcomingAppointmentsApiV1VoiceAppointmentsGetResponses = {
+    /**
+     * Response Upcoming Appointments Api V1 Voice Appointments Get
+     *
+     * Successful Response
+     */
+    200: Array<Appointment>;
+};
+
+export type UpcomingAppointmentsApiV1VoiceAppointmentsGetResponse = UpcomingAppointmentsApiV1VoiceAppointmentsGetResponses[keyof UpcomingAppointmentsApiV1VoiceAppointmentsGetResponses];
+
+export type AppointmentSlotsApiV1VoiceAppointmentsSlotsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query: {
+        /**
+         * Date
+         */
+        date: string;
+    };
+    url: '/api/v1/voice/appointments/slots';
+};
+
+export type AppointmentSlotsApiV1VoiceAppointmentsSlotsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AppointmentSlotsApiV1VoiceAppointmentsSlotsGetError = AppointmentSlotsApiV1VoiceAppointmentsSlotsGetErrors[keyof AppointmentSlotsApiV1VoiceAppointmentsSlotsGetErrors];
+
+export type AppointmentSlotsApiV1VoiceAppointmentsSlotsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: Slots;
+};
+
+export type AppointmentSlotsApiV1VoiceAppointmentsSlotsGetResponse = AppointmentSlotsApiV1VoiceAppointmentsSlotsGetResponses[keyof AppointmentSlotsApiV1VoiceAppointmentsSlotsGetResponses];
+
+export type LatencySummaryApiV1AdminVoiceLatencyGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Days
+         */
+        days?: number;
+        /**
+         * Organization Id
+         */
+        organization_id?: number | null;
+    };
+    url: '/api/v1/admin/voice/latency';
+};
+
+export type LatencySummaryApiV1AdminVoiceLatencyGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type LatencySummaryApiV1AdminVoiceLatencyGetError = LatencySummaryApiV1AdminVoiceLatencyGetErrors[keyof LatencySummaryApiV1AdminVoiceLatencyGetErrors];
+
+export type LatencySummaryApiV1AdminVoiceLatencyGetResponses = {
+    /**
+     * Response Latency Summary Api V1 Admin Voice Latency Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type LatencySummaryApiV1AdminVoiceLatencyGetResponse = LatencySummaryApiV1AdminVoiceLatencyGetResponses[keyof LatencySummaryApiV1AdminVoiceLatencyGetResponses];
 
 export type OrganisationApiV1OrganisationGetData = {
     body?: never;
@@ -32437,6 +49304,54 @@ export type ThreadsApiV1TimelineThreadsGetResponses = {
 
 export type ThreadsApiV1TimelineThreadsGetResponse = ThreadsApiV1TimelineThreadsGetResponses[keyof ThreadsApiV1TimelineThreadsGetResponses];
 
+export type RecentsApiV1TimelineRecentsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Limit
+         */
+        limit?: number;
+    };
+    url: '/api/v1/timeline/recents';
+};
+
+export type RecentsApiV1TimelineRecentsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RecentsApiV1TimelineRecentsGetError = RecentsApiV1TimelineRecentsGetErrors[keyof RecentsApiV1TimelineRecentsGetErrors];
+
+export type RecentsApiV1TimelineRecentsGetResponses = {
+    /**
+     * Response Recents Api V1 Timeline Recents Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type RecentsApiV1TimelineRecentsGetResponse = RecentsApiV1TimelineRecentsGetResponses[keyof RecentsApiV1TimelineRecentsGetResponses];
+
 export type PostMessageApiV1TimelineMessagePostData = {
     body: PostMessageRequest;
     headers?: {
@@ -32489,7 +49404,16 @@ export type ThreadChipsApiV1TimelineChipsGetData = {
         'X-API-Key'?: string | null;
     };
     path?: never;
-    query?: never;
+    query?: {
+        /**
+         * Thread Id
+         */
+        thread_id?: string | null;
+        /**
+         * Workflow Id
+         */
+        workflow_id?: number | null;
+    };
     url: '/api/v1/timeline/chips';
 };
 
@@ -32572,6 +49496,10 @@ export type ReplyDraftTextApiV1TimelineDraftGetData = {
          * Workflow Id
          */
         workflow_id?: number | null;
+        /**
+         * Thread Id
+         */
+        thread_id?: string | null;
     };
     url: '/api/v1/timeline/draft';
 };
@@ -32636,6 +49564,84 @@ export type SettleActionApiV1TimelineActionsSettlePostResponses = {
 };
 
 export type SettleActionApiV1TimelineActionsSettlePostResponse = SettleActionApiV1TimelineActionsSettlePostResponses[keyof SettleActionApiV1TimelineActionsSettlePostResponses];
+
+export type ConfirmAllActionsApiV1TimelineActionsConfirmAllPostData = {
+    body: ConfirmAllRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/timeline/actions/confirm-all';
+};
+
+export type ConfirmAllActionsApiV1TimelineActionsConfirmAllPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ConfirmAllActionsApiV1TimelineActionsConfirmAllPostError = ConfirmAllActionsApiV1TimelineActionsConfirmAllPostErrors[keyof ConfirmAllActionsApiV1TimelineActionsConfirmAllPostErrors];
+
+export type ConfirmAllActionsApiV1TimelineActionsConfirmAllPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: ConfirmAllResponse;
+};
+
+export type ConfirmAllActionsApiV1TimelineActionsConfirmAllPostResponse = ConfirmAllActionsApiV1TimelineActionsConfirmAllPostResponses[keyof ConfirmAllActionsApiV1TimelineActionsConfirmAllPostResponses];
+
+export type ReviseActionApiV1TimelineActionsRevisePostData = {
+    body: ReviseActionRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/timeline/actions/revise';
+};
+
+export type ReviseActionApiV1TimelineActionsRevisePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReviseActionApiV1TimelineActionsRevisePostError = ReviseActionApiV1TimelineActionsRevisePostErrors[keyof ReviseActionApiV1TimelineActionsRevisePostErrors];
+
+export type ReviseActionApiV1TimelineActionsRevisePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: TimelineEvent;
+};
+
+export type ReviseActionApiV1TimelineActionsRevisePostResponse = ReviseActionApiV1TimelineActionsRevisePostResponses[keyof ReviseActionApiV1TimelineActionsRevisePostResponses];
 
 export type ProvideSecretApiV1TimelineSecretsProvidePostData = {
     body: ProvideSecretRequest;
@@ -33498,6 +50504,80 @@ export type MigrateModelConfigurationV2ApiV1OrganizationsModelConfigurationsV2Mi
 };
 
 export type MigrateModelConfigurationV2ApiV1OrganizationsModelConfigurationsV2MigratePostResponse = MigrateModelConfigurationV2ApiV1OrganizationsModelConfigurationsV2MigratePostResponses[keyof MigrateModelConfigurationV2ApiV1OrganizationsModelConfigurationsV2MigratePostResponses];
+
+export type GetWorkspaceModelsApiV1OrganizationsModelsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/organizations/models';
+};
+
+export type GetWorkspaceModelsApiV1OrganizationsModelsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetWorkspaceModelsApiV1OrganizationsModelsGetError = GetWorkspaceModelsApiV1OrganizationsModelsGetErrors[keyof GetWorkspaceModelsApiV1OrganizationsModelsGetErrors];
+
+export type GetWorkspaceModelsApiV1OrganizationsModelsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type SetWorkspaceModelApiV1OrganizationsModelsPutData = {
+    body: WorkspaceModelChoice;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/organizations/models';
+};
+
+export type SetWorkspaceModelApiV1OrganizationsModelsPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SetWorkspaceModelApiV1OrganizationsModelsPutError = SetWorkspaceModelApiV1OrganizationsModelsPutErrors[keyof SetWorkspaceModelApiV1OrganizationsModelsPutErrors];
+
+export type SetWorkspaceModelApiV1OrganizationsModelsPutResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
 
 export type GetPreferencesApiV1OrganizationsPreferencesGetData = {
     body?: never;
@@ -35397,6 +52477,54 @@ export type GetSpendBreakdownApiV1OrganizationsUsageSpendGetResponses = {
 
 export type GetSpendBreakdownApiV1OrganizationsUsageSpendGetResponse = GetSpendBreakdownApiV1OrganizationsUsageSpendGetResponses[keyof GetSpendBreakdownApiV1OrganizationsUsageSpendGetResponses];
 
+export type GetUsageByAgentApiV1OrganizationsUsageAgentsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Days
+         */
+        days?: number;
+    };
+    url: '/api/v1/organizations/usage/agents';
+};
+
+export type GetUsageByAgentApiV1OrganizationsUsageAgentsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetUsageByAgentApiV1OrganizationsUsageAgentsGetError = GetUsageByAgentApiV1OrganizationsUsageAgentsGetErrors[keyof GetUsageByAgentApiV1OrganizationsUsageAgentsGetErrors];
+
+export type GetUsageByAgentApiV1OrganizationsUsageAgentsGetResponses = {
+    /**
+     * Response Get Usage By Agent Api V1 Organizations Usage Agents Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type GetUsageByAgentApiV1OrganizationsUsageAgentsGetResponse = GetUsageByAgentApiV1OrganizationsUsageAgentsGetResponses[keyof GetUsageByAgentApiV1OrganizationsUsageAgentsGetResponses];
+
 export type GetCallAnalyticsApiV1OrganizationsUsageCallsGetData = {
     body?: never;
     headers?: {
@@ -36861,6 +53989,5528 @@ export type TrustApiV1PublicTrustGetResponses = {
 };
 
 export type TrustApiV1PublicTrustGetResponse = TrustApiV1PublicTrustGetResponses[keyof TrustApiV1PublicTrustGetResponses];
+
+export type EarlyAccessLanguagesApiV1PublicEarlyAccessLanguagesGetData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/public/early-access/languages';
+};
+
+export type EarlyAccessLanguagesApiV1PublicEarlyAccessLanguagesGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+};
+
+export type EarlyAccessLanguagesApiV1PublicEarlyAccessLanguagesGetResponses = {
+    /**
+     * Response Early Access Languages Api V1 Public Early Access Languages Get
+     *
+     * Successful Response
+     */
+    200: Array<LanguageOption>;
+};
+
+export type EarlyAccessLanguagesApiV1PublicEarlyAccessLanguagesGetResponse = EarlyAccessLanguagesApiV1PublicEarlyAccessLanguagesGetResponses[keyof EarlyAccessLanguagesApiV1PublicEarlyAccessLanguagesGetResponses];
+
+export type JoinWaitlistApiV1PublicEarlyAccessWaitlistPostData = {
+    body: WaitlistJoinRequest;
+    path?: never;
+    query?: never;
+    url: '/api/v1/public/early-access/waitlist';
+};
+
+export type JoinWaitlistApiV1PublicEarlyAccessWaitlistPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type JoinWaitlistApiV1PublicEarlyAccessWaitlistPostError = JoinWaitlistApiV1PublicEarlyAccessWaitlistPostErrors[keyof JoinWaitlistApiV1PublicEarlyAccessWaitlistPostErrors];
+
+export type JoinWaitlistApiV1PublicEarlyAccessWaitlistPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: WaitlistJoinResponse;
+};
+
+export type JoinWaitlistApiV1PublicEarlyAccessWaitlistPostResponse = JoinWaitlistApiV1PublicEarlyAccessWaitlistPostResponses[keyof JoinWaitlistApiV1PublicEarlyAccessWaitlistPostResponses];
+
+export type InviteStatusApiV1PublicEarlyAccessInvitesCodeGetData = {
+    body?: never;
+    path: {
+        /**
+         * Code
+         */
+        code: string;
+    };
+    query?: never;
+    url: '/api/v1/public/early-access/invites/{code}';
+};
+
+export type InviteStatusApiV1PublicEarlyAccessInvitesCodeGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type InviteStatusApiV1PublicEarlyAccessInvitesCodeGetError = InviteStatusApiV1PublicEarlyAccessInvitesCodeGetErrors[keyof InviteStatusApiV1PublicEarlyAccessInvitesCodeGetErrors];
+
+export type InviteStatusApiV1PublicEarlyAccessInvitesCodeGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: InviteStatusResponse;
+};
+
+export type InviteStatusApiV1PublicEarlyAccessInvitesCodeGetResponse = InviteStatusApiV1PublicEarlyAccessInvitesCodeGetResponses[keyof InviteStatusApiV1PublicEarlyAccessInvitesCodeGetResponses];
+
+export type LandingApiV1ShellLandingGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/shell/landing';
+};
+
+export type LandingApiV1ShellLandingGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type LandingApiV1ShellLandingGetError = LandingApiV1ShellLandingGetErrors[keyof LandingApiV1ShellLandingGetErrors];
+
+export type LandingApiV1ShellLandingGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: LandingResponse;
+};
+
+export type LandingApiV1ShellLandingGetResponse = LandingApiV1ShellLandingGetResponses[keyof LandingApiV1ShellLandingGetResponses];
+
+export type GetOnboardingApiV1ShellOnboardingGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/shell/onboarding';
+};
+
+export type GetOnboardingApiV1ShellOnboardingGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetOnboardingApiV1ShellOnboardingGetError = GetOnboardingApiV1ShellOnboardingGetErrors[keyof GetOnboardingApiV1ShellOnboardingGetErrors];
+
+export type GetOnboardingApiV1ShellOnboardingGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: OnboardingResponse;
+};
+
+export type GetOnboardingApiV1ShellOnboardingGetResponse = GetOnboardingApiV1ShellOnboardingGetResponses[keyof GetOnboardingApiV1ShellOnboardingGetResponses];
+
+export type SaveOnboardingApiV1ShellOnboardingPutData = {
+    body: OnboardingSaveRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/shell/onboarding';
+};
+
+export type SaveOnboardingApiV1ShellOnboardingPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SaveOnboardingApiV1ShellOnboardingPutError = SaveOnboardingApiV1ShellOnboardingPutErrors[keyof SaveOnboardingApiV1ShellOnboardingPutErrors];
+
+export type SaveOnboardingApiV1ShellOnboardingPutResponses = {
+    /**
+     * Successful Response
+     */
+    200: OnboardingResponse;
+};
+
+export type SaveOnboardingApiV1ShellOnboardingPutResponse = SaveOnboardingApiV1ShellOnboardingPutResponses[keyof SaveOnboardingApiV1ShellOnboardingPutResponses];
+
+export type SkipOnboardingApiV1ShellOnboardingSkipPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/shell/onboarding/skip';
+};
+
+export type SkipOnboardingApiV1ShellOnboardingSkipPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SkipOnboardingApiV1ShellOnboardingSkipPostError = SkipOnboardingApiV1ShellOnboardingSkipPostErrors[keyof SkipOnboardingApiV1ShellOnboardingSkipPostErrors];
+
+export type SkipOnboardingApiV1ShellOnboardingSkipPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: OnboardingResponse;
+};
+
+export type SkipOnboardingApiV1ShellOnboardingSkipPostResponse = SkipOnboardingApiV1ShellOnboardingSkipPostResponses[keyof SkipOnboardingApiV1ShellOnboardingSkipPostResponses];
+
+export type StopReplyApiV1ShellChatStopPostData = {
+    body: ApiRoutesShellStopRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/shell/chat/stop';
+};
+
+export type StopReplyApiV1ShellChatStopPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type StopReplyApiV1ShellChatStopPostError = StopReplyApiV1ShellChatStopPostErrors[keyof StopReplyApiV1ShellChatStopPostErrors];
+
+export type StopReplyApiV1ShellChatStopPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: StopResponse;
+};
+
+export type StopReplyApiV1ShellChatStopPostResponse = StopReplyApiV1ShellChatStopPostResponses[keyof StopReplyApiV1ShellChatStopPostResponses];
+
+export type MyConnectionsApiV1ReachConnectionsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/reach/connections';
+};
+
+export type MyConnectionsApiV1ReachConnectionsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MyConnectionsApiV1ReachConnectionsGetError = MyConnectionsApiV1ReachConnectionsGetErrors[keyof MyConnectionsApiV1ReachConnectionsGetErrors];
+
+export type MyConnectionsApiV1ReachConnectionsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: ReachConnectionList;
+};
+
+export type MyConnectionsApiV1ReachConnectionsGetResponse = MyConnectionsApiV1ReachConnectionsGetResponses[keyof MyConnectionsApiV1ReachConnectionsGetResponses];
+
+export type ConnectApiV1ReachConnectionsPostData = {
+    body: ReachConnectRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/reach/connections';
+};
+
+export type ConnectApiV1ReachConnectionsPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ConnectApiV1ReachConnectionsPostError = ConnectApiV1ReachConnectionsPostErrors[keyof ConnectApiV1ReachConnectionsPostErrors];
+
+export type ConnectApiV1ReachConnectionsPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: ReachConnectResponse;
+};
+
+export type ConnectApiV1ReachConnectionsPostResponse = ConnectApiV1ReachConnectionsPostResponses[keyof ConnectApiV1ReachConnectionsPostResponses];
+
+export type RefreshConnectionApiV1ReachConnectionsConnectionIdRefreshPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Connection Id
+         */
+        connection_id: string;
+    };
+    query?: never;
+    url: '/api/v1/reach/connections/{connection_id}/refresh';
+};
+
+export type RefreshConnectionApiV1ReachConnectionsConnectionIdRefreshPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RefreshConnectionApiV1ReachConnectionsConnectionIdRefreshPostError = RefreshConnectionApiV1ReachConnectionsConnectionIdRefreshPostErrors[keyof RefreshConnectionApiV1ReachConnectionsConnectionIdRefreshPostErrors];
+
+export type RefreshConnectionApiV1ReachConnectionsConnectionIdRefreshPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: ReachConnection;
+};
+
+export type RefreshConnectionApiV1ReachConnectionsConnectionIdRefreshPostResponse = RefreshConnectionApiV1ReachConnectionsConnectionIdRefreshPostResponses[keyof RefreshConnectionApiV1ReachConnectionsConnectionIdRefreshPostResponses];
+
+export type DisconnectApiV1ReachConnectionsConnectionIdDeleteData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Connection Id
+         */
+        connection_id: string;
+    };
+    query?: never;
+    url: '/api/v1/reach/connections/{connection_id}';
+};
+
+export type DisconnectApiV1ReachConnectionsConnectionIdDeleteErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DisconnectApiV1ReachConnectionsConnectionIdDeleteError = DisconnectApiV1ReachConnectionsConnectionIdDeleteErrors[keyof DisconnectApiV1ReachConnectionsConnectionIdDeleteErrors];
+
+export type DisconnectApiV1ReachConnectionsConnectionIdDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DisconnectApiV1ReachConnectionsConnectionIdDeleteResponse = DisconnectApiV1ReachConnectionsConnectionIdDeleteResponses[keyof DisconnectApiV1ReachConnectionsConnectionIdDeleteResponses];
+
+export type OrderingProvidersApiV1ReachProvidersGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/reach/providers';
+};
+
+export type OrderingProvidersApiV1ReachProvidersGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type OrderingProvidersApiV1ReachProvidersGetError = OrderingProvidersApiV1ReachProvidersGetErrors[keyof OrderingProvidersApiV1ReachProvidersGetErrors];
+
+export type OrderingProvidersApiV1ReachProvidersGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: ReachProviderList;
+};
+
+export type OrderingProvidersApiV1ReachProvidersGetResponse = OrderingProvidersApiV1ReachProvidersGetResponses[keyof OrderingProvidersApiV1ReachProvidersGetResponses];
+
+export type OrderDetailApiV1ReachOrdersOrderIdGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Order Id
+         */
+        order_id: string;
+    };
+    query?: never;
+    url: '/api/v1/reach/orders/{order_id}';
+};
+
+export type OrderDetailApiV1ReachOrdersOrderIdGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type OrderDetailApiV1ReachOrdersOrderIdGetError = OrderDetailApiV1ReachOrdersOrderIdGetErrors[keyof OrderDetailApiV1ReachOrdersOrderIdGetErrors];
+
+export type OrderDetailApiV1ReachOrdersOrderIdGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: ReachOrderDetail;
+};
+
+export type OrderDetailApiV1ReachOrdersOrderIdGetResponse = OrderDetailApiV1ReachOrdersOrderIdGetResponses[keyof OrderDetailApiV1ReachOrdersOrderIdGetResponses];
+
+export type ReviseOrderApiV1ReachOrdersOrderIdRevisePostData = {
+    body: ReachReviseOrderRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Order Id
+         */
+        order_id: string;
+    };
+    query?: never;
+    url: '/api/v1/reach/orders/{order_id}/revise';
+};
+
+export type ReviseOrderApiV1ReachOrdersOrderIdRevisePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReviseOrderApiV1ReachOrdersOrderIdRevisePostError = ReviseOrderApiV1ReachOrdersOrderIdRevisePostErrors[keyof ReviseOrderApiV1ReachOrdersOrderIdRevisePostErrors];
+
+export type ReviseOrderApiV1ReachOrdersOrderIdRevisePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: ReachReviseOrderResponse;
+};
+
+export type ReviseOrderApiV1ReachOrdersOrderIdRevisePostResponse = ReviseOrderApiV1ReachOrdersOrderIdRevisePostResponses[keyof ReviseOrderApiV1ReachOrdersOrderIdRevisePostResponses];
+
+export type CheckOrderApiV1ReachOrdersOrderIdCheckPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Order Id
+         */
+        order_id: string;
+    };
+    query?: never;
+    url: '/api/v1/reach/orders/{order_id}/check';
+};
+
+export type CheckOrderApiV1ReachOrdersOrderIdCheckPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CheckOrderApiV1ReachOrdersOrderIdCheckPostError = CheckOrderApiV1ReachOrdersOrderIdCheckPostErrors[keyof CheckOrderApiV1ReachOrdersOrderIdCheckPostErrors];
+
+export type CheckOrderApiV1ReachOrdersOrderIdCheckPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: ReachOrderDetail;
+};
+
+export type CheckOrderApiV1ReachOrdersOrderIdCheckPostResponse = CheckOrderApiV1ReachOrdersOrderIdCheckPostResponses[keyof CheckOrderApiV1ReachOrdersOrderIdCheckPostResponses];
+
+export type MyPeopleApiV1PeopleGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Q
+         */
+        q?: string | null;
+        /**
+         * Limit
+         */
+        limit?: number;
+        /**
+         * Offset
+         */
+        offset?: number;
+    };
+    url: '/api/v1/people';
+};
+
+export type MyPeopleApiV1PeopleGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MyPeopleApiV1PeopleGetError = MyPeopleApiV1PeopleGetErrors[keyof MyPeopleApiV1PeopleGetErrors];
+
+export type MyPeopleApiV1PeopleGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: PeopleList;
+};
+
+export type MyPeopleApiV1PeopleGetResponse = MyPeopleApiV1PeopleGetResponses[keyof MyPeopleApiV1PeopleGetResponses];
+
+export type AddPersonApiV1PeoplePostData = {
+    body: PersonCreate;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/people';
+};
+
+export type AddPersonApiV1PeoplePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AddPersonApiV1PeoplePostError = AddPersonApiV1PeoplePostErrors[keyof AddPersonApiV1PeoplePostErrors];
+
+export type AddPersonApiV1PeoplePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: PersonDetail;
+};
+
+export type AddPersonApiV1PeoplePostResponse = AddPersonApiV1PeoplePostResponses[keyof AddPersonApiV1PeoplePostResponses];
+
+export type PeopleStatusApiV1PeopleStatusGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/people/status';
+};
+
+export type PeopleStatusApiV1PeopleStatusGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type PeopleStatusApiV1PeopleStatusGetError = PeopleStatusApiV1PeopleStatusGetErrors[keyof PeopleStatusApiV1PeopleStatusGetErrors];
+
+export type PeopleStatusApiV1PeopleStatusGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: PeopleStatus;
+};
+
+export type PeopleStatusApiV1PeopleStatusGetResponse = PeopleStatusApiV1PeopleStatusGetResponses[keyof PeopleStatusApiV1PeopleStatusGetResponses];
+
+export type MyMergesApiV1PeopleMergesGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/people/merges';
+};
+
+export type MyMergesApiV1PeopleMergesGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MyMergesApiV1PeopleMergesGetError = MyMergesApiV1PeopleMergesGetErrors[keyof MyMergesApiV1PeopleMergesGetErrors];
+
+export type MyMergesApiV1PeopleMergesGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: MergeList;
+};
+
+export type MyMergesApiV1PeopleMergesGetResponse = MyMergesApiV1PeopleMergesGetResponses[keyof MyMergesApiV1PeopleMergesGetResponses];
+
+export type MyPeopleSettingsApiV1PeopleSettingsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/people/settings';
+};
+
+export type MyPeopleSettingsApiV1PeopleSettingsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MyPeopleSettingsApiV1PeopleSettingsGetError = MyPeopleSettingsApiV1PeopleSettingsGetErrors[keyof MyPeopleSettingsApiV1PeopleSettingsGetErrors];
+
+export type MyPeopleSettingsApiV1PeopleSettingsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: PeopleSettings;
+};
+
+export type MyPeopleSettingsApiV1PeopleSettingsGetResponse = MyPeopleSettingsApiV1PeopleSettingsGetResponses[keyof MyPeopleSettingsApiV1PeopleSettingsGetResponses];
+
+export type SavePeopleSettingsApiV1PeopleSettingsPutData = {
+    body: PeopleSettings;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/people/settings';
+};
+
+export type SavePeopleSettingsApiV1PeopleSettingsPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SavePeopleSettingsApiV1PeopleSettingsPutError = SavePeopleSettingsApiV1PeopleSettingsPutErrors[keyof SavePeopleSettingsApiV1PeopleSettingsPutErrors];
+
+export type SavePeopleSettingsApiV1PeopleSettingsPutResponses = {
+    /**
+     * Successful Response
+     */
+    200: PeopleSettings;
+};
+
+export type SavePeopleSettingsApiV1PeopleSettingsPutResponse = SavePeopleSettingsApiV1PeopleSettingsPutResponses[keyof SavePeopleSettingsApiV1PeopleSettingsPutResponses];
+
+export type PeopleColleaguesApiV1PeopleColleaguesGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/people/colleagues';
+};
+
+export type PeopleColleaguesApiV1PeopleColleaguesGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type PeopleColleaguesApiV1PeopleColleaguesGetError = PeopleColleaguesApiV1PeopleColleaguesGetErrors[keyof PeopleColleaguesApiV1PeopleColleaguesGetErrors];
+
+export type PeopleColleaguesApiV1PeopleColleaguesGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: ColleagueList;
+};
+
+export type PeopleColleaguesApiV1PeopleColleaguesGetResponse = PeopleColleaguesApiV1PeopleColleaguesGetResponses[keyof PeopleColleaguesApiV1PeopleColleaguesGetResponses];
+
+export type SharedCardApiV1PeopleSharedPersonIdGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Person Id
+         */
+        person_id: string;
+    };
+    query?: never;
+    url: '/api/v1/people/shared/{person_id}';
+};
+
+export type SharedCardApiV1PeopleSharedPersonIdGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SharedCardApiV1PeopleSharedPersonIdGetError = SharedCardApiV1PeopleSharedPersonIdGetErrors[keyof SharedCardApiV1PeopleSharedPersonIdGetErrors];
+
+export type SharedCardApiV1PeopleSharedPersonIdGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: SharedCard;
+};
+
+export type SharedCardApiV1PeopleSharedPersonIdGetResponse = SharedCardApiV1PeopleSharedPersonIdGetResponses[keyof SharedCardApiV1PeopleSharedPersonIdGetResponses];
+
+export type DeletePersonApiV1PeoplePersonIdDeleteData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Person Id
+         */
+        person_id: string;
+    };
+    query?: never;
+    url: '/api/v1/people/{person_id}';
+};
+
+export type DeletePersonApiV1PeoplePersonIdDeleteErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeletePersonApiV1PeoplePersonIdDeleteError = DeletePersonApiV1PeoplePersonIdDeleteErrors[keyof DeletePersonApiV1PeoplePersonIdDeleteErrors];
+
+export type DeletePersonApiV1PeoplePersonIdDeleteResponses = {
+    /**
+     * Response Delete Person Api V1 People  Person Id  Delete
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: boolean;
+    };
+};
+
+export type DeletePersonApiV1PeoplePersonIdDeleteResponse = DeletePersonApiV1PeoplePersonIdDeleteResponses[keyof DeletePersonApiV1PeoplePersonIdDeleteResponses];
+
+export type MyPersonApiV1PeoplePersonIdGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Person Id
+         */
+        person_id: string;
+    };
+    query?: never;
+    url: '/api/v1/people/{person_id}';
+};
+
+export type MyPersonApiV1PeoplePersonIdGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MyPersonApiV1PeoplePersonIdGetError = MyPersonApiV1PeoplePersonIdGetErrors[keyof MyPersonApiV1PeoplePersonIdGetErrors];
+
+export type MyPersonApiV1PeoplePersonIdGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: PersonDetail;
+};
+
+export type MyPersonApiV1PeoplePersonIdGetResponse = MyPersonApiV1PeoplePersonIdGetResponses[keyof MyPersonApiV1PeoplePersonIdGetResponses];
+
+export type EditPersonApiV1PeoplePersonIdPatchData = {
+    body: PersonEdit;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Person Id
+         */
+        person_id: string;
+    };
+    query?: never;
+    url: '/api/v1/people/{person_id}';
+};
+
+export type EditPersonApiV1PeoplePersonIdPatchErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type EditPersonApiV1PeoplePersonIdPatchError = EditPersonApiV1PeoplePersonIdPatchErrors[keyof EditPersonApiV1PeoplePersonIdPatchErrors];
+
+export type EditPersonApiV1PeoplePersonIdPatchResponses = {
+    /**
+     * Successful Response
+     */
+    200: PersonDetail;
+};
+
+export type EditPersonApiV1PeoplePersonIdPatchResponse = EditPersonApiV1PeoplePersonIdPatchResponses[keyof EditPersonApiV1PeoplePersonIdPatchResponses];
+
+export type RewriteBriefApiV1PeoplePersonIdBriefPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Person Id
+         */
+        person_id: string;
+    };
+    query?: never;
+    url: '/api/v1/people/{person_id}/brief';
+};
+
+export type RewriteBriefApiV1PeoplePersonIdBriefPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RewriteBriefApiV1PeoplePersonIdBriefPostError = RewriteBriefApiV1PeoplePersonIdBriefPostErrors[keyof RewriteBriefApiV1PeoplePersonIdBriefPostErrors];
+
+export type RewriteBriefApiV1PeoplePersonIdBriefPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: PersonDetail;
+};
+
+export type RewriteBriefApiV1PeoplePersonIdBriefPostResponse = RewriteBriefApiV1PeoplePersonIdBriefPostResponses[keyof RewriteBriefApiV1PeoplePersonIdBriefPostResponses];
+
+export type SharePersonApiV1PeoplePersonIdSharePostData = {
+    body: PersonShareRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Person Id
+         */
+        person_id: string;
+    };
+    query?: never;
+    url: '/api/v1/people/{person_id}/share';
+};
+
+export type SharePersonApiV1PeoplePersonIdSharePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SharePersonApiV1PeoplePersonIdSharePostError = SharePersonApiV1PeoplePersonIdSharePostErrors[keyof SharePersonApiV1PeoplePersonIdSharePostErrors];
+
+export type SharePersonApiV1PeoplePersonIdSharePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: PersonDetail;
+};
+
+export type SharePersonApiV1PeoplePersonIdSharePostResponse = SharePersonApiV1PeoplePersonIdSharePostResponses[keyof SharePersonApiV1PeoplePersonIdSharePostResponses];
+
+export type UnsharePersonApiV1PeoplePersonIdShareUserIdDeleteData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Person Id
+         */
+        person_id: string;
+        /**
+         * User Id
+         */
+        user_id: number;
+    };
+    query?: never;
+    url: '/api/v1/people/{person_id}/share/{user_id}';
+};
+
+export type UnsharePersonApiV1PeoplePersonIdShareUserIdDeleteErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UnsharePersonApiV1PeoplePersonIdShareUserIdDeleteError = UnsharePersonApiV1PeoplePersonIdShareUserIdDeleteErrors[keyof UnsharePersonApiV1PeoplePersonIdShareUserIdDeleteErrors];
+
+export type UnsharePersonApiV1PeoplePersonIdShareUserIdDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    200: PersonDetail;
+};
+
+export type UnsharePersonApiV1PeoplePersonIdShareUserIdDeleteResponse = UnsharePersonApiV1PeoplePersonIdShareUserIdDeleteResponses[keyof UnsharePersonApiV1PeoplePersonIdShareUserIdDeleteResponses];
+
+export type DecideMergeApiV1PeopleMergesMergeIdPostData = {
+    body: MergeDecision;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Merge Id
+         */
+        merge_id: string;
+    };
+    query?: never;
+    url: '/api/v1/people/merges/{merge_id}';
+};
+
+export type DecideMergeApiV1PeopleMergesMergeIdPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DecideMergeApiV1PeopleMergesMergeIdPostError = DecideMergeApiV1PeopleMergesMergeIdPostErrors[keyof DecideMergeApiV1PeopleMergesMergeIdPostErrors];
+
+export type DecideMergeApiV1PeopleMergesMergeIdPostResponses = {
+    /**
+     * Response Decide Merge Api V1 People Merges  Merge Id  Post
+     *
+     * Successful Response
+     */
+    200: PersonDetail | null;
+};
+
+export type DecideMergeApiV1PeopleMergesMergeIdPostResponse = DecideMergeApiV1PeopleMergesMergeIdPostResponses[keyof DecideMergeApiV1PeopleMergesMergeIdPostResponses];
+
+export type ImportPeopleApiV1PeopleImportPostData = {
+    body: BodyImportPeopleApiV1PeopleImportPost;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/people/import';
+};
+
+export type ImportPeopleApiV1PeopleImportPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ImportPeopleApiV1PeopleImportPostError = ImportPeopleApiV1PeopleImportPostErrors[keyof ImportPeopleApiV1PeopleImportPostErrors];
+
+export type ImportPeopleApiV1PeopleImportPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: ImportResult;
+};
+
+export type ImportPeopleApiV1PeopleImportPostResponse = ImportPeopleApiV1PeopleImportPostResponses[keyof ImportPeopleApiV1PeopleImportPostResponses];
+
+export type ImportPickedApiV1PeopleImportPickerPostData = {
+    body: PickerImport;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/people/import/picker';
+};
+
+export type ImportPickedApiV1PeopleImportPickerPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ImportPickedApiV1PeopleImportPickerPostError = ImportPickedApiV1PeopleImportPickerPostErrors[keyof ImportPickedApiV1PeopleImportPickerPostErrors];
+
+export type ImportPickedApiV1PeopleImportPickerPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: ImportResult;
+};
+
+export type ImportPickedApiV1PeopleImportPickerPostResponse = ImportPickedApiV1PeopleImportPickerPostResponses[keyof ImportPickedApiV1PeopleImportPickerPostResponses];
+
+export type SyncDeviceApiV1PeopleDeviceSyncPostData = {
+    body: DeviceSyncRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/people/device/sync';
+};
+
+export type SyncDeviceApiV1PeopleDeviceSyncPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SyncDeviceApiV1PeopleDeviceSyncPostError = SyncDeviceApiV1PeopleDeviceSyncPostErrors[keyof SyncDeviceApiV1PeopleDeviceSyncPostErrors];
+
+export type SyncDeviceApiV1PeopleDeviceSyncPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: DeviceSyncResult;
+};
+
+export type SyncDeviceApiV1PeopleDeviceSyncPostResponse = SyncDeviceApiV1PeopleDeviceSyncPostResponses[keyof SyncDeviceApiV1PeopleDeviceSyncPostResponses];
+
+export type StartSyncApiV1PeopleSyncProviderPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Provider
+         */
+        provider: 'google' | 'microsoft';
+    };
+    query?: never;
+    url: '/api/v1/people/sync/{provider}';
+};
+
+export type StartSyncApiV1PeopleSyncProviderPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type StartSyncApiV1PeopleSyncProviderPostError = StartSyncApiV1PeopleSyncProviderPostErrors[keyof StartSyncApiV1PeopleSyncProviderPostErrors];
+
+export type StartSyncApiV1PeopleSyncProviderPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: SyncStarted;
+};
+
+export type StartSyncApiV1PeopleSyncProviderPostResponse = StartSyncApiV1PeopleSyncProviderPostResponses[keyof StartSyncApiV1PeopleSyncProviderPostResponses];
+
+export type ConnectProviderApiV1PeopleConnectProviderPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Provider
+         */
+        provider: 'google' | 'microsoft';
+    };
+    query?: never;
+    url: '/api/v1/people/connect/{provider}';
+};
+
+export type ConnectProviderApiV1PeopleConnectProviderPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ConnectProviderApiV1PeopleConnectProviderPostError = ConnectProviderApiV1PeopleConnectProviderPostErrors[keyof ConnectProviderApiV1PeopleConnectProviderPostErrors];
+
+export type ConnectProviderApiV1PeopleConnectProviderPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: ConnectLink;
+};
+
+export type ConnectProviderApiV1PeopleConnectProviderPostResponse = ConnectProviderApiV1PeopleConnectProviderPostResponses[keyof ConnectProviderApiV1PeopleConnectProviderPostResponses];
+
+export type LearningStatusApiV1LearningStatusGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/learning/status';
+};
+
+export type LearningStatusApiV1LearningStatusGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type LearningStatusApiV1LearningStatusGetError = LearningStatusApiV1LearningStatusGetErrors[keyof LearningStatusApiV1LearningStatusGetErrors];
+
+export type LearningStatusApiV1LearningStatusGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: LearningStatus;
+};
+
+export type LearningStatusApiV1LearningStatusGetResponse = LearningStatusApiV1LearningStatusGetResponses[keyof LearningStatusApiV1LearningStatusGetResponses];
+
+export type SaveLearnerProfileApiV1LearningProfilePutData = {
+    body: LearnerProfileWrite;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/learning/profile';
+};
+
+export type SaveLearnerProfileApiV1LearningProfilePutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SaveLearnerProfileApiV1LearningProfilePutError = SaveLearnerProfileApiV1LearningProfilePutErrors[keyof SaveLearnerProfileApiV1LearningProfilePutErrors];
+
+export type SaveLearnerProfileApiV1LearningProfilePutResponses = {
+    /**
+     * Successful Response
+     */
+    200: LearnerProfile;
+};
+
+export type SaveLearnerProfileApiV1LearningProfilePutResponse = SaveLearnerProfileApiV1LearningProfilePutResponses[keyof SaveLearnerProfileApiV1LearningProfilePutResponses];
+
+export type MyLearningGoalsApiV1LearningGoalsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/learning/goals';
+};
+
+export type MyLearningGoalsApiV1LearningGoalsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MyLearningGoalsApiV1LearningGoalsGetError = MyLearningGoalsApiV1LearningGoalsGetErrors[keyof MyLearningGoalsApiV1LearningGoalsGetErrors];
+
+export type MyLearningGoalsApiV1LearningGoalsGetResponses = {
+    /**
+     * Response My Learning Goals Api V1 Learning Goals Get
+     *
+     * Successful Response
+     */
+    200: Array<LearningGoal>;
+};
+
+export type MyLearningGoalsApiV1LearningGoalsGetResponse = MyLearningGoalsApiV1LearningGoalsGetResponses[keyof MyLearningGoalsApiV1LearningGoalsGetResponses];
+
+export type StartLearningGoalApiV1LearningGoalsPostData = {
+    body: LearningGoalStart;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/learning/goals';
+};
+
+export type StartLearningGoalApiV1LearningGoalsPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type StartLearningGoalApiV1LearningGoalsPostError = StartLearningGoalApiV1LearningGoalsPostErrors[keyof StartLearningGoalApiV1LearningGoalsPostErrors];
+
+export type StartLearningGoalApiV1LearningGoalsPostResponses = {
+    /**
+     * Successful Response
+     */
+    201: LearningSession;
+};
+
+export type StartLearningGoalApiV1LearningGoalsPostResponse = StartLearningGoalApiV1LearningGoalsPostResponses[keyof StartLearningGoalApiV1LearningGoalsPostResponses];
+
+export type UpdateLearningGoalApiV1LearningGoalsGoalIdPatchData = {
+    body: LearningGoalUpdate;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Goal Id
+         */
+        goal_id: string;
+    };
+    query?: never;
+    url: '/api/v1/learning/goals/{goal_id}';
+};
+
+export type UpdateLearningGoalApiV1LearningGoalsGoalIdPatchErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateLearningGoalApiV1LearningGoalsGoalIdPatchError = UpdateLearningGoalApiV1LearningGoalsGoalIdPatchErrors[keyof UpdateLearningGoalApiV1LearningGoalsGoalIdPatchErrors];
+
+export type UpdateLearningGoalApiV1LearningGoalsGoalIdPatchResponses = {
+    /**
+     * Successful Response
+     */
+    200: LearningGoal;
+};
+
+export type UpdateLearningGoalApiV1LearningGoalsGoalIdPatchResponse = UpdateLearningGoalApiV1LearningGoalsGoalIdPatchResponses[keyof UpdateLearningGoalApiV1LearningGoalsGoalIdPatchResponses];
+
+export type LearningSessionApiV1LearningGoalsGoalIdSessionGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Goal Id
+         */
+        goal_id: string;
+    };
+    query?: never;
+    url: '/api/v1/learning/goals/{goal_id}/session';
+};
+
+export type LearningSessionApiV1LearningGoalsGoalIdSessionGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type LearningSessionApiV1LearningGoalsGoalIdSessionGetError = LearningSessionApiV1LearningGoalsGoalIdSessionGetErrors[keyof LearningSessionApiV1LearningGoalsGoalIdSessionGetErrors];
+
+export type LearningSessionApiV1LearningGoalsGoalIdSessionGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: LearningSession;
+};
+
+export type LearningSessionApiV1LearningGoalsGoalIdSessionGetResponse = LearningSessionApiV1LearningGoalsGoalIdSessionGetResponses[keyof LearningSessionApiV1LearningGoalsGoalIdSessionGetResponses];
+
+export type AnswerLearningBaselineApiV1LearningGoalsGoalIdBaselinePostData = {
+    body: LearningBaselineAnswer;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Goal Id
+         */
+        goal_id: string;
+    };
+    query?: never;
+    url: '/api/v1/learning/goals/{goal_id}/baseline';
+};
+
+export type AnswerLearningBaselineApiV1LearningGoalsGoalIdBaselinePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AnswerLearningBaselineApiV1LearningGoalsGoalIdBaselinePostError = AnswerLearningBaselineApiV1LearningGoalsGoalIdBaselinePostErrors[keyof AnswerLearningBaselineApiV1LearningGoalsGoalIdBaselinePostErrors];
+
+export type AnswerLearningBaselineApiV1LearningGoalsGoalIdBaselinePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: LearningSession;
+};
+
+export type AnswerLearningBaselineApiV1LearningGoalsGoalIdBaselinePostResponse = AnswerLearningBaselineApiV1LearningGoalsGoalIdBaselinePostResponses[keyof AnswerLearningBaselineApiV1LearningGoalsGoalIdBaselinePostResponses];
+
+export type NextLearningExerciseApiV1LearningGoalsGoalIdNextPostData = {
+    body: LearningNextExercise;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Goal Id
+         */
+        goal_id: string;
+    };
+    query?: never;
+    url: '/api/v1/learning/goals/{goal_id}/next';
+};
+
+export type NextLearningExerciseApiV1LearningGoalsGoalIdNextPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type NextLearningExerciseApiV1LearningGoalsGoalIdNextPostError = NextLearningExerciseApiV1LearningGoalsGoalIdNextPostErrors[keyof NextLearningExerciseApiV1LearningGoalsGoalIdNextPostErrors];
+
+export type NextLearningExerciseApiV1LearningGoalsGoalIdNextPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: LearningSession;
+};
+
+export type NextLearningExerciseApiV1LearningGoalsGoalIdNextPostResponse = NextLearningExerciseApiV1LearningGoalsGoalIdNextPostResponses[keyof NextLearningExerciseApiV1LearningGoalsGoalIdNextPostResponses];
+
+export type StartLearningReviewApiV1LearningGoalsGoalIdReviewPostData = {
+    body: LearningReviewStart;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Goal Id
+         */
+        goal_id: string;
+    };
+    query?: never;
+    url: '/api/v1/learning/goals/{goal_id}/review';
+};
+
+export type StartLearningReviewApiV1LearningGoalsGoalIdReviewPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type StartLearningReviewApiV1LearningGoalsGoalIdReviewPostError = StartLearningReviewApiV1LearningGoalsGoalIdReviewPostErrors[keyof StartLearningReviewApiV1LearningGoalsGoalIdReviewPostErrors];
+
+export type StartLearningReviewApiV1LearningGoalsGoalIdReviewPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: LearningSession;
+};
+
+export type StartLearningReviewApiV1LearningGoalsGoalIdReviewPostResponse = StartLearningReviewApiV1LearningGoalsGoalIdReviewPostResponses[keyof StartLearningReviewApiV1LearningGoalsGoalIdReviewPostResponses];
+
+export type SubmitLearningAttemptApiV1LearningGoalsGoalIdAttemptsPostData = {
+    body: LearningAttemptWrite;
+    headers: {
+        /**
+         * Idempotency-Key
+         */
+        'Idempotency-Key': string;
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Goal Id
+         */
+        goal_id: string;
+    };
+    query?: never;
+    url: '/api/v1/learning/goals/{goal_id}/attempts';
+};
+
+export type SubmitLearningAttemptApiV1LearningGoalsGoalIdAttemptsPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SubmitLearningAttemptApiV1LearningGoalsGoalIdAttemptsPostError = SubmitLearningAttemptApiV1LearningGoalsGoalIdAttemptsPostErrors[keyof SubmitLearningAttemptApiV1LearningGoalsGoalIdAttemptsPostErrors];
+
+export type SubmitLearningAttemptApiV1LearningGoalsGoalIdAttemptsPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: LearningAttemptResult;
+};
+
+export type SubmitLearningAttemptApiV1LearningGoalsGoalIdAttemptsPostResponse = SubmitLearningAttemptApiV1LearningGoalsGoalIdAttemptsPostResponses[keyof SubmitLearningAttemptApiV1LearningGoalsGoalIdAttemptsPostResponses];
+
+export type LearningProgressApiV1LearningGoalsGoalIdProgressGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Goal Id
+         */
+        goal_id: string;
+    };
+    query?: never;
+    url: '/api/v1/learning/goals/{goal_id}/progress';
+};
+
+export type LearningProgressApiV1LearningGoalsGoalIdProgressGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type LearningProgressApiV1LearningGoalsGoalIdProgressGetError = LearningProgressApiV1LearningGoalsGoalIdProgressGetErrors[keyof LearningProgressApiV1LearningGoalsGoalIdProgressGetErrors];
+
+export type LearningProgressApiV1LearningGoalsGoalIdProgressGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: LearningProgress;
+};
+
+export type LearningProgressApiV1LearningGoalsGoalIdProgressGetResponse = LearningProgressApiV1LearningGoalsGoalIdProgressGetResponses[keyof LearningProgressApiV1LearningGoalsGoalIdProgressGetResponses];
+
+export type LearningSkillApiV1LearningGoalsGoalIdSkillsSkillIdGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Goal Id
+         */
+        goal_id: string;
+        /**
+         * Skill Id
+         */
+        skill_id: number;
+    };
+    query?: never;
+    url: '/api/v1/learning/goals/{goal_id}/skills/{skill_id}';
+};
+
+export type LearningSkillApiV1LearningGoalsGoalIdSkillsSkillIdGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type LearningSkillApiV1LearningGoalsGoalIdSkillsSkillIdGetError = LearningSkillApiV1LearningGoalsGoalIdSkillsSkillIdGetErrors[keyof LearningSkillApiV1LearningGoalsGoalIdSkillsSkillIdGetErrors];
+
+export type LearningSkillApiV1LearningGoalsGoalIdSkillsSkillIdGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: LearningSkillDetail;
+};
+
+export type LearningSkillApiV1LearningGoalsGoalIdSkillsSkillIdGetResponse = LearningSkillApiV1LearningGoalsGoalIdSkillsSkillIdGetResponses[keyof LearningSkillApiV1LearningGoalsGoalIdSkillsSkillIdGetResponses];
+
+export type ExportLearningGoalApiV1LearningGoalsGoalIdExportGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Goal Id
+         */
+        goal_id: string;
+    };
+    query?: never;
+    url: '/api/v1/learning/goals/{goal_id}/export';
+};
+
+export type ExportLearningGoalApiV1LearningGoalsGoalIdExportGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ExportLearningGoalApiV1LearningGoalsGoalIdExportGetError = ExportLearningGoalApiV1LearningGoalsGoalIdExportGetErrors[keyof ExportLearningGoalApiV1LearningGoalsGoalIdExportGetErrors];
+
+export type ExportLearningGoalApiV1LearningGoalsGoalIdExportGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type RequestLearningDeletionApiV1LearningGoalsGoalIdDeletionPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Goal Id
+         */
+        goal_id: string;
+    };
+    query?: never;
+    url: '/api/v1/learning/goals/{goal_id}/deletion';
+};
+
+export type RequestLearningDeletionApiV1LearningGoalsGoalIdDeletionPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RequestLearningDeletionApiV1LearningGoalsGoalIdDeletionPostError = RequestLearningDeletionApiV1LearningGoalsGoalIdDeletionPostErrors[keyof RequestLearningDeletionApiV1LearningGoalsGoalIdDeletionPostErrors];
+
+export type RequestLearningDeletionApiV1LearningGoalsGoalIdDeletionPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: LearningDeletionCard;
+};
+
+export type RequestLearningDeletionApiV1LearningGoalsGoalIdDeletionPostResponse = RequestLearningDeletionApiV1LearningGoalsGoalIdDeletionPostResponses[keyof RequestLearningDeletionApiV1LearningGoalsGoalIdDeletionPostResponses];
+
+export type LearningReviewsDueApiV1LearningReviewsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/learning/reviews';
+};
+
+export type LearningReviewsDueApiV1LearningReviewsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type LearningReviewsDueApiV1LearningReviewsGetError = LearningReviewsDueApiV1LearningReviewsGetErrors[keyof LearningReviewsDueApiV1LearningReviewsGetErrors];
+
+export type LearningReviewsDueApiV1LearningReviewsGetResponses = {
+    /**
+     * Response Learning Reviews Due Api V1 Learning Reviews Get
+     *
+     * Successful Response
+     */
+    200: Array<LearningReviewDue>;
+};
+
+export type LearningReviewsDueApiV1LearningReviewsGetResponse = LearningReviewsDueApiV1LearningReviewsGetResponses[keyof LearningReviewsDueApiV1LearningReviewsGetResponses];
+
+export type LearningTodayApiV1LearningTodayGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/learning/today';
+};
+
+export type LearningTodayApiV1LearningTodayGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type LearningTodayApiV1LearningTodayGetError = LearningTodayApiV1LearningTodayGetErrors[keyof LearningTodayApiV1LearningTodayGetErrors];
+
+export type LearningTodayApiV1LearningTodayGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: LearningTodayResponse;
+};
+
+export type LearningTodayApiV1LearningTodayGetResponse = LearningTodayApiV1LearningTodayGetResponses[keyof LearningTodayApiV1LearningTodayGetResponses];
+
+export type LearningSuggestionsApiV1LearningSuggestionsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/learning/suggestions';
+};
+
+export type LearningSuggestionsApiV1LearningSuggestionsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type LearningSuggestionsApiV1LearningSuggestionsGetError = LearningSuggestionsApiV1LearningSuggestionsGetErrors[keyof LearningSuggestionsApiV1LearningSuggestionsGetErrors];
+
+export type LearningSuggestionsApiV1LearningSuggestionsGetResponses = {
+    /**
+     * Response Learning Suggestions Api V1 Learning Suggestions Get
+     *
+     * Successful Response
+     */
+    200: Array<LearningSuggestion>;
+};
+
+export type LearningSuggestionsApiV1LearningSuggestionsGetResponse = LearningSuggestionsApiV1LearningSuggestionsGetResponses[keyof LearningSuggestionsApiV1LearningSuggestionsGetResponses];
+
+export type MeetingCapabilitiesApiV1MeetingsCapabilitiesGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/meetings/capabilities';
+};
+
+export type MeetingCapabilitiesApiV1MeetingsCapabilitiesGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MeetingCapabilitiesApiV1MeetingsCapabilitiesGetError = MeetingCapabilitiesApiV1MeetingsCapabilitiesGetErrors[keyof MeetingCapabilitiesApiV1MeetingsCapabilitiesGetErrors];
+
+export type MeetingCapabilitiesApiV1MeetingsCapabilitiesGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: MeetingCapabilities;
+};
+
+export type MeetingCapabilitiesApiV1MeetingsCapabilitiesGetResponse = MeetingCapabilitiesApiV1MeetingsCapabilitiesGetResponses[keyof MeetingCapabilitiesApiV1MeetingsCapabilitiesGetResponses];
+
+export type ListMeetingsApiV1MeetingsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Limit
+         */
+        limit?: number;
+    };
+    url: '/api/v1/meetings';
+};
+
+export type ListMeetingsApiV1MeetingsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListMeetingsApiV1MeetingsGetError = ListMeetingsApiV1MeetingsGetErrors[keyof ListMeetingsApiV1MeetingsGetErrors];
+
+export type ListMeetingsApiV1MeetingsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: MeetingList;
+};
+
+export type ListMeetingsApiV1MeetingsGetResponse = ListMeetingsApiV1MeetingsGetResponses[keyof ListMeetingsApiV1MeetingsGetResponses];
+
+export type CreateMeetingApiV1MeetingsPostData = {
+    body: CreateMeetingRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/meetings';
+};
+
+export type CreateMeetingApiV1MeetingsPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateMeetingApiV1MeetingsPostError = CreateMeetingApiV1MeetingsPostErrors[keyof CreateMeetingApiV1MeetingsPostErrors];
+
+export type CreateMeetingApiV1MeetingsPostResponses = {
+    /**
+     * Successful Response
+     */
+    201: MeetingRecord;
+};
+
+export type CreateMeetingApiV1MeetingsPostResponse = CreateMeetingApiV1MeetingsPostResponses[keyof CreateMeetingApiV1MeetingsPostResponses];
+
+export type DeleteMeetingApiV1MeetingsMeetingIdDeleteData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Meeting Id
+         */
+        meeting_id: string;
+    };
+    query?: {
+        /**
+         * Cancel Tasks
+         */
+        cancel_tasks?: boolean;
+    };
+    url: '/api/v1/meetings/{meeting_id}';
+};
+
+export type DeleteMeetingApiV1MeetingsMeetingIdDeleteErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteMeetingApiV1MeetingsMeetingIdDeleteError = DeleteMeetingApiV1MeetingsMeetingIdDeleteErrors[keyof DeleteMeetingApiV1MeetingsMeetingIdDeleteErrors];
+
+export type DeleteMeetingApiV1MeetingsMeetingIdDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    200: DeletionResult;
+};
+
+export type DeleteMeetingApiV1MeetingsMeetingIdDeleteResponse = DeleteMeetingApiV1MeetingsMeetingIdDeleteResponses[keyof DeleteMeetingApiV1MeetingsMeetingIdDeleteResponses];
+
+export type GetMeetingApiV1MeetingsMeetingIdGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Meeting Id
+         */
+        meeting_id: string;
+    };
+    query?: never;
+    url: '/api/v1/meetings/{meeting_id}';
+};
+
+export type GetMeetingApiV1MeetingsMeetingIdGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetMeetingApiV1MeetingsMeetingIdGetError = GetMeetingApiV1MeetingsMeetingIdGetErrors[keyof GetMeetingApiV1MeetingsMeetingIdGetErrors];
+
+export type GetMeetingApiV1MeetingsMeetingIdGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: MeetingRecord;
+};
+
+export type GetMeetingApiV1MeetingsMeetingIdGetResponse = GetMeetingApiV1MeetingsMeetingIdGetResponses[keyof GetMeetingApiV1MeetingsMeetingIdGetResponses];
+
+export type RenameMeetingApiV1MeetingsMeetingIdPatchData = {
+    body: RenameRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Meeting Id
+         */
+        meeting_id: string;
+    };
+    query?: never;
+    url: '/api/v1/meetings/{meeting_id}';
+};
+
+export type RenameMeetingApiV1MeetingsMeetingIdPatchErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RenameMeetingApiV1MeetingsMeetingIdPatchError = RenameMeetingApiV1MeetingsMeetingIdPatchErrors[keyof RenameMeetingApiV1MeetingsMeetingIdPatchErrors];
+
+export type RenameMeetingApiV1MeetingsMeetingIdPatchResponses = {
+    /**
+     * Successful Response
+     */
+    200: MeetingRecord;
+};
+
+export type RenameMeetingApiV1MeetingsMeetingIdPatchResponse = RenameMeetingApiV1MeetingsMeetingIdPatchResponses[keyof RenameMeetingApiV1MeetingsMeetingIdPatchResponses];
+
+export type AddSegmentApiV1MeetingsMeetingIdSegmentsPostData = {
+    body: BodyAddSegmentApiV1MeetingsMeetingIdSegmentsPost;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Meeting Id
+         */
+        meeting_id: string;
+    };
+    query?: never;
+    url: '/api/v1/meetings/{meeting_id}/segments';
+};
+
+export type AddSegmentApiV1MeetingsMeetingIdSegmentsPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AddSegmentApiV1MeetingsMeetingIdSegmentsPostError = AddSegmentApiV1MeetingsMeetingIdSegmentsPostErrors[keyof AddSegmentApiV1MeetingsMeetingIdSegmentsPostErrors];
+
+export type AddSegmentApiV1MeetingsMeetingIdSegmentsPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: MeetingRecord;
+};
+
+export type AddSegmentApiV1MeetingsMeetingIdSegmentsPostResponse = AddSegmentApiV1MeetingsMeetingIdSegmentsPostResponses[keyof AddSegmentApiV1MeetingsMeetingIdSegmentsPostResponses];
+
+export type UploadRecordingApiV1MeetingsMeetingIdUploadPostData = {
+    body: BodyUploadRecordingApiV1MeetingsMeetingIdUploadPost;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Meeting Id
+         */
+        meeting_id: string;
+    };
+    query?: never;
+    url: '/api/v1/meetings/{meeting_id}/upload';
+};
+
+export type UploadRecordingApiV1MeetingsMeetingIdUploadPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UploadRecordingApiV1MeetingsMeetingIdUploadPostError = UploadRecordingApiV1MeetingsMeetingIdUploadPostErrors[keyof UploadRecordingApiV1MeetingsMeetingIdUploadPostErrors];
+
+export type UploadRecordingApiV1MeetingsMeetingIdUploadPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: MeetingRecord;
+};
+
+export type UploadRecordingApiV1MeetingsMeetingIdUploadPostResponse = UploadRecordingApiV1MeetingsMeetingIdUploadPostResponses[keyof UploadRecordingApiV1MeetingsMeetingIdUploadPostResponses];
+
+export type PauseMeetingApiV1MeetingsMeetingIdPausePostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Meeting Id
+         */
+        meeting_id: string;
+    };
+    query?: never;
+    url: '/api/v1/meetings/{meeting_id}/pause';
+};
+
+export type PauseMeetingApiV1MeetingsMeetingIdPausePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type PauseMeetingApiV1MeetingsMeetingIdPausePostError = PauseMeetingApiV1MeetingsMeetingIdPausePostErrors[keyof PauseMeetingApiV1MeetingsMeetingIdPausePostErrors];
+
+export type PauseMeetingApiV1MeetingsMeetingIdPausePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: MeetingRecord;
+};
+
+export type PauseMeetingApiV1MeetingsMeetingIdPausePostResponse = PauseMeetingApiV1MeetingsMeetingIdPausePostResponses[keyof PauseMeetingApiV1MeetingsMeetingIdPausePostResponses];
+
+export type ResumeMeetingApiV1MeetingsMeetingIdResumePostData = {
+    body: ResumeRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Meeting Id
+         */
+        meeting_id: string;
+    };
+    query?: never;
+    url: '/api/v1/meetings/{meeting_id}/resume';
+};
+
+export type ResumeMeetingApiV1MeetingsMeetingIdResumePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ResumeMeetingApiV1MeetingsMeetingIdResumePostError = ResumeMeetingApiV1MeetingsMeetingIdResumePostErrors[keyof ResumeMeetingApiV1MeetingsMeetingIdResumePostErrors];
+
+export type ResumeMeetingApiV1MeetingsMeetingIdResumePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: MeetingRecord;
+};
+
+export type ResumeMeetingApiV1MeetingsMeetingIdResumePostResponse = ResumeMeetingApiV1MeetingsMeetingIdResumePostResponses[keyof ResumeMeetingApiV1MeetingsMeetingIdResumePostResponses];
+
+export type ReportGapApiV1MeetingsMeetingIdGapsPostData = {
+    body: GapRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Meeting Id
+         */
+        meeting_id: string;
+    };
+    query?: never;
+    url: '/api/v1/meetings/{meeting_id}/gaps';
+};
+
+export type ReportGapApiV1MeetingsMeetingIdGapsPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReportGapApiV1MeetingsMeetingIdGapsPostError = ReportGapApiV1MeetingsMeetingIdGapsPostErrors[keyof ReportGapApiV1MeetingsMeetingIdGapsPostErrors];
+
+export type ReportGapApiV1MeetingsMeetingIdGapsPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: MeetingRecord;
+};
+
+export type ReportGapApiV1MeetingsMeetingIdGapsPostResponse = ReportGapApiV1MeetingsMeetingIdGapsPostResponses[keyof ReportGapApiV1MeetingsMeetingIdGapsPostResponses];
+
+export type StopMeetingApiV1MeetingsMeetingIdStopPostData = {
+    body: ApiRoutesMeetingsStopRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Meeting Id
+         */
+        meeting_id: string;
+    };
+    query?: never;
+    url: '/api/v1/meetings/{meeting_id}/stop';
+};
+
+export type StopMeetingApiV1MeetingsMeetingIdStopPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type StopMeetingApiV1MeetingsMeetingIdStopPostError = StopMeetingApiV1MeetingsMeetingIdStopPostErrors[keyof StopMeetingApiV1MeetingsMeetingIdStopPostErrors];
+
+export type StopMeetingApiV1MeetingsMeetingIdStopPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: MeetingRecord;
+};
+
+export type StopMeetingApiV1MeetingsMeetingIdStopPostResponse = StopMeetingApiV1MeetingsMeetingIdStopPostResponses[keyof StopMeetingApiV1MeetingsMeetingIdStopPostResponses];
+
+export type RetryMeetingApiV1MeetingsMeetingIdRetryPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Meeting Id
+         */
+        meeting_id: string;
+    };
+    query?: never;
+    url: '/api/v1/meetings/{meeting_id}/retry';
+};
+
+export type RetryMeetingApiV1MeetingsMeetingIdRetryPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RetryMeetingApiV1MeetingsMeetingIdRetryPostError = RetryMeetingApiV1MeetingsMeetingIdRetryPostErrors[keyof RetryMeetingApiV1MeetingsMeetingIdRetryPostErrors];
+
+export type RetryMeetingApiV1MeetingsMeetingIdRetryPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: MeetingRecord;
+};
+
+export type RetryMeetingApiV1MeetingsMeetingIdRetryPostResponse = RetryMeetingApiV1MeetingsMeetingIdRetryPostResponses[keyof RetryMeetingApiV1MeetingsMeetingIdRetryPostResponses];
+
+export type CorrectTranscriptApiV1MeetingsMeetingIdTranscriptSeqPutData = {
+    body: CorrectRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Meeting Id
+         */
+        meeting_id: string;
+        /**
+         * Seq
+         */
+        seq: number;
+    };
+    query?: never;
+    url: '/api/v1/meetings/{meeting_id}/transcript/{seq}';
+};
+
+export type CorrectTranscriptApiV1MeetingsMeetingIdTranscriptSeqPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CorrectTranscriptApiV1MeetingsMeetingIdTranscriptSeqPutError = CorrectTranscriptApiV1MeetingsMeetingIdTranscriptSeqPutErrors[keyof CorrectTranscriptApiV1MeetingsMeetingIdTranscriptSeqPutErrors];
+
+export type CorrectTranscriptApiV1MeetingsMeetingIdTranscriptSeqPutResponses = {
+    /**
+     * Successful Response
+     */
+    200: MeetingRecord;
+};
+
+export type CorrectTranscriptApiV1MeetingsMeetingIdTranscriptSeqPutResponse = CorrectTranscriptApiV1MeetingsMeetingIdTranscriptSeqPutResponses[keyof CorrectTranscriptApiV1MeetingsMeetingIdTranscriptSeqPutResponses];
+
+export type ReadAgainApiV1MeetingsMeetingIdReadPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Meeting Id
+         */
+        meeting_id: string;
+    };
+    query?: never;
+    url: '/api/v1/meetings/{meeting_id}/read';
+};
+
+export type ReadAgainApiV1MeetingsMeetingIdReadPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReadAgainApiV1MeetingsMeetingIdReadPostError = ReadAgainApiV1MeetingsMeetingIdReadPostErrors[keyof ReadAgainApiV1MeetingsMeetingIdReadPostErrors];
+
+export type ReadAgainApiV1MeetingsMeetingIdReadPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: MeetingRecord;
+};
+
+export type ReadAgainApiV1MeetingsMeetingIdReadPostResponse = ReadAgainApiV1MeetingsMeetingIdReadPostResponses[keyof ReadAgainApiV1MeetingsMeetingIdReadPostResponses];
+
+export type ExportMeetingApiV1MeetingsMeetingIdExportGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Meeting Id
+         */
+        meeting_id: string;
+    };
+    query?: never;
+    url: '/api/v1/meetings/{meeting_id}/export';
+};
+
+export type ExportMeetingApiV1MeetingsMeetingIdExportGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ExportMeetingApiV1MeetingsMeetingIdExportGetError = ExportMeetingApiV1MeetingsMeetingIdExportGetErrors[keyof ExportMeetingApiV1MeetingsMeetingIdExportGetErrors];
+
+export type ExportMeetingApiV1MeetingsMeetingIdExportGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: string;
+};
+
+export type ExportMeetingApiV1MeetingsMeetingIdExportGetResponse = ExportMeetingApiV1MeetingsMeetingIdExportGetResponses[keyof ExportMeetingApiV1MeetingsMeetingIdExportGetResponses];
+
+export type DeletionPreviewApiV1MeetingsMeetingIdDeletionGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Meeting Id
+         */
+        meeting_id: string;
+    };
+    query?: never;
+    url: '/api/v1/meetings/{meeting_id}/deletion';
+};
+
+export type DeletionPreviewApiV1MeetingsMeetingIdDeletionGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeletionPreviewApiV1MeetingsMeetingIdDeletionGetError = DeletionPreviewApiV1MeetingsMeetingIdDeletionGetErrors[keyof DeletionPreviewApiV1MeetingsMeetingIdDeletionGetErrors];
+
+export type DeletionPreviewApiV1MeetingsMeetingIdDeletionGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: DeletionPreview;
+};
+
+export type DeletionPreviewApiV1MeetingsMeetingIdDeletionGetResponse = DeletionPreviewApiV1MeetingsMeetingIdDeletionGetResponses[keyof DeletionPreviewApiV1MeetingsMeetingIdDeletionGetResponses];
+
+export type EditActionApiV1MeetingsMeetingIdActionsItemIdPutData = {
+    body: EditItemRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Meeting Id
+         */
+        meeting_id: string;
+        /**
+         * Item Id
+         */
+        item_id: number;
+    };
+    query?: never;
+    url: '/api/v1/meetings/{meeting_id}/actions/{item_id}';
+};
+
+export type EditActionApiV1MeetingsMeetingIdActionsItemIdPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type EditActionApiV1MeetingsMeetingIdActionsItemIdPutError = EditActionApiV1MeetingsMeetingIdActionsItemIdPutErrors[keyof EditActionApiV1MeetingsMeetingIdActionsItemIdPutErrors];
+
+export type EditActionApiV1MeetingsMeetingIdActionsItemIdPutResponses = {
+    /**
+     * Successful Response
+     */
+    200: MeetingRecord;
+};
+
+export type EditActionApiV1MeetingsMeetingIdActionsItemIdPutResponse = EditActionApiV1MeetingsMeetingIdActionsItemIdPutResponses[keyof EditActionApiV1MeetingsMeetingIdActionsItemIdPutResponses];
+
+export type ReviewActionApiV1MeetingsMeetingIdActionsItemIdReviewPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Meeting Id
+         */
+        meeting_id: string;
+        /**
+         * Item Id
+         */
+        item_id: number;
+    };
+    query?: never;
+    url: '/api/v1/meetings/{meeting_id}/actions/{item_id}/review';
+};
+
+export type ReviewActionApiV1MeetingsMeetingIdActionsItemIdReviewPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReviewActionApiV1MeetingsMeetingIdActionsItemIdReviewPostError = ReviewActionApiV1MeetingsMeetingIdActionsItemIdReviewPostErrors[keyof ReviewActionApiV1MeetingsMeetingIdActionsItemIdReviewPostErrors];
+
+export type ReviewActionApiV1MeetingsMeetingIdActionsItemIdReviewPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: MeetingRecord;
+};
+
+export type ReviewActionApiV1MeetingsMeetingIdActionsItemIdReviewPostResponse = ReviewActionApiV1MeetingsMeetingIdActionsItemIdReviewPostResponses[keyof ReviewActionApiV1MeetingsMeetingIdActionsItemIdReviewPostResponses];
+
+export type SettleActionApiV1MeetingsMeetingIdActionsItemIdSettlePostData = {
+    body: SettleItemRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Meeting Id
+         */
+        meeting_id: string;
+        /**
+         * Item Id
+         */
+        item_id: number;
+    };
+    query?: never;
+    url: '/api/v1/meetings/{meeting_id}/actions/{item_id}/settle';
+};
+
+export type SettleActionApiV1MeetingsMeetingIdActionsItemIdSettlePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SettleActionApiV1MeetingsMeetingIdActionsItemIdSettlePostError = SettleActionApiV1MeetingsMeetingIdActionsItemIdSettlePostErrors[keyof SettleActionApiV1MeetingsMeetingIdActionsItemIdSettlePostErrors];
+
+export type SettleActionApiV1MeetingsMeetingIdActionsItemIdSettlePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: MeetingRecord;
+};
+
+export type SettleActionApiV1MeetingsMeetingIdActionsItemIdSettlePostResponse = SettleActionApiV1MeetingsMeetingIdActionsItemIdSettlePostResponses[keyof SettleActionApiV1MeetingsMeetingIdActionsItemIdSettlePostResponses];
+
+export type HelpOptionsApiV1HelpOptionsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/help/options';
+};
+
+export type HelpOptionsApiV1HelpOptionsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type HelpOptionsApiV1HelpOptionsGetError = HelpOptionsApiV1HelpOptionsGetErrors[keyof HelpOptionsApiV1HelpOptionsGetErrors];
+
+export type HelpOptionsApiV1HelpOptionsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: HelpOptions;
+};
+
+export type HelpOptionsApiV1HelpOptionsGetResponse = HelpOptionsApiV1HelpOptionsGetResponses[keyof HelpOptionsApiV1HelpOptionsGetResponses];
+
+export type SharePreviewApiV1HelpSharePreviewPostData = {
+    body: SharePreviewRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/help/share-preview';
+};
+
+export type SharePreviewApiV1HelpSharePreviewPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SharePreviewApiV1HelpSharePreviewPostError = SharePreviewApiV1HelpSharePreviewPostErrors[keyof SharePreviewApiV1HelpSharePreviewPostErrors];
+
+export type SharePreviewApiV1HelpSharePreviewPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: SharePreview;
+};
+
+export type SharePreviewApiV1HelpSharePreviewPostResponse = SharePreviewApiV1HelpSharePreviewPostResponses[keyof SharePreviewApiV1HelpSharePreviewPostResponses];
+
+export type MyTicketsApiV1HelpTicketsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/help/tickets';
+};
+
+export type MyTicketsApiV1HelpTicketsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MyTicketsApiV1HelpTicketsGetError = MyTicketsApiV1HelpTicketsGetErrors[keyof MyTicketsApiV1HelpTicketsGetErrors];
+
+export type MyTicketsApiV1HelpTicketsGetResponses = {
+    /**
+     * Response My Tickets Api V1 Help Tickets Get
+     *
+     * Successful Response
+     */
+    200: Array<TicketSummary>;
+};
+
+export type MyTicketsApiV1HelpTicketsGetResponse = MyTicketsApiV1HelpTicketsGetResponses[keyof MyTicketsApiV1HelpTicketsGetResponses];
+
+export type CreateTicketApiV1HelpTicketsPostData = {
+    body: TicketCreate;
+    headers?: {
+        /**
+         * Idempotency-Key
+         */
+        'Idempotency-Key'?: string | null;
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/help/tickets';
+};
+
+export type CreateTicketApiV1HelpTicketsPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateTicketApiV1HelpTicketsPostError = CreateTicketApiV1HelpTicketsPostErrors[keyof CreateTicketApiV1HelpTicketsPostErrors];
+
+export type CreateTicketApiV1HelpTicketsPostResponses = {
+    /**
+     * Successful Response
+     */
+    201: TicketCreated;
+};
+
+export type CreateTicketApiV1HelpTicketsPostResponse = CreateTicketApiV1HelpTicketsPostResponses[keyof CreateTicketApiV1HelpTicketsPostResponses];
+
+export type MyTicketApiV1HelpTicketsTicketIdGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Ticket Id
+         */
+        ticket_id: number;
+    };
+    query?: never;
+    url: '/api/v1/help/tickets/{ticket_id}';
+};
+
+export type MyTicketApiV1HelpTicketsTicketIdGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MyTicketApiV1HelpTicketsTicketIdGetError = MyTicketApiV1HelpTicketsTicketIdGetErrors[keyof MyTicketApiV1HelpTicketsTicketIdGetErrors];
+
+export type MyTicketApiV1HelpTicketsTicketIdGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: TicketDetail;
+};
+
+export type MyTicketApiV1HelpTicketsTicketIdGetResponse = MyTicketApiV1HelpTicketsTicketIdGetResponses[keyof MyTicketApiV1HelpTicketsTicketIdGetResponses];
+
+export type ReplyApiV1HelpTicketsTicketIdMessagesPostData = {
+    body: ReplyWrite;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Ticket Id
+         */
+        ticket_id: number;
+    };
+    query?: never;
+    url: '/api/v1/help/tickets/{ticket_id}/messages';
+};
+
+export type ReplyApiV1HelpTicketsTicketIdMessagesPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReplyApiV1HelpTicketsTicketIdMessagesPostError = ReplyApiV1HelpTicketsTicketIdMessagesPostErrors[keyof ReplyApiV1HelpTicketsTicketIdMessagesPostErrors];
+
+export type ReplyApiV1HelpTicketsTicketIdMessagesPostResponses = {
+    /**
+     * Successful Response
+     */
+    201: TicketMessage;
+};
+
+export type ReplyApiV1HelpTicketsTicketIdMessagesPostResponse = ReplyApiV1HelpTicketsTicketIdMessagesPostResponses[keyof ReplyApiV1HelpTicketsTicketIdMessagesPostResponses];
+
+export type ResolveApiV1HelpTicketsTicketIdResolvePostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Ticket Id
+         */
+        ticket_id: number;
+    };
+    query?: never;
+    url: '/api/v1/help/tickets/{ticket_id}/resolve';
+};
+
+export type ResolveApiV1HelpTicketsTicketIdResolvePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ResolveApiV1HelpTicketsTicketIdResolvePostError = ResolveApiV1HelpTicketsTicketIdResolvePostErrors[keyof ResolveApiV1HelpTicketsTicketIdResolvePostErrors];
+
+export type ResolveApiV1HelpTicketsTicketIdResolvePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: TicketDetail;
+};
+
+export type ResolveApiV1HelpTicketsTicketIdResolvePostResponse = ResolveApiV1HelpTicketsTicketIdResolvePostResponses[keyof ResolveApiV1HelpTicketsTicketIdResolvePostResponses];
+
+export type ReopenApiV1HelpTicketsTicketIdReopenPostData = {
+    body: ReopenWrite;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Ticket Id
+         */
+        ticket_id: number;
+    };
+    query?: never;
+    url: '/api/v1/help/tickets/{ticket_id}/reopen';
+};
+
+export type ReopenApiV1HelpTicketsTicketIdReopenPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReopenApiV1HelpTicketsTicketIdReopenPostError = ReopenApiV1HelpTicketsTicketIdReopenPostErrors[keyof ReopenApiV1HelpTicketsTicketIdReopenPostErrors];
+
+export type ReopenApiV1HelpTicketsTicketIdReopenPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: TicketDetail;
+};
+
+export type ReopenApiV1HelpTicketsTicketIdReopenPostResponse = ReopenApiV1HelpTicketsTicketIdReopenPostResponses[keyof ReopenApiV1HelpTicketsTicketIdReopenPostResponses];
+
+export type AttachApiV1HelpTicketsTicketIdAttachmentsPostData = {
+    body: BodyAttachApiV1HelpTicketsTicketIdAttachmentsPost;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Ticket Id
+         */
+        ticket_id: number;
+    };
+    query?: never;
+    url: '/api/v1/help/tickets/{ticket_id}/attachments';
+};
+
+export type AttachApiV1HelpTicketsTicketIdAttachmentsPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AttachApiV1HelpTicketsTicketIdAttachmentsPostError = AttachApiV1HelpTicketsTicketIdAttachmentsPostErrors[keyof AttachApiV1HelpTicketsTicketIdAttachmentsPostErrors];
+
+export type AttachApiV1HelpTicketsTicketIdAttachmentsPostResponses = {
+    /**
+     * Successful Response
+     */
+    201: TicketAttachment;
+};
+
+export type AttachApiV1HelpTicketsTicketIdAttachmentsPostResponse = AttachApiV1HelpTicketsTicketIdAttachmentsPostResponses[keyof AttachApiV1HelpTicketsTicketIdAttachmentsPostResponses];
+
+export type SupportQueueApiV1AdminSupportTicketsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Status
+         */
+        status?: string | null;
+        /**
+         * Assignee
+         */
+        assignee?: string | null;
+        /**
+         * Severity
+         */
+        severity?: string | null;
+        /**
+         * Overdue
+         */
+        overdue?: boolean;
+        /**
+         * Requester User Id
+         */
+        requester_user_id?: number | null;
+    };
+    url: '/api/v1/admin/support/tickets';
+};
+
+export type SupportQueueApiV1AdminSupportTicketsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SupportQueueApiV1AdminSupportTicketsGetError = SupportQueueApiV1AdminSupportTicketsGetErrors[keyof SupportQueueApiV1AdminSupportTicketsGetErrors];
+
+export type SupportQueueApiV1AdminSupportTicketsGetResponses = {
+    /**
+     * Response Support Queue Api V1 Admin Support Tickets Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SupportQueueApiV1AdminSupportTicketsGetResponse = SupportQueueApiV1AdminSupportTicketsGetResponses[keyof SupportQueueApiV1AdminSupportTicketsGetResponses];
+
+export type SupportCaseApiV1AdminSupportTicketsTicketIdGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Ticket Id
+         */
+        ticket_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/support/tickets/{ticket_id}';
+};
+
+export type SupportCaseApiV1AdminSupportTicketsTicketIdGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SupportCaseApiV1AdminSupportTicketsTicketIdGetError = SupportCaseApiV1AdminSupportTicketsTicketIdGetErrors[keyof SupportCaseApiV1AdminSupportTicketsTicketIdGetErrors];
+
+export type SupportCaseApiV1AdminSupportTicketsTicketIdGetResponses = {
+    /**
+     * Response Support Case Api V1 Admin Support Tickets  Ticket Id  Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SupportCaseApiV1AdminSupportTicketsTicketIdGetResponse = SupportCaseApiV1AdminSupportTicketsTicketIdGetResponses[keyof SupportCaseApiV1AdminSupportTicketsTicketIdGetResponses];
+
+export type SupportUpdateApiV1AdminSupportTicketsTicketIdPatchData = {
+    body: CaseUpdate;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Ticket Id
+         */
+        ticket_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/support/tickets/{ticket_id}';
+};
+
+export type SupportUpdateApiV1AdminSupportTicketsTicketIdPatchErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SupportUpdateApiV1AdminSupportTicketsTicketIdPatchError = SupportUpdateApiV1AdminSupportTicketsTicketIdPatchErrors[keyof SupportUpdateApiV1AdminSupportTicketsTicketIdPatchErrors];
+
+export type SupportUpdateApiV1AdminSupportTicketsTicketIdPatchResponses = {
+    /**
+     * Response Support Update Api V1 Admin Support Tickets  Ticket Id  Patch
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SupportUpdateApiV1AdminSupportTicketsTicketIdPatchResponse = SupportUpdateApiV1AdminSupportTicketsTicketIdPatchResponses[keyof SupportUpdateApiV1AdminSupportTicketsTicketIdPatchResponses];
+
+export type SupportReplyApiV1AdminSupportTicketsTicketIdRepliesPostData = {
+    body: StaffReply;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Ticket Id
+         */
+        ticket_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/support/tickets/{ticket_id}/replies';
+};
+
+export type SupportReplyApiV1AdminSupportTicketsTicketIdRepliesPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SupportReplyApiV1AdminSupportTicketsTicketIdRepliesPostError = SupportReplyApiV1AdminSupportTicketsTicketIdRepliesPostErrors[keyof SupportReplyApiV1AdminSupportTicketsTicketIdRepliesPostErrors];
+
+export type SupportReplyApiV1AdminSupportTicketsTicketIdRepliesPostResponses = {
+    /**
+     * Response Support Reply Api V1 Admin Support Tickets  Ticket Id  Replies Post
+     *
+     * Successful Response
+     */
+    201: {
+        [key: string]: unknown;
+    };
+};
+
+export type SupportReplyApiV1AdminSupportTicketsTicketIdRepliesPostResponse = SupportReplyApiV1AdminSupportTicketsTicketIdRepliesPostResponses[keyof SupportReplyApiV1AdminSupportTicketsTicketIdRepliesPostResponses];
+
+export type SupportNoteApiV1AdminSupportTicketsTicketIdNotesPostData = {
+    body: NoteWrite;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Ticket Id
+         */
+        ticket_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/support/tickets/{ticket_id}/notes';
+};
+
+export type SupportNoteApiV1AdminSupportTicketsTicketIdNotesPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SupportNoteApiV1AdminSupportTicketsTicketIdNotesPostError = SupportNoteApiV1AdminSupportTicketsTicketIdNotesPostErrors[keyof SupportNoteApiV1AdminSupportTicketsTicketIdNotesPostErrors];
+
+export type SupportNoteApiV1AdminSupportTicketsTicketIdNotesPostResponses = {
+    /**
+     * Response Support Note Api V1 Admin Support Tickets  Ticket Id  Notes Post
+     *
+     * Successful Response
+     */
+    201: {
+        [key: string]: unknown;
+    };
+};
+
+export type SupportNoteApiV1AdminSupportTicketsTicketIdNotesPostResponse = SupportNoteApiV1AdminSupportTicketsTicketIdNotesPostResponses[keyof SupportNoteApiV1AdminSupportTicketsTicketIdNotesPostResponses];
+
+export type AttachmentLinkApiV1AdminSupportAttachmentsAttachmentIdLinkGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Attachment Id
+         */
+        attachment_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/support/attachments/{attachment_id}/link';
+};
+
+export type AttachmentLinkApiV1AdminSupportAttachmentsAttachmentIdLinkGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AttachmentLinkApiV1AdminSupportAttachmentsAttachmentIdLinkGetError = AttachmentLinkApiV1AdminSupportAttachmentsAttachmentIdLinkGetErrors[keyof AttachmentLinkApiV1AdminSupportAttachmentsAttachmentIdLinkGetErrors];
+
+export type AttachmentLinkApiV1AdminSupportAttachmentsAttachmentIdLinkGetResponses = {
+    /**
+     * Response Attachment Link Api V1 Admin Support Attachments  Attachment Id  Link Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type AttachmentLinkApiV1AdminSupportAttachmentsAttachmentIdLinkGetResponse = AttachmentLinkApiV1AdminSupportAttachmentsAttachmentIdLinkGetResponses[keyof AttachmentLinkApiV1AdminSupportAttachmentsAttachmentIdLinkGetResponses];
+
+export type SupportStaffApiV1AdminSupportStaffGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/support/staff';
+};
+
+export type SupportStaffApiV1AdminSupportStaffGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SupportStaffApiV1AdminSupportStaffGetError = SupportStaffApiV1AdminSupportStaffGetErrors[keyof SupportStaffApiV1AdminSupportStaffGetErrors];
+
+export type SupportStaffApiV1AdminSupportStaffGetResponses = {
+    /**
+     * Response Support Staff Api V1 Admin Support Staff Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SupportStaffApiV1AdminSupportStaffGetResponse = SupportStaffApiV1AdminSupportStaffGetResponses[keyof SupportStaffApiV1AdminSupportStaffGetResponses];
+
+export type SupportSummaryApiV1AdminSupportSummaryGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Days
+         */
+        days?: number;
+    };
+    url: '/api/v1/admin/support/summary';
+};
+
+export type SupportSummaryApiV1AdminSupportSummaryGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SupportSummaryApiV1AdminSupportSummaryGetError = SupportSummaryApiV1AdminSupportSummaryGetErrors[keyof SupportSummaryApiV1AdminSupportSummaryGetErrors];
+
+export type SupportSummaryApiV1AdminSupportSummaryGetResponses = {
+    /**
+     * Response Support Summary Api V1 Admin Support Summary Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SupportSummaryApiV1AdminSupportSummaryGetResponse = SupportSummaryApiV1AdminSupportSummaryGetResponses[keyof SupportSummaryApiV1AdminSupportSummaryGetResponses];
+
+export type SupportCommandsApiV1AdminSupportActionsCommandsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Organization Id
+         */
+        organization_id?: number | null;
+    };
+    url: '/api/v1/admin/support/actions/commands';
+};
+
+export type SupportCommandsApiV1AdminSupportActionsCommandsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SupportCommandsApiV1AdminSupportActionsCommandsGetError = SupportCommandsApiV1AdminSupportActionsCommandsGetErrors[keyof SupportCommandsApiV1AdminSupportActionsCommandsGetErrors];
+
+export type SupportCommandsApiV1AdminSupportActionsCommandsGetResponses = {
+    /**
+     * Response Support Commands Api V1 Admin Support Actions Commands Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SupportCommandsApiV1AdminSupportActionsCommandsGetResponse = SupportCommandsApiV1AdminSupportActionsCommandsGetResponses[keyof SupportCommandsApiV1AdminSupportActionsCommandsGetResponses];
+
+export type SupportActionPreviewApiV1AdminSupportActionsPreviewPostData = {
+    body: ActionTarget;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/support/actions/preview';
+};
+
+export type SupportActionPreviewApiV1AdminSupportActionsPreviewPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SupportActionPreviewApiV1AdminSupportActionsPreviewPostError = SupportActionPreviewApiV1AdminSupportActionsPreviewPostErrors[keyof SupportActionPreviewApiV1AdminSupportActionsPreviewPostErrors];
+
+export type SupportActionPreviewApiV1AdminSupportActionsPreviewPostResponses = {
+    /**
+     * Response Support Action Preview Api V1 Admin Support Actions Preview Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SupportActionPreviewApiV1AdminSupportActionsPreviewPostResponse = SupportActionPreviewApiV1AdminSupportActionsPreviewPostResponses[keyof SupportActionPreviewApiV1AdminSupportActionsPreviewPostResponses];
+
+export type SupportActionListApiV1AdminSupportActionsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * State
+         */
+        state?: string | null;
+        /**
+         * Ticket Id
+         */
+        ticket_id?: number | null;
+    };
+    url: '/api/v1/admin/support/actions';
+};
+
+export type SupportActionListApiV1AdminSupportActionsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SupportActionListApiV1AdminSupportActionsGetError = SupportActionListApiV1AdminSupportActionsGetErrors[keyof SupportActionListApiV1AdminSupportActionsGetErrors];
+
+export type SupportActionListApiV1AdminSupportActionsGetResponses = {
+    /**
+     * Response Support Action List Api V1 Admin Support Actions Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SupportActionListApiV1AdminSupportActionsGetResponse = SupportActionListApiV1AdminSupportActionsGetResponses[keyof SupportActionListApiV1AdminSupportActionsGetResponses];
+
+export type SupportActionRequestApiV1AdminSupportActionsPostData = {
+    body: ActionRequest;
+    headers?: {
+        /**
+         * Idempotency-Key
+         */
+        'Idempotency-Key'?: string | null;
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/support/actions';
+};
+
+export type SupportActionRequestApiV1AdminSupportActionsPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SupportActionRequestApiV1AdminSupportActionsPostError = SupportActionRequestApiV1AdminSupportActionsPostErrors[keyof SupportActionRequestApiV1AdminSupportActionsPostErrors];
+
+export type SupportActionRequestApiV1AdminSupportActionsPostResponses = {
+    /**
+     * Response Support Action Request Api V1 Admin Support Actions Post
+     *
+     * Successful Response
+     */
+    201: {
+        [key: string]: unknown;
+    };
+};
+
+export type SupportActionRequestApiV1AdminSupportActionsPostResponse = SupportActionRequestApiV1AdminSupportActionsPostResponses[keyof SupportActionRequestApiV1AdminSupportActionsPostResponses];
+
+export type SupportActionApiV1AdminSupportActionsActionIdGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Action Id
+         */
+        action_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/support/actions/{action_id}';
+};
+
+export type SupportActionApiV1AdminSupportActionsActionIdGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SupportActionApiV1AdminSupportActionsActionIdGetError = SupportActionApiV1AdminSupportActionsActionIdGetErrors[keyof SupportActionApiV1AdminSupportActionsActionIdGetErrors];
+
+export type SupportActionApiV1AdminSupportActionsActionIdGetResponses = {
+    /**
+     * Response Support Action Api V1 Admin Support Actions  Action Id  Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SupportActionApiV1AdminSupportActionsActionIdGetResponse = SupportActionApiV1AdminSupportActionsActionIdGetResponses[keyof SupportActionApiV1AdminSupportActionsActionIdGetResponses];
+
+export type SupportActionApproveApiV1AdminSupportActionsActionIdApprovePostData = {
+    body: Approve;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Action Id
+         */
+        action_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/support/actions/{action_id}/approve';
+};
+
+export type SupportActionApproveApiV1AdminSupportActionsActionIdApprovePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SupportActionApproveApiV1AdminSupportActionsActionIdApprovePostError = SupportActionApproveApiV1AdminSupportActionsActionIdApprovePostErrors[keyof SupportActionApproveApiV1AdminSupportActionsActionIdApprovePostErrors];
+
+export type SupportActionApproveApiV1AdminSupportActionsActionIdApprovePostResponses = {
+    /**
+     * Response Support Action Approve Api V1 Admin Support Actions  Action Id  Approve Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SupportActionApproveApiV1AdminSupportActionsActionIdApprovePostResponse = SupportActionApproveApiV1AdminSupportActionsActionIdApprovePostResponses[keyof SupportActionApproveApiV1AdminSupportActionsActionIdApprovePostResponses];
+
+export type SupportActionRejectApiV1AdminSupportActionsActionIdRejectPostData = {
+    body: Reject;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Action Id
+         */
+        action_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/support/actions/{action_id}/reject';
+};
+
+export type SupportActionRejectApiV1AdminSupportActionsActionIdRejectPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SupportActionRejectApiV1AdminSupportActionsActionIdRejectPostError = SupportActionRejectApiV1AdminSupportActionsActionIdRejectPostErrors[keyof SupportActionRejectApiV1AdminSupportActionsActionIdRejectPostErrors];
+
+export type SupportActionRejectApiV1AdminSupportActionsActionIdRejectPostResponses = {
+    /**
+     * Response Support Action Reject Api V1 Admin Support Actions  Action Id  Reject Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SupportActionRejectApiV1AdminSupportActionsActionIdRejectPostResponse = SupportActionRejectApiV1AdminSupportActionsActionIdRejectPostResponses[keyof SupportActionRejectApiV1AdminSupportActionsActionIdRejectPostResponses];
+
+export type SupportActionWithdrawApiV1AdminSupportActionsActionIdWithdrawPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Action Id
+         */
+        action_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/support/actions/{action_id}/withdraw';
+};
+
+export type SupportActionWithdrawApiV1AdminSupportActionsActionIdWithdrawPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SupportActionWithdrawApiV1AdminSupportActionsActionIdWithdrawPostError = SupportActionWithdrawApiV1AdminSupportActionsActionIdWithdrawPostErrors[keyof SupportActionWithdrawApiV1AdminSupportActionsActionIdWithdrawPostErrors];
+
+export type SupportActionWithdrawApiV1AdminSupportActionsActionIdWithdrawPostResponses = {
+    /**
+     * Response Support Action Withdraw Api V1 Admin Support Actions  Action Id  Withdraw Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SupportActionWithdrawApiV1AdminSupportActionsActionIdWithdrawPostResponse = SupportActionWithdrawApiV1AdminSupportActionsActionIdWithdrawPostResponses[keyof SupportActionWithdrawApiV1AdminSupportActionsActionIdWithdrawPostResponses];
+
+export type SupportActionReviseApiV1AdminSupportActionsActionIdRevisePostData = {
+    body: Revise;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Action Id
+         */
+        action_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/support/actions/{action_id}/revise';
+};
+
+export type SupportActionReviseApiV1AdminSupportActionsActionIdRevisePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SupportActionReviseApiV1AdminSupportActionsActionIdRevisePostError = SupportActionReviseApiV1AdminSupportActionsActionIdRevisePostErrors[keyof SupportActionReviseApiV1AdminSupportActionsActionIdRevisePostErrors];
+
+export type SupportActionReviseApiV1AdminSupportActionsActionIdRevisePostResponses = {
+    /**
+     * Response Support Action Revise Api V1 Admin Support Actions  Action Id  Revise Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SupportActionReviseApiV1AdminSupportActionsActionIdRevisePostResponse = SupportActionReviseApiV1AdminSupportActionsActionIdRevisePostResponses[keyof SupportActionReviseApiV1AdminSupportActionsActionIdRevisePostResponses];
+
+export type SupportActionRunApiV1AdminSupportActionsActionIdRunPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Action Id
+         */
+        action_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/support/actions/{action_id}/run';
+};
+
+export type SupportActionRunApiV1AdminSupportActionsActionIdRunPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SupportActionRunApiV1AdminSupportActionsActionIdRunPostError = SupportActionRunApiV1AdminSupportActionsActionIdRunPostErrors[keyof SupportActionRunApiV1AdminSupportActionsActionIdRunPostErrors];
+
+export type SupportActionRunApiV1AdminSupportActionsActionIdRunPostResponses = {
+    /**
+     * Response Support Action Run Api V1 Admin Support Actions  Action Id  Run Post
+     *
+     * Successful Response
+     */
+    202: {
+        [key: string]: unknown;
+    };
+};
+
+export type SupportActionRunApiV1AdminSupportActionsActionIdRunPostResponse = SupportActionRunApiV1AdminSupportActionsActionIdRunPostResponses[keyof SupportActionRunApiV1AdminSupportActionsActionIdRunPostResponses];
+
+export type SupportActionReconcileApiV1AdminSupportActionsActionIdReconcilePostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Action Id
+         */
+        action_id: number;
+    };
+    query?: never;
+    url: '/api/v1/admin/support/actions/{action_id}/reconcile';
+};
+
+export type SupportActionReconcileApiV1AdminSupportActionsActionIdReconcilePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SupportActionReconcileApiV1AdminSupportActionsActionIdReconcilePostError = SupportActionReconcileApiV1AdminSupportActionsActionIdReconcilePostErrors[keyof SupportActionReconcileApiV1AdminSupportActionsActionIdReconcilePostErrors];
+
+export type SupportActionReconcileApiV1AdminSupportActionsActionIdReconcilePostResponses = {
+    /**
+     * Response Support Action Reconcile Api V1 Admin Support Actions  Action Id  Reconcile Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SupportActionReconcileApiV1AdminSupportActionsActionIdReconcilePostResponse = SupportActionReconcileApiV1AdminSupportActionsActionIdReconcilePostResponses[keyof SupportActionReconcileApiV1AdminSupportActionsActionIdReconcilePostResponses];
+
+export type MyIdentityCardsApiV1MeIdentityCardsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/me/identity-cards';
+};
+
+export type MyIdentityCardsApiV1MeIdentityCardsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MyIdentityCardsApiV1MeIdentityCardsGetError = MyIdentityCardsApiV1MeIdentityCardsGetErrors[keyof MyIdentityCardsApiV1MeIdentityCardsGetErrors];
+
+export type MyIdentityCardsApiV1MeIdentityCardsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: IdentityCards;
+};
+
+export type MyIdentityCardsApiV1MeIdentityCardsGetResponse = MyIdentityCardsApiV1MeIdentityCardsGetResponses[keyof MyIdentityCardsApiV1MeIdentityCardsGetResponses];
+
+export type SayWhetherItArrivedApiV1MeOutcomesEventIdPostData = {
+    body: OutcomeAnswer;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Event Id
+         */
+        event_id: number;
+    };
+    query?: never;
+    url: '/api/v1/me/outcomes/{event_id}';
+};
+
+export type SayWhetherItArrivedApiV1MeOutcomesEventIdPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SayWhetherItArrivedApiV1MeOutcomesEventIdPostError = SayWhetherItArrivedApiV1MeOutcomesEventIdPostErrors[keyof SayWhetherItArrivedApiV1MeOutcomesEventIdPostErrors];
+
+export type SayWhetherItArrivedApiV1MeOutcomesEventIdPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: OutcomeSettled;
+};
+
+export type SayWhetherItArrivedApiV1MeOutcomesEventIdPostResponse = SayWhetherItArrivedApiV1MeOutcomesEventIdPostResponses[keyof SayWhetherItArrivedApiV1MeOutcomesEventIdPostResponses];
+
+export type MyConnectionsApiV1MeConnectionsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/me/connections';
+};
+
+export type MyConnectionsApiV1MeConnectionsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MyConnectionsApiV1MeConnectionsGetError = MyConnectionsApiV1MeConnectionsGetErrors[keyof MyConnectionsApiV1MeConnectionsGetErrors];
+
+export type MyConnectionsApiV1MeConnectionsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: ConnectionsResponse;
+};
+
+export type MyConnectionsApiV1MeConnectionsGetResponse = MyConnectionsApiV1MeConnectionsGetResponses[keyof MyConnectionsApiV1MeConnectionsGetResponses];
+
+export type PreviewConnectionApiV1MeConnectionsPreviewGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query: {
+        /**
+         * Toolkit
+         */
+        toolkit: string;
+    };
+    url: '/api/v1/me/connections/preview';
+};
+
+export type PreviewConnectionApiV1MeConnectionsPreviewGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type PreviewConnectionApiV1MeConnectionsPreviewGetError = PreviewConnectionApiV1MeConnectionsPreviewGetErrors[keyof PreviewConnectionApiV1MeConnectionsPreviewGetErrors];
+
+export type PreviewConnectionApiV1MeConnectionsPreviewGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: ConnectionPreview;
+};
+
+export type PreviewConnectionApiV1MeConnectionsPreviewGetResponse = PreviewConnectionApiV1MeConnectionsPreviewGetResponses[keyof PreviewConnectionApiV1MeConnectionsPreviewGetResponses];
+
+export type StartConnectionApiV1MeConnectionsStartPostData = {
+    body: StartConnection;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/me/connections/start';
+};
+
+export type StartConnectionApiV1MeConnectionsStartPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type StartConnectionApiV1MeConnectionsStartPostError = StartConnectionApiV1MeConnectionsStartPostErrors[keyof StartConnectionApiV1MeConnectionsStartPostErrors];
+
+export type StartConnectionApiV1MeConnectionsStartPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: StartedConnection;
+};
+
+export type StartConnectionApiV1MeConnectionsStartPostResponse = StartConnectionApiV1MeConnectionsStartPostResponses[keyof StartConnectionApiV1MeConnectionsStartPostResponses];
+
+export type CompleteConnectionApiV1MeConnectionsConsentsConsentIdCompletePostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Consent Id
+         */
+        consent_id: number;
+    };
+    query?: never;
+    url: '/api/v1/me/connections/consents/{consent_id}/complete';
+};
+
+export type CompleteConnectionApiV1MeConnectionsConsentsConsentIdCompletePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CompleteConnectionApiV1MeConnectionsConsentsConsentIdCompletePostError = CompleteConnectionApiV1MeConnectionsConsentsConsentIdCompletePostErrors[keyof CompleteConnectionApiV1MeConnectionsConsentsConsentIdCompletePostErrors];
+
+export type CompleteConnectionApiV1MeConnectionsConsentsConsentIdCompletePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: ConsentView;
+};
+
+export type CompleteConnectionApiV1MeConnectionsConsentsConsentIdCompletePostResponse = CompleteConnectionApiV1MeConnectionsConsentsConsentIdCompletePostResponses[keyof CompleteConnectionApiV1MeConnectionsConsentsConsentIdCompletePostResponses];
+
+export type ProposeDisconnectApiV1MeConnectionsDisconnectPostData = {
+    body: Disconnect;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/me/connections/disconnect';
+};
+
+export type ProposeDisconnectApiV1MeConnectionsDisconnectPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ProposeDisconnectApiV1MeConnectionsDisconnectPostError = ProposeDisconnectApiV1MeConnectionsDisconnectPostErrors[keyof ProposeDisconnectApiV1MeConnectionsDisconnectPostErrors];
+
+export type ProposeDisconnectApiV1MeConnectionsDisconnectPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: IdentityCard;
+};
+
+export type ProposeDisconnectApiV1MeConnectionsDisconnectPostResponse = ProposeDisconnectApiV1MeConnectionsDisconnectPostResponses[keyof ProposeDisconnectApiV1MeConnectionsDisconnectPostResponses];
+
+export type MyEmailIdentityApiV1MeEmailIdentityGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/me/email-identity';
+};
+
+export type MyEmailIdentityApiV1MeEmailIdentityGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MyEmailIdentityApiV1MeEmailIdentityGetError = MyEmailIdentityApiV1MeEmailIdentityGetErrors[keyof MyEmailIdentityApiV1MeEmailIdentityGetErrors];
+
+export type MyEmailIdentityApiV1MeEmailIdentityGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: EmailIdentityView;
+};
+
+export type MyEmailIdentityApiV1MeEmailIdentityGetResponse = MyEmailIdentityApiV1MeEmailIdentityGetResponses[keyof MyEmailIdentityApiV1MeEmailIdentityGetResponses];
+
+export type CheckAliasApiV1MeEmailIdentityCheckPostData = {
+    body: AliasRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/me/email-identity/check';
+};
+
+export type CheckAliasApiV1MeEmailIdentityCheckPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CheckAliasApiV1MeEmailIdentityCheckPostError = CheckAliasApiV1MeEmailIdentityCheckPostErrors[keyof CheckAliasApiV1MeEmailIdentityCheckPostErrors];
+
+export type CheckAliasApiV1MeEmailIdentityCheckPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: AliasCheck;
+};
+
+export type CheckAliasApiV1MeEmailIdentityCheckPostResponse = CheckAliasApiV1MeEmailIdentityCheckPostResponses[keyof CheckAliasApiV1MeEmailIdentityCheckPostResponses];
+
+export type ReserveAliasApiV1MeEmailIdentityReservePostData = {
+    body: AliasRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/me/email-identity/reserve';
+};
+
+export type ReserveAliasApiV1MeEmailIdentityReservePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReserveAliasApiV1MeEmailIdentityReservePostError = ReserveAliasApiV1MeEmailIdentityReservePostErrors[keyof ReserveAliasApiV1MeEmailIdentityReservePostErrors];
+
+export type ReserveAliasApiV1MeEmailIdentityReservePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: EmailIdentityView;
+};
+
+export type ReserveAliasApiV1MeEmailIdentityReservePostResponse = ReserveAliasApiV1MeEmailIdentityReservePostResponses[keyof ReserveAliasApiV1MeEmailIdentityReservePostResponses];
+
+export type ProvisionAliasApiV1MeEmailIdentityProvisionPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/me/email-identity/provision';
+};
+
+export type ProvisionAliasApiV1MeEmailIdentityProvisionPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ProvisionAliasApiV1MeEmailIdentityProvisionPostError = ProvisionAliasApiV1MeEmailIdentityProvisionPostErrors[keyof ProvisionAliasApiV1MeEmailIdentityProvisionPostErrors];
+
+export type ProvisionAliasApiV1MeEmailIdentityProvisionPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: EmailIdentityView;
+};
+
+export type ProvisionAliasApiV1MeEmailIdentityProvisionPostResponse = ProvisionAliasApiV1MeEmailIdentityProvisionPostResponses[keyof ProvisionAliasApiV1MeEmailIdentityProvisionPostResponses];
+
+export type ReleaseAliasApiV1MeEmailIdentityReleasePostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/me/email-identity/release';
+};
+
+export type ReleaseAliasApiV1MeEmailIdentityReleasePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReleaseAliasApiV1MeEmailIdentityReleasePostError = ReleaseAliasApiV1MeEmailIdentityReleasePostErrors[keyof ReleaseAliasApiV1MeEmailIdentityReleasePostErrors];
+
+export type ReleaseAliasApiV1MeEmailIdentityReleasePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: EmailIdentityView;
+};
+
+export type ReleaseAliasApiV1MeEmailIdentityReleasePostResponse = ReleaseAliasApiV1MeEmailIdentityReleasePostResponses[keyof ReleaseAliasApiV1MeEmailIdentityReleasePostResponses];
+
+export type ProposeSendApiV1MeEmailIdentitySendPostData = {
+    body: SendFromAddress;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/me/email-identity/send';
+};
+
+export type ProposeSendApiV1MeEmailIdentitySendPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ProposeSendApiV1MeEmailIdentitySendPostError = ProposeSendApiV1MeEmailIdentitySendPostErrors[keyof ProposeSendApiV1MeEmailIdentitySendPostErrors];
+
+export type ProposeSendApiV1MeEmailIdentitySendPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: IdentityCard;
+};
+
+export type ProposeSendApiV1MeEmailIdentitySendPostResponse = ProposeSendApiV1MeEmailIdentitySendPostResponses[keyof ProposeSendApiV1MeEmailIdentitySendPostResponses];
+
+export type CardInterestApiV1MeCardInterestPutData = {
+    body: CardInterest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/me/card-interest';
+};
+
+export type CardInterestApiV1MeCardInterestPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CardInterestApiV1MeCardInterestPutError = CardInterestApiV1MeCardInterestPutErrors[keyof CardInterestApiV1MeCardInterestPutErrors];
+
+export type CardInterestApiV1MeCardInterestPutResponses = {
+    /**
+     * Successful Response
+     */
+    200: CardInterest;
+};
+
+export type CardInterestApiV1MeCardInterestPutResponse = CardInterestApiV1MeCardInterestPutResponses[keyof CardInterestApiV1MeCardInterestPutResponses];
+
+export type EmailIdentityInboundApiV1PublicEmailIdentityInboundPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * X-Decibyl-Signature
+         */
+        'x-decibyl-signature'?: string | null;
+        /**
+         * X-Decibyl-Timestamp
+         */
+        'x-decibyl-timestamp'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/public/email-identity/inbound';
+};
+
+export type EmailIdentityInboundApiV1PublicEmailIdentityInboundPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type EmailIdentityInboundApiV1PublicEmailIdentityInboundPostError = EmailIdentityInboundApiV1PublicEmailIdentityInboundPostErrors[keyof EmailIdentityInboundApiV1PublicEmailIdentityInboundPostErrors];
+
+export type EmailIdentityInboundApiV1PublicEmailIdentityInboundPostResponses = {
+    /**
+     * Response Email Identity Inbound Api V1 Public Email Identity Inbound Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: string;
+    };
+};
+
+export type EmailIdentityInboundApiV1PublicEmailIdentityInboundPostResponse = EmailIdentityInboundApiV1PublicEmailIdentityInboundPostResponses[keyof EmailIdentityInboundApiV1PublicEmailIdentityInboundPostResponses];
+
+export type EmailIdentityEventsApiV1PublicEmailIdentityEventsPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * X-Decibyl-Signature
+         */
+        'x-decibyl-signature'?: string | null;
+        /**
+         * X-Decibyl-Timestamp
+         */
+        'x-decibyl-timestamp'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/public/email-identity/events';
+};
+
+export type EmailIdentityEventsApiV1PublicEmailIdentityEventsPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type EmailIdentityEventsApiV1PublicEmailIdentityEventsPostError = EmailIdentityEventsApiV1PublicEmailIdentityEventsPostErrors[keyof EmailIdentityEventsApiV1PublicEmailIdentityEventsPostErrors];
+
+export type EmailIdentityEventsApiV1PublicEmailIdentityEventsPostResponses = {
+    /**
+     * Response Email Identity Events Api V1 Public Email Identity Events Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: number;
+    };
+};
+
+export type EmailIdentityEventsApiV1PublicEmailIdentityEventsPostResponse = EmailIdentityEventsApiV1PublicEmailIdentityEventsPostResponses[keyof EmailIdentityEventsApiV1PublicEmailIdentityEventsPostResponses];
+
+export type MyPhoneIdentityApiV1MePhoneIdentityGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/me/phone-identity';
+};
+
+export type MyPhoneIdentityApiV1MePhoneIdentityGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MyPhoneIdentityApiV1MePhoneIdentityGetError = MyPhoneIdentityApiV1MePhoneIdentityGetErrors[keyof MyPhoneIdentityApiV1MePhoneIdentityGetErrors];
+
+export type MyPhoneIdentityApiV1MePhoneIdentityGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: PhoneIdentityView;
+};
+
+export type MyPhoneIdentityApiV1MePhoneIdentityGetResponse = MyPhoneIdentityApiV1MePhoneIdentityGetResponses[keyof MyPhoneIdentityApiV1MePhoneIdentityGetResponses];
+
+export type ProposeNumberApiV1MePhoneIdentityRequestPostData = {
+    body: NumberRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/me/phone-identity/request';
+};
+
+export type ProposeNumberApiV1MePhoneIdentityRequestPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ProposeNumberApiV1MePhoneIdentityRequestPostError = ProposeNumberApiV1MePhoneIdentityRequestPostErrors[keyof ProposeNumberApiV1MePhoneIdentityRequestPostErrors];
+
+export type ProposeNumberApiV1MePhoneIdentityRequestPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: IdentityCard;
+};
+
+export type ProposeNumberApiV1MePhoneIdentityRequestPostResponse = ProposeNumberApiV1MePhoneIdentityRequestPostResponses[keyof ProposeNumberApiV1MePhoneIdentityRequestPostResponses];
+
+export type RecordReadinessApiV1MePhoneIdentityNumbersPhoneNumberIdReadinessPostData = {
+    body: Readiness;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Phone Number Id
+         */
+        phone_number_id: number;
+    };
+    query?: never;
+    url: '/api/v1/me/phone-identity/numbers/{phone_number_id}/readiness';
+};
+
+export type RecordReadinessApiV1MePhoneIdentityNumbersPhoneNumberIdReadinessPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RecordReadinessApiV1MePhoneIdentityNumbersPhoneNumberIdReadinessPostError = RecordReadinessApiV1MePhoneIdentityNumbersPhoneNumberIdReadinessPostErrors[keyof RecordReadinessApiV1MePhoneIdentityNumbersPhoneNumberIdReadinessPostErrors];
+
+export type RecordReadinessApiV1MePhoneIdentityNumbersPhoneNumberIdReadinessPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: PhoneIdentityView;
+};
+
+export type RecordReadinessApiV1MePhoneIdentityNumbersPhoneNumberIdReadinessPostResponse = RecordReadinessApiV1MePhoneIdentityNumbersPhoneNumberIdReadinessPostResponses[keyof RecordReadinessApiV1MePhoneIdentityNumbersPhoneNumberIdReadinessPostResponses];
+
+export type MyNotificationsApiV1MeNotificationsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/me/notifications';
+};
+
+export type MyNotificationsApiV1MeNotificationsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MyNotificationsApiV1MeNotificationsGetError = MyNotificationsApiV1MeNotificationsGetErrors[keyof MyNotificationsApiV1MeNotificationsGetErrors];
+
+export type MyNotificationsApiV1MeNotificationsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: NotificationsView;
+};
+
+export type MyNotificationsApiV1MeNotificationsGetResponse = MyNotificationsApiV1MeNotificationsGetResponses[keyof MyNotificationsApiV1MeNotificationsGetResponses];
+
+export type SaveNotificationsApiV1MeNotificationsPutData = {
+    body: NotificationsChange;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/me/notifications';
+};
+
+export type SaveNotificationsApiV1MeNotificationsPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SaveNotificationsApiV1MeNotificationsPutError = SaveNotificationsApiV1MeNotificationsPutErrors[keyof SaveNotificationsApiV1MeNotificationsPutErrors];
+
+export type SaveNotificationsApiV1MeNotificationsPutResponses = {
+    /**
+     * Successful Response
+     */
+    200: NotificationsView;
+};
+
+export type SaveNotificationsApiV1MeNotificationsPutResponse = SaveNotificationsApiV1MeNotificationsPutResponses[keyof SaveNotificationsApiV1MeNotificationsPutResponses];
+
+export type AddPushSubscriptionApiV1MePushSubscriptionsPostData = {
+    body: PushSubscription;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/me/push-subscriptions';
+};
+
+export type AddPushSubscriptionApiV1MePushSubscriptionsPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AddPushSubscriptionApiV1MePushSubscriptionsPostError = AddPushSubscriptionApiV1MePushSubscriptionsPostErrors[keyof AddPushSubscriptionApiV1MePushSubscriptionsPostErrors];
+
+export type AddPushSubscriptionApiV1MePushSubscriptionsPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: NotificationsView;
+};
+
+export type AddPushSubscriptionApiV1MePushSubscriptionsPostResponse = AddPushSubscriptionApiV1MePushSubscriptionsPostResponses[keyof AddPushSubscriptionApiV1MePushSubscriptionsPostResponses];
+
+export type RemovePushSubscriptionApiV1MePushSubscriptionsSubscriptionIdDeleteData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Subscription Id
+         */
+        subscription_id: number;
+    };
+    query?: never;
+    url: '/api/v1/me/push-subscriptions/{subscription_id}';
+};
+
+export type RemovePushSubscriptionApiV1MePushSubscriptionsSubscriptionIdDeleteErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RemovePushSubscriptionApiV1MePushSubscriptionsSubscriptionIdDeleteError = RemovePushSubscriptionApiV1MePushSubscriptionsSubscriptionIdDeleteErrors[keyof RemovePushSubscriptionApiV1MePushSubscriptionsSubscriptionIdDeleteErrors];
+
+export type RemovePushSubscriptionApiV1MePushSubscriptionsSubscriptionIdDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    200: NotificationsView;
+};
+
+export type RemovePushSubscriptionApiV1MePushSubscriptionsSubscriptionIdDeleteResponse = RemovePushSubscriptionApiV1MePushSubscriptionsSubscriptionIdDeleteResponses[keyof RemovePushSubscriptionApiV1MePushSubscriptionsSubscriptionIdDeleteResponses];
+
+export type TestNotificationApiV1MeNotificationsTestPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/me/notifications/test';
+};
+
+export type TestNotificationApiV1MeNotificationsTestPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type TestNotificationApiV1MeNotificationsTestPostError = TestNotificationApiV1MeNotificationsTestPostErrors[keyof TestNotificationApiV1MeNotificationsTestPostErrors];
+
+export type TestNotificationApiV1MeNotificationsTestPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: TestResult;
+};
+
+export type TestNotificationApiV1MeNotificationsTestPostResponse = TestNotificationApiV1MeNotificationsTestPostResponses[keyof TestNotificationApiV1MeNotificationsTestPostResponses];
+
+export type ListMobileDevicesApiV1MeMobilePushDevicesGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/me/mobile-push/devices';
+};
+
+export type ListMobileDevicesApiV1MeMobilePushDevicesGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListMobileDevicesApiV1MeMobilePushDevicesGetError = ListMobileDevicesApiV1MeMobilePushDevicesGetErrors[keyof ListMobileDevicesApiV1MeMobilePushDevicesGetErrors];
+
+export type ListMobileDevicesApiV1MeMobilePushDevicesGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: MobileDevices;
+};
+
+export type ListMobileDevicesApiV1MeMobilePushDevicesGetResponse = ListMobileDevicesApiV1MeMobilePushDevicesGetResponses[keyof ListMobileDevicesApiV1MeMobilePushDevicesGetResponses];
+
+export type RegisterMobileTokenApiV1MeMobilePushTokensPostData = {
+    body: MobileTokenRegistration;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/me/mobile-push/tokens';
+};
+
+export type RegisterMobileTokenApiV1MeMobilePushTokensPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RegisterMobileTokenApiV1MeMobilePushTokensPostError = RegisterMobileTokenApiV1MeMobilePushTokensPostErrors[keyof RegisterMobileTokenApiV1MeMobilePushTokensPostErrors];
+
+export type RegisterMobileTokenApiV1MeMobilePushTokensPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: MobileDevice;
+};
+
+export type RegisterMobileTokenApiV1MeMobilePushTokensPostResponse = RegisterMobileTokenApiV1MeMobilePushTokensPostResponses[keyof RegisterMobileTokenApiV1MeMobilePushTokensPostResponses];
+
+export type UnregisterMobileTokenApiV1MeMobilePushTokensRemovePostData = {
+    body: MobileTokenRemoval;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/me/mobile-push/tokens/remove';
+};
+
+export type UnregisterMobileTokenApiV1MeMobilePushTokensRemovePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UnregisterMobileTokenApiV1MeMobilePushTokensRemovePostError = UnregisterMobileTokenApiV1MeMobilePushTokensRemovePostErrors[keyof UnregisterMobileTokenApiV1MeMobilePushTokensRemovePostErrors];
+
+export type UnregisterMobileTokenApiV1MeMobilePushTokensRemovePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: MobileTokenRemoved;
+};
+
+export type UnregisterMobileTokenApiV1MeMobilePushTokensRemovePostResponse = UnregisterMobileTokenApiV1MeMobilePushTokensRemovePostResponses[keyof UnregisterMobileTokenApiV1MeMobilePushTokensRemovePostResponses];
+
+export type RemoveMobileDeviceApiV1MeMobilePushDevicesDeviceIdDeleteData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Device Id
+         */
+        device_id: number;
+    };
+    query?: never;
+    url: '/api/v1/me/mobile-push/devices/{device_id}';
+};
+
+export type RemoveMobileDeviceApiV1MeMobilePushDevicesDeviceIdDeleteErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RemoveMobileDeviceApiV1MeMobilePushDevicesDeviceIdDeleteError = RemoveMobileDeviceApiV1MeMobilePushDevicesDeviceIdDeleteErrors[keyof RemoveMobileDeviceApiV1MeMobilePushDevicesDeviceIdDeleteErrors];
+
+export type RemoveMobileDeviceApiV1MeMobilePushDevicesDeviceIdDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    200: MobileDevices;
+};
+
+export type RemoveMobileDeviceApiV1MeMobilePushDevicesDeviceIdDeleteResponse = RemoveMobileDeviceApiV1MeMobilePushDevicesDeviceIdDeleteResponses[keyof RemoveMobileDeviceApiV1MeMobilePushDevicesDeviceIdDeleteResponses];
 
 export type PublicShelfApiV1PublicMarketplaceGetData = {
     body?: never;

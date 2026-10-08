@@ -23,6 +23,23 @@ from api.services.workflow.pipecat_engine_context_composer import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _a_move_is_a_payload_write(monkeypatch):
+    """These tests stand in for the card's storage with
+    ``set_agent_event_payload``. A state change is a compare-and-swap now
+    (``transition_agent_event_payload``); route it through the same stand-in
+    so each test still sees every write. The swap itself is tested against
+    the database in test_an_approved_action_runs_once.py."""
+    from api.db import db_client as _db
+
+    async def move(event_id, *, organization_id, from_state, payload):
+        return await _db.set_agent_event_payload(
+            event_id, organization_id=organization_id, payload=payload
+        )
+
+    monkeypatch.setattr(_db, "transition_agent_event_payload", move, raising=False)
+
+
 def node():
     return SimpleNamespace(
         out_edges=[],

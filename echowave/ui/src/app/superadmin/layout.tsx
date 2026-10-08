@@ -3,8 +3,7 @@ import type { ReactNode } from "react";
 
 import { serverStaffRole } from "@/lib/auth/staff";
 
-import { SuperadminGate } from "./SuperadminGate";
-import { SuperadminNav } from "./SuperadminNav";
+import { SuperadminChrome } from "./SuperadminChrome";
 
 /**
  * The staff area, closed to everyone else.
@@ -17,8 +16,10 @@ import { SuperadminNav } from "./SuperadminNav";
  *    An *unknown* answer (no server-side token, a transient backend error)
  *    is not treated as a refusal: it falls through to the client gate, so a
  *    blip never bounces a real superadmin.
- *  - **Client (`SuperadminGate`).** The flicker-free refusal, and the
- *    support-vs-superadmin split: support renders only the KYC review queue.
+ *  - **Client (`SuperadminChrome`).** With `staff_console` off, the
+ *    flicker-free `SuperadminGate` and its support-vs-superadmin split
+ *    (support renders only the KYC review queue). With it on, the staff
+ *    console's shell, which draws each destination by the person's roles.
  *
  * Neither is the security boundary — every route behind these screens is
  * enforced on the server with `get_superuser` or `get_staff`. This is about
@@ -35,10 +36,5 @@ export default async function SuperadminLayout({
         redirect("/overview");
     }
 
-    return (
-        <SuperadminGate>
-            <SuperadminNav />
-            {children}
-        </SuperadminGate>
-    );
+    return <SuperadminChrome>{children}</SuperadminChrome>;
 }

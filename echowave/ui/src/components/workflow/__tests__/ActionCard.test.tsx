@@ -153,6 +153,25 @@ describe("once done", () => {
         );
     });
 
+    it("a built chat agent opens its own chat, and has no Hear it", () => {
+        render(
+            <ActionCard
+                event={event({
+                    action: "build_from_spec",
+                    label: "Build Research agent from the spec",
+                    reversible: false,
+                    state: "done",
+                    done: { note: "Built Research agent — 5 steps." },
+                    result: { workflow_id: 7, handle: "research-agent", channel: "chat" },
+                })}
+            />,
+        );
+        expect(screen.getByRole("link", { name: /Open its chat/ }).getAttribute("href")).toBe(
+            "/workflow/7/thread",
+        );
+        expect(screen.queryByRole("link", { name: /Hear it/ })).toBeNull();
+    });
+
     it("a placed call says it cannot be undone and offers nothing", () => {
         render(
             <ActionCard
@@ -173,5 +192,149 @@ describe("once done", () => {
         render(<ActionCard event={event({ state: "failed", error: "Outside calling hours" })} />);
         expect(screen.getByText("Could not")).toBeTruthy();
         expect(screen.getByText(/Outside calling hours/)).toBeTruthy();
+    });
+});
+
+describe('a browser step', () => {
+    it('shows exactly what the form sends before Confirm', () => {
+        render(
+            <ActionCard
+                event={event({
+                    action: 'browser_step',
+                    label: 'Pay: press “Place order ₹649” on kirana.test',
+                    effect: 'Presses that button in your browser on kirana.test, once.',
+                    reversible: false,
+                    args: { fields: [{ name: 'name', value: 'Asha' }, { name: 'password', value: '••••••' }] },
+                })}
+            />,
+        );
+        const sends = screen.getByLabelText('What it sends');
+        expect(sends.textContent).toContain('Asha');
+        expect(sends.textContent).toContain('••••••');
+        expect(screen.getByRole('button', { name: 'Confirm' })).toBeTruthy();
+    });
+});
+
+describe("approval bound to a version (task ledger)", () => {
+    it("confirms the exact version on screen", async () => {
+        settle.mockResolvedValue({ data: event({ state: "armed" }) });
+        render(<ActionCard event={event({ version: "a1b2c3d4e5f60718" })} />);
+        fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+        await waitFor(() => expect(settle).toHaveBeenCalled());
+        expect(settle.mock.calls[0][0].body).toEqual({
+            event_id: 99,
+            verb: "confirm",
+            version: "a1b2c3d4e5f60718",
+        });
+    });
+
+    it("never sends a version with Not now", async () => {
+        settle.mockResolvedValue({ data: event({ state: "declined" }) });
+        render(<ActionCard event={event({ version: "a1b2c3d4e5f60718" })} />);
+        fireEvent.click(screen.getByRole("button", { name: "Not now" }));
+        await waitFor(() => expect(settle).toHaveBeenCalled());
+        expect(settle.mock.calls[0][0].body).toEqual({ event_id: 99, verb: "decline" });
+    });
+
+    it("says a lost send is being checked, offers nothing to press, and is not a failure", () => {
+        render(
+            <ActionCard
+                event={event({
+                    state: "outcome_unknown",
+                    error: "We are checking whether this was delivered. Please do not send it again.",
+                })}
+            />,
+        );
+        expect(screen.getByRole("status").textContent).toContain("Please do not send it again");
+        expect(screen.queryByRole("button")).toBeNull();
+        expect(screen.queryByText("Could not")).toBeNull();
+    });
+});
+
+describe("a step on the person's own computer", () => {
+    const desktop = (payload: Record<string, unknown>) =>
+        event({
+            action: "desktop_step",
+            label: "Send the reply to Asha Rao",
+            why: "",
+            preview: 'To asha@example.com: "Thanks, see you Monday."',
+            effect: "Send in Mail on your computer, once. Nothing else is done until you answer.",
+            reversible: false,
+            ...payload,
+        });
+
+    it("shows the exact detail while it waits, beside the buttons", () => {
+        render(<ActionCard event={desktop({})} />);
+        expect(screen.getByTestId("action-preview").textContent).toBe('To asha@example.com: "Thanks, see you Monday."');
+        expect(screen.getByText(/Send in Mail on your computer, once/)).toBeTruthy();
+        expect(screen.getByRole("button", { name: "Confirm" })).toBeTruthy();
+    });
+
+    it("says released, not done, once the window has passed", () => {
+        render(<ActionCard event={desktop({ state: "released" })} />);
+        expect(screen.getByText("Approved. Your computer will do this once.")).toBeTruthy();
+        expect(screen.queryByRole("button")).toBeNull();
+        expect(screen.queryByTestId("action-preview")).toBeNull();
+    });
+
+    it("confirms the version on screen, like every card", async () => {
+        settle.mockResolvedValue({ data: desktop({ state: "armed" }) });
+        render(<ActionCard event={desktop({ version: "0123456789abcdef" })} />);
+        fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+        await waitFor(() => expect(settle).toHaveBeenCalled());
+        expect(settle.mock.calls[0][0].body).toEqual({ event_id: 99, verb: "confirm", version: "0123456789abcdef" });
+    });
+
+    it("says the computer is doing it, then unknown if it never reported", () => {
+        const { unmount } = render(<ActionCard event={desktop({ state: "running" })} />);
+        expect(screen.getByText("Your computer is doing this now…")).toBeTruthy();
+        unmount();
+        render(
+            <ActionCard
+                event={desktop({
+                    state: "outcome_unknown",
+                    error: "We are checking whether this was delivered. Please do not send it again.",
+                })}
+            />,
+        );
+        expect(screen.getByRole("status").textContent).toContain("Please do not send it again");
+        expect(screen.queryByRole("button")).toBeNull();
+    });
+
+    it("says why when no computer took it", () => {
+        render(
+            <ActionCard
+                event={desktop({ state: "cancelled", error: "Your computer did not take this in time. Nothing was done." })}
+            />,
+        );
+        expect(screen.getByText(/did not take this in time/)).toBeTruthy();
+    });
+});
+
+describe('a card nobody undid', () => {
+    it('says it was not done, and why, when the system cancelled it', () => {
+        // Found in phase 3: a browser step whose browser closed read "Undone
+        // before it ran", as if somebody had pressed Undo.
+        render(
+            <ActionCard
+                event={event({
+                    action: 'browser_step',
+                    state: 'cancelled',
+                    error: 'The browser closed before you answered. Nothing was pressed.',
+                })}
+            />,
+        );
+        expect(screen.queryByText(/Undone before it ran/)).toBeNull();
+        expect(screen.getByText(/Not done/)).toBeTruthy();
+        expect(screen.getByText(/The browser closed before you answered/)).toBeTruthy();
+    });
+
+    it('still says undone when a person pressed Undo', () => {
+        render(
+            <ActionCard
+                event={event({ state: 'cancelled', cancelled: { by: 7, at: '2026-10-07T10:00:00Z' } })}
+            />,
+        );
+        expect(screen.getByText(/Undone before it ran/)).toBeTruthy();
     });
 });

@@ -1,0 +1,675 @@
+Decibyl
+Screen by screen design handoff
+Layouts components states and motion for Claude and the development team
+7 October 2026  |  Design specification  |  45 screen sheets
+The direction
+Build one assistant that feels simple at the front and accountable behind the scenes. Keep Chat and Today as the two primary destinations. Put the five helpers, meetings, learning, saved work and advanced workflows within that structure. Give staff a separate operating console with useful evidence and controlled actions.
+This design companion adds concrete layouts and interaction rules to the Product and Engineering Handoff. The original handoff remains the source for architecture, permissions, operational limits and capability gates. The layouts here are implementation targets; they do not certify that a feature is live.
+How to use this document
+Read the reference decisions and shared rules first. Then implement each numbered screen sheet with its loading, error, permission and mobile states. Use the final Claude instruction with both documents. Map logical destinations onto existing routes before changing any URL.
+Screen range
+Scope
+01–06
+Invitations, onboarding, Chat, live voice and helpers
+07–16
+Today, approvals, tasks, routines, meetings, learning, search and memory
+17–28
+Settings, identity, connections, privacy, advanced controls and customer help
+29–44
+Founder overview, users, support, evaluations, analytics, finance and operations
+45
+Existing advanced workflow editor
+Each screen sheet includes a layout drawing, content hierarchy, behavior, failure states, responsive treatment, motion and a verification gate. Drawings use illustrative content; empty metric dashes are intentional. Word headings provide navigation through the full specification.
+Reference decisions
+Preserve the approved Decibyl direction described in the handoff: white canvas, dark type and primary actions, restrained borders, current typography and corner shapes. Inspect current app tokens before implementation; the numeric values on the next page are fallbacks for gaps, not a mandatory restyle.
+Source
+Bounded use in Decibyl
+Do not import
+Attio style
+Border-led surfaces, ink primary actions, restrained interaction color.
+Marketing serif headlines, decorative gradients or unverified font assets.
+Cal.com style
+Product-first presentation as a comparison reference.
+Its pill CTA and shadow-led card system conflict with the chosen border-led foundation.
+Factory style
+Monospace only for trace IDs and technical values.
+Its orange accent, sharp overall styling or developer language in customer flows.
+R1 ChatGPT
+Composer continuity, optional source panel, result kept in conversation.
+Its full navigation or provider picker placement.
+R2 Linear and R3 Asana
+List/detail continuity and explicit approval actions.
+Dense project-management navigation or color-heavy status controls.
+R4 Cron and Jace flow
+Grouped settings, connection consent and sync progress.
+Mandatory broad app permissions before the first useful task.
+R5 Intercom
+Support queue, thread and scoped context.
+Automatic private-history access or unreviewed customer blocking behavior.
+R6 Fingerprint and R7 Mercury
+Scoped metrics, period filters, ledger hierarchy and drilldown.
+Their accent colors, sample metrics or banking/card features.
+R8 n8n
+Advanced canvas plus inspector; editor/run/eval separation.
+A compulsory canvas in the everyday assistant experience.
+Reference screenshots establish composition, not measured animation. The motion specification is a Decibyl recommendation based on Refero motion guidance and the supplied handoff. Reference descriptions that speculate about behavior are not treated as runtime evidence.
+Source links and reference identifiers are listed at the end. Three complete style references, eight screen references and the Jace onboarding flow informed this direction. No competitor branding or screen is copied wholesale.
+Visual system and reusable components
+Use existing tokens first. If a required token is absent, adopt the following consistent fallback. Do not mix radii, type families or button shapes from different references. Preserve the current logo; no new mascot or decorative 3D objects inside work screens.
+Role
+Proposed fallback
+Rule
+Canvas and surfaces
+#FFFFFF; secondary #F4F5F7
+Flat reading surface; secondary only for navigation and grouped controls.
+Text
+#1C1D1F primary; #555D68 secondary
+Do not use low-contrast decorative gray for essential labels.
+Borders
+#D9DEE5 decorative; #7B8491 control boundary
+Controls remain distinguishable without relying on faint separators.
+Actions
+Ink fill with white text; outlined secondary
+One dominant action per panel; red only for destructive meaning.
+Status
+#075A39 success; #705500 warning; #772322 error
+Always add a text label and icon. Validate contrast in every state.
+Focus and links
+#245B9A focus/link fallback
+Visible 2 px focus ring, 2 px offset; links also use underline in prose.
+Type
+Existing sans; Inter if absent; Noto script fallback
+Body 16/26; UI 14/20; heading 24/32; mobile inputs 16 px.
+Indic text
+Line height 1.6; natural tracking
+Use script-specific Noto fallback and native-language QA. Never clip marks.
+Spacing
+4, 8, 12, 16, 24, 32, 48 px
+24 px page gutters desktop, 16 px mobile, 16–24 px panel padding.
+Shape
+8 px cards; 10 px buttons; 8 px inputs
+Retain verified existing values where different; avoid nested cards.
+Icons and elevation
+Existing icon set; 18–20 px; 1.5–2 px stroke
+Labels for ambiguous actions. Shadow only for overlay separation.
+Controls
+40 px desktop visual height; 44 px touch area
+Tables may be compact on desktop; action hit areas remain accessible.
+Shared components: AppShell, StaffShell, Composer, TaskStatus, ActionPreview, SourceCoverage, ScopedSearch, SettingsSection, ConnectionRow, SaveBar, EmptyState, ErrorState, MetricDefinition, AuditTimeline and CommandPreview. These are contract names; reuse actual repository components instead of creating duplicates.
+Appearance follows the existing supported theme. Dark mode must use a separately verified semantic palette and parity states; do not claim System mode works if dark surfaces are unfinished.
+Layout and responsive behavior
+Surface
+Desktop
+Tablet and phone
+Customer shell
+232 px rail; 56 px header; 760 px chat reading width.
+Rail collapses below 1024 px. Below 768 px use Chat/Today bottom navigation and profile in header.
+Today and saved work
+960 px reading/list width; 440 px detail drawer.
+One column. Detail opens full screen with Back; preserve list filters and scroll.
+Settings
+208 px section list; 640 px form width.
+Grouped settings index and individual detail pages. No sideways tab hunting.
+Staff console
+224 px rail; fluid main area; 24 px gutters.
+Drawer navigation below 1024 px. Read/triage first; preserve exact scope for mutations.
+Support
+Queue 280 px; flexible thread; context 300 px at 1440 px.
+Collapse context below 1280 px. Phone uses queue → thread → context screens.
+Canvas
+Full available width; 320 px inspector.
+Read-only step list and status on phone; complex edits stay in a usable editor.
+Forms and sheets
+560–640 px centered or route-backed panel.
+Full screen with safe-area footer; keyboard cannot cover Save, Send, End or approval.
+Interaction rules
+Every detail view has a stable deep link and browser Back behavior. Overlay Escape closes only when no protected work would be lost, then restores focus to the trigger. Trap focus only inside a real modal; a nonmodal desktop side panel stays in normal reading order.
+At 200 percent zoom, prioritize reflow over keeping columns. Keep the main document free of horizontal scrolling; a true data table or canvas can have its own labelled scroll region and an accessible alternative. Long names, addresses and Tamil/Hindi text wrap.
+For streaming, announce status changes politely, not every token. Preserve user scroll position. When switching personal/workspace scope, clear prior records before rendering the next scope; reauthorize subscriptions and queries.
+Test 360, 390, 768, 1024 and 1440 px widths; 200 percent zoom; keyboard-only input; screen reader labels; iPhone software keyboard; reduced motion; slow network; and long localized labels. Native app release remains separately verified.
+Motion and transition specification
+Motion must communicate feedback, continuity or hierarchy. Use CSS for simple feedback and the existing animation library for layout continuity when needed. Never add a dependency solely for these timings. All durations below are proposed design tokens, not measurements of reference products.
+Token
+Trigger and treatment
+Duration and reduced motion
+M1 Feedback
+Hover background, button press 0.98 scale, focus ring. Never delay input.
+120 ms hover; 90 ms press. Reduced: instant color/focus, no scale.
+M2 Inline state
+Status label crossfade; dropdown/accordion reveal. Keep reserved space stable.
+200 ms ease-in-out. Reduced: instant or ≤100 ms fade.
+M3 Detail panel
+Drawer translates 16 px and fades; overlay fades separately.
+240 ms enter ease-out; 180 ms exit ease-in. Reduced: fade only ≤100 ms.
+M4 Modal
+Centered dialog opacity plus scale .98→1. Explicit focus management.
+200 ms enter; 150 ms exit. Reduced: opacity only ≤100 ms.
+M5 Route and tabs
+Keep shell fixed. Immediate tab state; optional content crossfade.
+0–120 ms. Reduced: instant. No page-wide sliding.
+M6 List change
+Fade a new row with ≤4 px travel; remove only after server result.
+180 ms. Reduced: instant. Do not auto-reorder under pointer/focus.
+M7 Voice and capture
+Meter follows actual input amplitude; stop on mute/end. No decorative pulse.
+Responsive to capture. Reduced: static level value and state label.
+M8 Metrics and traces
+Update labels immediately. Chart point focus/tap reveals an exact tooltip.
+120 ms tooltip fade only. No count-up, animated chart sweep or fake progress.
+Easing tokens: enter cubic-bezier(0,0,0.2,1); exit cubic-bezier(0.4,0,1,1); change cubic-bezier(0.4,0,0.2,1). Animate only named properties. Avoid transition: all. Transform origin follows the trigger; animations must be interruptible.
+Loading uses a stable skeleton after a short threshold, not an immediate flash for every cached fetch. Use text stages for indeterminate work; actual percent only when measurable. Reduced motion removes shimmer. Do not block a server update while waiting for animation.
+Use M1 for every enabled control. The screen-specific motion line adds only the appropriate panel/state behavior. No repeated entrance animation during polling, no token-by-token reveal and no confetti after sending or spending.
+Shared state and data contracts
+Contract
+UI requirement
+Task state
+Queued, running, needs input, awaiting approval, scheduled, completed, failed, cancelled and outcome unknown. Completion requires persisted or reconciled evidence.
+Freshness
+Use loading, empty, stale, partial and failed as distinct states. Display last successful refresh and coverage. Preserve stale values with a label after a failed refresh.
+Save state
+Dirty → saving → confirmed saved. On rejection retain draft plus last confirmed value. Revision conflict shows both versions; never silently overwrite.
+Capability state
+Available, needs setup, disabled by policy or unavailable with reason and next step. Frontend visibility never replaces backend authorization.
+Approval state
+Preview ID/version, exact payload, account, recipient, attachments, timing, expiry and consequence. Editing invalidates approval; execution is idempotent.
+Scope
+Every task, record, connection, preference and subscription belongs to personal or workspace scope. Permission checks precede retrieval and execution.
+Event delivery
+State version and sequence reject stale updates. On reconnect fetch authoritative state, then resume events. Preserve drafts; polling fallback uses backoff.
+Operational action
+Typed command, role, environment, target, reason, approval, idempotency key and result. Accepted is queued, not succeeded.
+Privacy
+No prompts, transcripts, audio, secrets, KYC documents or raw email in analytics. Replay off on sensitive screens. Redacted error codes replace raw payloads.
+Reusable error copy
+No records: “Nothing due in Decibyl.” Partial brief: “Calendar could not refresh. This brief includes mail only.” Save failure: “Your change was not saved. Try again.” Unknown send: “We are checking whether this was delivered. Please do not send it again.”
+Errors should identify the failed step and a safe next action. Keep staff diagnostics behind permitted details. Success toasts acknowledge confirmed state and never replace durable status on the record.
+Route reuse and implementation map
+Paths below come from the attached handoff’s dated source audit and are relative to echowave/. Claude must recheck current code and PR status. Proposed screen IDs are design identifiers, not instructions to create 45 independent routes.
+Screen sheets
+Existing starting point
+Change to make
+03–06
+ui/src/app/overview/page.tsx; HomeAboveTheFold; ChannelStream; ChannelComposer
+Keep /overview labelled Chat; preserve history and events. Add clear voice, status and secondary helper views.
+07–10
+ui/src/app/tasks/page.tsx; ui/src/app/schedules/page.tsx
+Compose Today around reusable task and schedule behavior. Keep board/contacts/activity as secondary views.
+16
+ui/src/components/memory/MemoryList.tsx
+Add provenance/edit controls and real error handling; preserve scoped forget/share operations.
+17–27
+PR settings/layout.tsx; settings/sections.ts; SettingsNav
+Map existing groups to personal/workspace sections. Preserve team/company/compliance and role-gated developer access.
+25
+ui/src/app/privacy/page.tsx
+Reuse export, erasure and retention; distinguish personal and workspace actions.
+03 and 07 shell
+PR layout/v2/homes.ts and RecentsList.tsx
+Map navigation, route matching, search keywords and old deep links together.
+11–15 and 28
+Existing capture, saved record, learning and support APIs to inventory
+Extend existing contracts; expose unavailable states until end-to-end behavior is verified.
+29–44
+Existing superadmin KPI, billing, system, latency, keys and audit routes
+Regroup under eight sections. Reuse data sources and integrate links to Sentry/PostHog.
+45
+Existing authorized agent/workflow builder
+Retain advanced flows and configuration; do not force ordinary users through them.
+Before coding, classify each surface as verified working, present but unverified, partial, missing or intentionally unavailable. Capture current desktop/mobile screenshots and token values. Review relevant open PRs including 523; do not treat the pinned audit as today’s repository state.
+01 Early access and invitation
+Public waitlist or invitation link  |  References Brief; Jace flow
+Layout drawing with illustrative content. Specifications below define behavior and edge states.
+Layout and content Use a 440 px form, left-aligned labels and a short value statement. Invitation redemption reuses this shell with the bound email and expiry. Keep phone and occupation optional; no pricing grid.
+Actions and behavior Submit once; preserve entered values after failure. Success says “You are on the list” and explains invitations are reviewed. Invited users see “Accept invitation”; this verifies access before onboarding.
+States and recovery Empty, invalid email, submitting, already registered, waitlisted, invited, expired and revoked. Expired links offer Request a new invitation; never show the application before access is valid.
+Mobile Single column with 24 px margins, 16 px inputs and 44 px actions. Keep the submit result in the same region.
+Motion M1 and M2; keep form height stable on validation; no onboarding carousel.
+Acceptance Submitting twice creates one request. Expired or wrong-account invitations cannot activate access; analytics records acceptance only after the server confirms it.
+02 Language and first task
+After verified sign in  |  References Brief; Jace flow
+Layout drawing with illustrative content. Specifications below define behavior and edge states.
+Layout and content Use a 520 px content column with two short setup groups, then the task composer. Show native language names alongside English labels. Do not add a compulsory integration checklist.
+Actions and behavior Confirm detected timezone rather than silently saving it. Start Chat with the submitted task. Ask for a connector only when this task needs one. Memory and the daily brief stay off until chosen.
+States and recovery New user, saving, unsupported language and save failure. Explain available language/voice combinations; allow text use when voice is unavailable.
+Mobile Stack language, timezone and composer. Searchable language sheet must support long native-script names without clipping.
+Motion M1 and M2; keep form height stable on validation; no onboarding carousel.
+Acceptance One useful task is possible without KYC, provider keys or connecting every app. User preferences do not modify workspace defaults.
+03 Chat start
+Chat destination at /overview  |  References R1; Brief
+Layout drawing with illustrative content. Specifications below define behavior and edge states.
+Layout and content Keep the existing shell. Use a 232 px desktop rail, a 56 px header and a centered 760 px conversation column. Chat and Today are the primary links; Search, Recents and profile remain utilities. Place the initial composer below the greeting, then anchor it at the bottom after the first message.
+Actions and behavior Show at most three starters; selecting one inserts editable text. Attach opens files, voice note, meeting mode and paste notes. Dictate inserts text; Talk begins live voice. Provider selection stays in Settings.
+States and recovery No history, history loading/error, offline draft and quota unavailable. Show a retry for failed history, not a fabricated empty conversation.
+Mobile Hide the rail behind a menu. Chat/Today use two bottom destinations; profile is in the header. Hide the bottom bar while the keyboard is open.
+Motion M1 and M2; stream text immediately. M3 only for sources or details; preserve scroll.
+Acceptance Reuse HomeAboveTheFold and ChannelComposer. Verify every entry point, safe-area insets, scope switch and keyboard-visible Send.
+04 Conversation and useful result
+Existing conversation or submitted task  |  References R1; Brief
+Layout drawing with illustrative content. Specifications below define behavior and edge states.
+Layout and content Use readable 16/26 px assistant text and restrained user bubbles. Put status below the relevant request; place sources and saved artifacts alongside the result. A 360 px source panel opens only on demand, leaving at least 560 px for chat.
+Actions and behavior Stream actual text without fake typing. Auto-scroll only at the bottom; otherwise show New content. Stop cancels generation and preserves partial output. Research reports, inbox drafts and follow-ups share this surface but retain their own evidence.
+States and recovery Running, needs input, awaiting approval, partial, completed and failed. A tool error never becomes a confident success sentence. Feedback is optional Yes / Not quite; reasons appear only after selection.
+Mobile Sources and artifact detail replace the viewport with Back. Composer grows to six lines then scrolls; attachments wrap above it.
+Motion M1 and M2; stream text immediately. M3 only for sources or details; preserve scroll.
+Acceptance A saved report matches its export. Source links are scoped. Reconnect restores the server task state without duplicate messages or writes.
+05 Live voice session
+Talk from the composer  |  References Brief; motion craft
+Layout drawing with illustrative content. Specifications below define behavior and edge states.
+Layout and content Open a focused session sheet on desktop, full screen on mobile. Use one real audio meter, a prominent state label, captions and persistent controls. Keep End visually distinct and reachable throughout; do not use an animated face.
+Actions and behavior Idle → microphone request → connecting → listening → processing → speaking. Interruption stops queued audio and returns to listening. Mute stops capture; End releases capture and transport. Minimize retains a clear active-session strip.
+States and recovery Mic denied, device missing, connecting timeout, reconnecting, lost audio and ended. Offer Continue in text. Reconnect explicitly states whether an interval was lost; approval stays a visible exact-action preview.
+Mobile Bottom controls sit above the safe area, with large hit targets. Text mode remains reachable. Keyboard must not cover End or an approval.
+Motion M7; M3 once on session entry. State labels update immediately; no looping avatar.
+Acceptance Verify interruption, mute, permission denial and release of microphone. No fake waveform in processing/speaking. Model changes apply only to a new session.
+06 Helper picker and capability detail
+Helper control in Chat  |  References Brief; Cron grouping
+Layout drawing with illustrative content. Specifications below define behavior and edge states.
+Layout and content A compact 360 px menu lists the five helpers and Automatic. Selecting a helper opens a short description, required connections, permission scope and one example prompt. No marketplace or separate agent dashboard in the primary navigation.
+Actions and behavior Automatic is the default. A chosen helper appears as a removable composer chip. Show available, needs setup, workspace disabled or unavailable. Existing advanced agent configuration stays reachable through Advanced.
+States and recovery Permission missing, capability paused and unsupported channel. Setup returns to the same draft. Do not imply enabling a helper grants it more access.
+Mobile Use a full-height sheet with a scrollable list and fixed Use helper footer; retain the composed task underneath.
+Motion M4 menu/sheet entry; M1 selection. Focus returns to the composer.
+Acceptance All five helpers are reachable and use the same task/approval contract. Skill assignments and model inheritance remain visible to authorized advanced users.
+07 Today
+Today primary destination  |  References R2; Brief
+Layout drawing with illustrative content. Specifications below define behavior and edge states.
+Layout and content Use a 960 px ordered reading column. Header contains date, timezone and refresh. Order approvals, due commitments, brief, upcoming events and up to three suggestions. Active jobs appear near their related commitment; avoid decorative KPI cards.
+Actions and behavior Open an item in a 440 px detail drawer with a deep link. Keep row selection and scroll position on return. Refresh updates the existing brief. Completed items move to Activity after confirmation, with an accessible status announcement.
+States and recovery Loading each section, nothing due, partial sources, stale brief and refresh failure. Copy: “Nothing due in Decibyl”; missing calendar access is a separate setup link.
+Mobile Single list, with title/status/time on separate lines. Detail opens full screen. Keep date filters in a sheet.
+Motion M3 detail; M6 confirmed updates. Keep list selection and scroll on return.
+Acceptance Badge counts match authoritative pending approvals. A failed calendar fetch cannot produce “No meetings”. Scope and timezone stay visible after navigation.
+08 Exact action approval
+Chat card, Today or deep link  |  References R3; Brief
+Layout drawing with illustrative content. Specifications below define behavior and edge states.
+Layout and content Use a 560 px reading panel with the action verb as title, account/recipient above exact content, then attachments, time and consequence. Sticky footer holds Edit, Cancel and Approve and send. Never truncate hidden recipients, amounts or attachments.
+Actions and behavior Bind approval to immutable payload version. Editing creates a new preview and invalidates the old approval. While committing, disable the primary action. An accepted job becomes Executing; show Sent only with evidence.
+States and recovery Needs input, pending, expired, changed elsewhere, executing, completed, failed and outcome unknown. Unknown uses Check delivery, not blind Retry. Bulk approval is excluded by default.
+Mobile Full-screen preview with a safe-area footer and scrollable body. Keep the final recipient and action visible near the button.
+Motion M4 for desktop preview; M2 for execution state. Never animate away unread action details.
+Acceptance Two tabs approving the same action yield one external execution. Permission revocation blocks execution. Voice confirmation cannot approve an ambiguous or outdated preview.
+09 Task detail and activity
+Task status in Chat or Today Activity  |  References R2; R3; Brief
+Layout drawing with illustrative content. Specifications below define behavior and edge states.
+Layout and content Activity uses status/date/helper filters and compact rows. A detail panel shows goal, owner/scope, chronological stages, inputs shared, output evidence and related records. Keep internal provider traces in staff views.
+Actions and behavior Cancel stops future work and reports already completed effects. Retry is offered only for a safe eligible state. Scheduled tasks show full local date and timezone. Leaving the page does not stop background work.
+States and recovery Queued, running, needs input, scheduled, approval pending, completed, failed, cancelled and unknown outcome. Timed out is a reason, not proof of failure at the external provider.
+Mobile Timeline becomes vertical with text labels. Activity filters open a sheet; preserve them in the URL.
+Motion M3 entry; M2 status. Source highlight appears briefly without forced repeated scrolling.
+Acceptance Task state survives reload and worker restart. Stale events cannot overwrite a newer status. Outcome links belong to the active scope.
+10 Routine and reminder editor
+Today routine item or confirmed Chat suggestion  |  References Brief; Cron grouping
+Layout drawing with illustrative content. Specifications below define behavior and edge states.
+Layout and content Use a 640 px editor: purpose first, schedule next, destination and permissions last. Show a live next-occurrence sentence directly above Save. Event reminders have Event time and Reminder offset as separate fields.
+Actions and behavior Saving requires confirmation of the exact schedule. Test delivery is clearly labelled and does not create a duplicate schedule. Pause affects future occurrences; separately explain an in-flight occurrence. Linked event moves recalculate approved offsets.
+States and recovery Draft, active, paused, missed, invalid past date, timezone conflict, revoked destination and save conflict. Show old/new schedule when an event changes.
+Mobile Stack time and timezone; use a native-friendly date picker. Save remains visible above the keyboard without covering the preview.
+Motion M2 for next-occurrence updates; M3 for opening. No movement while selecting dates.
+Acceptance Tomorrow resolves in the user timezone. Event cancellation cancels linked reminders. Repeated saves generate one occurrence per schedule key.
+11 Meeting capture
+Attach menu then Meeting mode  |  References Brief
+Layout drawing with illustrative content. Specifications below define behavior and edge states.
+Layout and content Entry shows three capture choices. Record mode places source/language and consent above the timer and transcript. Show a small action-candidate strip only when useful; do not cover the transcript with live advice.
+Actions and behavior Capture starts only from a supported source after confirmation. Pause stops capture. Stop preserves the recording or notes and starts processing. A source failure identifies the missing interval and preserves recoverable content.
+States and recovery Consent required, permission denied, recording, paused, interrupted, uploading, processing, partial and unsupported source. Never imply access to all device or phone audio.
+Mobile A large timer and fixed capture controls precede the transcript. Backgrounding/reconnect must report actual capture capability and any gap.
+Motion M7 for live input; M2 stage change. Elapsed timer follows real capture duration.
+Acceptance An interrupted recording retains recoverable segments and labels gaps. Upload limits are checked before processing. Audio retention follows the effective privacy setting.
+12 Meeting record and actions
+Completed meeting capture or Saved result  |  References Brief; R3
+Layout drawing with illustrative content. Specifications below define behavior and edge states.
+Layout and content Use a document-like main column and an optional 320 px action list at wide widths. Tabs separate Summary, Decisions and Transcript. Each candidate shows its source excerpt and missing information before selection.
+Actions and behavior Edit owner, task and proposed time before confirmation. Creating a reminder does not authorize email or a calendar invitation. Each external write opens S08. Return to chat keeps the meeting record attached.
+States and recovery Processing, partial transcript, no clear actions, disputed speaker, missing owner and ready. Suggested due dates remain suggestions until confirmed.
+Mobile Use tabs with full labels and action rows below the summary. Transcript jump highlights one excerpt without automatic repeated scrolling.
+Motion M3 entry; M2 status. Source highlight appears briefly without forced repeated scrolling.
+Acceptance Each action is traceable to a source. Confirming two actions creates exactly two records. Deleting the meeting explains linked tasks and derived memory treatment.
+13 Learning session
+Learning Guide in Chat or resume link  |  References Brief; R1
+Layout drawing with illustrative content. Specifications below define behavior and edge states.
+Layout and content Keep the lesson inside Chat using a compact goal header, short explanation, one practice prompt and a feedback block. The progress link is secondary. Keep technical model details out of teaching.
+Actions and behavior Ask one baseline question, teach, collect an attempt, then give specific feedback. Offer Try again and Next exercise. Ask before saving sensitive learning details. Resume from the last confirmed exercise.
+States and recovery New goal, waiting for answer, evaluating, correction, interrupted session and completed practice. Do not show mastery percentages without an actual rubric and evidence.
+Mobile Use 16 px input and generous Indic line height. Voice answer retains an editable transcript before submission where appropriate.
+Motion M2 after a submitted answer. Do not animate every sentence or interrupt practice.
+Acceptance A lesson can resume without losing attempts. Progress counts evaluated practice, not messages. Sources distinguish material-backed instruction from general explanation.
+14 Learning progress
+Learning goal header or Today review item  |  References Brief; R2
+Layout drawing with illustrative content. Specifications below define behavior and edge states.
+Layout and content A 760 px goal page shows evidence-based skill rows, recent exercises and one next step. Use plain labels such as Practised and Needs another attempt. Avoid gamified streak pressure or fabricated fluency scores.
+Actions and behavior Open a skill to see its rubric and attempts. Change goal/language through a small editor. Review reminders are opt-in and use S10. Export/delete are available in the overflow menu.
+States and recovery No practice yet, partial assessment, scheduled review, stale progress and load error. No data is not zero ability.
+Mobile Stack skill rows with feedback beneath. Keep Continue practice visible without forcing a sticky oversized banner.
+Motion M3 detail; M6 confirmed updates. Keep list selection and scroll on return.
+Acceptance Completing a practice updates evidence once. A user can delete the learning record under the documented retention policy.
+15 Search and saved items
+Search utility, Chat attachment or saved result  |  References R1; Brief
+Layout drawing with illustrative content. Specifications below define behavior and edge states.
+Layout and content Search opens a 720 px command-style panel for quick navigation; See all results opens a full page. Saved items use name/type/date rows, not a card wall. Preview opens beside the list when space allows.
+Actions and behavior Search within the selected scope and state it visibly. Open, rename, download, return to conversation and delete are contextual actions. Upload progress shows actual bytes followed by processing stage.
+States and recovery Searching, no matches, processing, unsupported, quarantined, deleted and fetch error. Keep query when retrying. Do not return forbidden titles as search hints.
+Mobile Search is full screen with persistent query and back navigation. File preview uses a dedicated view; downloads report actual readiness.
+Motion M3 detail; M6 confirmed updates. Keep list selection and scroll on return.
+Acceptance User A cannot find user B’s private record. Search survives back navigation. Deletion describes linked tasks and provenance effects.
+16 Memory manager
+Settings then Personalization then Manage memories  |  References Brief; R2
+Layout drawing with illustrative content. Specifications below define behavior and edge states.
+Layout and content Use editable fact rows with source, saved date, scope and overflow actions. A fact detail shows provenance and changes. Put memory on/off and temporary-conversation explanation above the list.
+Actions and behavior New suggestions require confirmation, especially sensitive facts. Edit creates a revision. Forget shows pending/deleted status. Undo is offered only during a real reversible interval. Share requires an explicit destination preview.
+States and recovery Memory off, loading, empty, conflict, saving, deletion pending and error. A failed fetch must not become an empty list.
+Mobile Row opens full-screen detail; multi-select actions have a clearly labelled footer. Sources wrap without fixed-height clipping.
+Motion M3 detail; M6 confirmed updates. Keep list selection and scroll on return.
+Acceptance Simulate a 500 and recover the same facts. Personal memories never enter workspace retrieval without deliberate permitted sharing.
+17 Account and settings shell
+Profile then Settings  |  References R4; Brief
+Layout drawing with illustrative content. Specifications below define behavior and edge states.
+Layout and content Desktop uses a 208 px grouped settings list and a 640 px form column. Header includes Settings search. Group Personal, Connections, Privacy and Advanced; workspace-only sections appear under a named workspace heading.
+Actions and behavior Multi-field forms use Save and Discard. Simple toggles may save immediately with confirmation and rollback on rejection. Settings search uses everyday synonyms, including mic, memory and email.
+States and recovery Loading, dirty, saving, saved, validation failure, managed by workspace and conflicting edit. Show remaining allowances from the server, not a pricing grid.
+Mobile Use a full-screen grouped list, then a separate section with Back. Do not use horizontally scrolling settings tabs.
+Motion M1 and M2. M5 section changes; preserve dirty state and focus. No sliding forms.
+Acceptance Reload shows persisted values. Leaving a dirty form warns. Changing personal timezone cannot silently modify workspace schedules.
+18 Personalization settings
+Settings then Personalization  |  References R4; Brief
+Layout drawing with illustrative content. Specifications below define behavior and edge states.
+Layout and content Group language and answer style first, instructions next, memory last. Every field has one short helper line. Use the same settings column and explicit Save for related changes.
+Actions and behavior Preview the effect with a short example only on request. Memory is opt-in. Temporary conversation is a clear new-session action and explains effective retention rather than promising zero processing.
+States and recovery Unsupported language, invalid input, workspace-managed field, save failure and conflicting revision. Do not silently truncate long instructions.
+Mobile Textarea expands then scrolls; a dirty footer sits above the keyboard. Language selection is searchable and script-aware.
+Motion M1 and M2. M5 section changes; preserve dirty state and focus. No sliding forms.
+Acceptance Preferences apply to subsequent turns according to their contract; active voice/model configuration stays stable. Saving instructions does not grant new tool permissions.
+19 Voice and language settings
+Settings then Voice and language  |  References R4; Brief
+Layout drawing with illustrative content. Specifications below define behavior and edge states.
+Layout and content Order language, compatible voice, cancellable preview, speed and captions. Advanced STT/TTS choices live elsewhere. Microphone controls show browser/device availability explicitly.
+Actions and behavior Language changes filter compatible voices; do not silently substitute a different voice. Preview has loading, playing and stop states. Label new-session effect before saving.
+States and recovery Voice unavailable, key/provider not ready, microphone denied, preview failure and save rejection. Preserve the last confirmed voice until the new value is saved.
+Mobile Large play/stop target and native range control with a visible numeric speed. Avoid tiny sliders or auto-playing samples.
+Motion M1 and M2. M5 section changes; preserve dirty state and focus. No sliding forms.
+Acceptance Selecting a female voice and saving retains the same voice ID after reload and at the next call. Rapid selections cannot apply an old response.
+20 Daily brief settings
+Settings then Daily brief and reminders  |  References R4; Brief
+Layout drawing with illustrative content. Specifications below define behavior and edge states.
+Layout and content Use a simple enable row, then schedule, destination and coverage. Show a sample structure, not invented personal events. Link individual reminders to Today.
+Actions and behavior Offer setup after the first useful task. Confirm schedule and channel. Test delivery is one labelled occurrence. Pause retains configuration and states what happens to work already running.
+States and recovery Off, active, paused, source missing, destination revoked, test queued and test failed. Retain an older brief with its original refresh timestamp.
+Mobile One column with day chips wrapping naturally. Keep source coverage visible close to the Save action.
+Motion M1 and M2. M5 section changes; preserve dirty state and focus. No sliding forms.
+Acceptance One saved schedule produces one brief occurrence. Missing sources are disclosed and never described as an empty calendar or inbox.
+21 Notification preferences
+Settings then Notifications  |  References R4; Brief
+Layout drawing with illustrative content. Specifications below define behavior and edge states.
+Layout and content Rows are grouped by delivery channel, then timing and privacy. Show both app preference and OS/browser permission. Separate requested reminders from optional suggestions.
+Actions and behavior Ask browser permission only after Enable push. Give each topic a dismiss/snooze route. Pilot suggestion cap comes from server policy; explicit reminder times remain visible exceptions to optional quiet hours.
+States and recovery Permission not asked, denied, granted, unsupported device, disconnected destination and saving failure. No repeated permission nag after denial.
+Mobile Use 44 px toggles with full-row labels and an explanatory permission sheet when needed. Lock-screen text defaults to generic wording.
+Motion M1 and M2. M5 section changes; preserve dirty state and focus. No sliding forms.
+Acceptance A revoked push permission is reflected accurately. Optional suggestions respect their cap and quiet hours. Disabling a topic stops its future deliveries.
+22 Connected apps and channel detail
+Settings Connections or contextual setup  |  References R4; Jace flow; Brief
+Layout drawing with illustrative content. Specifications below define behavior and edge states.
+Layout and content Use two sections: apps Decibyl may read/act in, and channels used to message Decibyl. Each row shows account, owner, state and last success. Detail lists granted access and dependent tasks.
+Actions and behavior Before OAuth explain the immediate task and minimum access. Return to the pending task after authorization. Disconnect explains affected jobs and revokes future access; never ask the user to paste a provider password.
+States and recovery Disconnected, authorizing, syncing, ready, limited access, expired, error and revoked. Cancelled OAuth preserves the draft and offers pasted information where useful.
+Mobile Connection detail is full screen. Long scopes expand on demand; critical permission differences remain visible before Connect.
+Motion M1 and M2. M5 section changes; preserve dirty state and focus. No sliding forms.
+Acceptance Wrong-workspace OAuth is rejected. Revocation blocks future tool use. Slack/Teams/WhatsApp availability comes from verified capability flags.
+23 Decibyl email identity
+Settings then Decibyl identity then Email  |  References Brief; R4
+Layout drawing with illustrative content. Specifications below define behavior and edge states.
+Layout and content Show the address lifecycle above a small alias form and delivery details. Provide Copy only after the address is active. Explain supported email behavior without presenting an unbuilt mailbox. A quiet Virtual card Coming soon row may collect optional interest; no issuance or card details.
+Actions and behavior Reserve a checked alias server-side before provisioning. Active requires verified delivery. Sending shows the exact account and opens approval. Alias changes disclose consequences and ownership rules.
+States and recovery Unallocated, checking, reserved, provisioning, active, delivery issue and suspended. Collision messages are specific without exposing another user’s identity.
+Mobile Address wraps/copies reliably. Status and next action precede technical help. No wide mailbox table.
+Motion M1 and M2. M5 section changes; preserve dirty state and focus. No sliding forms.
+Acceptance A duplicate alias request cannot allocate the same name twice. An inbound message routes to the correct owner and thread.
+24 Phone and verification
+Settings then Decibyl identity then Phone  |  References Brief; R4
+Layout drawing with illustrative content. Specifications below define behavior and edge states.
+Layout and content Use a lifecycle step list, next required action and a concise cost explanation. After activation show number, assigned helper, working hours and test-call result. Chat remains usable throughout.
+Actions and behavior Collect only required verification through the supported flow. After eligibility, show provisioning progress. Assignment requires a valid helper list. Number sponsorship/payment policy must be resolved before enabling the request.
+States and recovery Not requested, pending verification, rejected with next step, eligible, provisioning, active, suspended and released. Fetch failure is distinct from no numbers.
+Mobile Step list becomes vertical; camera/upload entry is supported only where implemented. Verification content is excluded from replay.
+Motion M1 and M2. M5 section changes; preserve dirty state and focus. No sliding forms.
+Acceptance Partial carrier/helper fetch failure cannot enable invalid assignment. Real incoming call and human escalation pass before the number is labelled ready.
+25 Privacy and security
+Settings then Privacy and security  |  References Brief; R4
+Layout drawing with illustrative content. Specifications below define behavior and edge states.
+Layout and content Separate retention, permissions/data rights and account security into clear groups. Distinguish personal account deletion from workspace deletion. Show the effective policy and any workspace-managed fields.
+Actions and behavior Export and deletion open scoped previews with identity checks where required. Deletion lists affected stores, progress and exceptions. Revoking grants takes effect server-side. MFA remains readily discoverable.
+States and recovery Export queued, ready, expired, deletion pending, partial failure and complete. Proposed 30-day history is not a hardcoded promise until provider/backup policy is confirmed.
+Mobile Use full-screen confirmations with readable consequences and exact scope; do not rely on tiny red links.
+Motion M1 and M2. M5 section changes; preserve dirty state and focus. No sliding forms.
+Acceptance No secrets, KYC images or private conversation content in analytics/replay. Deletion records track downstream processing and legitimate retention exceptions.
+26 Model defaults and overrides
+Advanced then Model defaults  |  References Brief; R4
+Layout drawing with illustrative content. Specifications below define behavior and edge states.
+Layout and content Three aligned capability rows show provider/model, source of inheritance and readiness. Advanced helper overrides are subordinate and display Inherits workspace or the explicit override.
+Actions and behavior Use valid server-provided model IDs. Prefer Sarvam where configured and supported. Save with a revision check; serialize per-slot changes. Show fallback capability and consent rules, with a short impact preview.
+States and recovery Ready, missing credential, unsupported language/capability, managed policy, pending save, rejection and version conflict. Never silently claim one provider while using another.
+Mobile Each capability opens a searchable full-screen selection view. Effective value remains visible after returning.
+Motion M1 and M2. M5 section changes; preserve dirty state and focus. No sliding forms.
+Acceptance Rapid A→B changes leave client/server on B. A failed save restores the last confirmed value. Active sessions keep their snapshot except immediate permission revocation.
+27 Skills workspace and developer settings
+Role-controlled Advanced sections  |  References Brief; R4
+Layout drawing with illustrative content. Specifications below define behavior and edge states.
+Layout and content Use the same settings shell, with separate subsections for helper skills, knowledge, team/company, developer and compliance. Keep existing advanced controls reachable without making them onboarding requirements.
+Actions and behavior Skill assignment shows version, required tools and knowledge scope; preserve the existing eight-assigned-skill constraint until reviewed. Imports require permission review. Webhooks show endpoint, event selection and redacted delivery diagnostics.
+States and recovery No permission, invalid import, incompatible version, indexing partial, delivery failed and policy managed. New credentials use a secure input, never reveal an existing secret.
+Mobile Read and simple edits work in stacked forms. Dense advanced workflow editing links to S45; never shrink a canvas into an unusable phone view.
+Motion M1 and M2. M5 section changes; preserve dirty state and focus. No sliding forms.
+Acceptance Role restrictions hold server-side. Installing a skill cannot expand tool permissions. Legacy team/company/compliance routes retain authorized access.
+28 Customer help and ticket
+Help utility or failed task  |  References R5; Brief
+Layout drawing with illustrative content. Specifications below define behavior and edge states.
+Layout and content Start with category, description and optional attachment. A data-sharing preview states exactly what staff will see. Ticket detail uses a conversation thread with a status header and a visible reply composer.
+Actions and behavior Offer task metadata by default; ask before sharing content or audio. Requests for sends, booking or spend are separate approvals. Display staff action status and resolved/reopen controls.
+States and recovery Submitting, open, waiting for customer, in progress, resolved, reopened and attachment failure. Staff internal notes never appear in the customer thread.
+Mobile Single thread with composer above the keyboard. Upload progress preserves the reply if an attachment fails.
+Motion M3 entry; M2 status. Source highlight appears briefly without forced repeated scrolling.
+Acceptance One contextual ticket links to its task without sharing the whole conversation. Reopening preserves history and any action evidence.
+29 Founder overview
+Staff console Overview  |  References R6; Brief
+Layout drawing with illustrative content. Specifications below define behavior and edge states.
+Layout and content Use a 224 px staff rail and 24 px content gutters. Persistent header holds environment, timezone, date range and freshness. Put actionable exceptions first, then three compact metrics and two evidence tables. Every metric drills into its filtered source.
+Actions and behavior Read-only overview by default. Highlight changes against the selected comparable period only when available. No animated counters. Staff shell has eight destinations from the handoff; customer UI is not embedded here.
+States and recovery Loading per panel, healthy, degraded, unavailable, stale and no data. A monitoring outage must not display green health. Free beta revenue is zero when that is the ledger value.
+Mobile Stack attention items then metrics; show four key fields per row and open detail for the rest. Preserve environment on every link.
+Motion M8; preserve chart size during refresh. No animated numbers or manufactured progress.
+Acceptance One click reaches the failing task, support ticket or budget control. All numbers share defined periods/cohorts and visible freshness.
+30 Users invitations and access
+Staff Users and access  |  References R2; R6; Brief
+Layout drawing with illustrative content. Specifications below define behavior and edge states.
+Layout and content A searchable table emphasizes access state and last useful outcome. Waitlist review opens a side panel with the requested first task. Bulk selection is limited to explicitly eligible invite operations.
+Actions and behavior Preview invite cohort and capacity before issuing access. Suspension shows affected sessions and jobs. Resend/revoke use existing invitation identity and audit reason; sending invitations must use the authorized operational flow.
+States and recovery Empty cohort, loading, expired invite, already accepted, capacity exhausted, partial batch failure and role denied. Report per-item outcomes.
+Mobile Rows become compact records; filters open a sheet. Batch mutation is secondary and requires explicit selection.
+Motion M1 row feedback; M3 detail; M6 confirmed row changes. Keep sort stable during actions.
+Acceptance Invitations respect bound email and usage count. Support cannot silently raise global budget. KYC documents are not exposed in the user list.
+31 User and workspace detail
+Selected user from S30  |  References R5; Brief
+Layout drawing with illustrative content. Specifications below define behavior and edge states.
+Layout and content Header identifies the user and selected workspace. Tabs show Overview, Tasks, Support, Usage and Access. A compact side panel shows connection health and effective limits, without private message bodies.
+Actions and behavior Temporary allowance grants open S33 with amount, expiry and reason. Assisted access defaults to off/read-only and requires its scoped authorization flow. Role changes are separate from customer support.
+States and recovery Partial telemetry, deleted user, suspended account, permission denied, stale usage and pending grant. Never infer unused from unavailable data.
+Mobile Tabs wrap into a section menu. Keep identity/scope pinned so operators do not act on the wrong customer.
+Motion M3 entry; M2 status. Source highlight appears briefly without forced repeated scrolling.
+Acceptance Support can diagnose a failed task without gaining private history. Grant expiry and audit are visible; cross-workspace access fails.
+32 Support inbox and case
+Staff Support  |  References R5; Brief
+Layout drawing with illustrative content. Specifications below define behavior and edge states.
+Layout and content At 1440 px use 224 px navigation, 280 px queue, a flexible thread and a 300 px context panel. Below 1280 px the context panel becomes a drawer. Prioritize assignee, severity, age and next step.
+Actions and behavior Reply and Internal note use explicit labels and different neutral surface treatment. AI drafts never auto-send. Requests to modify a customer account launch S33 with the ticket attached. Convert to eval only through sanitized review.
+States and recovery Unassigned, waiting, overdue, incident-linked, reply failure, concurrent assignment and resolved. Preserve unsent text. Do not clear a ticket merely because an action was queued.
+Mobile Queue, thread and context become three navigable screens. Reply controls remain visible above the keyboard.
+Motion M3 context panel; M2 sending status. Do not reorder active tickets under the cursor.
+Acceptance Internal notes cannot reach the customer API. A reply retry cannot duplicate a send. Case evidence is limited to the customer-approved share.
+33 Support action preview and execution
+Action from ticket or user detail  |  References R3; Brief
+Layout drawing with illustrative content. Specifications below define behavior and edge states.
+Layout and content Reuse the exact-action preview layout. Put target/environment and old/new values above the reason. Show budget impact, dependencies and required approvers. A result panel displays the immutable command record.
+Actions and behavior Verify scope, obtain required approval, execute a typed command, reconcile and then notify. Unknown delivery requires checking external state. Customer support request alone does not approve an external send or booking.
+States and recovery Invalid target, unauthorized role, approval required, expired, queued, succeeded, failed and outcome unknown. Disable repeat submission while the same command is in flight.
+Mobile Use full-screen review with all consequential fields visible in scroll order. No swipe-to-execute.
+Motion M4 for desktop preview; M2 for execution state. Never animate away unread action details.
+Acceptance Repeat clicks create one command. Changed parameters invalidate approval. No arbitrary shell/SQL or unrestricted AWS mutation is reachable.
+34 Quality and evaluation runs
+Staff Quality and evaluations  |  References R2; R6; Brief
+Layout drawing with illustrative content. Specifications below define behavior and edge states.
+Layout and content Header selects dataset/version and baseline. Table compares candidate configuration, sample count, correctness, latency and cost. Show subgroup coverage next to the overall result; failed-case list sits beneath.
+Actions and behavior Run against a fixed case set and configuration snapshot. Candidate selection respects capability readiness. A blocked gate links to the exact failing checks, not only an aggregate score.
+States and recovery Queued, running, partial, cancelled, passed, regression and insufficient sample. An LLM judge score cannot overrule deterministic permission or final-state checks.
+Mobile Show run summary and failing cases as records; comparison matrix can scroll horizontally within its own region with pinned case label.
+Motion M1 row feedback; M3 detail; M6 confirmed row changes. Keep sort stable during actions.
+Acceptance A known unauthorized-action regression blocks release. Results disclose denominator and dataset/config versions; no planned target is labelled achieved.
+35 Evaluation case comparison
+Failed case or comparison in S34  |  References R3; Brief
+Layout drawing with illustrative content. Specifications below define behavior and edge states.
+Layout and content Use side-by-side baseline/candidate results, with shared input above and checks below. Keep evidence, deterministic results and model-judge commentary visually separate.
+Actions and behavior Inspect sanitized transcript and tool outcomes; rerun with the same case version. Editing expected behavior creates a new version and requires review. Support-case conversion removes private content before persistence.
+States and recovery Missing baseline, run interrupted, judge unavailable, inconsistent fixture and regression. A missing result remains unknown rather than a failed or passed score.
+Mobile Stack baseline above candidate with persistent labels. Allow a focused Diff view for text; expose full content on demand.
+Motion M3 entry; M2 status. Source highlight appears briefly without forced repeated scrolling.
+Acceptance Re-running does not overwrite prior evidence. The case links to the ticket, fix and release while retaining content-access restrictions.
+36 Product analytics
+Staff Product analytics  |  References R6; Brief
+Layout drawing with illustrative content. Specifications below define behavior and edge states.
+Layout and content Use one funnel, one retention view and a small breakdown table. Metric definitions sit behind labelled info buttons; show sample sizes alongside values. Keep acquisition, activity and verified outcomes distinct.
+Actions and behavior Drill from an aggregate to permitted pseudonymous records. Compare cohorts only after their windows mature. Link to PostHog for deeper analysis; Decibyl retains authoritative business state.
+States and recovery No cohort, insufficient window, delayed ingestion, partial event coverage and stale data. Never fill gaps with zero.
+Mobile Stack charts with accessible text/table alternatives. Tooltips work on tap and keyboard focus.
+Motion M8; preserve chart size during refresh. No animated numbers or manufactured progress.
+Acceptance A known journey produces one activation. Rerenders do not inflate sign-ins. Event arrival time does not replace occurred_at for cohort membership.
+37 Revenue costs and beta economics
+Staff Revenue and costs  |  References R7; Brief
+Layout drawing with illustrative content. Specifications below define behavior and edge states.
+Layout and content Place revenue and direct costs in two aligned summary groups, followed by a trend and provider/category breakdown. Free beta leads with spend, useful users and remaining budget. Avoid a fake MRR chart when subscriptions are absent.
+Actions and behavior Each value opens filtered ledger records. Currency/rate assumptions are inspectable. Scenario forecasts live in a separately labelled view and never mix with actual totals. Finance owns accounting definitions.
+States and recovery Zero revenue, unavailable rates, estimated cost, reconciliation pending, refund pending and budget warning. No animation that suggests live accuracy from stale data.
+Mobile Summary values stack; ledger is a separate view. Amounts remain right-aligned and currency is repeated in details.
+Motion M8; preserve chart size during refresh. No animated numbers or manufactured progress.
+Acceptance Totals reconcile with ledger/provider records. Direct contribution and infrastructure allocation remain separately defined. Zero successful outcomes yields an undefined ratio, not zero cost.
+38 Ledger transaction and refund
+Ledger drilldown from S37  |  References R7; R3; Brief
+Layout drawing with illustrative content. Specifications below define behavior and edge states.
+Layout and content Use a dense ledger with tabular figures and persistent filters. Selecting a row opens details with references and status timeline. Refund is a finance-only action separate from general support controls.
+Actions and behavior Preview eligible amount, customer, payment and reason. Execute once using deduplication; reconcile provider status before success. Export uses the same filtered definition and a safe downloadable file.
+States and recovery Loading, no transactions, payment failed, partially refunded, refund pending, unknown and reconciled. A stale balance disables an unsafe refund until refreshed.
+Mobile Use a record list and full-screen transaction detail. Preserve exact decimals and currency without truncation.
+Motion M1 row feedback; M3 detail; M6 confirmed row changes. Keep sort stable during actions.
+Acceptance Duplicate refund submission has one external effect. Refunds never exceed eligible amount. Export totals match the selected ledger view.
+39 Operations and delivery
+Staff Operations  |  References R6; Brief
+Layout drawing with illustrative content. Specifications below define behavior and edge states.
+Layout and content Use section tabs Jobs, Providers, Delivery and Infrastructure with a stable environment header. Lead with actionable failures; health summaries above compact tables provide drilldown into the same correlated task.
+Actions and behavior Pause/retry/cancel are explicit typed operations with state checks. Backup and deployment status is read-only here; bounded runbooks open S41. Provider degradation links to affected users and configured fallback policy.
+States and recovery Healthy, degraded, unavailable, stale, paused, draining, action pending and outcome unknown. Monitoring silence is not healthy.
+Mobile Focus on incident triage and safe action previews. Dense host/process diagnostics open on demand rather than shrinking all columns.
+Motion M1 row feedback; M3 detail; M6 confirmed row changes. Keep sort stable during actions.
+Acceptance A failed reminder is traceable to task, queue and provider evidence. Pausing a provider cannot silently reroute without configured policy.
+40 Task trace and voice latency
+Operations job, support task or latency drilldown  |  References R6; Brief
+Layout drawing with illustrative content. Specifications below define behavior and edge states.
+Layout and content Show a stage timeline above a compact event table. Voice comparisons share language, channel, noise and concurrency filters. Mark missing timestamps rather than drawing invented segments.
+Actions and behavior Click a stage to reveal duration, normalized error and provider/config version. Link to Sentry and infrastructure diagnostics with scoped access. Keep private content out of default trace view.
+States and recovery Partial trace, unsynchronized timing, provider timeout, reconnect, interrupted playback and unavailable telemetry. Filler speech is not meaningful response latency.
+Mobile Timeline becomes ordered stage rows with durations. Long identifiers use Copy and accessible full-value disclosure.
+Motion M3 entry; M2 status. Source highlight appears briefly without forced repeated scrolling.
+Acceptance Client speech-end to first meaningful audible response is measured consistently. No subtraction of unsynchronized clocks; missing stages remain unknown.
+41 Incident and approved runbook
+Operations incident or attention item  |  References Brief; R3
+Layout drawing with illustrative content. Specifications below define behavior and edge states.
+Layout and content Incident header shows impact and owner. A vertical runbook stepper contains preflight, requested approvals, execution progress and verification. Keep links to release, provider and support cases adjacent.
+Actions and behavior Allowlisted actions can pause capability, drain workers or restart an eligible service. Each shows impact, reason, approval and final verification. No arbitrary command terminal. Rollback lists actual prerequisites.
+States and recovery Investigating, mitigating, waiting approval, running, verification failed and resolved. An accepted restart is not a resolved incident; active calls must drain under policy.
+Mobile Read and approve through full-screen review; keep environment and target pinned. Complex recovery stays in the appropriate restricted workflow.
+Motion M3 entry; M2 status. Source highlight appears briefly without forced repeated scrolling.
+Acceptance A staging failure can be diagnosed, mitigated and verified with audited commands. Failed verification keeps the incident open.
+42 Providers and secret lifecycle
+Controls and audit then Provider credentials  |  References Brief; R4
+Layout drawing with illustrative content. Specifications below define behavior and edge states.
+Layout and content Table lists masked metadata only. Add/replace opens a secure form with provider, environment, owner and secret input. Lifecycle progress stays visible after submitting; existing key values are never returned.
+Actions and behavior Validate staged credential, activate, refresh consumers, verify and then revoke the old credential through the permitted process. Distinguish provider-side issuance from storing a key. Configuration stays separate from secret material.
+States and recovery Invalid, staged, validation failed, active, refresh pending, verification failed and disabled. Rollback is offered only while the old credential remains valid.
+Mobile Sensitive form is full screen and excluded from replay. No secrets in clipboard helpers, URLs or toast content.
+Motion M1 row feedback; M3 detail; M6 confirmed row changes. Keep sort stable during actions.
+Acceptance New keys never enter logs, analytics or audit payloads. Refresh status is real. Backend enforces role, environment and allowlisted secret namespace.
+43 Flags budgets and model policy
+Controls and audit  |  References Brief; R4
+Layout drawing with illustrative content. Specifications below define behavior and edge states.
+Layout and content Use compact versioned configuration rows. Edit opens current/proposed side-by-side values plus affected scope. Group free billing and operational budgets separately so zero price does not imply unlimited work.
+Actions and behavior Budget controls expose per-user and total pilot ceilings. Model policy validates capabilities and fallback. Flag changes specify cohort and rollback version. Running jobs/calls show whether the change applies now or next session.
+States and recovery Draft, invalid, awaiting approval, scheduled, active, conflict and rollback unavailable. Missing usage freshness prevents unsafe estimates.
+Mobile Read/change one control at a time. Full-screen review preserves scope/environment above the confirm action.
+Motion M1 row feedback; M3 detail; M6 confirmed row changes. Keep sort stable during actions.
+Acceptance Free mode cannot bypass operational quotas. Concurrent edits reject stale revisions. Rollback restores an actual known configuration, not a guessed default.
+44 Staff roles and audit
+Controls and audit then Access or Audit  |  References Brief; R2
+Layout drawing with illustrative content. Specifications below define behavior and edge states.
+Layout and content Role management and audit are sibling tabs. Roles use an explicit capability matrix; audit uses immutable records with a detail drawer. Sensitive payloads are redacted while retaining action correlation.
+Actions and behavior Role change previews the exact permissions and scope. Require appropriate staff authentication. Audit detail links ticket, command, approval and result. Ending assisted access revokes it on the server.
+States and recovery Denied, session expired, pending role change, no matching audit events and ingestion unavailable. Failed audit load is never represented as no activity.
+Mobile Use a role detail view instead of squeezing the matrix. Audit filters are grouped in a sheet.
+Motion M1 row feedback; M3 detail; M6 confirmed row changes. Keep sort stable during actions.
+Acceptance Support cannot refund or rotate platform keys through hidden API calls. Every mutation has actor, target, reason, timestamp and final outcome.
+45 Advanced workflow editor
+Existing authorized builder route  |  References R8; Brief
+Layout drawing with illustrative content. Specifications below define behavior and edge states.
+Layout and content Preserve the existing advanced builder as a secondary authorized destination. Full-width canvas uses a 320 px node inspector and a stable top toolbar. Keep Editor, Executions and Evaluations distinct. This is not required for ordinary Chat tasks.
+Actions and behavior Chat-created plans can open a readable flow where supported. Draft and published versions stay separate. Test uses sandbox fixtures or explicit safe execution controls. Approval nodes remain authoritative and cannot be bypassed by drawing connections.
+States and recovery Unsaved, invalid node, missing connection, test running, partial execution and publish conflict. Show exact failing node and useful recovery.
+Mobile Provide readable step list and run status. Offer desktop editing for complex graph work; do not pretend a scaled-down graph is usable.
+Motion Direct manipulation follows input; M2 inspector change. No decorative edge particles.
+Acceptance Existing flows retain IDs and semantics. Saving a layout cannot publish a changed executable workflow. No destructive migration for a navigation cleanup.
+Metrics events and release proof
+Metric
+Definition displayed in the console
+Activation
+First meaningful successful outcome after onboarding, according to the helper contract. A first message is not sufficient.
+Weekly useful users
+Distinct users with at least one defined useful outcome in the selected seven-day window.
+Seven day repeat
+Activated users with a further useful outcome in days 1–7 after activation divided by users whose full window elapsed. Label this exact window.
+Task success
+Successful eligible attempts / eligible attempts. Show partial, unknown, cancelled and excluded counts and the cancellation policy.
+Usefulness
+Positive responses / answered feedback prompts; show exposure count and response rate separately.
+Cost per success
+All attributable attempt costs, including failed attempts, divided by successful outcomes in the same cohort/period. Label estimates.
+Voice latency
+Speech end to first meaningful audible response at client, p50/p95 and sample size by language/channel/provider. Report interruption separately.
+Support and finance
+First response, resolution, reopen rate and CSAT with sample sizes. Separate cash, refunds, recurring value, recognized revenue and service costs.
+Reuse the handoff event catalogue: invite_accepted, onboarding_completed, first_useful_task_completed; task_started/completed/failed/cancelled; approval_requested/granted/rejected/expired; voice_session_started/ended/failed; connection_started/ready/revoked; support_action_requested/approved/executed/failed; evaluation_completed; usage_cost_recorded. Reconcile names with repository constants before adding events.
+Server events own business outcomes. Client events describe intent only. Envelope: event_id, schema_version, occurred_at UTC, environment, release, pseudonymous user_id, workspace_id/task_id when applicable, trace_id and configuration_version. Use typed channel/language/status/reason/duration properties. Dedupe important delivery; analytics must not block voice or alter the ledger.
+Sentry provides exception/trace evidence, PostHog provides funnels/cohorts, infrastructure monitoring provides worker/queue health, and the application database owns tasks, approvals, usage and audit. Sensitive screens 23–27, 31–33, 35, 38 and 42–44 need explicit replay exclusion or narrowly verified redacted capture; default exclusion is safer.
+Suggestions and Claude execution brief
+Six focused product improvements
+Make task evidence the signature detail A compact receipt under each completed action should show what happened, where, when and how to verify it. Reuse S09 across every channel.
+Make source coverage visible A small “2 of 3 sources checked” disclosure on briefs builds more trust than an impressive-looking answer that hides a failed connection.
+Teach in context Offer one dismissible tip after a relevant success, such as scheduling a brief after planning today. Keep a Help route to replay guidance; no compulsory feature tour.
+Build the founder attention queue first Put unresolved failures, waiting approvals, support escalations and spend exceptions at the top of S29. This makes daily operation actionable.
+Connect support to quality Turn a permitted sanitized failure into an evaluation case, then link the fix and release. This creates a visible improvement loop.
+Keep advanced capability discoverable Use searchable Settings, helper details and deep links to preserve skills, workflows and provider controls without expanding primary navigation.
+Instruction to paste into Claude
+Read AGENTS.md, the Product and Engineering Handoff and this design companion. Inspect current main, relevant PRs including 523, deployed flags, current routes and design tokens. Return a route/component reuse map and a capability status inventory before editing. Preserve the working voice pipeline, orchestration, memory, auth and existing advanced workflows.
+Implement Chat and Today with profile Settings, and a separately authorized staff console. Follow screen IDs 01–45, the shared contracts and motion tokens. Reuse existing components/APIs. Ship meaningful slices: shared states and settings persistence; Chat/Today/approval; voice/meetings/learning; identity and channels; staff support/actions; operations and controls; metrics and evals. Expose each capability only after its acceptance gate passes.
+For each slice return changed files, schema/migration requirements, permissions, flag, backend evidence, desktop/mobile screenshots, failure-state evidence and rollback. Verify two-channel approval deduplication, stale saves, partial brief coverage, scoped search, voice interruption, quota enforcement and sensitive telemetry exclusion. No placeholder success states, fabricated metrics or guessed provider IDs. Follow existing merge/deployment authorization.
+Resolve before enabling affected features: phone sponsorship/payment, supported pilot languages, fallback policy, beta budgets and effective retention. These decisions must not block unrelated working chat tasks. No fixed calendar schedule or automatic merge is implied.
+Reference register
+Refero research accessed 7 October 2026. These links identify the actual retrieved references; source products and their interfaces can change. Existing Decibyl styling remains the primary reference lock.
+R1 ChatGPT conversation and source panel
+R2 Linear inbox and detail layout
+R3 Asana task approval controls
+R4 Cron grouped connection settings
+R5 Intercom support thread and context
+R6 Fingerprint metrics and period controls
+R7 Mercury account and transaction hierarchy
+R8 n8n editor and inspector
+Jace trial onboarding flow
+Style references retrieved through Refero
+Attio  |  Refero style 9f0c028b-6b11-415e-ab92-f32e4597cbe2
+Cal.com  |  Refero style 23fd2b9b-b9ea-45e3-8370-7451ea05cee6
+Factory  |  Refero style f1ed1d46-4e76-41fe-a9f8-3017e55dc6ee
+The provided Decibyl Product and Engineering Handoff dated 7 October 2026 controls product scope, route reuse and safety/operating requirements, especially sections 19–38. This companion supplies the screen designs; it does not replace that engineering specification.
+Refero motion guidance supplies purpose-based durations, easing, reduced-motion treatment and interruptibility. Static screens do not verify competitor motion or accessibility behavior. All exact Decibyl dimensions and animation timings here are proposed specifications.

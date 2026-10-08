@@ -1,5 +1,5 @@
 """The platform WhatsApp number hears (A3 groundwork): only Meta may post,
-only a verified number is anybody's, a file becomes a document, twice is
+only a linked number is anybody's, a file becomes a document, twice is
 once, and the answer goes back the way it came."""
 
 from __future__ import annotations
@@ -105,53 +105,147 @@ class TestParsing:
         assert wa.parse({"nonsense": True}) == []
 
 
+MEERA = SimpleNamespace(id=3, provider_id="u3")
+LINKED = SimpleNamespace(id=11, organization_id=7, user_id=3)
+
+
+def _inbound(kind="text", text="where is my aadhaar", mid="wamid.1"):
+    return wa.Inbound(
+        message_id=mid,
+        sender=OWN,
+        sender_name="Meera",
+        kind=kind,
+        text=text,
+        media_id="media-9" if kind != "text" else None,
+        mime_type="application/pdf" if kind != "text" else None,
+        filename="LIC policy.pdf" if kind != "text" else None,
+    )
+
+
 @pytest.mark.asyncio
-class TestRouting:
+class TestStrangersAreStrangers:
+    """Launch stream identity: a number nobody linked is nobody's member.
+
+    It used to be answered as the workspace's first member whenever the
+    number was one that workspace had verified for test calls -- their
+    Gmail, their memory, their cards. These fail on that code."""
+
     @pytest.fixture(autouse=True)
     def _nobody_is_linked(self):
-        """These cover a verified but unlinked number. Linked members go
-        through the channel dispatcher and are covered in
-        test_decibyl_channels.py; without this the lookup would reach for a
-        real database these tests never set up."""
         with patch(
             "api.services.messaging.channels.identities.find",
             AsyncMock(return_value=None),
         ):
             yield
 
-    def _inbound(self, kind="text", text="where is my aadhaar", mid="wamid.1"):
-        return wa.Inbound(
-            message_id=mid,
-            sender=OWN,
-            sender_name="Meera",
-            kind=kind,
-            text=text,
-            media_id="media-9" if kind != "text" else None,
-            mime_type="application/pdf" if kind != "text" else None,
-            filename="LIC policy.pdf" if kind != "text" else None,
-        )
+    @pytest.fixture
+    def greeted(self):
+        sent = AsyncMock()
+        adapter = SimpleNamespace(enabled=lambda: True, send_text=sent)
+        with patch(
+            "api.services.messaging.channels.dispatch.adapter_for",
+            lambda channel: adapter,
+        ):
+            yield sent
 
-    async def test_a_verified_number_reaches_its_accounts_decibyl_and_replies_there(
-        self,
+    async def test_a_verified_but_unlinked_number_is_not_the_first_member(
+        self, greeted
     ):
         ask = AsyncMock(return_value=[])
+        first = AsyncMock(return_value=[MEERA])
         with (
-            patch.object(wa.db_client, "find_verified_number_owner", create=True),
+            patch.object(
+                wa.db_client,
+                "find_organization_by_verified_number",
+                AsyncMock(return_value=7),
+            ),
+            patch.object(wa.db_client, "get_organization_users", first),
+            patch.object(wa, "seen_before", AsyncMock(return_value=False)),
+            patch.object(wa, "touch_session", AsyncMock()),
+            patch("api.services.workflow.decibyl.ask", ask),
+        ):
+            assert await wa.handle(_inbound()) == "unlinked"
+        assert ask.await_count == 0
+        assert first.await_count == 0
+        # What must appear: the same "link me first" every channel gives.
+        from api.services.messaging.channels.dispatch import LINK_FIRST
+
+        greeted.assert_awaited_once_with({"to": OWN}, LINK_FIRST)
+
+    async def test_a_strangers_document_is_not_filed_anywhere(self, greeted):
+        ask = AsyncMock()
+        download = AsyncMock(return_value=(b"%PDF", "application/pdf"))
+        create = AsyncMock()
+        with (
             patch.object(
                 wa.db_client,
                 "find_organization_by_verified_number",
                 AsyncMock(return_value=7),
             ),
             patch.object(wa, "seen_before", AsyncMock(return_value=False)),
-            patch.object(wa, "touch_session", AsyncMock()) as touch,
-            patch.object(
-                wa.db_client,
-                "get_organization_users",
-                AsyncMock(return_value=[SimpleNamespace(id=3, provider_id="u3")]),
-            ),
+            patch.object(wa, "touch_session", AsyncMock()),
+            patch.object(wa, "download_media", download),
+            patch.object(wa.db_client, "create_document", create),
             patch("api.services.workflow.decibyl.ask", ask),
         ):
-            assert await wa.handle(self._inbound()) == "accepted"
+            assert await wa.handle(_inbound(kind="document")) == "unlinked"
+        assert download.await_count == 0 and create.await_count == 0
+        assert ask.await_count == 0
+
+    async def test_an_unverified_number_is_a_stranger_too(self, greeted):
+        ask = AsyncMock()
+        with (
+            patch.object(wa, "seen_before", AsyncMock(return_value=False)),
+            patch.object(wa, "touch_session", AsyncMock()),
+            patch("api.services.workflow.decibyl.ask", ask),
+        ):
+            assert await wa.handle(_inbound()) == "unlinked"
+        assert ask.await_count == 0
+        greeted.assert_awaited_once()
+
+    async def test_a_strangers_redelivery_is_greeted_once(self, greeted):
+        with patch.object(wa, "seen_before", AsyncMock(side_effect=[False, True])):
+            with patch.object(wa, "touch_session", AsyncMock()):
+                assert await wa.handle(_inbound()) == "unlinked"
+                assert await wa.handle(_inbound()) == "duplicate"
+        assert greeted.await_count == 1
+
+    async def test_a_stranger_can_still_link_with_a_code(self):
+        handled = AsyncMock(return_value="linked")
+        with (
+            patch.object(wa, "seen_before", AsyncMock(return_value=False)),
+            patch.object(wa, "touch_session", AsyncMock()),
+            patch("api.services.messaging.channels.dispatch.handle", handled),
+        ):
+            assert await wa.handle(_inbound(text="LINK 4KX9QZ")) == "linked"
+        assert handled.await_args.args[0].text == "LINK 4KX9QZ"
+
+
+@pytest.mark.asyncio
+class TestRouting:
+    """A linked number is that member: their Gmail, their memory."""
+
+    @pytest.fixture(autouse=True)
+    def _linked(self):
+        with (
+            patch(
+                "api.services.messaging.channels.identities.find",
+                AsyncMock(return_value=LINKED),
+            ),
+            patch.object(wa.db_client, "get_user_by_id", AsyncMock(return_value=MEERA)),
+        ):
+            yield
+
+    async def test_a_linked_number_reaches_its_members_decibyl_and_replies_there(
+        self,
+    ):
+        ask = AsyncMock(return_value=[])
+        with (
+            patch.object(wa, "seen_before", AsyncMock(return_value=False)),
+            patch.object(wa, "touch_session", AsyncMock()) as touch,
+            patch("api.services.workflow.decibyl.ask", ask),
+        ):
+            assert await wa.handle(_inbound()) == "accepted"
         touch.assert_awaited_once_with(OWN)
         kwargs = ask.await_args.kwargs
         assert kwargs["organization_id"] == 7 and kwargs["user_id"] == 3
@@ -163,31 +257,13 @@ class TestRouting:
             "ref": {"to": OWN},
         }
 
-    async def test_an_unverified_number_is_nobodys_and_is_dropped(self):
-        ask = AsyncMock()
-        with (
-            patch.object(
-                wa.db_client,
-                "find_organization_by_verified_number",
-                AsyncMock(return_value=None),
-            ),
-            patch("api.services.workflow.decibyl.ask", ask),
-        ):
-            assert await wa.handle(self._inbound()) == "unknown_number"
-        assert ask.await_count == 0
-
     async def test_a_redelivery_answers_nothing_twice(self):
         ask = AsyncMock()
         with (
-            patch.object(
-                wa.db_client,
-                "find_organization_by_verified_number",
-                AsyncMock(return_value=7),
-            ),
             patch.object(wa, "seen_before", AsyncMock(return_value=True)),
             patch("api.services.workflow.decibyl.ask", ask),
         ):
-            assert await wa.handle(self._inbound()) == "duplicate"
+            assert await wa.handle(_inbound()) == "duplicate"
         assert ask.await_count == 0
 
     async def test_a_document_is_filed_and_reaches_decibyl_as_an_attachment(self):
@@ -195,18 +271,8 @@ class TestRouting:
         create = AsyncMock(return_value=SimpleNamespace(id=55))
         enqueue = AsyncMock()
         with (
-            patch.object(
-                wa.db_client,
-                "find_organization_by_verified_number",
-                AsyncMock(return_value=7),
-            ),
             patch.object(wa, "seen_before", AsyncMock(return_value=False)),
             patch.object(wa, "touch_session", AsyncMock()),
-            patch.object(
-                wa.db_client,
-                "get_organization_users",
-                AsyncMock(return_value=[SimpleNamespace(id=3, provider_id="u3")]),
-            ),
             patch.object(
                 wa,
                 "download_media",
@@ -221,7 +287,7 @@ class TestRouting:
             patch("api.services.workflow.decibyl.ask", ask),
         ):
             assert (
-                await wa.handle(self._inbound(kind="document", text="my policy"))
+                await wa.handle(_inbound(kind="document", text="my policy"))
                 == "accepted"
             )
         key = store.await_args.args[0]
@@ -241,24 +307,14 @@ class TestRouting:
     ):
         ask = AsyncMock(return_value=[])
         with (
-            patch.object(
-                wa.db_client,
-                "find_organization_by_verified_number",
-                AsyncMock(return_value=7),
-            ),
             patch.object(wa, "seen_before", AsyncMock(return_value=False)),
             patch.object(wa, "touch_session", AsyncMock()),
-            patch.object(
-                wa.db_client,
-                "get_organization_users",
-                AsyncMock(return_value=[SimpleNamespace(id=3, provider_id="u3")]),
-            ),
             patch.object(
                 wa, "download_media", AsyncMock(side_effect=ValueError("gone"))
             ),
             patch("api.services.workflow.decibyl.ask", ask),
         ):
-            assert await wa.handle(self._inbound(kind="image", text="")) == "accepted"
+            assert await wa.handle(_inbound(kind="image", text="")) == "accepted"
         assert "could not be received" in ask.await_args.kwargs["text"]
         assert ask.await_args.kwargs["attachments"] == []
 

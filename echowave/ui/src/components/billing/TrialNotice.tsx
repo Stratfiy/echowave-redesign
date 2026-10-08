@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 
 import { client } from "@/client/client.gen";
 import { useAuth } from "@/lib/auth";
+import { useFeature } from "@/lib/features";
 
 /**
  * Where the account stands on its trial (PLAN-1, KAN-255): the end date
@@ -28,7 +29,9 @@ function formatDay(iso: string | null): string {
 }
 
 export function TrialLine({ trial }: { trial: TrialState | null | undefined }) {
-  if (!trial || !trial.on_trial) return null;
+  // Free while we are early: there is no trial to count down (free_mode.py).
+  const freeMode = useFeature("free_mode");
+  if (freeMode || !trial || !trial.on_trial) return null;
   if (!trial.active) {
     return (
       <div

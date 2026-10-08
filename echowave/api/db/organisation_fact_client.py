@@ -316,6 +316,12 @@ class OrganisationFactClient(BaseDBClient):
         """
         if not facts:
             return 0
+        from api.services.settings import temporary as memory_choice
+
+        if memory_choice.is_paused():
+            # A turn whose person has memory off, or a temporary
+            # conversation (settings stream): nothing is kept.
+            return 0
 
         now = datetime.now(UTC)
         rows = [

@@ -1,0 +1,184 @@
+name: Decibyl evals
+
+# Runs Decibyl's evals against staging and uploads the report:
+# echowave/evals/decibyl (the assistant itself, through the real HTTP API as
+# the two staging test accounts, graded by checks and a model judge) and the
+# Laya routing set in the same report shape.
+#
+# Manual only, on purpose. Every run spends real model money -- Decibyl's
+# replies on staging and the judge here -- so a person chooses when. Never add
+# a schedule or a push trigger. `--estimate` (the "estimate only" input) says
+# what a run would cost without making a single model call.
+#
+# Runs on the CI box like the staging deploy, so it reaches staging on
+# loopback. The decibyl suite is standard-library Python; only the laya suite
+# installs the API's dependencies (it imports the routing code).
+
+on:
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: "Which eval"
+        required: true
+        type: choice
+        default: decibyl
+        options:
+          - decibyl
+          - laya
+          - all
+      category:
+        description: "Only these categories, comma-separated (e.g. actions,safety). Empty is all."
+        required: false
+        type: string
+        default: ""
+      limit:
+        description: "Only the first N cases (of each category given). Empty is all."
+        required: false
+        type: string
+        default: ""
+      cases:
+        description: "Only these case ids, comma-separated. Empty is all."
+        required: false
+        type: string
+        default: ""
+      no_judge:
+        description: "Deterministic checks only (no judge calls)"
+        required: false
+        type: boolean
+        default: false
+      estimate_only:
+        description: "Print the expected cost and stop (no model calls)"
+        required: false
+        type: boolean
+        default: false
+      save_baseline:
+        description: "Also write this run as a new baseline into the report (commit it to adopt it)"
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: decibyl-evals
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  evals:
+    name: Run evals
+    runs-on: [self-hosted, linux, x64, ci]
+    environment: staging
+    timeout-minutes: 180
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: ${{ inputs.suite != 'decibyl' && 'recursive' || 'false' }}
+
+      - name: Set up Python 3.13 (laya suite)
+        if: ${{ inputs.suite != 'decibyl' && !inputs.estimate_only }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install the API's dependencies (laya suite)
+        if: ${{ inputs.suite != 'decibyl' && !inputs.estimate_only }}
+        working-directory: echowave
+        run: |
+          python -m venv .venv
+          echo "${{ github.workspace }}/echowave/.venv/bin" >> "$GITHUB_PATH"
+          source .venv/bin/activate
+          ./scripts/setup_requirements.sh
+
+      - name: Run
+        working-directory: echowave
+        env:
+          STAGING_URL: ${{ vars.STAGING_URL || 'http://127.0.0.1:8000' }}
+          STAGING_EMAIL_A: ${{ secrets.STAGING_EMAIL_A }}
+          STAGING_PASSWORD_A: ${{ secrets.STAGING_PASSWORD_A }}
+          STAGING_EMAIL_B: ${{ secrets.STAGING_EMAIL_B }}
+          STAGING_PASSWORD_B: ${{ secrets.STAGING_PASSWORD_B }}
+          EVAL_JUDGE_API_KEY: ${{ secrets.EVAL_JUDGE_API_KEY }}
+          EVAL_JUDGE_MODEL: ${{ vars.EVAL_JUDGE_MODEL }}
+          LAYA_URL: ${{ vars.EVAL_LAYA_URL }}
+          # The laya suite imports the API's settings, which read these at
+          # import time. Placeholders: nothing in that suite connects to them.
+          DATABASE_URL: postgresql+asyncpg://unused:unused@127.0.0.1:1/unused
+          REDIS_URL: redis://127.0.0.1:1/0
+          MINIO_PUBLIC_ENDPOINT: http://127.0.0.1:9
+          ENABLE_AWS_S3: "false"
+          INPUT_SUITE: ${{ inputs.suite }}
+          INPUT_CATEGORY: ${{ inputs.category }}
+          INPUT_LIMIT: ${{ inputs.limit }}
+          INPUT_CASES: ${{ inputs.cases }}
+          INPUT_NO_JUDGE: ${{ inputs.no_judge }}
+          INPUT_ESTIMATE: ${{ inputs.estimate_only }}
+          INPUT_SAVE_BASELINE: ${{ inputs.save_baseline }}
+        run: |
+          set -euo pipefail
+          # Without the secrets, the two test accounts created on the box
+          # (root-only file, echowave/STAGING.md), as the staging check does.
+          # Passwords are masked before anything could print them.
+          if [ -z "${STAGING_EMAIL_A:-}" ] && sudo test -f /home/ubuntu/decibyl-staging/check.env; then
+            while IFS='=' read -r key value; do
+              case "$key" in
+                STAGING_URL|STAGING_EMAIL_A|STAGING_PASSWORD_A|STAGING_EMAIL_B|STAGING_PASSWORD_B)
+                  case "$key" in *PASSWORD*) echo "::add-mask::$value" ;; esac
+                  export "$key=$value" ;;
+              esac
+            done < <(sudo cat /home/ubuntu/decibyl-staging/check.env)
+          fi
+          [ -n "${EVAL_JUDGE_API_KEY:-}" ] && echo "::add-mask::$EVAL_JUDGE_API_KEY"
+
+          # Inputs reach the command as validated arguments, never as shell.
+          args=(--suite "$INPUT_SUITE" --out "$RUNNER_TEMP/eval-report" --baselines "$RUNNER_TEMP/eval-report/baselines")
+          mkdir -p "$RUNNER_TEMP/eval-report/baselines"
+          cp evals/decibyl/baselines/*.json "$RUNNER_TEMP/eval-report/baselines/" 2>/dev/null || true
+          IFS=',' read -ra cats <<< "$INPUT_CATEGORY"
+          for c in "${cats[@]}"; do
+            c="$(echo "$c" | tr -d '[:space:]')"
+            [[ "$c" =~ ^[a-z_]+$ ]] || { [ -z "$c" ] && continue; echo "::error::Bad category '$c'"; exit 2; }
+            args+=(--category "$c")
+          done
+          IFS=',' read -ra ids <<< "$INPUT_CASES"
+          for i in "${ids[@]}"; do
+            i="$(echo "$i" | tr -d '[:space:]')"
+            [[ "$i" =~ ^[a-z0-9-]+$ ]] || { [ -z "$i" ] && continue; echo "::error::Bad case id '$i'"; exit 2; }
+            args+=(--case "$i")
+          done
+          if [ -n "$INPUT_LIMIT" ]; then
+            [[ "$INPUT_LIMIT" =~ ^[0-9]+$ ]] || { echo "::error::Limit must be a number"; exit 2; }
+            args+=(--limit "$INPUT_LIMIT")
+          fi
+          [ "$INPUT_NO_JUDGE" = "true" ] && args+=(--no-judge)
+          [ "$INPUT_ESTIMATE" = "true" ] && args+=(--estimate)
+          [ "$INPUT_SAVE_BASELINE" = "true" ] && args+=(--save-baseline)
+
+          PY=python3
+          [ -x .venv/bin/python ] && PY=.venv/bin/python
+          set +e
+          "$PY" -m evals.decibyl.run "${args[@]}" | tee "$RUNNER_TEMP/eval-output.txt"
+          status=${PIPESTATUS[0]}
+          set -e
+          echo "status=$status" >> "$GITHUB_ENV"
+          exit "$status"
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            for page in "$RUNNER_TEMP"/eval-report/*.md; do
+              [ -f "$page" ] && { head -c 60000 "$page"; echo; }
+            done
+            [ -f "$RUNNER_TEMP/eval-output.txt" ] && grep -E '^(Model calls|.*Estimated cost)' "$RUNNER_TEMP/eval-output.txt" || true
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: decibyl-evals-${{ github.run_id }}
+          path: ${{ runner.temp }}/eval-report
+          if-no-files-found: ignore
+          retention-days: 30

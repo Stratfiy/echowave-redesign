@@ -199,7 +199,7 @@ export default function AgentToolsPage() {
                             <Button
                                 variant="outline"
                                 className="mt-4"
-                                onClick={() => router.push("/tools")}
+                                onClick={() => router.push("/settings/apps")}
                             >
                                 Create a tool
                             </Button>

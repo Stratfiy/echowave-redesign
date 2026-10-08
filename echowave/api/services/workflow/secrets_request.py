@@ -172,6 +172,14 @@ async def provide(
     payload = dict(event.payload or {})
     if payload.get("provided"):
         raise SecretError("Already added.")
+    if payload.get("provider_key"):
+        return await _provide_provider_key(
+            organization_id=organization_id,
+            event=event,
+            payload=payload,
+            values=values,
+            user_id=user_id,
+        )
 
     credential_type = payload.get("credential_type")
     fields = FIELDS.get(str(credential_type)) or []
@@ -261,4 +269,74 @@ async def provide(
                 event.workflow_id,
                 exc,
             )
+    return payload
+
+
+async def _provide_provider_key(
+    *,
+    organization_id: int,
+    event: Any,
+    payload: dict[str, Any],
+    values: dict[str, str],
+    user_id: int,
+) -> dict[str, Any]:
+    """A vendor key asked for on Decibyl's thread (a lead-data key for
+    outreach): checked with the vendor, then stored in the workspace's
+    provider-key vault -- the same place Settings, Provider keys writes --
+    never in Credentials and never on the thread. A key the vendor rejects
+    is not stored, and the form says so."""
+    from api.services.configuration import key_validation, organization_credentials
+
+    target = dict(payload.get("provider_key") or {})
+    component = str(target.get("component") or "")
+    provider = str(target.get("provider") or "")
+    api_key = str(values.get("api_key") or "").strip()
+    if not api_key:
+        raise SecretError("API key is needed.")
+    if len(api_key) > MAX_VALUE_CHARS:
+        raise SecretError("API key is too long.")
+    check = await key_validation.validate_key(provider, api_key)
+    if not check.may_store:
+        raise SecretError(check.message or "The vendor rejected that key.")
+    async with db_client.async_session() as session:
+        try:
+            await organization_credentials.set_credential(
+                session,
+                organization_id=organization_id,
+                actor_user_id=user_id,
+                component=component,
+                provider=provider,
+                api_key=api_key,
+                label="Added from Chat",
+            )
+        except organization_credentials.OrganizationCredentialError as exc:
+            raise SecretError(str(exc)) from exc
+        await session.commit()
+    label = str(target.get("label") or provider)
+    hint = api_key[-4:] if len(api_key) >= 4 else ""
+    payload["provided"] = {
+        "credential_name": f"{label} key",
+        "hint": hint,
+        "verification": check.outcome,
+        "by": user_id,
+        "at": datetime.now(UTC).isoformat(),
+    }
+    if not await db_client.set_agent_event_payload(
+        event.id, organization_id=organization_id, payload=payload
+    ):
+        raise SecretError("That request is not here to answer.")
+    line = (
+        f"{label} key added"
+        + (f" (ends in {hint})" if hint else "")
+        + ". "
+        + (check.message or "")
+    ).strip()
+    await agent_timeline.record(
+        organization_id=organization_id,
+        kind=AgentEventKind.MESSAGE.value,
+        actor=AgentEventActor.HUMAN.value,
+        summary=line,
+        payload={"body": line, "author_id": user_id, "secret_event_id": event.id},
+        in_channel=False,
+    )
     return payload

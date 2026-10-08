@@ -182,8 +182,14 @@ class RenameOrganizationRequest(BaseModel):
 
 
 def _organization_name(row) -> str:
-    """The name the switcher shows: what an admin typed, or the id until then."""
-    return row[1] or f"Organization {row[0]}"
+    """The name the switcher shows: what an admin typed. Until then an owner
+    sees "My workspace" -- "Organization 13952" read as a database row on the
+    first screen -- and anyone else sees the number, so two unnamed teams can
+    still be told apart."""
+    if row[1]:
+        return row[1]
+    role = str(getattr(row[2], "value", row[2])).lower()
+    return "My workspace" if role == "owner" else f"Organization {row[0]}"
 
 
 @router.get("/mine", response_model=List[UserOrganizationResponse])
@@ -611,6 +617,56 @@ async def migrate_model_configuration_v2(
         user=user,
         configuration=configuration,
     )
+
+
+class WorkspaceModelChoice(BaseModel):
+    slot: str
+    value: str
+
+
+async def _workspace_models_view(organization_id: int) -> dict:
+    from api.services.configuration import workspace_models
+
+    stored = await get_organization_ai_model_configuration_v2(organization_id)
+    async with db_client.async_session() as session:
+        keys_held = await organization_credentials.available_providers(
+            session, organization_id=organization_id
+        )
+        platform_providers = await managed_resolution.platform_provider_catalog(session)
+    return stored, workspace_models.view(
+        stored, platform_providers=platform_providers, keys_held=keys_held
+    )
+
+
+@router.get("/models")
+async def get_workspace_models(
+    user: UserModel = Depends(get_user_with_selected_organization),
+):
+    """Settings -> Models: what runs every agent, slot by slot."""
+    _stored, view = await _workspace_models_view(user.selected_organization_id)
+    return view
+
+
+@router.put("/models")
+async def set_workspace_model(
+    request: WorkspaceModelChoice,
+    user: UserModel = Depends(get_user_with_selected_organization),
+):
+    from api.services.configuration import workspace_models
+
+    organization_id = user.selected_organization_id
+    stored, view = await _workspace_models_view(organization_id)
+    try:
+        configuration = workspace_models.choose(
+            stored, slot=request.slot, value=request.value, offered=view
+        )
+    except workspace_models.LockedStack as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    except workspace_models.UnknownChoice as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    await upsert_organization_ai_model_configuration_v2(organization_id, configuration)
+    _stored, view = await _workspace_models_view(organization_id)
+    return view
 
 
 @router.get("/preferences", response_model=OrganizationPreferences)

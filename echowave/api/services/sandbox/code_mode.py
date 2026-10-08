@@ -147,7 +147,9 @@ async def allowed(organization_id: int | None) -> bool:
 
         async with db_client.async_session() as session:
             plan = await plan_for_organization(session, organization_id=organization_id)
-        return str(plan.code) in ALLOWED_PLANS
+        from api.services.billing import free_mode
+
+        return free_mode.on(organization_id) or str(plan.code) in ALLOWED_PLANS
     except Exception as exc:  # noqa: BLE001 - not offered is the safe answer
         logger.warning("Could not read the plan for org {}: {}", organization_id, exc)
         return False

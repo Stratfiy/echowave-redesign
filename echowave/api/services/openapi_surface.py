@@ -52,9 +52,14 @@ TAG_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "agent-builder",
             # Agents and a website for them, built from one chat.
             "studio",
+            # Decibyl's private browser: live view, Take over, saved logins.
+            "browser",
             "agent-templates",
             # A workspace's own saved roles, and sharing them (MP-2, MP-3).
             "workspace-roles",
+            # The five launch helpers and the builder, saved reports,
+            # commitments and trackers (launch stream `agents`).
+            "helpers",
             # What starts an agent, and what its last run reached (G-1).
             "agent-graph",
             "agent-options",
@@ -82,6 +87,9 @@ TAG_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "contacts",
             "turn",
             "translate",
+            # Live voice with Decibyl, voice settings, and the Call and
+            # Appointment runtime's policy (launch stream `voice`).
+            "voice",
         ),
     ),
     (
@@ -98,11 +106,19 @@ TAG_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "public-whatsapp",
             "routines",
             "tasks",
+            # Today, reminders and the daily brief (launch stream today).
+            "today",
             "google-calendar",
             # Members talking to Decibyl from Slack, Teams, Telegram and
             # WhatsApp, and linking those accounts to themselves (KAN-277).
             "public-decibyl-channels",
             "channel-links",
+            # The Windows and Mac app: approval cards for steps it takes on
+            # a person's own computer, and the receipt it leaves.
+            "desktop",
+            # A person's connections, Decibyl address, phone and
+            # verification, and notifications (launch stream identity).
+            "identity",
         ),
     ),
     (
@@ -125,6 +141,9 @@ TAG_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "credentials",
             "provider-keys",
             "service-keys",
+            # A person's own outside tools and ordering apps, and their
+            # order cards (launch stream `reach`).
+            "reach",
         ),
     ),
     (
@@ -139,6 +158,32 @@ TAG_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "organisation-memory",
             "notifications",
             "onboarding",
+            # A person's own preferences, allowances, personal space, and
+            # their feedback on replies (launch stream controls).
+            "controls",
+            # The door before an account exists (screen 01): the waitlist
+            # and what an invitation link says.
+            "public-early-access",
+            # Where a person lands after sign-in, their first answers, and
+            # Stop for a reply forming in Chat (launch stream `shell`).
+            "shell",
+            # Older people and their families: medicine reminder calls,
+            # scam checks, tech help and the family circle (stream `care`).
+            "care",
+            # A person's learning goals, lessons, practice and progress
+            # (launch stream `learning`).
+            "learning",
+            # Meeting capture and the meeting record (launch stream
+            # `meetings`, screens 11-12).
+            "meetings",
+            # A person's own contacts, synced and with context (PEOPLE.md).
+            "people",
+            # Help: a person's own support requests, what they share with
+            # support and the replies (launch stream `support`).
+            "support",
+            # A person's own settings, memory, saved items and data rights
+            # (launch stream `settings`).
+            "settings",
         ),
     ),
     (

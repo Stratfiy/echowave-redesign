@@ -442,8 +442,14 @@ async def resolve(session: AsyncSession, *, plan_code: str, key: str) -> Limit:
 async def limit_for_organization(
     session: AsyncSession, *, organization_id: int, key: str
 ) -> Limit:
-    """The cap an account is under, from the plan it is on."""
-    from api.services.billing import subscription_plans
+    """The cap an account is under, from the plan it is on. None in free mode."""
+    from api.services.billing import free_mode, subscription_plans
+
+    if free_mode.on(organization_id):
+        spec = LIMITS_BY_KEY.get(key)
+        if spec is None:
+            raise KeyError(f"{key!r} is not a plan limit; see plan_limits.LIMITS")
+        return Limit(key=key, plan_code="free", value=None, raise_to=None, spec=spec)
 
     plan = await subscription_plans.plan_for_organization(
         session, organization_id=organization_id

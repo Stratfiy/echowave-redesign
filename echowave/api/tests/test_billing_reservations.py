@@ -717,3 +717,47 @@ class TestWhatTheBalanceCovers:
             async_session, organization_id=org.id, workflow_run_id=second.id
         )
         assert budget is not None and budget < 600
+
+
+class TestFreeModeIsNotCappedMidCall:
+    """has_credit lets an internal (or free-mode) account start a call with no
+    balance; the in-call cap must agree, or the call is cut at 20 seconds."""
+
+    @pytest.mark.asyncio
+    async def test_an_internal_account_gets_no_credit_cap(
+        self, async_session, db_session, monkeypatch
+    ):
+        org = await _org(async_session, "budget-free", balance_paise=0)
+        run = await _run(async_session, org, name="free")
+
+        async def _internal(session, organization_id):
+            return True
+
+        monkeypatch.setattr(reservations, "is_internal", _internal)
+        assert await reservations.has_credit(async_session, organization_id=org.id)
+        assert (
+            await reservations.call_budget_seconds(
+                async_session, organization_id=org.id, workflow_run_id=run.id
+            )
+            is None
+        )
+
+    @pytest.mark.asyncio
+    async def test_a_paying_account_with_no_balance_is_still_capped(
+        self, async_session, db_session, monkeypatch
+    ):
+        org = await _org(async_session, "budget-paying", balance_paise=0)
+        run = await _run(async_session, org, name="paying")
+
+        async def _not_internal(session, organization_id):
+            return False
+
+        async def _per_minute(session, *, organization_id, at=None):
+            return 600
+
+        monkeypatch.setattr(reservations, "is_internal", _not_internal)
+        monkeypatch.setattr(reservations, "per_minute_paise", _per_minute)
+        budget = await reservations.call_budget_seconds(
+            async_session, organization_id=org.id, workflow_run_id=run.id
+        )
+        assert budget == 0

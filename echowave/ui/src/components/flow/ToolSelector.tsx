@@ -158,7 +158,7 @@ export function ToolSelector({
                         No tools available.
                     </p>
                     <Button variant="outline" size="sm" asChild>
-                        <Link href="/tools" target="_blank">
+                        <Link href="/settings/apps" target="_blank">
                             <ExternalLink className="h-4 w-4 mr-2" />
                             Create a Tool
                         </Link>
@@ -338,7 +338,7 @@ export function ToolSelector({
 
                     <div className="mt-2 p-2 bg-muted/30 rounded-md">
                         <Link
-                            href="/tools"
+                            href="/settings/apps"
                             target="_blank"
                             className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
                         >

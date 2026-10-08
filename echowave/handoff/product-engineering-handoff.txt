@@ -1,0 +1,1224 @@
+Product and engineering handoff
+
+Product specification and developer handoff with screens settings and interaction states
+
+Prepared for Claude and the development team • 7 October 2026
+
+The product decision
+
+Decibyl is a personal AI assistant you can talk to in your language. It remembers the context you choose to share, helps you learn, and completes everyday work across your connected apps—with your permission.
+
+Keep the complete product direction: personal email, a phone number after KYC, five launch agents, local-language voice, connected work, memory, skills, daily summaries and mobile access. Show the virtual card as coming soon. Deliver through dependency-based work packets, without an arbitrary four-week schedule.
+
+What the evidence supports
+
+Public discussions support a need for connected tasks, dependable memory and reliable actions. Voice users report interruption and turn-taking problems. Evidence for an all-in-one Indian-language assistant, a personal phone number as the primary attraction, and willingness to pay remains unproven. Launch a bounded free invite beta to measure repeated useful work, not just registrations. [R1–R8]
+
+The most important implementation correction
+
+Reuse the existing platform and review open PR 523 before starting. That PR already adds grouped settings, shared model defaults, simpler navigation and free mode. Its unlimited plan limits and Claude default need reconciliation with the proposed beta controls and the requested Sarvam default. Do not rebuild these surfaces independently.
+
+Reading order
+
+Start with sections 19–28 for the updated product interface, settings, dynamic behavior and implementation instructions. Sections 1–18 retain the demand evidence, dated source audit, AWS architecture, latency research, guardrails and launch controls. This revision replaces the earlier navigation proposal throughout.
+
+Evidence convention: MAIN means source present in the reviewed main commit; PR means unmerged work; PROPOSED means this specification; VERIFY means runtime or configuration evidence is still required. Source presence does not prove production readiness.
+
+1 Demand validation and its limits
+
+Method: a targeted qualitative review of public personal-assistant, voice-agent, memory, approval and Indian-language learning discussions, plus primary technical research. This is a convenience sample, not a representative survey or a market-size estimate. Vendor replies and builder promotion were treated as weaker evidence. Sources were accessed on 7 October 2026.
+
+  ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  Observed need                 Evidence and strength                                                                                                                    Product consequence
+  ----------------------------- ---------------------------------------------------------------------------------------------------------------------------------------- -----------------------------------------------------------------------------------------------------------
+  Connected daily work          R1: an original requester wants notes, tasks, calendar, email and contacts. Promotional replies weaken any vendor comparison.            Start with a real task and connect an app when needed. Avoid asking users to configure an agent platform.
+
+  Reliability and trust         R2: discussion asks why assistants lack broad adoption; reliability and privacy recur. Qualitative concerns, not quantified incidence.   Show what happened, what failed and what still needs permission. Never call a proposed action completed.
+
+  Memory that stays correct     R3: long-project user reports repeated context and contradictions. A single thread cannot establish prevalence.                          Scoped, inspectable memory with corrections, source dates and an explicit forget control.
+
+  Natural voice turns           R4 and R5: pauses, interruptions and overlapping speech cause problems; some commenters report good results.                             Test false interruptions and recovery alongside response speed on real calls.
+
+  Approvals that do not stall   R6: production builders discuss pending approvals and operational control. Builder evidence.                                             Persist approvals as workflow state; expiry and clear resume paths, no occupied worker while waiting.
+
+  Local-language learning       R7: Kannada tutor builder reports 11 learners and 163 sessions in 7 days. Self-reported, unverified and very small.                      Keep Learning Guide; test repeat practice and learning gain with adults before broad educational claims.
+  ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+What cannot be concluded
+
+These sources do not prove demand for Decibyl, a defensible advantage, a paying Indian market, or YC interest. They do not validate the virtual card. R8 is a builder’s proactive-assistant pitch, useful as a hypothesis rather than independent customer validation. No survey percentages or market revenue claims are inferred.
+
+2 Positioning and product changes
+
+Who uses it first
+
+Recruit Indian independent professionals and small-business operators who already manage daily follow-ups across email and messaging. In a separate learning cohort, recruit adults with one recurring learning goal. Both use the same assistant; track their outcomes separately so one successful use case does not hide the other’s failure.
+
+The recurring problem
+
+People keep explaining their context, switching apps, remembering follow-ups and finding time to learn. Decibyl should turn a short conversation into a useful result: a checked answer, a prepared response, a remembered commitment, a learning session or an approved action.
+
+Why choose Decibyl
+
+The proposed advantage is continuity across language, voice and connected work: talk naturally, retain chosen context, and finish the task. This is a hypothesis to demonstrate against users’ current ChatGPT, calendar and WhatsApp habits. Owning an email address or phone number is an enabling feature, not yet an evidenced reason to switch.
+
+  ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  Keep                                                Modify                                                                       Avoid claiming
+  --------------------------------------------------- ---------------------------------------------------------------------------- ---------------------------------------------------------------
+  Voice plus text, local languages, all five agents   Lead with a useful task; keep provider choices in Settings.                  “For everyone”, “best latency”, or guaranteed learning gains.
+
+  Daily summary and proactive suggestions             Ask for time, timezone and channel; cap unsolicited prompts.                 Automatic helpfulness simply because a message was sent.
+
+  Was this useful feedback                            Offer Yes / Not quite on completed suggestions; ask aloud sparingly.         Thumbs-up equals task success or permission to act.
+
+  Free invite beta and waitlist                       Separate free billing from operating quotas and abuse controls.              Unlimited free calling or guaranteed admission.
+
+  Email, phone and future card identity               Explain concrete use: receive work, handle calls, later approved spending.   The card is available or money can be spent in the MVP.
+  ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Website copy to test
+
+Headline: “Talk to Decibyl. Get everyday things done.” Supporting line: “Your personal AI assistant for work and learning, in your language. Connect your apps, remember what matters, and stay in control.” CTA: “Join the free early access list.” Secondary: “See a real task.”
+
+Use the existing calm black-and-white visual direction with restrained color. No robot mascot or neon-green redesign. Remove pricing sections from the launch page; explain beta limits at invitation and before costly use. Do not present disconnected or untested channels as live.
+
+3 Existing versus required platform
+
+Repository: Stratfiy/echowave-redesign. Main inspected at 6d4f08d8a142b2aa0fc38d991353299d044d2d4a. PR 523 inspected at b835a892d37179e2303919d261f42d37995e0b2f. These are separate source states. No production smoke test or deployment inventory was performed for this report. [C1–C3]
+
+  -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  Capability and evidence                                       Status        What must be completed or verified
+  ------------------------------------------------------------- ------------- -------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  Central assistant: api/services/workflow/decibyl.py           MAIN          Reuse orchestration. Adjust business-workspace framing for personal plus work context; test actual multi-turn task completion.
+
+  Tools and approvals: workflow/connected_tools.py              MAIN          Reads and proposed writes exist. Verify exact-payload approval binding, retry safety and cross-channel resume.
+
+  Background work and routines: decibyl_tasks.py; routines.py   MAIN, flags   Reuse ARQ and schedule primitives. Add unified daily briefing, coverage state and user timezone controls.
+
+  Memory: knowledge_graph/personal.py; teach.py                 MAIN, flags   Member ownership and correction exist. Surface inspect/edit/forget. Test tenant isolation and enablement; personal_memory defaults off in reviewed source.
+
+  Learning: spaced_recall.py                                    PARTIAL       Existing recalled facts are not a curriculum or mastery system. Build practice, evaluation and lesson progress; inspect Latin-only token matching for Indic gaps.
+
+  Skills: services/skills/shelf.py; catalogue.py; imports.py    MAIN          Keep install/assign/import/version capabilities. Existing MAX_PER_BOT is 8. Add focused retrieval and permission disclosure.
+
+  Invites: auth/signup_invites.py                               MAIN, flags   Expiry, use limits and email binding exist. Connect waitlist selection to issuing invites; verify Google and password claims.
+
+  Channels: public_decibyl_channels routes                      MAIN, flags   Slack, Teams, Telegram dispatch and WhatsApp paths require provider configuration and end-to-end checks. A route is not a working integration.
+
+  Infrastructure: compose services                              MAIN          FastAPI, Next.js, Postgres/pgvector, Redis/ARQ, graph, object storage and Pipecat exist. Inventory live equivalents before migration.
+  -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Relative source paths in this report are under echowave/ unless stated otherwise. Search absence is not proof of universal absence; the developer should reconcile new commits and alternative implementations before adding code.
+
+4 Existing versus required launch surfaces
+
+  -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  Capability                 Evidence today                                                                                                                   Required delta
+  -------------------------- -------------------------------------------------------------------------------------------------------------------------------- -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  Personal email             Inbound trigger address uses trigger UUID at INBOUND_EMAIL_DOMAIN; default in.decibyl.ai. public_email.py and bot_triggers.py.   A friendly owner-level name@decibyl.ai identity needs alias allocation, mailbox view, verified outbound identity, routing, abuse controls and delivery tests. Do not mistake a webhook for a mailbox.
+
+  Phone number               Telephony, number and voice paths exist; PR 523 consolidates number settings.                                                    Test provisioning, KYC state, assignment, consent and provider eligibility. Reconcile autopay requirement with free invitation offer before promising free numbers.
+
+  Voice                      Pipecat agent pipeline and hosted /talk token path exist. Composer records up to 60 seconds then inserts STT text.               Dictation is not full live central-assistant voice. Connect live sessions, interruptions, playback-aware history and handoff into assistant tasks.
+
+  Models                     PR 523 adds workspace defaults and inheritance; advanced agent builder still exposes choices.                                    Sarvam default where supported, one workspace LLM/STT/TTS policy, explicit advanced overrides and stable call snapshots.
+
+  Navigation                 Main has nine homes. PR 523 has Home, Tasks, Agents, Activity, Settings, plus flagged Studio.                                    Reuse the PR shell. Target Chat and Today as primary destinations; profile opens Settings. Helpers, saved items, memory and activity become secondary views. See sections 19–28.
+
+  Feedback and daily brief   Routines and observations exist; unified suggestion-feedback loop not established by reviewed paths.                             Add feedback linked to result, configurable summary, coverage timestamps and controls against notification fatigue.
+
+  Mobile and card            Native app readiness not established. Virtual card is a stated future feature.                                                   Responsive installable web plus shared-backend mobile client. Card interest/coming-soon only; no payment credentials or simulated issuance.
+
+  Documents and usage        PR 492 document/table tools remain open. PR 523 includes Activity usage views.                                                   Do not mark open work as shipped. Verify upload extraction, table accuracy, partial-failure display and actual cost reporting.
+  -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+PR reconciliation instructions
+
+Review and adapt PR 523 rather than duplicating it. Its free_mode intentionally bypasses every plan limit; add independent operational limits that remain active. Its Everyday model defaults to Claude, conflicting with the requested Sarvam default. Validate actual provider model IDs instead of copying PR labels. Do not merge the animated-face direction from PR 522 automatically. Author-reported tests are not an independent runtime verification.
+
+5 One assistant and a simple interface
+
+The main destinations and secondary views
+
+  -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  Destination              What belongs here
+  ------------------------ ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  Chat                     Default home: text, voice and files; conversation history, contextual connections, action previews and real task status. Helpers are optional shortcuts.
+
+  Today                    Daily brief, due and upcoming commitments, pending approvals and active jobs. Open item details in a drawer; Activity is a secondary view.
+
+  Helper picker            A secondary menu inside Chat. Five helpers share one assistant and context policy; no separate main Agents destination.
+
+  Saved items and memory   Saved files and results open from Chat history/search; editable memory is under Settings > Personalization. Learning progress opens from the relevant conversation or Today.
+
+  Profile Settings         Grouped account, personalization, voice, notifications, connections, identity, privacy and advanced controls. Keep provider selection out of the composer.
+  -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+First session
+
+Sign in → choose preferred language → describe one task → get a useful answer or a contextual connection request. Offer the daily summary after the first useful result. Do not require phone KYC, a model key, all integrations or five agent configurations to begin.
+
+Representative journeys
+
+-   “What needs my attention today?” Read permitted connected sources, show the retrieval window and source coverage, then offer a small number of next actions.
+
+-   “Remind Ravi about the proposal tomorrow.” Resolve the correct Ravi and channel, draft the exact message and ask for send or scheduling approval. Store a durable task; show when it will execute.
+
+-   “Teach me how to explain my business in English, using Tamil.” Establish a goal and baseline, run a short practice, give specific feedback and offer the next session.
+
+-   “Take calls when I am busy.” Explain the number and KYC flow, assign Call & Appointment, preview availability and permitted actions, then perform a test call.
+
+Consistent task state
+
+Use queued, running, needs input, awaiting approval, completed, failed and cancelled across every channel. Show outcome evidence such as a message ID or calendar entry. A timeout produces a recoverable state, never a success claim. Keep advanced provider and infrastructure terms out of normal task flows.
+
+6 Five launch agents with clear contracts
+
+  ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  Agent                  Job and completion evidence                                                                                                Acceptance boundary
+  ---------------------- -------------------------------------------------------------------------------------------------------------------------- --------------------------------------------------------------------------------------------------------------------------------------------------------
+  Inbox                  Summarise permitted email, extract commitments, draft responses. Cite message and thread IDs with timestamps.              Correct account and recipient; sending requires approval. Unconnected sources are explicitly omitted. Malicious email instructions cannot grant tools.
+
+  Research               Answer a question with sources or produce a saved report. Distinguish source facts from inference and dated information.   Links support claims, conflicting evidence is retained and inaccessible sources are disclosed. Export must match the displayed result.
+
+  Follow-up              Track a user-approved commitment, draft or schedule a follow-up, then report its delivery state.                           No duplicate send after retries. Cancelling before execution prevents dispatch. Changed content requires renewed approval.
+
+  Learning Guide         Teach one goal through short explanation, practice, feedback and later review in the preferred language.                   Track attempts and demonstrated understanding, not just memory recall. No unsupported guarantee of exam results or fluency.
+
+  Call and Appointment   Answer eligible calls, collect structured details, suggest available slots and book within granted policy.                 Reliable interrupt/recover flow, caller verification appropriate to task, no private disclosure based solely on caller ID. Escalate when unsure.
+  ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Shared implementation
+
+Implement agents as configurations over the existing runtime: instructions, tool allowlist, assigned skills, scoped knowledge, voice preference and task templates. Avoid five independent stacks. An agent cannot expand its own permissions. Every action carries organization, member, session and task ownership.
+
+Learning Guide data
+
+Store learning goal, preferred explanation language, baseline, lesson objective, attempts, rubric, feedback and next review date. Use source-backed teaching material when available. Ask before saving sensitive learning details. Begin recruitment with adults; a child-focused launch requires a separate age, consent and safety design.
+
+Useful feedback
+
+Attach “Was this useful?” with Yes / Not quite to completed suggestions and sessions. Offer optional reasons: wrong, irrelevant, too late, too long, wrong language. Keep it dismissible. In voice, ask at the end of a session or a sampled result, not after every sentence. Store feedback against output, model and task versions. Feedback informs evaluation; it never overrides permissions or silently trains on private content.
+
+7 Identity channels and mobile
+
+Personal email
+
+Allocate a unique friendly alias at @decibyl.ai after account verification. Keep a durable alias-to-owner mapping, reserved names, collision handling and quarantine for unknown recipients. Build inbound MIME parsing, attachment scanning, size limits, delivery deduplication and thread association. Authenticate provider webhooks; shared-token support in source is not enough to assume production enforcement.
+
+Outbound needs verified domain configuration, scoped sending authority, bounce/complaint handling and exact-content approvals. Display whether mail is sent by Decibyl or a connected mailbox. Do not imply a Decibyl alias is a full IMAP mailbox unless that capability exists. Prevent open relay and third-party address impersonation.
+
+Phone after KYC
+
+Use explicit states: not requested, verification pending, eligible, provisioning, active, suspended and released. Keep provider-specific requirements in an adapter. KYC should unlock number provisioning, not block chat or learning. Numbers have recurring costs; decide whether the beta sponsors them or requires a clearly explained provider payment arrangement. The PR retains autopay as a prerequisite; this is an unresolved product decision, not free-number availability.
+
+Connected work
+
+Slack, Teams and WhatsApp share the same task and approval backend. Verify channel account ownership, tenant mapping, webhook signatures, replay protection and idempotency. Check current platform permissions and business eligibility during implementation. Do not assume all channels allow identical proactive messaging or arbitrary assistant distribution.
+
+Mobile
+
+Keep both a responsive installable web experience and a mobile app in the scope. A React Native/Expo client is a proposed implementation choice using the same authenticated APIs. Include voice, uploads, conversations, summaries, approvals, push preferences and reconnect handling. Do not duplicate task orchestration or store provider keys on-device. Native release depends on device testing and store approval, not a promised date.
+
+Browser microphone, background audio and push capabilities vary. iOS web push has installation requirements; test actual supported devices rather than claiming native parity. [T16]
+
+Virtual card
+
+Show a restrained “Coming soon” item and collect interest separately. No card issuance, spending automation or card-number storage in the launch specification. Future work requires issuer selection, jurisdiction and compliance review, transaction authorization, spending controls and reconciliation.
+
+8 Models context skills and memory
+
+One model policy
+
+Settings owns default reasoning model, STT and TTS. Select Sarvam as the requested default where the provider and capability are supported. Record exact provider/model identifiers, language support and fallback policy. If a required capability is unsupported, explain it and use an explicitly configured fallback; never silently claim Sarvam handled a task. Preserve an advanced per-agent override with a visible “inherits workspace” state.
+
+Snapshot effective model, voice, tools and policy version at session start. A settings change applies to new sessions; do not switch voices or credentials mid-call. Validate keys server-side and keep secrets out of logs and clients.
+
+Context assembly order
+
+Authenticated scope and hard policy → current request and recent turns → compact task state → relevant permitted memories and documents → selected skill instructions → tool results. Access checks happen before retrieval. Retrieved email, files and web pages remain untrusted data, even when they contain imperative language.
+
+  ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  Context type            Required behavior
+  ----------------------- ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  Personal                Private to the member unless explicitly shared. A work agent must not automatically inherit personal email or learning history.
+
+  Workspace and project   Membership and source permissions enforced at retrieval and execution. Connector revocation removes future access.
+
+  Task and conversation   Record goal, decisions, unresolved questions and action ledger. Summaries retain names, dates, amounts, negations and approval state.
+
+  Memory                  Facts include owner, scope, provenance, freshness and correction history. Support edit, forget, export and temporary sessions.
+
+  Skills                  Preserve the existing eight-assigned-skills constraint initially. Select a small relevant subset for prompt loading; never lose required safety instructions. Imported skills need versioning and permission review.
+  ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Proposed context budget
+
+Start evaluation with an 8,000-token ordinary-turn input target, reserving room for output and tool results within the selected model limit. This is a tuning target, not an existing hard limit. Long research jobs use separate budgets and checkpoints. Measure entity retention and Indic-script retrieval before adding compression. Treat uncertain inferred preferences as suggestions to confirm, not permanent facts.
+
+9 Free beta with operating limits
+
+All values below are proposed starting settings for an invite pilot, not measured capacity, current enforced limits or public pricing. Expose friendly remaining allowances and allow staff adjustments. All five agents remain available. Cost and safety controls must operate even when free_mode bypasses billing plans.
+
+  ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  Control             Initial proposed setting                                                                   Reason and behavior
+  ------------------- ------------------------------------------------------------------------------------------ -------------------------------------------------------------------------------------------------------------------------------
+  Invitations         25 active users initially; admit the next cohort after capacity and task-success review.   Waitlist remains open. An invite is not a promise of unlimited service.
+
+  Concurrency         1 live voice session and 2 background jobs per user.                                       Queue excess jobs visibly. Global concurrency comes from load tests, not multiplying per-user limits.
+
+  Daily work          50 interactive turns and 10 background runs per user/day.                                  A starting abuse/cost boundary; distinguish a user turn from internal model calls. Allow observed legitimate usage increases.
+
+  Voice               30 web-voice minutes/week; 10 sponsored PSTN minutes/week if sponsorship is enabled.       Show a warning before the allowance ends. No new call when capacity is exhausted; preserve call outcome and safe closure.
+
+  Run limits          10 tool steps interactive; 30 background; 2 retries per transient operation.               Checkpoint or request continuation. Retry writes only with idempotency and known delivery state.
+
+  Files               20 MB/file; 100 MB stored/user initially.                                                  Reject unsupported or oversized content before work. Display extraction coverage; do not silently truncate a document.
+
+  Proactive contact   1 requested daily brief plus at most 2 unsolicited suggestions/day.                        Default quiet hours 21:00–08:00 local; explicit user reminders follow chosen times. Snooze and disable are always available.
+
+  Approvals           24-hour default expiry for routine drafts; 15 minutes for time-sensitive actions.          Revalidate recipient, content, permissions and external state at execution. Expiry never becomes implied consent.
+  ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Cost enforcement
+
+Meter model tokens, speech, telephony, storage and tool costs independently of user billing. Reserve estimated cost before a job and settle actual cost afterward; apply a conservative maximum when costs are unknown. Configure a founder-approved per-user and total pilot budget before invitations. On budget exhaustion, stop accepting costly new work while retaining read access and clear recovery instructions. Do not treat an illustrative budget as a provider quote.
+
+10 Summaries privacy and reliable actions
+
+Daily summary
+
+Offer “Would a daily summary help?” with 09:00 as a suggested local time. Ask timezone, days and delivery channel. Include appointments, due commitments, important inbox items and a small set of suggested actions. Label the covered period, last refresh and missing sources. Do not turn a partially failed retrieval into “nothing needs attention.”
+
+Use a unique schedule occurrence key and a durable job record. DST and timezone changes affect future occurrences predictably. Scheduling starts work around the chosen minute; delivery depends on processing and channel availability. EventBridge Scheduler has minute-level precision, not a guarantee that the finished summary arrives at exactly 09:00:00. [T15]
+
+Execution contract
+
+Persist task ID, actor, tool, validated arguments, permission snapshot, approval ID, idempotency key, cost reservation and outcome evidence. A write executes only when policy and current authorization permit it. A changed action invalidates its approval. Resume after worker restart without duplicate sends or bookings. Unknown delivery state triggers reconciliation before retry.
+
+Data controls
+
+Proposed beta defaults: no raw voice recording retention unless the user opts in; transcripts and conversations kept for 30 days by default with export/delete controls; saved memories and user-saved documents persist until deletion; operational logs exclude message bodies and secrets. Define backup expiry and deletion propagation before promising immediate permanent deletion. Retention is a product proposal and requires review against actual provider obligations.
+
+Keep personal, business and learning records separate by scope. Never use private customer content for model training without separate explicit permission. Sanitize logs, redact sensitive fields where appropriate and bound external transmission. PII detection supplements access control; it does not replace it.
+
+Abuse and failure handling
+
+Rate-limit public endpoints and webhook ingress. Verify signatures and replay windows. Restrict outbound destinations and tools; isolate URL fetches against private-network access. Quarantine suspicious attachments. On provider outage, show degraded state, use configured fallbacks only, and preserve task progress. Users can stop a job, revoke a connection or disable an agent from the same interface.
+
+11 Clean AWS deployment plan
+
+Target architecture, not an assertion about the live deployment: use Mumbai as the primary application/data region when service availability and provider routes fit. Keep an existing functioning deployment until a measured migration is ready. External speech/model latency is not fixed by moving the app to AWS. [T13–T15]
+
+  ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  Layer             Proposed service and boundary
+  ----------------- ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  Web and API       Containerized web/API on ECS Fargate behind HTTPS ALB. Public ingress only at load balancers; application tasks private. WAF/rate controls for exposed endpoints.
+
+  Background work   Separate ECS workers using existing ARQ/Redis initially. Scheduled events enqueue durable jobs. Do not rewrite queue semantics just to add SQS.
+
+  Voice             Warm dedicated EC2 capacity for Pipecat/media and TURN as required. Match actual UDP/TCP transport to suitable endpoints; ordinary HTTP ALB routing is not a universal media proxy.
+
+  Persistent data   RDS PostgreSQL with pgvector, migrations and backups. ElastiCache Redis for queue/cache with separate durability assumptions. Private persisted FalkorDB host initially; measure HA requirements.
+
+  Files and email   S3 with scoped signed access, encryption and lifecycle policies. SES inbound/outbound integration and verified domain; Mumbai receiving is documented. Webhook, deliverability and mailbox semantics still require implementation.
+
+  Isolation         Run untrusted document/code tools in isolated workers or sandboxes. Keep Docker-socket execution away from API, voice and data hosts. Least-privilege IAM per service.
+
+  Operations        ECR images, CI identity federation, Secrets Manager, structured metrics/logs, tracing and cost alarms. No shared credentials embedded in images.
+  ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Voice session ownership
+
+The reviewed WebRTC signaling code uses process-local peer state. Add session-to-worker ownership and route follow-up signaling to the correct worker; do not assume any healthy replica can answer. Drain workers before deployment, stop new calls, finish active sessions, then replace. Scale on active calls, CPU and media health, not HTTP request count alone.
+
+Migration and costs
+
+Inventory live services → establish backups and restore test → deploy isolated staging → replay representative workloads → migrate with rollback and voice drain. Target Multi-AZ data availability for production; if a pilot uses singletons, document downtime and recovery risk. Budget compute, NAT/egress, Redis/RDS baseline, TURN bandwidth, numbers, calls and model providers separately. No monthly AWS estimate is defensible without observed traffic and selected instance sizes.
+
+12 Voice latency and quality targets
+
+The objective is competitive conversational responsiveness. The following are proposed acceptance targets, not achieved measurements or platform comparisons. Benchmark the same language, location, transport and task before using “at par” in marketing.
+
+  ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  Measure            Initial target and definition
+  ------------------ -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  Response latency   Simple no-tool turns: median ≤800 ms and p95 ≤1.5 s from annotated user speech end to first meaningful audible assistant speech at the client.
+
+  Interruption       p95 ≤250 ms from a genuine user interruption to audible assistant playback stopping. Measure false cutoffs and missed interruptions alongside this.
+
+  Tool turns         Report separately: acknowledge naturally, show task progress, and measure time to correct completed result. Filler does not count as meaningful response.
+
+  Reliability        Track disconnected calls, failed turns, repeated questions, incorrect entities, task completion and cost per successful session. Do not optimise latency by sacrificing accuracy.
+  ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Instrument the whole path
+
+Trace capture/network → endpoint detection → STT finalisation → context/retrieval → model first token → TTS first audio → transport → client playback. Use correlated monotonic timings where possible; avoid subtracting unsynchronised device/server clocks. Retain stage percentiles by model, language, channel, noise and concurrency.
+
+Implement before exotic model work
+
+-   Reuse existing Pipecat latency observers and Smart Turn/VAD controls. Tune endpointing on real Hindi, Tamil, English and code-switching recordings; do not globally shorten silence windows.
+
+-   Use streaming STT, generation and TTS where supported. Keep connections warm and send short safe speech chunks; test names, numbers and negations across chunk boundaries.
+
+-   Cancel generation and audio queues on interruption. Track what was actually played, so the next turn does not assume the user heard an interrupted answer.
+
+-   Move long tool work to background tasks. Run independent authorized reads concurrently with bounded concurrency; preserve dependencies and never speculate writes.
+
+Evaluation set
+
+Begin with at least 300 annotated turns across the chosen pilot languages and noise conditions, with clear subgroup counts; enlarge weak groups rather than claiming universal support. Test web and PSTN separately at 1, 5 and 10 concurrent calls, then expand to the intended capacity. Include hesitation, correction, overlap, accents, bad network, proper nouns and code-switching. Report uncertainty for small p95 samples. [T1, T2, T12, T17]
+
+13 Research methods worth applying
+
+  ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  Method and source                          Use in Decibyl                                                                             Limit or gate
+  ------------------------------------------ ------------------------------------------------------------------------------------------ ----------------------------------------------------------------------------------------------------------------------------
+  VAP and turn prediction [T1]               Evaluate turn-completion prediction beyond raw silence thresholds.                         Research result is not a drop-in multilingual production guarantee.
+
+  Playback-aware state [T2]                  Record heard audio spans; remove unplayed continuation after interruption.                 Voice-Light is an early prototype with a small English-first evaluation. Do not cite its latency as Decibyl performance.
+
+  Incremental TTS [T3]                       Stream chunks and measure first audio against prosody and pronunciation.                   Paper inference improvements do not transfer automatically to a hosted speech API.
+
+  Dependency-aware parallel tools [T4]       Parallelize independent calendar/mail reads and source fetches.                            LLMCompiler reports workload-specific speedups. Test final results and provider rate limits.
+
+  Speculative tools [T5]                     Later experiment: permission-safe read prefetch with isolated results and a budget.        PASTE reports 43.5% average completion reduction on its workloads. Never predict or execute external writes speculatively.
+
+  Focused context and compression [T6, T7]   Retrieve relevant evidence; preserve critical details and evaluate compression overhead.   Lost in the Middle motivates context evaluation. Compression can damage Indic entities and approval details.
+
+  Structured memory [T8]                     Asynchronous fact extraction, deduplication, provenance and relevant recall.               Learn from Mem0; do not replace the existing graph stack without comparative tests.
+
+  Model routing [T9]                         Choose a cheaper/faster configured model for suitable low-risk tasks.                      Evaluate quality and respect explicit workspace policy. Router confidence is not permission.
+
+  Serving and duplex models [T10, T11]       Future self-hosted inference and full-duplex speech experiments.                           SGLang needs control of inference serving. Moshi is not a benchmark of the current PSTN cascade.
+
+  Agent and language evaluation [T18, T19]   Use repeated action tasks with final-state checks and diverse Indic speech cases.          tau-bench and IndicVoices guide evaluation design; verify data licences and representative language coverage.
+  ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Priority order: instrument → correct interruption/state handling → reduce avoidable serial work → improve context selection → evaluate decision routing → only then test speculative execution or new speech architectures. Keep every optimisation behind a flag with a quality comparison and rollback. Published gains are research results, not forecasts for Decibyl.
+
+14 Jev Laya and guardrails
+
+Add a provider-neutral DecisionService for narrow judgments. Jev exposes typed Choice, Score and Noul decisions; Laya offers a self-hostable alternative to evaluate. Neither should be treated as an authorization engine or as inherently accurate for Indian languages. [G1–G3]
+
+  -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  Decision                   Model contribution                                                            Code remains authoritative
+  -------------------------- ----------------------------------------------------------------------------- ----------------------------------------------------------------------------------------------
+  Intent and agent routing   Rank a permitted shortlist; return confidence or abstain.                     Only configured agents and scoped tools are selectable.
+
+  Skill selection            Choose relevant installed/assigned skills.                                    Enforce assignment, versions, maximum size and permissions before loading.
+
+  Memory and context         Suggest relevance, conflicts and possible facts to remember.                  Apply owner scope, consent, provenance, deletion and token budgets.
+
+  Safety and injection       Flag suspicious input or retrieved instructions for review.                   Untrusted content cannot grant permissions; enforce allowlists, schemas and tool boundaries.
+
+  Quality checks             Assess whether a response answers the request and cites available evidence.   Verify actual tool outcomes and database state; a model score cannot certify completion.
+  -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Proposed interface and fallback
+
+Input: task ID, authenticated scope, decision type, minimal relevant state, allowed labels, policy version and deadline. Output: selected label, score/confidence when available, abstention, evidence IDs, model/version, elapsed time and truncation status. Validate the schema and label membership. Do not send unrestricted inbox history or secrets to a classifier.
+
+Start in shadow mode. Build a reviewed multilingual set of normal, ambiguous and adversarial cases; measure false negatives, false positives, abstention, calibration and added p95 latency. On timeout or malformed output use deterministic safe routing or ask a clarifying question. Security-sensitive uncertainty fails closed; ordinary chat should not become unavailable because a classifier is down.
+
+Additional guardrails
+
+Prompt Guard 2 is a candidate attack classifier, not full safety coverage. Its model card describes a 512-token input; chunk carefully and test language coverage rather than assuming Tamil support. Laya context windows and accuracy depend on the selected model and task; explicitly detect truncation. Add secret detection and PII redaction appropriate to Indian data, plus typed tool schemas, URL/network restrictions and action-level approval checks. [G3, G4]
+
+Keep these components on the critical voice path only when their measured benefit justifies their latency. Batch independent judgments on minimal state where supported; perform memory extraction and most quality review asynchronously.
+
+15 Work packets for Claude and the developer
+
+Use dependency gates rather than calendar promises. The complete scope remains planned; a feature is exposed only when its acceptance gate passes. Ship through reversible flags and extend the existing app.
+
+  --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  Packet                          Required work                                                                                                           Done when
+  ------------------------------- ----------------------------------------------------------------------------------------------------------------------- ------------------------------------------------------------------------------------------------------------------------------
+  A Reconcile and baseline        Recheck main and PR heads; inventory feature flags and deployed services. Review PR 523 and preserve its useful work.   A runtime capability checklist separates source, configuration and tested behavior; no duplicate implementation plan.
+
+  B Common controls               Operational quotas outside billing; task ledger, approval binding, idempotency and scoped context.                      No duplicate write, cross-tenant retrieval or quota bypass in the relevant failure tests.
+
+  C Simple product shell          Adapt existing shell, single model settings, onboarding and visible task state.                                         A new user completes a useful task without agent/provider setup; old route links redirect safely.
+
+  D Identity and channels         Email identity, phone/KYC state, connected app reconciliation and notifications.                                        Real inbound/outbound tests, correct tenant mapping, revocation, bounce/retry handling and an explained number payment flow.
+
+  E Five agents and daily brief   Agent configurations, learning progress, feedback and scheduled summary.                                                Each agent completes its contract; summary handles missing sources and timezone changes.
+
+  F Voice and mobile              Central assistant live voice, interruption handling, responsive web and shared-backend app.                             Measured language/channel quality, reconnect and permission tests on target devices.
+
+  G Decisions and optimisation    Shadow Jev/Laya evaluation; context, tool and voice optimisations.                                                      Measured improvement without regression; safe timeout and rollback behavior.
+
+  H Pilot and operations          Waitlist to invite flow, usage/outcome analytics, monitoring, backup restore and capacity review.                       Operators can support the cohort, stop runaway cost, diagnose failures and recover data.
+  --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Instruction to paste into Claude
+
+Use the updated instruction in section 28. Recheck repository instructions, current main, deployment configuration and the status of PR 523 before coding. Treat source evidence in sections 3–4 as a dated baseline. Implement the new screen and settings specification by extending existing components and APIs.
+
+16 Launch proof and growth plan
+
+Acceptance tests that matter
+
+-   A new invited user signs in, chooses language and finishes one real task without phone or model-key setup.
+
+-   User A cannot retrieve user B’s private memory, email, files or approval through chat, tools, a webhook or an agent.
+
+-   An approved send executes once after a retry; changing recipient/body invalidates approval; revocation blocks future execution.
+
+-   A noisy code-switched voice session handles interruption and reconnect while preserving only what was heard. Capture client latency and correct task outcome.
+
+-   The daily brief respects timezone, source failures, quiet preferences and deduplication. A queued job survives worker restart.
+
+-   Every launch agent produces its defined evidence. Learning Guide records demonstrated practice, not just a reassuring answer.
+
+-   Free mode cannot disable abuse quotas or the global cost ceiling. A failed provider call has an honest state and safe retry.
+
+-   Email/phone/mobile each pass real environment checks; data export/deletion and a backup restore are tested before public claims.
+
+Waitlist and acquisition
+
+Collect email, preferred language and “What would you ask Decibyl to do first?” Make phone, occupation and other profiling optional. State that early access is free with usage limits. Publish a short real-task demonstration with the current calm UI. Recruit through founder contacts, relevant local professional groups and language-learning communities with permission. Track which message and use case caused signup; avoid unsolicited bulk outreach.
+
+What to measure
+
+Activation: first successful meaningful task, not first message. Repeat value: activated users completing another meaningful task in days 2–7. Reliability: independently checked successful outcomes / attempted eligible tasks. Also track corrections, abandoned permissions, source failures, false voice interruptions, cost per successful task and feedback response rate. Segment by language, agent, channel and recruitment cohort.
+
+Proposed review thresholds for the first 25 activated users: at least 15 complete a second useful task within seven days; at least 90% success on the agreed low-risk evaluation tasks; zero observed unauthorized writes or cross-tenant disclosures in the test suite. These are decision thresholds, not traction claims or statistical proof of safety. Investigate failures before adding more invitations.
+
+What could become a larger company
+
+If users repeatedly trust Decibyl with one daily job, expand into adjacent jobs using the same identity, permissions and memory. The defensible evidence would be retained use, task reliability, language-specific performance and efficient delivery. An investor narrative should show these results and founder customer learning. Neither a waitlist nor a large feature set proves YC fit. Interview drop-offs and active users before choosing paid packages; ask what they would replace or pay for, then test an actual offer later.
+
+17 Evidence register
+
+Public discussions below provide qualitative signals only. Small counts are author-reported, not audited traction. Dates and membership credentials should not be inferred from usernames. No Reddit technical advice is treated as an authoritative engineering specification.
+
+R1 Personal assistant request covering email, calendar, notes and contacts
+https://www.reddit.com/r/AI_Agents/comments/1owlrrm/whats_the_best_ai_personal_assistant/
+
+R2 Discussion of personal-assistant adoption and trust
+https://www.reddit.com/r/AI_Agents/comments/1nw8k5o/tons_of_ai_personal_assistants_being_built_why/
+
+R3 Long-project context and memory complaint
+https://www.reddit.com/r/SaaS/comments/1qpqnbi/struggling_with_chatgpt_forgetting_context_on_a/
+
+R4 Voice agent interruption and pause complaint
+https://www.reddit.com/r/AI_Agents/comments/1r0c5or/twilio_ai_voice_agent_not_working/
+
+R5 Overlapping speech and interruption discussion
+https://www.reddit.com/r/artificial/comments/1vnqdgc/how_well_do_ai_voice_agents_handle_people_who/
+
+R6 Operational approvals discussion
+https://www.reddit.com/r/AI_Agents/comments/1ve23m9/agents_in_production/
+
+R7 Kannada tutor builder report and small self-reported cohort
+https://www.reddit.com/r/indiehackersindia/comments/1s29sow/i_built_a_whatsapp_ai_tutor_for_kannada_7_days_11/
+
+R8 Proactive assistant builder post with promotional interest
+https://www.reddit.com/r/automation/comments/1tubjzq/i_tried_every_single_personal_ai_assistant_for/
+
+C1 Repository main snapshot
+https://github.com/Stratfiy/echowave-redesign/tree/6d4f08d8a142b2aa0fc38d991353299d044d2d4a
+
+C2 PR 523 open work reviewed separately from main
+https://github.com/Stratfiy/echowave-redesign/pull/523
+
+C3 PR snapshot reviewed
+https://github.com/Stratfiy/echowave-redesign/tree/b835a892d37179e2303919d261f42d37995e0b2f
+
+18 Technical source register
+
+T1 Voice Activity Projection https://arxiv.org/abs/2205.09812
+
+T2 Voice-Light author prototype https://github.com/BertilBraun/Voice-Light
+
+T3 Incremental TTS research https://arxiv.org/abs/2211.13939
+
+T4 LLMCompiler, ICML 2024 https://proceedings.mlr.press/v235/kim24y.html
+
+T5 PASTE, revised June 2026 https://arxiv.org/abs/2603.18897
+
+T6 Lost in the Middle https://aclanthology.org/2024.tacl-1.9/
+
+T7 LLMLingua 2 https://aclanthology.org/2024.findings-acl.57/
+
+T8 Mem0 https://arxiv.org/abs/2504.19413
+
+T9 RouteLLM https://arxiv.org/abs/2406.18665
+
+T10 SGLang https://arxiv.org/abs/2312.07104
+
+T11 Moshi https://arxiv.org/abs/2410.00037
+
+T12 Pipecat STT latency tuning https://docs.pipecat.ai/pipecat/fundamentals/stt-latency-tuning
+
+T13 AWS ECS inbound networking https://docs.aws.amazon.com/AmazonECS/latest/developerguide/networking-inbound.html
+
+T14 AWS SES regional endpoints https://docs.aws.amazon.com/general/latest/gr/ses.html
+
+T15 EventBridge schedule types https://docs.aws.amazon.com/scheduler/latest/UserGuide/schedule-types.html
+
+T16 WebKit web push on iOS and iPadOS https://webkit.org/blog/13878/web-push-for-web-apps-on-ios-and-ipados/
+
+T17 Sarvam Bulbul model documentation https://docs.sarvam.ai/api/getting-started/models/bulbul
+
+T18 tau bench https://arxiv.org/abs/2406.12045
+
+T19 IndicVoices https://aclanthology.org/2024.findings-acl.639/
+
+G1 TypeSafe Jev introduction https://docs.typesafe.ai/introduction
+
+G2 TypeSafe guardrails cookbook https://docs.typesafe.ai/cookbooks/llm_guardrails
+
+G3 Laya source and documented limits https://github.com/NandhaKishorM/laya
+
+G4 Prompt Guard 2 model card https://huggingface.co/meta-llama/Llama-Prompt-Guard-2-86M
+
+Engineering proposals in this document are design recommendations derived from these sources and the source audit. Provider availability, platform approvals, legal requirements and actual latency must be checked in the target environment before release.
+
+19 Updated product direction and navigation
+
+Build one personal assistant for life and work. Users can talk, learn, research, organize their day and approve connected actions. Meeting mode is one useful capability within that assistant. Preserve the current Decibyl visual system and working components.
+
+Decisions for this revision
+
+Chat and Today are the only primary destinations. Settings is accessible from the profile menu. Keep all five helper capabilities, personal email, phone after KYC, connected work, daily summaries and the mobile direction. Virtual card remains coming soon. Capability release depends on working end to end, not on adding another screen.
+
+  -----------------------------------------------------------------------------------------------------------------------------------------------------
+  Existing or earlier surface   Target location and migration
+  ----------------------------- -----------------------------------------------------------------------------------------------------------------------
+  Home and assistant chat       One Chat landing and persistent conversation route. Preserve history and deep links.
+
+  Tasks and routines            Today with Due, Upcoming and Activity filters. Routine editing opens a detail view.
+
+  Agents and optional Studio    Chat helper picker. Put configuration under Advanced; Studio remains role restricted.
+
+  Library and knowledge         Saved items opened from Chat search/history. Memory under Personalization; shared knowledge remains scope restricted.
+
+  Activity and usage            Activity under Today. Allowances under Account; provider costs and diagnostics remain operator only.
+
+  Email phone and channels      Settings groups with contextual setup links from Chat. Relevant items open in detail views.
+
+  Meeting and learning tools    Start from Chat actions. Saved records and progress reopen by conversation, search or Today.
+  -----------------------------------------------------------------------------------------------------------------------------------------------------
+
+Visual and interaction reference lock
+
+Primary reference is the existing Decibyl UI approved by the founder: white canvas, dark text and primary buttons, restrained borders, existing typography and corner shapes. ChatGPT references support a prominent composer and grouped settings; Perplexity supports inspectable personalization; Jace supports suggested starting tasks. Borrow these behaviors, not their branding, decorative cards or exact dimensions.
+
+Keep functional icons, readable Indic text and one clear primary action per view. Reuse current tokens before adding any. No robot mascot, neon green treatment, provider cards on the home screen or repeated capability dashboards. Use native UI elements for states; no decorative image generation is needed.
+
+20 Screen inventory and route contracts
+
+The route names below are proposed logical destinations. Claude must map them to actual existing routes before changing URLs. Secondary views can be drawers on desktop and full screens on mobile; each needs a stable deep link and browser back behavior.
+
+  --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  Screen or view                   Content and primary action                                                                           Required states
+  -------------------------------- ---------------------------------------------------------------------------------------------------- ------------------------------------------------------------------------------
+  Access and waitlist              Google/email login; invite claim; waitlist email, language and first task. Continue.                 Invited, pending, expired, invalid, already used, verification and recovery.
+
+  Short onboarding                 Preferred language and editable detected timezone; optional name. Start a task.                      Skip optional setup; resume; account creation failure.
+
+  Chat home and conversation       Composer, Talk button, attachments, history/search; at most three relevant starters. Send or Talk.   Empty, streaming, stopped, offline, failed, partial and resumed.
+
+  Live voice                       Transcript, listening/speaking status, mute, end and text fallback.                                  Permission denied, connecting, interrupted, reconnecting and ended.
+
+  Today                            Brief, approvals, due items, upcoming events, running tasks. Review next item.                       No tasks, missing sources, partial brief, stale, loading and failed.
+
+  Task and approval detail         Exact action, recipient, source, time, status and evidence. Approve or edit.                         Needs input, approval expired, executing, unknown outcome and retry.
+
+  Meeting capture and record       Record/upload/paste; consent confirmation; notes and suggested next steps.                           Paused, interrupted, processing, partial transcript and ready.
+
+  Learning session and progress    Goal, explanation, practice, feedback and next review. Continue practice.                            New goal, resumed, corrected answer and completed session.
+
+  Saved items and search           Files, reports, notes and conversations within selected scope. Open.                                 Processing, unsupported, quarantined, deleted and no results.
+
+  Memory manager                   Remembered facts, source/date, scope, edit and forget.                                               Conflict, pending deletion, deleted and memory off.
+
+  Settings and connection detail   Grouped controls; account, permissions and connection health. Save.                                  Unsaved, saving, saved, rejected, revoked and reconnect required.
+
+  Operator console                 Invites, quotas, health, audit and flags. Separate staff access.                                     Role denied, degraded provider, paused capability and incident.
+  --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Do not replace working routes with dead ends. Redirect or retain compatibility for old links after verifying route parameters and authorization. A user must never see another scope’s record because a drawer URL was copied.
+
+21 Chat voice and everyday assistance
+
+Chat is the default opening screen. A returning user sees their latest context and an unobtrusive link to Today when attention is needed. Do not automatically open yesterday’s private conversation on a shared device without the expected account protections.
+
+Composer and contextual help
+
+Use one text composer with Attach, Dictate and a clearly distinct Talk action. Dictate inserts editable text; Talk starts a live conversation. The attachment menu contains files, voice note, meeting mode and paste notes. Provide a compact optional helper picker: Inbox, Research, Follow-up, Learning Guide and Call and Appointment. Automatic routing is the default; a chosen helper does not create a separate product.
+
+Suggested starters reflect known permissions and recent use: “Help me plan today”, “Teach me something” or “Help with a reply”. Show no more than three; hide them once the conversation starts. A connector request explains the needed account and permission, and returns to the same unfinished task after authorization. Users can continue with pasted information when possible.
+
+  ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  Result component             Behavior
+  ---------------------------- ----------------------------------------------------------------------------------------------------------------------------------------------------
+  Answer and research result   Stream readable text. Sources open on demand. Saved reports remain attached to the conversation and searchable.
+
+  Action preview               Show action, account, recipient, exact content, attachments and timing. Edit, approve or cancel without navigating away.
+
+  Memory suggestion            “Remember this preference?” with scope and editable text. Never silently save a guessed sensitive fact.
+
+  Learning card                Goal and one next exercise. Keep explanations in chat; open progress only when requested.
+
+  Feedback                     Attach optional “Was this useful?” Yes / Not quite to a finished result. Collect reason only when offered; do not interrupt every voice turn.
+
+  Job status                   Use real stages such as Reading calendar or Preparing draft. Keep long jobs running after leaving the screen; completion links back to the result.
+  ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Live voice interaction
+
+State sequence: idle → requesting microphone → connecting → listening → processing → speaking. Interrupting speech cancels remaining playback and returns to listening. Show a real input meter only when capturing audio, an explicit microphone indicator, captions and a persistent End control. Muting stops capture. Ending releases the microphone and transport.
+
+Reconnect must disclose whether audio was lost. Do not duplicate a task after reconnecting. External actions still use the approval contract; a transcribed “yes” is valid only for an unambiguous active preview and current authenticated session. Ambiguous or high-risk requests return to a visible confirmation. Preserve user access to text when voice is unavailable.
+
+22 Today reminders and proactive help
+
+Today answers “What needs my attention?” It is an ordered list of useful items, not a dashboard of AI statistics. The default order is pending approvals, urgent or due commitments, daily brief and upcoming events. Cap suggestions at three and let users dismiss them.
+
+  -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  Element            Content and behavior
+  ------------------ ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  Daily brief        Short summary with covered period, last refresh and sources checked. Expand for detail. Missing calendar access must not become “No meetings”. Refresh updates the existing brief.
+
+  Approval queue     Only genuinely pending actions. Badge count comes from the server. Open the original preview; approve once across web, phone or connected chat.
+
+  Due and upcoming   Confirmed date, local time, timezone, recurrence and destination. Complete, snooze, edit or cancel. Separate event time from reminder time.
+
+  Routine editor     Enable, days, local time, channel, quiet hours and pause. Show next run before saving. Pause stops future occurrences, with explicit handling of a running occurrence.
+
+  Activity           Timestamped completed, failed and cancelled jobs with outcome evidence. Failed actions link to recovery; hide provider internals from everyday use.
+
+  Suggestions        Explain “Why this?” using permitted evidence. Offer prepare, dismiss or change timing. Never convert a suggestion into a booked event or sent message automatically.
+  -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Timing contract
+
+Offer a daily brief after the first useful result, suggesting 09:00 in the user’s confirmed timezone. It is off until accepted. Ask whether a commitment has an exact event time; do not invent one from vague notes. For “tomorrow”, resolve using the user’s timezone and display the full date before scheduling.
+
+For an approved event reminder, offer At event time and optional One day before preparation. The preparation suggestion can use notes, previous decisions and permitted context. If the meeting moves, show the change and recalculate linked reminders according to the approved rule. Cancelling the event cancels its linked reminders. Notify about conflicts rather than choosing silently.
+
+Bounded proactivity
+
+Proposed pilot policy: one chosen daily brief plus confirmed reminders; at most two optional proactive notifications per day, separately enabled. Quiet hours default to 21:00–08:00 local time for optional suggestions. Explicitly requested event reminders follow the user’s stated timing. Group low-priority suggestions into the next brief. Users can turn off a topic, channel or all suggestions.
+
+Show “Nothing due in Decibyl” when the task list is empty. If sources are missing, add “Connect your calendar to include appointments”. Do not manufacture urgency or personal knowledge to make the page feel active.
+
+23 Meeting mode and learning journeys
+
+Both journeys use the same assistant, permissions, task ledger and saved records. They add useful views when needed without increasing primary navigation.
+
+Meeting capture and preparation
+
+Entry choices: Record this meeting, Upload a recording, or Paste notes. The user confirms they have the necessary participant permission before capture. Show audio source, participants if known, language, title and visible recording state. Online meeting capture is available only on a verified supported integration or audio source; do not imply the app can record every phone call or another app’s audio.
+
+Record view contains elapsed time, pause/resume, stop and live transcript where supported. Transcript errors can be corrected after capture. Show only a small optional list of emerging action candidates during the meeting; avoid live advice constantly interrupting the conversation. If capture fails, preserve recoverable content and clearly mark the missing interval.
+
+On stop, show Summary, Decisions and Suggested actions. Every suggestion links to a source excerpt and contains owner, task, proposed due/event time and confidence or missing information. “Review actions” lets the user edit and confirm selected items. Confirming a reminder does not also authorize an email or calendar invitation. Each external write uses its own exact preview.
+
+Before an upcoming event, offer a brief based on approved notes and accessible context: purpose, previous commitments and questions to ask. A one-day-prior preparation reminder is optional. User-added notes are sufficient; recording is never required. Sensitive meeting details stay out of lock-screen notification text by default.
+
+Learning and personal guidance
+
+Start with a goal and preferred explanation language. Ask one baseline question, teach a short concept, offer practice and give specific feedback. Store a resumable lesson and next exercise. Progress shows completed practice and demonstrated understanding; do not label a user fluent or expert from chat volume.
+
+Personal guidance can help compare options, plan work or understand a topic. Separate facts, assumptions and suggestions. Ask for relevant constraints rather than over-collecting a life profile. The companion tone should be warm and useful while remaining clear that Decibyl is AI; avoid claims of feelings, exclusivity or guaranteed professional outcomes.
+
+Saved records
+
+Meeting records, learning goals and reports appear in scoped search and in their original conversation. Users can rename, export, delete or return to chat. Deletion must show whether linked tasks remain; offer a deliberate choice to cancel them. Memory derived from a deleted source must follow the provenance and deletion policy instead of silently surviving as an unexplained fact.
+
+24 Settings catalogue for users
+
+Use a single Settings shell with search and grouped sections. Desktop uses a compact section list; mobile uses a full-screen grouped list. Preserve the current visual styling. Every control below is proposed behavior and must be mapped to an actual server-side setting.
+
+  -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  Group                       Controls and proposed defaults                                                                                                                                    Save and access rules
+  --------------------------- ----------------------------------------------------------------------------------------------------------------------------------------------------------------- -------------------------------------------------------------------------------------------------------------------------------------------------
+  Account                     Name; verified login email; timezone detected and confirmed; appearance System; session/device list; beta allowance and reset time; sign out.                     User owned. Reverify identity for sensitive account changes. Show accurate remaining limits; no pricing grid.
+
+  Personalization             Preferred reply language; optional explanation language; response length Balanced; custom instructions; memory opt-in; Manage memories; Temporary conversation.   User owned. Memory starts off until chosen. Temporary mode avoids saved history/memory under the declared retention policy.
+
+  Voice and language          Spoken language; optional automatic detection; supported voice preview; speaking speed 1.0; captions on; microphone selector where supported.                     Apply to new sessions. Preview must be cancellable. Clearly show unavailable language or permission denial.
+
+  Daily brief and reminders   Brief off until accepted; suggested 09:00; days; timezone; destination; quiet hours; upcoming preview; pause; test delivery.                                      Persist schedule only after confirmation. Test delivery is labelled and must not create an extra recurring schedule.
+
+  Notifications               In-app; push; email; connected channel; proactive suggestions off initially; privacy-safe previews on.                                                            Permission prompts only when enabled. Separate app choice from OS/browser permission and show both states.
+
+  Connected apps              Mail, calendar, WhatsApp, Slack and Teams: connection status, account, scope, granted access, last successful sync, reconnect and disconnect.                     Personal or workspace owner as appropriate. OAuth return resumes the pending task; disconnect revokes future access and explains affected jobs.
+
+  Decibyl identity            Personal @decibyl.ai alias; delivery state; phone verification and assigned number; card Coming soon with optional interest.                                      No implied mailbox or active number before provisioned and tested. No card details collection in MVP.
+
+  Privacy and permissions     Recording retention off; transcript/history retention 30 days proposed; saved item policy; export; delete; source permissions; approved routines.                 Show effective policy and deletion progress. Revoke grants on server. Sensitive content excluded from notification previews.
+  -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Use explicit Save for multi-field forms, with unsaved-change warning and inline validation. A simple switch may save immediately with Saving → Saved feedback and rollback on failure. Never leave a switch visually enabled after the server rejects the change. Show the effective value on reload.
+
+25 Advanced settings and identity states
+
+Advanced settings are collapsed and role controlled. Normal users choose language and voice; operator-managed provider details do not become a requirement to use Decibyl.
+
+  ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  Area                       Required configuration and behavior
+  -------------------------- ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  Model defaults             One reasoning model, one speech-to-text model and one text-to-speech model at the appropriate account/workspace scope. Sarvam is the requested default where supported. Store exact valid IDs; do not invent model names.
+
+  Inheritance and fallback   Helpers inherit defaults. Optional admin-only overrides show their effective value. Define precedence: platform allowlist and policy, scope defaults, permitted helper override. Fallback is explicit, capability checked and logged.
+
+  Active session policy      Snapshot model, voice, language, tool access and policy version on session start. Saving settings affects the next session. Existing sessions keep a stable snapshot, but live authorization revocation must take effect immediately.
+
+  Skills and helpers         Enablement, tool allowlist, assigned skills, knowledge scope and version. Keep existing maximum and retrieval controls. Explain needed access before enabling; no permission self-expansion.
+
+  Developer and operator     API/webhook configuration, server-held credentials, provider health, quota overrides, flags and redacted diagnostics. Never expose keys or cost controls to ordinary clients.
+
+  Personal email             States: unallocated, checking alias, reserved, provisioning, active, delivery issue and suspended. Show address only as usable after verification. Alias collisions and reserved names return specific errors.
+
+  Phone and KYC              States: not requested, pending verification, rejected with next step, eligible, provisioning, active, suspended and released. Explain costs before request. Chat remains usable without KYC.
+
+  Connected channel          States: disconnected, authorizing, syncing, ready, limited access, expired, error and revoked. Distinguish messaging Decibyl in a channel from granting it access to other messages.
+  ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Permissions and scope
+
+Personal and workspace content use separate ownership and access checks. Switching scope changes visible conversations, tasks, saved items and permitted tools. Never merge personal memory into a team summary. Team admins manage shared policy; they do not automatically gain access to private conversations. Explain restricted controls as “Managed by your workspace”.
+
+Choices to resolve before enabling costly features
+
+Founder and developer must settle phone-number sponsorship versus provider payment requirements, supported pilot languages, provider fallback consent, operational budget and retention obligations. Until resolved, show an honest unavailable or request-access state. This does not block the rest of the assistant. Card interest must be distinct from a waitlist invitation or financial onboarding.
+
+26 Dynamic components and accessible behavior
+
+Dynamic elements must report real system state or reduce effort. Animation is optional presentation; server state is authoritative. Keep layout stable while content streams or changes.
+
+  -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  Component               Dynamic behavior                                                                                                                    Failure and accessibility
+  ----------------------- ----------------------------------------------------------------------------------------------------------------------------------- -----------------------------------------------------------------------------------------------------------------
+  Assistant response      Stream text; Stop cancels generation. Auto-scroll only when user is already at the bottom.                                          Keep partial text and Retry. “New content” affordance when user has scrolled up; avoid announcing every token.
+
+  Voice indicator         Input meter while listening; different labelled speaking state. Pause immediately on mute/end.                                      Labels and captions supplement color. No artificial waveform when audio is not captured.
+
+  Task card               Queued → Running → Needs input / Awaiting approval → Completed / Failed / Cancelled. Add scheduled and unknown outcome as needed.   Server event version prevents stale updates. Outcome unknown means reconciliation, not blind retry.
+
+  Approval card           Show immutable preview version and current status. Disable while approval is being committed.                                       A second tab or channel cannot approve twice. Expired or changed preview requires a new approval.
+
+  Brief and connection    Last refreshed time; coverage; source health; refresh progress.                                                                     Retain prior result labelled stale on failure. No fabricated completion percentages.
+
+  Upload and recording    Actual bytes or duration; processing stages; pause where supported.                                                                 Retry upload safely; preserve draft; clear explanation of unsupported format or quota.
+
+  Schedule and reminder   Preview next occurrence as time/day/channel are edited. Update linked event reminders.                                              Show timezone and date; handle past time, DST and duplicated events explicitly.
+
+  Memory and feedback     Saved state, edit history and deletion status. Feedback acknowledges without replacing result.                                      Undo only where real reversal exists. Feedback never grants permission or silently changes a global preference.
+  -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Motion and responsive rules
+
+Use existing tokens; proposed motion defaults are 120 ms for feedback, 200 ms for state changes and up to 320 ms for drawers. Animate opacity and transform only when useful. Reduced-motion mode removes travel and continuous effects. No looping avatars, rotating prompts or fake typing delays.
+
+Support keyboard focus, Escape to close, focus return and labelled controls. Target 44 px touch areas, readable 16 px input text, text contrast of at least 4.5:1 and no color-only status. Test 360 px mobile width, 768 px tablet and 1440 px desktop plus 200% zoom. The mobile keyboard must not hide Send, End or confirmation controls. Test Indic scripts and long names without fixed-height clipping.
+
+27 Implementation contracts and verification
+
+Extend the existing orchestration, routines, approvals and memory services. Add or reuse shared components rather than building separate agent dashboards. Names below describe contracts, not verified repository symbols.
+
+  ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  Contract                Required fields or responsibilities
+  ----------------------- ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  Capability registry     Capability ID, availability by scope, required grant, release flag, reason unavailable and setup link. The UI and backend must agree; hidden buttons are not authorization.
+
+  Task and action         Owner/scope, task ID, state/version, exact action payload, approval version, schedule, idempotency key, outcome evidence and recoverability. Persist before dispatch.
+
+  Client events           Task/session ID, event ID, state version, sequence and timestamp. Authenticate subscription; recover after disconnect by fetching authoritative state. Polling fallback with backoff.
+
+  Reminder and meeting    Event ID, source version, occurrence ID, timezone, event time, reminder offset, confirmed recipient/channel, consent/capture status and source excerpts.
+
+  Preferences             Schema version, owner/scope, effective value, source of inheritance and revision. Server validates language/model compatibility and permission to edit.
+
+  Memory and saved data   Owner, scope, provenance, consent, source timestamp, sensitivity, retention/deletion state. Retrieval filters apply before model context assembly.
+  ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Implementation sequence without a calendar promise
+
+First reconcile current code and deployed flags. Then implement shared task/approval state and settings persistence; simplify navigation using existing components; connect Chat and Today to real data; add meeting and learning detail views; complete identity/channel states; verify live voice and mobile behavior. Keep AWS, latency and Jev/Laya work from sections 11–14, measured behind reversible flags. Native mobile shares the backend and remains a separately verified release.
+
+Required outcome tests
+
+1. New user finishes a useful task without KYC, model setup or connecting every app. 2. All five helpers are reachable from Chat. 3. Settings survive reload, validation failure and conflicting edits. 4. The same approval in two channels executes once. 5. Event change or cancellation updates linked reminders. 6. Failed source retrieval produces a partial brief. 7. Voice interruption stops playback and preserves correct context. 8. Personal data never appears in workspace search. 9. Offline/reconnect preserves drafts and authoritative task status. 10. Every visible launch control has real behavior or a clear unavailable state.
+
+Measure first successful task, repeat useful tasks, abandoned setup, approval completion, reminder timeliness, suggestion dismissals, voice recovery and cost per useful outcome. Do not count generated text alone as a completed external action. Instrument identifiers and timings without recording private message bodies in analytics.
+
+28 Claude handoff and release checklist
+
+Use this instruction with the repository and this document. The updated pitch positions Decibyl as the whole personal assistant. Sections 19–28 are the controlling interface specification; sections 1–18 retain the engineering and research foundation.
+
+Instruction to paste into Claude
+
+Read AGENTS.md and the repository instructions. Inspect current main, relevant open PRs including the current status of PR 523, and the deployed feature configuration. Preserve the current Decibyl visual design. Build one assistant with Chat and Today as primary destinations and Settings in the profile menu. Keep helpers, saved items, meeting mode, learning progress and memory accessible as secondary views. Do not add a separate dashboard for each capability.
+
+Before coding, return a route/component inventory mapped to sections 20 and 24–25, marking each item working and verified, present but unverified, partial, missing or intentionally unavailable. Include evidence paths and runtime checks. Reuse existing components and APIs. Implement real dynamic states, persisted settings, contextual setup, exact-action approvals and recoverable errors. Never substitute mock completion for a real operation.
+
+Deliver reviewable changes by dependency. For each change provide files changed, migration/backfill requirements, permissions, feature flag, outcome tests, desktop/mobile screenshots and rollback steps. Keep provider/model selectors in Settings. Apply Sarvam defaults only to supported configured capabilities. Preserve operational quotas in free beta. Do not promise an active email, phone, recording source or native feature until it passes an end-to-end test. Follow existing merge and deployment authorization.
+
+Definition of ready for founder review
+
+The developer demonstrates: a useful chat task, a voice interruption/recovery, a short learning session, a scoped saved result, a confirmed connected action, a daily brief with a missing source, a meeting-derived reminder, settings changes, a revoked connector and mobile keyboard behavior. Show the actual backend result and failure recovery, not only happy-path screenshots.
+
+Maintain a release matrix: capability, screen entry, backend evidence, enabled environment, test result, outstanding dependency and owner. Existing versus required status in sections 3–4 is tied to the recorded commits and must be refreshed by the implementation team. Do not describe this design revision as a new production audit.
+
+Design references for this revision
+
+Refero captures reviewed 7 October 2026: ChatGPT style (chatgpt.com; style 667cf5b9-5940-4db5-a972-fb6bd51d5783); Perplexity style (perplexity.ai; b95e58ce-d00e-4de1-ad6b-6f1c7d7a5593). Captured patterns are inspiration, not claims about current live product behavior.
+
+Settings references: https://refero.design/pages/a18310e0-f1a7-4dbb-a5a4-1ea368b9b032 and https://refero.design/pages/7a3d8761-47e1-49ff-9919-36a5f8f3a1a8. Jace conversation flow: https://refero.design/flows/10221. Motion rules adapt the Refero design craft guidance. Current Decibyl components and founder-approved appearance take precedence over borrowed visual details.
+
+29 Refreshed source check and reuse map
+
+Source refs rechecked on 7 October 2026. Main remains 6d4f08d8a142b2aa0fc38d991353299d044d2d4a. PR 523 remains an open draft, unmerged, at b835a892d37179e2303919d261f42d37995e0b2f. The findings below come from source inspection, not a production UI or runtime test. Paths are relative to echowave/.
+
+  -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  Surface and evidence                            Reuse and required change
+  ----------------------------------------------- -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  Chat                                            Keep /overview, conversation history and the existing auxiliary About panel. Label the destination Chat. Use existing in-thread connector and action behavior; do not replace the chat engine.
+  ui/src/app/overview/page.tsx                    
+  ui/src/components/home/HomeAboveTheFold.tsx     
+
+  Conversation and composer                       Reuse rendered event cards and dictation entry. Main polls events every 5 seconds and draft text every 700 ms. Add visible recovery and stale-state handling; evaluate event delivery without requiring a wholesale transport rewrite.
+  ui/src/components/channel/ChannelStream.tsx     
+  ui/src/components/channel/ChannelComposer.tsx   
+
+  Tasks and schedules                             TaskBoard/SimpleTaskBoard and SchedulesBoard already exist. Put a Today summary above or around reusable list/detail behavior. Preserve board, contacts and schedules as secondary views for existing users.
+  ui/src/app/tasks/page.tsx                       
+  ui/src/app/schedules/page.tsx                   
+
+  Memory                                          Keep scoped facts, forget/undo and share operations. Add full edit/source/date controls under Personalization and distinguish load errors from an empty list. Sharing personal memory needs an explicit destination preview.
+  ui/src/components/memory/MemoryList.tsx         
+
+  Settings shell in PR                            Reuse SettingsNav and centralized section data. Current groups are General, Team, Phone numbers, Models, Apps and tools, Knowledge, Channels, Company, Developer and Compliance. Map to the simpler user catalogue; preserve workspace-only controls.
+  ui/src/app/settings/layout.tsx                  
+  ui/src/components/settings/sections.ts          
+
+  Navigation in PR                                Reuse rail and Recents. Replace Home/Tasks/Agents/Activity primary organization with Chat/Today and profile Settings. Route matching, search keywords and saved links must migrate together.
+  ui/src/components/layout/v2/homes.ts            
+  ui/src/components/layout/v2/RecentsList.tsx     
+
+  Privacy                                         Existing source includes retention, export, erasure and DeleteWorkspaceCard. Reuse these controls, verify their actual data coverage and distinguish personal-account deletion from workspace deletion.
+  ui/src/app/privacy/page.tsx                     
+  -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Repository instructions already require contextual connection chips, tappable next steps, useful Free features without a number and runtime verification before claiming behavior works. The new product scope comes from the founder’s current instructions; preserve those interaction requirements. Do not merge PR 523 merely because its styling is useful.
+
+30 Settings changes and concrete failure cases
+
+These are source-grounded tasks to reconcile with sections 24–27. MAIN and PR identify where evidence was inspected. Each fix still needs a focused runtime or component-level check before being called complete.
+
+  -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  Finding and code location                                            Developer action and acceptance check
+  -------------------------------------------------------------------- ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  MAIN plus PR: memory read failure becomes facts=[]                   Separate loading, empty, error and ready states. A simulated 500 must show retry and must not say nothing is remembered. Recovering must restore facts without losing scope.
+  ui/src/components/memory/MemoryList.tsx                              
+
+  PR: subordinate phone requests default missing data to []            Track failures per carrier, verified-number list and agent list. A failed provider list must show partial coverage, not imply no numbers. Never enable an assignment based on incomplete data without a clear explanation.
+  ui/src/app/settings/phone-number/page.tsx                            
+
+  PR: model changes lack a pending guard and stale-response handling   Disable or serialize changes per slot and reject stale responses. Catch network failures; preserve last confirmed value. Rapidly choosing two options must leave client and server agreeing on the final choice.
+  ui/src/app/settings/models/page.tsx                                  
+
+  PR: general settings mix everyday and developer controls             Move tool credentials, MCP and tracing to role-controlled Advanced. Keep MFA readily reachable under Security. Consolidate duplicated channel entries while distinguishing app access from messaging Decibyl.
+  ui/src/app/settings/page.tsx                                         
+
+  PR: preferences are organization-level timezone and test number      Reuse save/dirty-state handling, but add member preferences separately. A personal timezone or reply language change must not silently change a team’s schedules.
+  ui/src/components/OrganizationPreferencesSection.tsx                 
+
+  PR: Settings navigation is a horizontal scrolling row on mobile      For the expanded catalogue use a grouped full-screen mobile list and detail back navigation. Verify selected section, browser back and keyboard focus without sideways menu hunting.
+  ui/src/components/settings/SettingsNav.tsx                           
+
+  PR: free mode bypasses plan limits                                   Keep zero customer charge; implement separate operational concurrency, usage and global cost boundaries. Source retains KYC/autopay and user-set agent budgets, so do not describe every safeguard as absent.
+  api/services/billing/free_mode.py                                    
+
+  PR: defaults conflict with requested Sarvam policy                   Reconcile server defaults and effective inheritance, not only labels. Validate provider readiness and supported capabilities. A missing key must be detected before a call is accepted where feasible.
+  ui/src/app/settings/models/page.tsx                                  
+  -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+The PR’s author also reports ARQ retry-idempotency, timeout and thread-failure reporting gaps, plus builder-client tool-history problems. Treat these as reported issues to reproduce, not independently verified findings from this pass. They are relevant to reliable task completion and should be reviewed before widening the beta.
+
+31 Concrete implementation order for Claude
+
+The fastest useful release extends current components and proves complete user journeys. Keep the entire planned product in scope, with capability flags for features awaiting provider or runtime validation. No fixed four-week schedule is required.
+
+  -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  Work item                          Files or area to start from                                                                                  Acceptance evidence
+  ---------------------------------- ------------------------------------------------------------------------------------------------------------ -------------------------------------------------------------------------------------------------------------------------------------------------------------
+  1 Route and settings migration     PR rail homes, Settings sections, existing route redirects and section tabs.                                 Chat/Today/profile Settings work on mobile and desktop. Old links still reach records; advanced tools remain accessible to authorized users.
+
+  2 Honest dynamic states            MemoryList, phone-number page, models page, ChannelStream and existing error helpers.                        Reproduce each failure in section 30; recover without false empty/success states or stale saved values.
+
+  3 Personal preferences             OrganizationPreferencesSection pattern plus separate member-owned schema and API.                            Language, timezone, voice and summary choices persist across sessions and do not modify another member’s configuration.
+
+  4 Today and approved routines      TasksPage, SchedulesBoard, existing routines and approval services.                                          One confirmed daily brief and one event reminder survive a worker restart; changing/cancelling an event updates linked reminders once.
+
+  5 Whole assistant journeys         Existing Chat plus reusable helper configurations, memory and saved results.                                 Demonstrate research, inbox draft, follow-up and short learning practice from one composer, with correct scope and useful result evidence.
+
+  6 Voice and meeting mode           ChannelComposer dictation and /talk/[token] as separate starting points; existing capture/upload services.   Live assistant voice is distinct from dictation. Meeting capture identifies its supported audio source and turns notes into individually confirmed actions.
+
+  7 Identity and channel readiness   PR phone settings, email alias work, Decibyl channel settings and provider adapters.                         Only provisioned/tested email and phone identities show active. Revocation, partial failure and channel-specific delivery limits are visible.
+
+  8 Launch controls                  Free-mode operational limits, invitation flow, outcome telemetry and feature registry.                       Run the pilot outcome tests with budgets enforced. A visible capability has either working behavior or a clear setup/unavailable state.
+  -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+What Claude should return with the implementation
+
+Provide the route-to-component mapping, schema migrations, effective settings precedence, capability flags, focused test results, desktop/mobile screenshots, unresolved provider dependencies and rollback instructions. Distinguish implemented source, configured environment and verified behavior. Keep changes in reviewable pull requests; no merge or deployment is implied by this planning handoff.
+
+Pinned source references
+
+Main: https://github.com/Stratfiy/echowave-redesign/tree/6d4f08d8a142b2aa0fc38d991353299d044d2d4a
+PR: https://github.com/Stratfiy/echowave-redesign/pull/523
+PR source: https://github.com/Stratfiy/echowave-redesign/tree/b835a892d37179e2303919d261f42d37995e0b2f
+
+32 Admin console and operating model
+
+Addition dated 7 October 2026. Build one internal console so the team can support customers, measure useful outcomes and operate Decibyl without routine AWS console visits. This is an implementation specification, not evidence that these controls are live. Preserve the customer Chat and Today experience.
+
+  ------------------------------------------------------------------------------------------------------------------------------------
+  Section                   Primary job                                 Reuse or extend
+  ------------------------- ------------------------------------------- --------------------------------------------------------------
+  Overview                  Health, incidents, useful users and spend   Combine existing KPI, readiness and realtime views.
+
+  Users and access          Invites, accounts, limits and KYC status    Reuse verification and account pages; add lifecycle context.
+
+  Support                   Tickets and scoped customer requests        Add queue, ticket detail and action history.
+
+  Quality and evaluations   Test runs, regressions and release gates    Link run diagnostics; add versioned evaluation cases.
+
+  Product analytics         Activation, retention and usefulness        Reuse activation/retention views; link PostHog details.
+
+  Revenue and costs         Payments, usage cost and margins            Reuse billing, payments and unit economics views.
+
+  Operations                Jobs, providers, delivery and incidents     Reuse system, runs, latency and telephony views.
+
+  Controls and audit        Roles, flags, models, secrets and budgets   Reuse provider keys, models, flags and audit pages.
+  ------------------------------------------------------------------------------------------------------------------------------------
+
+Navigation and dynamic states
+
+Group existing routes under these eight destinations; do not duplicate their databases or recreate Sentry and PostHog. Each summary shows environment, selected time range, last refresh and freshness. Distinguish healthy, degraded, unavailable, loading and no data. Actions show pending, succeeded, failed or outcome unknown; never show success merely because a request was accepted.
+
+Role boundaries
+
+Owner manages roles and budgets; support handles permitted customer cases; operations manages runbooks; finance handles refunds and reconciliation; quality staff manages evaluation datasets. Enforce workspace scope and permissions in the backend on every request. Use existing authentication with MFA for staff. Separate production from staging, and audit elevated access. Existing KYC support access does not imply permission to execute these new actions.
+
+33 Customer support and requested actions
+
+Customers open Help to report a problem or request assistance. Failed tasks also expose a contextual help button. Support should understand the affected task without requiring the customer to explain the entire conversation again.
+
+Customer and staff screens
+
+Customer: category, description, affected task, optional attachments, what data will be shared, ticket status and replies. Staff: queue filters, assignee, severity, customer context, ticket thread, internal notes, linked incident and action history. Keep internal notes separate from customer replies. Collect the user’s explicit selection before sharing conversation or recording content; never attach all history.
+
+  --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  Requested action                      Execution rule
+  ------------------------------------- ------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  Retry or cancel a task                Check current state and external execution first; reuse the original idempotency key where appropriate. An unknown outcome requires reconciliation before retry.
+
+  Grant temporary usage                 Require authorized role, amount, expiry and reason. Show the budget impact and audit the grant.
+
+  Pause a routine or change a setting   Preview exact target and old/new values. Preserve the customer request and required confirmation.
+
+  Repair a connection                   Diagnose safely; customer completes OAuth or credential renewal. Staff cannot request passwords or bypass provider consent.
+
+  Refund a payment                      Finance role, payment reference, eligible amount, confirmation and deduplication. Reconcile provider result.
+
+  Export or delete customer data        Verify identity and scope; show progress, completion and exceptions across data stores and processors.
+  --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Request and approval lifecycle
+
+Record request → verify identity and scope → preview exact action → obtain required approval → execute → reconcile result → notify customer. Every action records actor, ticket, target, reason, parameters with secrets removed, approval, timestamp and outcome. A support request does not automatically approve sending messages, booking meetings or spending money.
+
+Assisted access and support automation
+
+Default to read-only diagnostics. If assisted access is needed, make it time-limited, scoped, visible to the customer and fully audited. Review existing impersonation routes and guardrail tests before reuse. An AI support helper may explain, classify and draft replies; account changes and external actions must use the same permission and approval system. Measure first response, resolution time, reopening and customer satisfaction separately.
+
+34 Credentials and routine AWS operations
+
+Keep platform provider secrets in AWS Secrets Manager and expose controlled management through Decibyl’s backend. Keep everyday configuration, quotas and feature flags in the application database. This recommendation fits the planned AWS architecture; validate it against the deployed environment before migration.
+
+Provider keys screen
+
+Show provider, environment, masked identifier, owner, validation time, last change and health. Allow add, validate, replace and disable. Never return an existing secret value to the browser. Submit new credentials over TLS to a privileged backend endpoint; exclude request bodies from logs, analytics and replay. Use an allowlisted secret namespace and backend IAM roles. Do not put AWS access keys in the frontend.
+
+Secret lifecycle
+
+Validate a staged credential, activate it, refresh consumers, verify new requests, then revoke the old credential. Reverting is possible only while the old key remains valid. Creating or rotating a provider-issued key is separate from storing it. ECS environment-injected secrets require replacement tasks to receive updates; programmatic retrieval supports updates with a bounded cache and refresh policy. Do not fetch secrets per audio frame. [A1–A2]
+
+Customer credentials and staff identity
+
+Review the existing tenant key encryption service before deciding its migration; platform secrets and customer-owned credentials need distinct access policies. Runtime IAM roles should read only required secrets. Staff identity uses MFA and application roles; an owner account is not an AWS master credential. Secrets must remain outside application audit payloads and error reports.
+
+  -------------------------------------------------------------------------------------------------------------------
+  Routine console action             Required execution control
+  ---------------------------------- --------------------------------------------------------------------------------
+  Retry jobs and inspect delivery    Typed backend command, eligible state check, idempotency and reconciliation.
+
+  Pause provider, agent or routine   Explicit scope, impact preview and expiry where appropriate.
+
+  Change model, flag or budget       Versioned configuration, validation, authorized role and rollback.
+
+  Drain or restart workers           Approved runbook, health checks, progress and bounded impact.
+
+  Review backups and deployments     Read-only status, last successful backup and last restore test; link evidence.
+  -------------------------------------------------------------------------------------------------------------------
+
+Infrastructure boundary
+
+Use existing job services for application actions and Systems Manager Automation for selected infrastructure runbooks. AWS supports an approval step for designated principals. [A3] Do not expose arbitrary shell, SQL or generic AWS mutation from the admin UI. IAM, networking and destructive recovery remain restricted infrastructure workflows. Build allowlisted commands first, with reason, permission checks, approval where required, audit and final status.
+
+35 Observability and privacy
+
+Use one correlated view of a customer task across product, application and infrastructure data. Keep business records in Decibyl’s database; monitoring tools help investigate them and must not become the only record of a payment, approval or completed action.
+
+  --------------------------------------------------------------------------------------------------------------------------------------------------
+  System                 Responsibility                                                   Admin presentation
+  ---------------------- ---------------------------------------------------------------- ----------------------------------------------------------
+  Sentry                 Exceptions, releases, stack traces and application performance   Error summary and a link to the affected trace or issue.
+
+  PostHog                Activation, funnels, retention, adoption and feedback            Curated outcome dashboards and links to deeper analysis.
+
+  CloudWatch             Infrastructure metrics, worker health, queues and alarms         Provider/worker health and bounded operational alerts.
+
+  CloudTrail             AWS API activity                                                 Restricted link for infrastructure investigations.
+
+  Application database   Tasks, approvals, support, usage ledger and audit                Authoritative status and permitted actions.
+  --------------------------------------------------------------------------------------------------------------------------------------------------
+
+Common event contract
+
+Required envelope: event_id, schema_version, occurred_at in UTC, environment, release, pseudonymous user_id, workspace_id where applicable, task_id where applicable, trace_id and configuration_version. Typed properties include channel, language, agent type, status, reason_code and duration_ms. Define nullable fields explicitly. Use event IDs for deduplication and retain event schema ownership in the repository.
+
+Authoritative events and failure handling
+
+Server events establish task completion, approval execution, delivery and payment outcomes. Client events describe intent or UI interaction. Use a transactional outbox or equivalent durable dispatch for important state changes; deduplicate consumer delivery. Authenticate provider webhooks and reconcile delayed or duplicate results. Record occurred_at separately from ingestion time. Analytics delivery must not block the voice response or silently change business state.
+
+Privacy defaults
+
+Exclude prompts, transcripts, audio, email bodies, keys, KYC documents and card details from telemetry. Use normalized reason codes rather than raw error strings. Disable replay on sensitive screens and use one replay pipeline initially. Masking is a baseline, not proof that every component is safe: inspect representative payloads and recordings before enabling capture. Sentry documents default replay masking; PostHog supports funnel and retention analysis. [A4–A6]
+
+Access and retention
+
+Define retention and deletion rules per store before launch, including attachments, recordings, analytics, replay, backups and evaluation samples. Restrict staff access by role; do not place personal data in event names or metric labels. Hashing a user identifier does not automatically make the data anonymous. A user deletion workflow must track downstream processing and any justified retention exceptions.
+
+36 Event catalogue and repository gaps
+
+Use a small, versioned event catalogue tied to meaningful outcomes. Do not add an event for every click. The following names are proposed contracts; reconcile them with the existing constants before implementation.
+
+  -------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  Domain        Events
+  ------------- -----------------------------------------------------------------------------------------------------------------------------------------------------------
+  Onboarding    invite_accepted · onboarding_completed · first_useful_task_completed
+
+  Tasks         task_started · task_completed · task_failed · task_cancelled
+
+  Approval      approval_requested · approval_granted · approval_rejected · approval_expired
+
+  Voice         voice_session_started · voice_session_ended · voice_session_failed
+
+  Meetings      capture_started · capture_failed · meeting_processed · action_confirmed
+
+  Reminders     reminder_scheduled · reminder_delivered · reminder_failed · reminder_cancelled
+
+  Connections   connection_started · connection_ready · connection_revoked
+
+  Support       ticket_created · support_action_requested · support_action_approved · support_action_executed · support_action_failed · ticket_resolved · ticket_reopened
+
+  Quality       feedback_submitted · evaluation_completed · regression_detected
+
+  Finance       payment_succeeded · payment_failed · refund_completed · usage_cost_recorded
+  -------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Required event semantics
+
+A completed task must reference persisted output or reconciled external success. Reminder delivery means provider-confirmed delivery where supported; otherwise report accepted or unknown separately. Voice end records duration, disconnect reason and available latency measures. Record suggestion feedback only when supplied and include the number of users asked. A cost record includes provider, usage unit, rate version, currency and estimated versus reconciled status.
+
+Source evidence and changes required
+
+The reviewed PostHogIdentify component identifies users and sends email/name properties; review minimization and identification policy. Its user-dependent sign-in capture needs a once-per-authentication contract so rerenders or mounts do not inflate sign-ins. Signup failure capture includes a detail value: replace sensitive or free-form values with normalized reason codes. Existing Sentry boundaries and configuration files indicate integration work, not verified production ingestion.
+
+Audit limits and ownership
+
+The repository contains PostHog event constants, instrumentation configuration, impersonation routes and tests; their complete runtime behavior was not verified in this review. The draft PR includes backend Sentry work and remains separate from main in the pinned audit. Claude must inventory existing events, avoid double reporting, and show payload tests plus staging delivery evidence. Backend owns business events; frontend owns interaction events; product owns definitions; operations owns alerts and routing.
+
+37 Product quality revenue and decision metrics
+
+The primary product measure is whether people repeatedly get useful work done. Show measured values, sample sizes and unknown data. Do not label a free pilot as revenue traction or present planned performance as a benchmark result.
+
+  -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  Metric                Definition and interpretation
+  --------------------- -------------------------------------------------------------------------------------------------------------------------------------------------------------
+  Activation            First meaningful successful task after onboarding. Define eligible outcomes by agent, not merely a chat response.
+
+  Weekly useful users   Distinct users with at least one defined useful outcome in a seven-day reporting window.
+
+  Seven day repeat      Activated users returning for a useful outcome during days 1–7 after activation, divided by activated users whose full window has elapsed.
+
+  Task success          Successful eligible attempts / eligible attempts, broken down by task type. Expose partial and unknown outcomes and the cancellation policy.
+
+  Usefulness            Positive answers / answered feedback prompts; show prompt exposure and response rate separately.
+
+  Voice latency         End of user speech to first meaningful audible response at the client, p50/p95 by language, channel and provider. Also track interruptions and disconnects.
+
+  Cost per success      All attributable attempt costs, including failed attempts, divided by successful outcomes in the same defined cohort or period.
+
+  Support health        First response, resolution, reopening and CSAT with time window and sample size.
+  -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Revenue and unit economics
+
+Use a reconciled financial ledger and provider records as the source of truth. Separate cash collected, refunds, recurring subscription value and recognized revenue; finalize accounting rules with the finance owner. Direct contribution equals applicable net revenue minus defined direct service costs. Show allocated infrastructure separately and document currency conversion and rate versions. During a free beta, show zero revenue, cost per useful user, subsidy, remaining budget and projected scenarios clearly labelled as estimates.
+
+Evaluation and release gates
+
+Maintain versioned cases for local languages, mixed-language speech, noisy audio, task correctness, reminder time interpretation, context boundaries and approval behavior. Compare models on the same dataset and configuration. Use deterministic checks for permission enforcement and real tool outcomes; an LLM judge cannot authorize actions. Each release reports pass counts, sample sizes, latency distribution, cost and failures. Define acceptance thresholds from pilot baselines before enabling wider rollout; do not invent measured targets.
+
+Learning from support
+
+With appropriate permission, convert a failed support case into a sanitized evaluation case. Reproduce, fix, rerun the case and its affected regression set, then monitor the outcome after release. Link the incident, case and release. Keep customer content out of shared test data by default.
+
+38 Implementation acceptance and sources
+
+Deliver this as an extension of the current product. Keep the wider assistant scope intact and use capability flags for integrations awaiting validation. Build in dependency order, without imposing a four-week schedule.
+
+  -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  Order   Deliverable                                  Acceptance evidence
+  ------- -------------------------------------------- ------------------------------------------------------------------------------------------------------------------------------------------------------------
+  1       Roles, audit, task correlation and support   Cross-workspace access denied; one ticket traces its task; customer/internal notes remain separate; every mutation is attributable.
+
+  2       Scoped action runner and provider controls   Repeated requests do not duplicate external actions; unknown outcomes reconcile; secrets are absent from logs and replay; staff cannot reveal stored keys.
+
+  3       Runbooks and incident operations             Pause and recovery work on a staging failure; approvals are enforced server-side; queued actions report final status.
+
+  4       Events, dashboards and finance               One known user journey appears once; UTC timestamps and cohorts agree; payment/cost totals reconcile against source records.
+
+  5       Evaluation and release controls              Known regression blocks release; sanitized support case is reproducible; model/config changes have an auditable rollback path.
+  -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+What Claude and the developer must return
+
+Return a route reuse map; database migrations; role/action matrix; typed command and event schemas; key rotation procedure; dashboard definitions; alert owners; staging evidence; known gaps; and rollback instructions. Report source implemented, environment configured and end-to-end verified as separate states. Avoid broad auth or observability rewrites unless a concrete gap requires them.
+
+Primary references
+
+Research checked 7 October 2026. References support vendor behavior; the proposed screen structure, event names, roles and acceptance tests are Decibyl recommendations. Repository findings use the pinned commits in section 31, not a claim of live deployment.
+
+[A1] AWS ECS programmatic Secrets Manager retrieval: https://docs.aws.amazon.com/AmazonECS/latest/developerguide/secrets-app-secrets-manager.html
+
+[A2] AWS ECS secrets management and task refresh: https://docs.aws.amazon.com/us_eg/AmazonECS/latest/bestpracticesguide/security-secrets-management.html
+
+[A3] Systems Manager approval action: https://docs.aws.amazon.com/systems-manager/latest/userguide/automation-action-approve.html
+
+[A4] Sentry Session Replay masking: https://sentry.io/product/session-replay/
+
+[A5] PostHog funnels: https://posthog.com/docs/product-analytics/funnels
+
+[A6] PostHog retention: https://posthog.com/docs/product-analytics/retention

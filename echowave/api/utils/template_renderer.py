@@ -157,13 +157,74 @@ def _resolve_builtin_variable(
     return None
 
 
-def _render_string(template_str: str, context: Dict[str, Any]) -> str:
+#: Stands in for a placeholder that rendered to nothing, so the spoken renderer
+#: can see where the hole is and close it. A control character no greeting
+#: contains; removed in every path before the text leaves this module.
+_EMPTY_MARK = "\x00"
+
+# A hole and whatever introduced it: "Namaste, {{clinic_name}}." loses the
+# ", " with the name, and "Hello {{name}}!" loses the space.
+_HOLE_WITH_LEAD = re.compile(r"(?:[ \t]*,[ \t]*|[ \t]+)" + _EMPTY_MARK)
+# A hole that opens the text (or a line) takes the comma after it instead:
+# "{{name}}, welcome" is "Welcome"-shaped, not ", welcome".
+_HOLE_AT_START = re.compile(
+    r"(^|\n)[ \t]*" + _EMPTY_MARK + r"[ \t]*,?[ \t]*", re.MULTILINE
+)
+_SPACE_BEFORE_PUNCT = re.compile(r"[ \t]+([,.!?;:])")
+_DOUBLE_SPACE = re.compile(r"[ \t]{2,}")
+
+
+def render_spoken_template(template: str | None, context: dict[str, Any]) -> str | None:
+    """Render text that will be read aloud, closing the hole an unset variable leaves.
+
+    ``render_template`` turns an unset ``{{clinic_name}}`` into nothing, which
+    is right for a prompt -- the model reads around it -- and wrong for a
+    greeting. Run 23 on staging opened with "Namaste, . How may I help you
+    today?": the voice read the stranded comma and full stop as a pause where
+    a name should have been, and that is what the caller heard first.
+
+    So here an empty placeholder takes the comma or space that introduced it
+    with it: "Namaste, {{clinic_name}}. How may I help you today?" becomes
+    "Namaste. How may I help you today?". A placeholder with a value, and text
+    with no empty placeholder at all, renders exactly as ``render_template``
+    renders it.
+
+    Spoken text only. A prompt keeps ``render_template``, because a model is
+    better served seeing "Customer: " with nothing after it than not knowing
+    the line was ever there.
+    """
+    if template is None:
+        return None
+    if not isinstance(template, str):
+        return render_template(template, context)
+    rendered = _render_string(template, context, empty=_EMPTY_MARK)
+    if _EMPTY_MARK not in rendered:
+        return rendered
+    spoken = _HOLE_AT_START.sub(r"\1", rendered)
+    spoken = _HOLE_WITH_LEAD.sub("", spoken)
+    spoken = spoken.replace(_EMPTY_MARK, "")
+    spoken = _SPACE_BEFORE_PUNCT.sub(r"\1", spoken)
+    spoken = _DOUBLE_SPACE.sub(" ", spoken)
+    # A hole at the very start leaves the next word lower-case
+    # ("{{name}}, welcome back" -> "welcome back"); a voice does not care, but
+    # the same text is shown on the transcript.
+    spoken = spoken.strip()
+    if rendered.lstrip().startswith(_EMPTY_MARK) and spoken[:1].islower():
+        spoken = spoken[0].upper() + spoken[1:]
+    return spoken
+
+
+def _render_string(
+    template_str: str, context: dict[str, Any], *, empty: str = ""
+) -> str:
     """
     Render a string template with variable substitution.
 
     Args:
         template_str: String with {{variable}} placeholders
         context: Dict containing all available variables
+        empty: What a placeholder with no value (and no fallback) becomes.
+            Nothing, except for the spoken renderer, which marks the spot.
 
     Returns:
         Rendered string with variables replaced
@@ -210,10 +271,13 @@ def _render_string(template_str: str, context: Dict[str, Any]) -> str:
 
         # Convert to string for substitution
         if value is None:
-            return ""
+            return empty
         if isinstance(value, (dict, list)):
             return json.dumps(value)
-        return str(value)
+        text = str(value)
+        if empty and not text.strip():
+            return empty
+        return text
 
     # Replace template variables
     result = re.sub(TEMPLATE_VAR_PATTERN, _replace, template_str)

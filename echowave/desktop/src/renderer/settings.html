@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta
+            http-equiv="Content-Security-Policy"
+            content="default-src 'self'; script-src 'self'; style-src 'self'"
+        />
+        <title>Decibyl settings</title>
+        <link rel="stylesheet" href="style.css" />
+        <link rel="stylesheet" href="settings.css" />
+    </head>
+    <body>
+        <main>
+            <h1>Decibyl on this computer</h1>
+
+            <section aria-labelledby="general">
+                <h2 id="general">General</h2>
+                <label class="row"
+                    >Open
+                    <select id="environment">
+                        <option value="production">Decibyl</option>
+                        <option value="staging">Staging</option>
+                        <option value="local">Local (developers)</option>
+                        <option value="custom">Another address</option>
+                    </select>
+                </label>
+                <label class="row" id="custom-row" hidden
+                    >Address <input id="customUrl" type="url" placeholder="https://"
+                /></label>
+                <label class="row"
+                    ><input type="checkbox" id="startAtLogin" /> Open Decibyl when I sign in to this
+                    computer</label
+                >
+                <label class="row">Quick ask shortcut <input id="shortcut" /></label>
+                <label class="row"
+                    >Updates
+                    <select id="updateChannel">
+                        <option value="latest">Stable</option>
+                        <option value="beta">Beta</option>
+                    </select>
+                </label>
+            </section>
+
+            <section aria-labelledby="files">
+                <h2 id="files">Watched folder</h2>
+                <p class="muted">
+                    Off unless you pick one. When a new file lands there, Decibyl shows a
+                    notification; nothing is sent until you click it.
+                </p>
+                <p><span id="folder" class="muted">No folder</span></p>
+                <button id="choose-folder">Choose a folder…</button>
+                <button id="clear-folder">Stop watching</button>
+                <p id="folder-error" class="error" role="alert"></p>
+            </section>
+
+            <section aria-labelledby="computer">
+                <h2 id="computer">Work on my computer</h2>
+                <p class="muted">
+                    Decibyl may only use the apps on this list. It never looks at or types into
+                    password fields, password managers or system security windows, and asks you in
+                    Decibyl before anything that sends, pays, deletes or submits. A bar with Stop
+                    stays on screen while it works.
+                </p>
+                <ul id="apps" aria-label="Apps Decibyl may use"></ul>
+                <div class="row">
+                    <select id="running" aria-label="Open apps"></select>
+                    <button id="add-app">Add</button>
+                    <button id="refresh-apps" title="Refresh the list of open apps">↻</button>
+                </div>
+                <p id="apps-error" class="error" role="alert"></p>
+
+                <h3>Limits for each task</h3>
+                <label class="row"
+                    >Actions <input id="maxSteps" type="number" min="1" max="200"
+                /></label>
+                <label class="row"
+                    >Minutes <input id="maxMinutes" type="number" min="1" max="60"
+                /></label>
+                <label class="row"
+                    >Model calls, US$
+                    <input id="maxCostUsd" type="number" min="0.1" max="20" step="0.1"
+                /></label>
+
+                <h3>Model key</h3>
+                <p class="muted">
+                    Screenshots go from this computer straight to the model and nowhere else. The
+                    key is stored encrypted by this computer's keychain.
+                </p>
+                <p id="key-state" class="muted"></p>
+                <div class="row">
+                    <input
+                        id="key"
+                        type="password"
+                        autocomplete="off"
+                        placeholder="Paste a key"
+                        aria-label="Model key"
+                    /><button id="save-key">Save key</button><button id="clear-key">Remove</button>
+                </div>
+                <p id="key-error" class="error" role="alert"></p>
+            </section>
+
+            <p id="saved" class="muted" role="status"></p>
+        </main>
+        <script src="settings.js"></script>
+    </body>
+</html>

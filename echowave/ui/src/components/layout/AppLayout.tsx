@@ -7,14 +7,20 @@ import React, { ReactNode,useEffect } from "react";
 import { AgreementsGate } from "@/components/auth/AgreementsGate";
 import { ImpersonationBanner } from "@/components/auth/ImpersonationBanner";
 import { VerifyEmailBanner } from "@/components/auth/VerifyEmailBanner";
+import { MeetingModeRegistrar } from "@/components/meetings/MeetingModeRegistrar";
 import { Button } from "@/components/ui/button";
 import { SidebarInset, SidebarProvider, useSidebar } from "@/components/ui/sidebar";
 import { useAppConfig } from "@/context/AppConfigContext";
 import { LeadFormsProvider } from "@/context/LeadFormsContext";
+import { SimpleModeProvider } from "@/lib/care/simpleMode";
+import { useFeature } from "@/lib/features";
 import { applyTheme, readStoredTheme } from "@/lib/themes";
+import { cn } from "@/lib/utils";
 
 import { TopBar } from "./TopBar";
 import { AppRailV2 } from "./v2/AppRailV2";
+import { MobileHeader } from "./v2/MobileHeader";
+import { MobileTabBar } from "./v2/MobileTabBar";
 
 /** The mock's rail is 224px; a touch wider for the workspace switcher. */
 const V2_RAIL_STYLE = { "--sidebar-width": "15rem" } as React.CSSProperties;
@@ -95,6 +101,12 @@ function SidebarStateRestorer() {
 
 const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   const pathname = usePathname();
+  // The phone shell (shell_mobile): profile in a header, Chat and Today at
+  // the bottom. Desktop is unchanged either way.
+  const shellMobile = useFeature("shell_mobile");
+  // The staff console (staff_console) draws its own rail and header: the
+  // customer's Chat and Today are not embedded in it (screen 29).
+  const staffConsole = useFeature("staff_console");
 
   // Check if current route should have sidebar
   // Hide sidebar for root (/), /handler routes (Stack Auth routes), and /auth routes
@@ -112,7 +124,13 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
     // rooms they cannot open, under an account row that says "You".
     !pathname.startsWith("/trust") &&
     // The public marketplace: browsed before an account exists.
-    !pathname.startsWith("/agents");
+    !pathname.startsWith("/agents") &&
+    // The door (screens 01-02): the waitlist, an invitation, and the first
+    // questions after sign-in. One column, nothing to wander off into.
+    !pathname.startsWith("/early-access") &&
+    !pathname.startsWith("/invite/") &&
+    !pathname.startsWith("/welcome") &&
+    !(staffConsole && pathname.startsWith("/superadmin"));
 
   // Only match the exact editor page /workflow/<id>, not sub-routes like /workflow/<id>/runs
   const isWorkflowEditor = /^\/workflow\/\d+$/.test(pathname);
@@ -120,6 +138,9 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   // Always render SidebarProvider to keep the component tree shape consistent
   // across route changes (avoids React hooks ordering violations during navigation).
   return (
+    // Simple mode (stream `care`): reads and applies the person's own
+    // preference; does nothing at all while its switches are off.
+    <SimpleModeProvider>
     <SidebarProvider
       defaultOpen
       // KAN-208 UI-1: the v2 shell is the only one. The ui_shell_v2 flag that
@@ -129,6 +150,9 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
     >
       <SidebarStateRestorer />
       <ThemeRestorer />
+      {/* Attach -> Meeting mode in Chat (stream `meetings`); nothing while
+          its flag is off. */}
+      <MeetingModeRegistrar />
       {shouldShowSidebar ? (
         <LeadFormsProvider>
           {/* h-screen, not min-h-screen: the column is bounded, so a page
@@ -143,7 +167,12 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
               <AgreementsGate />
               {/* The workflow editor is the one full-bleed canvas in the app —
                   it needs the whole viewport, so it opts out of the top bar. */}
-              {!isWorkflowEditor && <TopBar />}
+              {shellMobile && <MobileHeader />}
+              {!isWorkflowEditor && (
+                <div className={shellMobile ? "hidden md:block" : undefined}>
+                  <TopBar />
+                </div>
+              )}
               {/* A page's own title band and tabs come from `PageHeader`,
                   rendered by the page itself. This shell deliberately offers no
                   second way to put a header on a screen — two of them is how the
@@ -159,9 +188,17 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                   margin down one side was 8px of gradient beside the content
                   and nothing else: the cost of a frame with none of the
                   point of one. */}
-              <main className="app-surface app-card min-h-0 flex-1 overflow-y-auto md:mb-2 md:mr-2 md:rounded-2xl">
+              <main
+                className={cn(
+                  "app-surface app-card min-h-0 flex-1 overflow-y-auto md:mb-2 md:mr-2 md:rounded-2xl",
+                  // Landscape phones: keep content clear of the notch sides.
+                  shellMobile && "pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]",
+                )}
+              >
                 {children}
               </main>
+              {/* Phones only: Chat, Today and the drawer, under the thumb. */}
+              {(!isWorkflowEditor || shellMobile) && <MobileTabBar />}
             </SidebarInset>
           </div>
         </LeadFormsProvider>
@@ -173,6 +210,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
         </div>
       )}
     </SidebarProvider>
+    </SimpleModeProvider>
   );
 };
 

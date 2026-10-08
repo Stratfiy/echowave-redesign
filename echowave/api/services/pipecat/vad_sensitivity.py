@@ -59,21 +59,36 @@ SETTINGS: dict[str, tuple[float, float]] = {
 
 DEFAULT_ENVIRONMENT = "normal"
 
+#: What an agent that never chose gets on a phone line. The founder's call
+#: (October 2026), after a test call from a busy place kept stopping for the
+#: people nearby: most Indian callers ring from a shop, a street or a full
+#: house, so a phone agent starts at ``noisy``. A browser call keeps ``normal``.
+#: ``auto`` (the stored default) means exactly this; a chosen value wins.
+PHONE_DEFAULT_ENVIRONMENT = "noisy"
+AUTO = "auto"
 
-def resolve(run_configs: Any) -> str:
-    """Which environment this agent is set up for. ``normal`` unless told."""
+
+def resolve(run_configs: Any, *, phone: bool = False) -> str:
+    """Which environment this agent is set up for.
+
+    A value the agent chose wins. Otherwise -- nothing stored, ``auto``, or
+    something unknown -- a phone call is ``noisy`` and anything else ``normal``.
+    """
+    default = PHONE_DEFAULT_ENVIRONMENT if phone else DEFAULT_ENVIRONMENT
     if not isinstance(run_configs, dict):
-        return DEFAULT_ENVIRONMENT
+        return default
     chosen = str(run_configs.get(CONFIG_KEY) or "").strip().lower()
-    return chosen if chosen in SETTINGS else DEFAULT_ENVIRONMENT
+    return chosen if chosen in SETTINGS else default
 
 
-def params(run_configs: Any, *, stop_secs: float = STOP_SECS) -> VADParams:
+def params(
+    run_configs: Any, *, stop_secs: float = STOP_SECS, phone: bool = False
+) -> VADParams:
     """The voice-detection thresholds for this call.
 
     ``stop_secs`` stays a parameter because the realtime path and the cascade
     path each pass their own, and neither should inherit the other's pacing
     from a module about noise.
     """
-    confidence, min_volume = SETTINGS[resolve(run_configs)]
+    confidence, min_volume = SETTINGS[resolve(run_configs, phone=phone)]
     return VADParams(confidence=confidence, stop_secs=stop_secs, min_volume=min_volume)

@@ -44,12 +44,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api.constants import PLATFORM_CREDENTIAL_SECRET
 from api.db.models import OrganizationProviderCredentialModel
 from api.enums import CostComponent
-from api.services.configuration.registry import realtime_key_provider
+from api.services.configuration.registry import DATA_PROVIDERS, realtime_key_provider
 
 #: Components a customer key can serve. Telephony is absent for the same reason
 #: it is absent from the platform vault: carrier credentials live on
 #: telephony_configurations, with the KYC that goes with them.
 CREDENTIAL_COMPONENTS = (CostComponent.STT, CostComponent.LLM, CostComponent.TTS)
+#: ``data`` too, but only for a vendor registered as one (a lead-data account
+#: such as Apollo). The workspace's own contact-data source is already the
+#: first one ``lookup_source`` reads; this is where its key is kept.
+DATA_COMPONENT = CostComponent.DATA
 
 
 class OrganizationCredentialError(ValueError):
@@ -119,13 +123,21 @@ def _normalise(component: CostComponent | str, provider: str) -> tuple[str, str]
         raise OrganizationCredentialError(
             f"Unknown component {component_value!r}"
         ) from exc
-    if parsed not in CREDENTIAL_COMPONENTS:
+    provider = (provider or "").strip().lower()
+    if parsed == DATA_COMPONENT:
+        if provider not in DATA_PROVIDERS:
+            raise OrganizationCredentialError(
+                f"{provider or 'That provider'} is not a data provider Decibyl "
+                "can use. Data keys here are for: "
+                + ", ".join(sorted(DATA_PROVIDERS))
+                + "."
+            )
+    elif parsed not in CREDENTIAL_COMPONENTS:
         raise OrganizationCredentialError(
             f"{parsed.value} keys are not held here. Telephony credentials "
             "belong on a telephony configuration."
         )
 
-    provider = (provider or "").strip().lower()
     if not provider:
         raise OrganizationCredentialError("Name the provider this key is for.")
     if provider == "decibyl":

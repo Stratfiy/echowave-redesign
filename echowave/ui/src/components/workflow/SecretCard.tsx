@@ -29,6 +29,9 @@ export type SecretPayload = {
     why?: string;
     credential_type?: string;
     fields?: SecretField[];
+    /** Where what is typed is kept, when not Credentials: a vendor key for
+     *  Decibyl itself (a lead-data key) goes to Provider keys. */
+    stored_in?: string;
     provided?: {
         credential_uuid?: string;
         credential_name?: string;
@@ -108,8 +111,9 @@ export function SecretCard({
                     }}
                 >
                     <p className="text-xs text-muted-foreground">
-                        Typed here, stored in Credentials. It never appears in this chat and the
-                        agent only receives its id.
+                        {request.stored_in
+                            ? `Typed here, stored in ${request.stored_in} and checked before it is saved. It never appears in this chat.`
+                            : 'Typed here, stored in Credentials. It never appears in this chat and the agent only receives its id.'}
                     </p>
                     {fields.map((field) => {
                         const id = `secret-${event.id}-${field.key}`;

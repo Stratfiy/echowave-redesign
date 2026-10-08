@@ -12,7 +12,6 @@ import { AvatarCustomizer } from '@/components/avatar/AvatarCustomizer';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { jobArt } from '@/lib/art';
-import { useFeature } from '@/lib/features';
 import { cn } from '@/lib/utils';
 
 import { type Tone, toneOf, useTeamStatus } from '../useTeamStatus';
@@ -141,7 +140,8 @@ export function AgentFolderView({ workflows, folders }: AgentFolderViewProps) {
     // Faces changed on this page, ahead of the list being fetched again.
     const [faces, setFaces] = useState<Record<number, Avatar | null>>({});
     const [editingFace, setEditingFace] = useState(false);
-    const facesOn = useFeature('agent_faces');
+    // Bloub faces for everyone (KAN-260): the flag is registered, no longer read.
+    const facesOn = true;
     const faceFor = (agent: WorkflowListResponse) =>
         faceOf(agent.id, agent.id in faces ? faces[agent.id] : (agent.avatar as Avatar | null | undefined));
 
@@ -198,7 +198,7 @@ export function AgentFolderView({ workflows, folders }: AgentFolderViewProps) {
                     )}
                 </div>
                 <div className="flex gap-1" role="group" aria-label="Agent directory view">
-                    <Button asChild variant="ghost" size="sm"><Link href="/company">Org chart</Link></Button>
+                    <Button asChild variant="ghost" size="sm"><Link href="/settings/company">Org chart</Link></Button>
                     <Button variant={view === 'cards' ? 'secondary' : 'ghost'} size="sm" aria-pressed={view === 'cards'} onClick={() => setView('cards')}>Cards</Button>
                     <Button ref={listButton} variant={view === 'list' ? 'secondary' : 'ghost'} size="sm" aria-pressed={view === 'list'} onClick={() => setView('list')}>List</Button>
                 </div>
@@ -258,11 +258,11 @@ export function AgentFolderView({ workflows, folders }: AgentFolderViewProps) {
                                 ) : null}
                             </div>
                             <div className="grid grid-cols-2 gap-2">
-                                <Button asChild><Link href={`/workflow/${selected.id}/thread`}>Message</Link></Button>
-                                <Button asChild variant="outline"><Link href={`/workflow/${selected.id}`}>Edit agent</Link></Button>
+                                <Button asChild><Link href={`/workflow/${selected.id}/thread`}>Open</Link></Button>
+                                <Button asChild variant="outline"><Link href={`/workflow/${selected.id}`}>Advanced setup</Link></Button>
                             </div>
                             <Button asChild variant="outline" className="w-full"><Link href={`/workflow/${selected.id}/runs`}>View activity · {selected.total_runs ?? 0} runs</Link></Button>
-                            <p className="text-sm text-muted-foreground">Open the editor to change instructions, skills, tools, knowledge or voice settings, and test the agent.</p>
+                            <p className="text-sm text-muted-foreground">Open it to talk to it and change its voice, skills and memory. Advanced setup holds its instructions, tools, knowledge and models.</p>
                             <Button variant="ghost" className="w-full" onClick={() => { setSelectedId(null); setView('list'); }}>Manage status, groups and archive in List</Button>
                         </div>
                     )}

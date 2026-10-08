@@ -22,6 +22,12 @@ LAUNCH_FLAGS = [
     "decibyl_telegram",
     "decibyl_slack",
     "decibyl_teams",
+    # Launch stream identity (LAUNCH-PLAN.md, phase 2).
+    "identity_connections",
+    "identity_email",
+    "identity_phone",
+    "identity_notifications",
+    "identity_reconciliation",
 ]
 
 PRE_EXISTING_SWITCHES = [

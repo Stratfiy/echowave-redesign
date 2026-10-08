@@ -55,8 +55,8 @@ describe('agent directory', () => {
     it('separates messaging from editing and links to the selected agent history', () => {
         render(<AgentFolderView workflows={workflows} folders={[]} />);
         fireEvent.click(screen.getByRole('button', { name: 'View Clinic front desk' }));
-        expect(screen.getByRole('link', { name: 'Message' }).getAttribute('href')).toBe('/workflow/39/thread');
-        expect(screen.getByRole('link', { name: 'Edit agent' }).getAttribute('href')).toBe('/workflow/39');
+        expect(screen.getByRole('link', { name: 'Open' }).getAttribute('href')).toBe('/workflow/39/thread');
+        expect(screen.getByRole('link', { name: 'Advanced setup' }).getAttribute('href')).toBe('/workflow/39');
         expect(screen.getByRole('link', { name: /View activity/ }).getAttribute('href')).toBe('/workflow/39/runs');
         fireEvent.click(screen.getByRole('button', { name: 'Manage status, groups and archive in List' }));
         expect(screen.queryByRole('dialog')).toBeNull();

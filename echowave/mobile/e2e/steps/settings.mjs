@@ -1,0 +1,26 @@
+export default async () => {
+  await go('/settings');
+  await tid('screen-settings').waitFor();
+  await shot('21-settings', 2000);
+  await page.mouse.wheel(0, 1400);
+  await shot('22-settings-web-screens', 800);
+  await go('/settings/account');
+  await tid('screen-account').waitFor();
+  await shot('23-settings-account', 2000);
+  await go('/settings/language');
+  await tid('screen-language').waitFor();
+  await shot('24-settings-language', 2000);
+  await go('/settings/notifications');
+  await tid('screen-notifications').waitFor();
+  await shot('25-settings-notifications', 2000);
+  await go('/settings/privacy');
+  await tid('screen-privacy').waitFor();
+  await shot('26-settings-privacy', 1500);
+  await tid('privacy-export').click();
+  await page.waitForTimeout(4000);
+  await go('/settings/privacy');
+  await tid('privacy-phrase').fill('delete my data');
+  await tid('privacy-erase').click();
+  await tid('privacy-card').waitFor({ timeout: 10000 });
+  await shot('27-settings-privacy-erase-card', 1000);
+};

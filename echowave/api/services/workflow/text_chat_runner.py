@@ -513,9 +513,22 @@ async def execute_text_chat_pending_turn(
     # bot -- see services/configuration/chat_presets.py.
     from api.services.configuration import chat_presets
 
-    run_configs = chat_presets.apply(
-        run_configs, session_data.get(chat_presets.SESSION_KEY)
-    )
+    preset = session_data.get(chat_presets.SESSION_KEY)
+    if not preset:
+        # Auto: nobody picked a brain for this message, so the work picks
+        # one -- quick, several steps, or deep. Recorded on the session so a
+        # run says which model it chose and why (services/routing/brain.py).
+        from api.services.routing import brain
+
+        routed = await brain.auto_route(
+            workflow.organization_id,
+            pending_user_message or "",
+            workflow_configurations=run_configs,
+        )
+        if routed is not None:
+            preset = routed.preset
+            session_data["auto_route"] = routed.as_dict()
+    run_configs = chat_presets.apply(run_configs, preset)
 
     from api.services.configuration.ai_model_configuration import (
         get_effective_ai_model_configuration_for_workflow,

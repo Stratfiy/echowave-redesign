@@ -211,7 +211,7 @@ export const PhoneCallDialog = ({
 
     const handleConfigureContinue = () => {
         onOpenChange(false);
-        router.push('/telephony-configurations');
+        router.push('/settings/phone-number');
     };
 
     const savePhoneNumberPreference = async () => {
@@ -394,7 +394,7 @@ export const PhoneCallDialog = ({
                     variant="outline"
                     onClick={() => {
                         onOpenChange(false);
-                        router.push('/telephony-configurations');
+                        router.push('/settings/phone-number');
                     }}
                 >
                     Configure Telephony

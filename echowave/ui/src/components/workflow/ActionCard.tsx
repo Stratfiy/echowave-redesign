@@ -15,36 +15,73 @@
  * later is the record: who confirmed, who took it back, what it did.
  */
 
-import { Check, CircleSlash, Loader2, MessageSquare, Phone, Undo2, Zap } from 'lucide-react';
+import { Check, CircleHelp, CircleSlash, Loader2, MessageSquare, Phone, Undo2, Zap } from 'lucide-react';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 
-import { settleActionApiV1TimelineActionsSettlePost } from '@/client/sdk.gen';
+import { checkOrderApiV1ReachOrdersOrderIdCheckPost, settleActionApiV1TimelineActionsSettlePost } from '@/client/sdk.gen';
 import type { TimelineEvent } from '@/client/types.gen';
+import { OrderPreview } from '@/components/reach/OrderPreview';
 import { Button } from '@/components/ui/button';
 import { detailFromError } from '@/lib/apiError';
 
 export type ActionState =
     | 'proposed'
     | 'armed'
+    /** A step on the person's own computer, approved and waiting for the
+     *  computer to take it once (services/workflow/desktop_steps.py). */
+    | 'released'
+    | 'running'
     | 'done'
     | 'failed'
     | 'undone'
     | 'cancelled'
-    | 'declined';
+    | 'declined'
+    /** The job lost track of a send (task ledger): whether it went is not
+     *  known, and it is never fired again on its own. */
+    | 'outcome_unknown';
 
 export type ActionPayload = {
     action?: string;
     label?: string;
     why?: string;
     effect?: string;
+    /** The exact detail to check -- recipient, amount, item -- when the
+     *  proposer wrote one (a step on the person's computer does). */
+    preview?: string;
     reversible?: boolean;
     state?: ActionState;
     fires_at?: string;
     error?: string;
     done?: { at?: string; note?: string };
-    /** What a build produced (KAN-140): where Hear it and Try it go. */
-    result?: { workflow_id?: number; handle?: string | null; open_url?: string | null; calls?: boolean };
+    /** Who took it back. Absent or no person: the system cancelled it (a
+     *  browser that closed, a computer that never took the step). */
+    cancelled?: { by?: number | null; at?: string };
+    /** A browser step (services/browser/): the page and what the form
+     *  sends, as the box read it, secrets already masked. An order card
+     *  (stream `reach`): its draft. */
+    args?: {
+        page_url?: string;
+        fields?: { name: string; value: string }[];
+        draft?: string;
+    };
+    /** The exact payload version Confirm approves (task ledger). Sent back
+     *  with Confirm; an edited card has a new one. */
+    version?: string;
+    /** What a build produced (KAN-140): where Hear it and Try it go. An
+     *  order placed (stream `reach`): its number and the app's payment link. */
+    result?: {
+        workflow_id?: number;
+        handle?: string | null;
+        /** `chat` for an agent that answers in writing (build_from_spec). */
+        channel?: string | null;
+        open_url?: string | null;
+        order_id?: string | null;
+        payment_link?: string | null;
+        /** False for an agent that never takes a call (email, scheduled):
+         *  the card offers Try it, not Hear it. */
+        calls?: boolean;
+    };
 };
 
 export function actionOf(event: TimelineEvent): ActionPayload {
@@ -93,7 +130,13 @@ export function ActionCard({
         setSaving(verb);
         setError(null);
         const result = await settleActionApiV1TimelineActionsSettlePost({
-            body: { event_id: event.id, verb },
+            // Confirm approves the version on screen and no other: a card
+            // edited since is refused, not run on words nobody read.
+            body: {
+                event_id: event.id,
+                verb,
+                ...(verb === 'confirm' && action.version ? { version: action.version } : {}),
+            },
         });
         setSaving(null);
         if (result.error) {
@@ -104,6 +147,26 @@ export function ActionCard({
     };
 
     const label = action.label ?? event.summary;
+    const onComputer = action.action === 'desktop_step';
+    const isOrder = action.action === 'place_order';
+
+    // An order waiting for its owner: the exact bill, in the shared preview.
+    if (isOrder && state === 'proposed') {
+        return <OrderPreview event={event} onSettled={onSettled} onFired={onFired} />;
+    }
+
+    const checkOrder = async () => {
+        if (!action.args?.draft) return;
+        setSaving('check');
+        setError(null);
+        const result = await checkOrderApiV1ReachOrdersOrderIdCheckPost({ path: { order_id: action.args.draft } });
+        setSaving(null);
+        if (result.error) {
+            setError(detailFromError(result.error, 'Could not check just now'));
+            return;
+        }
+        onFired?.();
+    };
 
     return (
         <div
@@ -116,12 +179,29 @@ export function ActionCard({
                 <span>{label}</span>
             </p>
             {action.why && <p className="mt-1 pl-6 text-sm text-muted-foreground">{action.why}</p>}
+            {action.preview && state === 'proposed' && (
+                <p className="mt-1 whitespace-pre-wrap break-words pl-6 text-sm" data-testid="action-preview">
+                    {action.preview}
+                </p>
+            )}
             {/* What Confirm actually does. Derived from the tool, not written
                 by the model, and shown while the buttons are still there --
                 `reversible` used to be read only after the thing had run, to
                 decide whether to offer "Put it back". */}
             {action.effect && state === 'proposed' && (
                 <p className="mt-2 pl-6 text-sm font-medium text-foreground">{action.effect}</p>
+            )}
+            {/* A browser step shows exactly what the form sends, so Confirm
+                is a decision about these values and not about a label. */}
+            {action.action === 'browser_step' && state === 'proposed' && (action.args?.fields ?? []).length > 0 && (
+                <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 pl-6 text-sm" aria-label="What it sends">
+                    {(action.args?.fields ?? []).map((field) => (
+                        <React.Fragment key={field.name}>
+                            <dt className="text-muted-foreground">{field.name}</dt>
+                            <dd className="break-all">{field.value || <span className="text-muted-foreground">empty</span>}</dd>
+                        </React.Fragment>
+                    ))}
+                </dl>
             )}
 
             {state === 'proposed' && (
@@ -138,6 +218,24 @@ export function ActionCard({
                         Not now
                     </Button>
                 </div>
+            )}
+
+            {state === 'running' && (
+                <div className="mt-3 flex items-center gap-3 pl-6 text-sm">
+                    <span className="flex items-center gap-1.5 text-muted-foreground" aria-live="polite">
+                        <Loader2 aria-hidden className="h-4 w-4 animate-spin" />
+                        {/* A step on a computer that never reports is swept
+                            to outcome_unknown (actions.sweep_stale_running). */}
+                        {onComputer ? 'Your computer is doing this now…' : 'Doing this now…'}
+                    </span>
+                </div>
+            )}
+
+            {state === 'released' && (
+                <p className="mt-3 flex items-center gap-1.5 pl-6 text-sm text-muted-foreground" aria-live="polite">
+                    <Check aria-hidden className="h-4 w-4 text-emerald-600" />
+                    Approved. Your computer will do this once.
+                </p>
             )}
 
             {state === 'armed' && (
@@ -166,7 +264,13 @@ export function ActionCard({
                         <Check aria-hidden className="h-4 w-4 text-emerald-600" />
                         <span className="font-medium">{action.done?.note ?? 'Done'}</span>
                     </span>
-                    {action.reversible ? (
+                    {isOrder && action.result?.payment_link ? (
+                        <Button size="sm" className="min-h-11 md:min-h-9" asChild>
+                            <a href={action.result.payment_link} target="_blank" rel="noopener noreferrer">
+                                Pay on the app
+                            </a>
+                        </Button>
+                    ) : action.reversible ? (
                         <Button
                             size="sm"
                             variant="outline"
@@ -176,6 +280,20 @@ export function ActionCard({
                             <Undo2 aria-hidden className="mr-1 h-3.5 w-3.5" />
                             {saving === 'undo' ? 'Putting back…' : 'Put it back'}
                         </Button>
+                    ) : action.result?.workflow_id && action.result.channel === 'chat' ? (
+                        // A chat agent has no phone to hear: it is used in
+                        // its own chat, and tried in the tester.
+                        <>
+                            <Button size="sm" asChild>
+                                <Link href={`/workflow/${action.result.workflow_id}/thread`}>
+                                    <MessageSquare aria-hidden className="mr-1 h-3.5 w-3.5" />
+                                    Open its chat
+                                </Link>
+                            </Button>
+                            {action.result.handle && (
+                                <span className="text-xs text-muted-foreground">@{action.result.handle}</span>
+                            )}
+                        </>
                     ) : action.result?.workflow_id ? (
                         // A built bot is not undone; it is heard. The two
                         // test verbs go straight into the tester, marked TEST.
@@ -216,10 +334,34 @@ export function ActionCard({
                 </p>
             )}
 
+            {state === 'outcome_unknown' && (
+                <p className="mt-3 flex items-start gap-1.5 pl-6 text-sm" role="status">
+                    <CircleHelp aria-hidden className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                    <span>
+                        {action.error ??
+                            'We are checking whether this was delivered. Please do not send it again.'}
+                    </span>
+                </p>
+            )}
+            {state === 'outcome_unknown' && isOrder && (
+                <div className="mt-2 pl-6">
+                    <Button size="sm" variant="outline" className="min-h-11 md:min-h-9" disabled={saving !== null} onClick={() => void checkOrder()}>
+                        {saving === 'check' ? 'Checking…' : 'Check with the app'}
+                    </Button>
+                </div>
+            )}
+
             {(state === 'undone' || state === 'cancelled' || state === 'declined') && (
                 <p className="mt-3 flex items-center gap-1.5 pl-6 text-sm text-muted-foreground">
                     <Undo2 aria-hidden className="h-4 w-4" />
-                    {state === 'undone' ? 'Put back' : state === 'cancelled' ? 'Undone before it ran' : 'Not done'}
+                    {state === 'undone'
+                        ? 'Put back'
+                        : state === 'cancelled' && action.cancelled?.by
+                          ? 'Undone before it ran'
+                          : 'Not done'}
+                    {/* Why, when the card knows: a desktop step no computer
+                        took in time (desktop_steps.sweep_unclaimed). */}
+                    {state === 'cancelled' && action.error && <span>· {action.error}</span>}
                 </p>
             )}
 

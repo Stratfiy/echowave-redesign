@@ -101,6 +101,11 @@ async def announce(
             )
             session.add(record)
             try:
+                # The id is read before the commit expires the row: reading it
+                # afterwards, from a closed session, raised and lost the
+                # "sent" flag on every notice.
+                await session.flush()
+                record_id = record.id
                 await session.commit()
             except IntegrityError:
                 # Somebody else has it. Losing this race is a success.
@@ -130,7 +135,7 @@ async def announce(
         failure = next((r.error for r in results if not r.ok and r.error), None)
 
         async with db_client.async_session() as session:
-            stored = await session.get(NotificationModel, record.id)
+            stored = await session.get(NotificationModel, record_id)
             if stored is not None:
                 stored.sent = sent
                 if not sent:

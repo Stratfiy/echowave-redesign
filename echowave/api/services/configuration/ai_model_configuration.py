@@ -49,6 +49,9 @@ AIModelConfigurationSource = Literal[
     "organization_v2", "legacy_user_v1", "managed_default", "empty"
 ]
 WORKFLOW_MODEL_CONFIGURATION_V2_OVERRIDE_KEY = "model_configuration_v2_override"
+#: Set on an override whose brain somebody picked for this run (a chat
+#: preset): the workspace default must not replace a choice, even "Everyday".
+BRAIN_CHOSEN = "brain_chosen"
 
 
 @dataclass
@@ -288,6 +291,12 @@ async def get_effective_ai_model_configuration_for_workflow(
     )
     if model_override:
         effective = compile_workflow_model_configuration_override(model_override)
+        await _inherit_workspace_choices(
+            effective,
+            organization_id,
+            keep_brain=isinstance(model_override, dict)
+            and bool(model_override.get(BRAIN_CHOSEN)),
+        )
         _attach_backups(effective, workflow_configurations)
         await byok_resolution.apply(
             effective,
@@ -323,6 +332,53 @@ async def get_effective_ai_model_configuration_for_workflow(
     # workflow overrides too.
     await managed_resolution.apply(effective)
     return effective
+
+
+#: Slots an agent inherits from Settings -> Models. Not ``tts``: the voice is
+#: the one model choice an agent keeps for itself.
+INHERITED_SLOTS = ("llm", "stt", "embeddings")
+_DEFAULT_TIERS = ("", "default", "auto", "decibyl_embedding_v1")
+
+
+async def _inherit_workspace_choices(
+    effective: EffectiveAIModelConfiguration,
+    organization_id: int | None,
+    *,
+    keep_brain: bool = False,
+) -> None:
+    """Let an agent still on the default follow the workspace's choice.
+
+    Most agents carry a stack of their own -- written when they were hired, to
+    hold their voice -- with every other slot on the managed default tier.
+    Left alone, those slots would ignore what the workspace chose in Settings,
+    and the settings screen would say one thing while calls did another. A
+    slot the agent (or a chat preset) set to anything else is its own choice
+    and is left as it is.
+    """
+    if organization_id is None or effective.is_realtime:
+        return
+    stored = await get_organization_ai_model_configuration_v2(organization_id)
+    if stored is None or stored.mode != "decibyl" or stored.decibyl is None:
+        return
+    workspace = compile_ai_model_configuration_v2(stored)
+    for slot in INHERITED_SLOTS:
+        if slot == "llm" and keep_brain:
+            continue
+        current = getattr(effective, slot, None)
+        if current is None or not _is_managed_default(current):
+            continue
+        chosen = getattr(workspace, slot, None)
+        if chosen is not None:
+            setattr(effective, slot, copy.deepcopy(chosen))
+
+
+def _is_managed_default(section) -> bool:
+    provider = getattr(section, "provider", "")
+    provider = getattr(provider, "value", provider)
+    return (
+        provider == ServiceProviders.DECIBYL.value
+        and (getattr(section, "model", "") or "") in _DEFAULT_TIERS
+    )
 
 
 async def get_effective_ai_model_configuration_for_organization(

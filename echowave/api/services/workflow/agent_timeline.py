@@ -128,8 +128,9 @@ async def record(
     is_deliverable: Optional[bool] = None,
     in_channel: bool = True,
     thread_id: Optional[str] = None,
-) -> None:
+) -> Optional[int]:
     """Write one line. Silent on failure, by design -- see the module docstring.
+    Returns the row's id, or None when nothing was written.
 
     ``in_channel=False`` keeps the row out of the bot's channel: a person
     talking to a bot on its own chat is not talking in the channel the bot
@@ -210,6 +211,7 @@ async def record(
         event_id=event_id,
         payload=payload or {},
     )
+    return event_id
 
 
 async def _ring_the_bell(
@@ -337,6 +339,18 @@ async def record_call_ended(workflow_run_id: int) -> None:
                 "test": is_test,
             },
         )
+        initial = run.initial_context or {}
+        if initial.get("trigger_source") == "call_for_me":
+            # A call Decibyl placed for one person: tell them on their phone
+            # (MOBILE.md). Only while ``mobile_push`` is on; never raises.
+            from api.services.identity import mobile_push
+
+            await mobile_push.announce_call(
+                organization_id=organization_id,
+                user_id=initial.get("principal_user_id"),
+                workflow_run_id=workflow_run_id,
+                summary=summary,
+            )
     except Exception as exc:  # noqa: BLE001 - a timeline must never fail a completion
         logger.warning(
             "Could not record the call row for run {}: {}", workflow_run_id, exc

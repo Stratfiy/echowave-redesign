@@ -82,14 +82,15 @@ TOKENS_PER_REPLY_ESTIMATE = 1_400
 
 #: The standard tier: models whose tokens a text event includes, up to the
 #: allowance. Chosen from the managed tiers and the catalogue: the cheap,
-#: fast models a reply normally runs on -- OpenAI's mini and nano families
-#: (``gpt-4.1-mini`` is the Smart tier), Google's Flash-Lite, and Sarvam's
-#: 105B (the Everyday tier). Everything else (GPT-4.1, GPT-5, every Claude,
+#: fast models a reply normally runs on -- Claude Haiku (the Everyday tier),
+#: OpenAI's mini and nano families, Google's Flash-Lite, and Sarvam's 105B
+#: (the Fast tier). Everything else (Claude Sonnet and Opus, GPT-4.1, GPT-5,
 #: Gemini Flash, DeepSeek, Mistral...) is premium and pays for its tokens.
 #: Model ids as the pipeline records them, lower-case; a dated snapshot
 #: (``gpt-4.1-mini-2025-04-14``) counts as its model.
 STANDARD_MODELS: frozenset[str] = frozenset(
     {
+        "claude-haiku-4-5",
         "gpt-4o-mini",
         "gpt-4.1-mini",
         "gpt-4.1-nano",
