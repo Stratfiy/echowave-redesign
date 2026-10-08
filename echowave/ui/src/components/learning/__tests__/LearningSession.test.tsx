@@ -175,7 +175,11 @@ describe("The lesson", () => {
         open();
         expect(await screen.findByText("What do you know about fractions?")).toBeTruthy();
         fireEvent.change(screen.getByLabelText("Your answer"), { target: { value: "A little" } });
-        fireEvent.click(screen.getByText("Send answer"));
+        // The button enables on the next render; under a loaded CI runner the
+        // click could land first and do nothing.
+        const send = screen.getByText("Send answer").closest("button")!;
+        await waitFor(() => expect(send.disabled).toBe(false));
+        fireEvent.click(send);
         expect(await screen.findByText("What is 1/2 + 1/4?")).toBeTruthy();
         expect(api.baseline.mock.calls[0][0].body).toEqual({ answer: "A little" });
     });

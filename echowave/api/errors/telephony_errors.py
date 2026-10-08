@@ -20,8 +20,8 @@ class TelephonyError(Enum):
     VALID = "VALID"
 
 
-# Error messages for organizations (debugging-focused)
-TELEPHONY_ERROR_MESSAGES = {
+# What went wrong, for the operator: logs and support, never the caller.
+OPERATOR_ERROR_DETAILS = {
     TelephonyError.PROVIDER_MISMATCH: "Configuration error: This phone number is configured for a different telephony provider. Please check your dashboard settings and update your webhook URL configuration.",
     TelephonyError.WORKFLOW_NOT_FOUND: "Workflow not found. Please verify the workflow ID in your webhook URL is correct and the workflow exists in your dashboard.",
     TelephonyError.ACCOUNT_VALIDATION_FAILED: "Authentication error: Account credentials do not match. Please verify your account SID configuration in the dashboard matches your telephony provider settings.",
@@ -30,4 +30,29 @@ TELEPHONY_ERROR_MESSAGES = {
     TelephonyError.CONCURRENT_CALL_LIMIT: "Service temporarily unavailable: Your account has reached its concurrent call limit. Please try again later.",
     TelephonyError.QUOTA_EXCEEDED: "Service temporarily unavailable: Your account has exceeded usage limits. Please contact your administrator or upgrade your plan to continue receiving calls.",
     TelephonyError.GENERAL_AUTH_FAILED: "Authentication failed: Please check your webhook URL configuration and ensure your telephony provider settings match your dashboard configuration.",
+}
+
+
+# What the caller hears, spoken by every provider before it hangs up.
+#
+# These used to be the operator details above, read aloud. A member of the
+# public who rang a business heard "Workflow not found. Please verify the
+# workflow ID in your webhook URL" -- found on staging, when a paused agent's
+# number was called. A caller can fix none of these and should not learn how
+# the business is set up or billed, so each says only that the call cannot be
+# taken and what to do. The detail stays in the logs (the dispatch logs the
+# reason before it answers with one of these).
+_CANNOT_TAKE = (
+    "Sorry, this number can't take your call right now. Please try again later."
+)
+
+TELEPHONY_ERROR_MESSAGES = {
+    TelephonyError.PROVIDER_MISMATCH: _CANNOT_TAKE,
+    TelephonyError.WORKFLOW_NOT_FOUND: _CANNOT_TAKE,
+    TelephonyError.ACCOUNT_VALIDATION_FAILED: _CANNOT_TAKE,
+    TelephonyError.PHONE_NUMBER_NOT_CONFIGURED: _CANNOT_TAKE,
+    TelephonyError.SIGNATURE_VALIDATION_FAILED: _CANNOT_TAKE,
+    TelephonyError.CONCURRENT_CALL_LIMIT: "Sorry, all our lines are busy right now. Please try again in a few minutes.",
+    TelephonyError.QUOTA_EXCEEDED: _CANNOT_TAKE,
+    TelephonyError.GENERAL_AUTH_FAILED: _CANNOT_TAKE,
 }

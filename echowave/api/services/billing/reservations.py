@@ -202,10 +202,18 @@ async def call_budget_seconds(
     started, not what is left after guessing. Other calls' holds stay
     subtracted, because they will spend theirs.
 
-    None when enforcement is off. The pipeline treats None as "no cap beyond
-    the configured maximum".
+    None when enforcement is off, or for an account that never waits on credit
+    (one of ours, and every account in free mode). The pipeline treats None as
+    "no cap beyond the configured maximum".
+
+    The internal check is the same one ``has_credit`` makes at the start of a
+    call. Without it here the two disagreed: free mode let a call with no
+    balance begin, then this cut it at the 20-second floor -- found on staging,
+    where every inbound call hung up mid-sentence.
     """
     if not BALANCE_ENFORCEMENT_ENABLED:
+        return None
+    if await is_internal(session, organization_id):
         return None
     balance = await current_balance_paise(session, organization_id=organization_id)
     if workflow_run_id is not None:

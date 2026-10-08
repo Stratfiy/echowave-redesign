@@ -404,6 +404,10 @@ async def memory(
         folder = await db_client.get_folder(folder_id, organization_id=organization_id)
         if folder is None:
             raise HTTPException(status_code=404, detail="No such channel here")
+    if assistant:
+        # The same rule as reading the thread: how big somebody else's
+        # private conversation is, and that the id names one, is theirs.
+        await _assert_thread_is_theirs(user, organization_id, thread_id)
     usage = await chat_memory.usage(
         organization_id,
         workflow_id=workflow_id,
@@ -427,6 +431,11 @@ class ThreadSummary(BaseModel):
 
 class ThreadsResponse(BaseModel):
     threads: list[ThreadSummary]
+    #: Whether the reader may read and write the original (null) thread. With
+    #: private threads on it is only its author's, or an Admin's when nobody
+    #: is on record; Chat's start screen starts a new conversation instead of
+    #: opening one that would answer "Thread not found".
+    original_is_yours: bool = True
 
 
 async def _is_admin(user: UserModel, organization_id: int) -> bool:
@@ -493,7 +502,16 @@ async def threads(
         viewer_id=user.id if private else None,
         viewer_is_admin=await _is_admin(user, organization_id) if private else False,
     )
-    return ThreadsResponse(threads=[ThreadSummary(**row) for row in rows])
+    original_is_yours = True
+    if private:
+        try:
+            await _assert_thread_is_theirs(user, organization_id, None)
+        except HTTPException:
+            original_is_yours = False
+    return ThreadsResponse(
+        threads=[ThreadSummary(**row) for row in rows],
+        original_is_yours=original_is_yours,
+    )
 
 
 @router.get("/recents")
@@ -848,7 +866,10 @@ async def thread_chips(
         members = [m.model_dump() for m in await _members(organization_id, 24)]
         missed = await db_client.unreturned_missed_call_count(organization_id, hours=48)
         cards = await home_openers.gather(
-            organization_id, members=members, unreturned_missed_calls=missed
+            organization_id,
+            members=members,
+            unreturned_missed_calls=missed,
+            viewer_id=user.id,
         )
     except Exception as exc:  # noqa: BLE001 - the thread still works
         logger.warning("Could not build thread chips for {}: {}", organization_id, exc)

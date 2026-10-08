@@ -290,7 +290,10 @@ async def team_home(
         unreturned_missed_calls=missed,
     )
     openers = await home_openers.gather(
-        organization_id, members=member_rows, unreturned_missed_calls=missed
+        organization_id,
+        members=member_rows,
+        unreturned_missed_calls=missed,
+        viewer_id=user.id,
     )
 
     return HomeResponse(

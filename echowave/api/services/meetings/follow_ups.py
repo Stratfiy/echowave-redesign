@@ -9,7 +9,9 @@ So a suggestion does nothing on its own. Review turns it into an action card
 (``actions.MEETING_FOLLOW_UP``) on the controls rail -- the same proposed,
 armed, run-once, undo-window card every other act uses, with its payload
 version when the task ledger is on. The card's one effect is one task on the
-workspace's task board, made with an idempotency key per suggestion, so a
+workspace's task board, private to the person who captured the meeting
+(``agent_tasks.private_to_user_id``: colleagues get 404 for it, as they do
+for the meeting), made with an idempotency key per suggestion, so a
 second run, a second tab or a retried job never makes a second task. The
 card says, in its effect line, that nothing is sent to anybody: a follow-up
 email or an invitation would be a different card with its own preview.
@@ -91,8 +93,9 @@ async def resolve_card(
         "label": f"Add a task: {item.text[:160]}",
         "why": f"From the meeting {meeting.title[:120]}",
         "effect": (
-            f"Adds one task to the task board in {workspace}. Nothing is sent "
-            "to anyone: no email, message or calendar invitation."
+            f"Adds one task to the task board in {workspace}, seen only by "
+            "you, like the meeting. Nothing is sent to anyone: no email, "
+            "message or calendar invitation."
         ),
         "reversible": True,
         "state": actions.PROPOSED,
@@ -141,6 +144,7 @@ async def execute(organization_id: int, payload: dict[str, Any]) -> str:
             created_by=owner or None,
             idempotency_key=key,
             due_at=due_at,
+            private_to_user_id=owner or None,
         )
     else:
         existing = (
@@ -155,6 +159,7 @@ async def execute(organization_id: int, payload: dict[str, Any]) -> str:
             created_by=owner or None,
             status="todo",
             due_at=due_at,
+            private_to_user_id=owner or None,
         )
     await db_client.update_meeting_item(
         item.id, meeting_id=meeting.id, organization_id=organization_id, task_id=task.id

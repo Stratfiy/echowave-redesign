@@ -10,11 +10,25 @@ export const API = `${(process.env.STAGING_URL || "http://127.0.0.1:8000").repla
 export const REQUIRE_MODEL = ["1", "true"].includes((process.env.E2E_REQUIRE_MODEL || "").toLowerCase());
 export const FAILURE_REPLY = "I could not think that through";
 
-function credentials() {
-    const email = process.env.STAGING_EMAIL_A;
-    const password = process.env.STAGING_PASSWORD_A;
-    if (!email || !password) throw new Error("STAGING_EMAIL_A/STAGING_PASSWORD_A are not set");
+/** A is the workspace owner; B a plain member A invited. */
+export type Who = "A" | "B";
+
+function credentials(who: Who = "A") {
+    const email = process.env[`STAGING_EMAIL_${who}`];
+    const password = process.env[`STAGING_PASSWORD_${who}`];
+    if (!email || !password) throw new Error(`STAGING_EMAIL_${who}/STAGING_PASSWORD_${who} are not set`);
     return { email, password };
+}
+
+/** An API handle signed in as A or B, for setup and for reading back. */
+export async function apiAs(playwright: { request: { newContext: (options?: object) => Promise<APIRequestContext> } }, who: Who) {
+    const { email, password } = credentials(who);
+    const anonymous = await playwright.request.newContext();
+    const login = await anonymous.post(`${API}/auth/login`, { data: { email, password } });
+    expect(login.status(), `API sign in as ${who}`).toBe(200);
+    const { token } = await login.json();
+    await anonymous.dispose();
+    return playwright.request.newContext({ extraHTTPHeaders: { authorization: `Bearer ${token}` } });
 }
 
 /** A 503 that says the feature is not set up here is an honest state, not a fault. */
@@ -74,13 +88,7 @@ export const test = base.extend<Fixtures>({
     ],
 
     api: async ({ playwright }, use) => {
-        const { email, password } = credentials();
-        const anonymous = await playwright.request.newContext();
-        const login = await anonymous.post(`${API}/auth/login`, { data: { email, password } });
-        expect(login.status(), "API sign in").toBe(200);
-        const { token } = await login.json();
-        await anonymous.dispose();
-        const api = await playwright.request.newContext({ extraHTTPHeaders: { authorization: `Bearer ${token}` } });
+        const api = await apiAs(playwright, "A");
         await use(api);
         await api.dispose();
     },
@@ -95,14 +103,16 @@ export { expect };
 
 /** Sign in through the form, as a person does, and get past the one-time
  * prompts a fresh account meets (first-task setup, the workspace agreement). */
-export async function signIn(page: Page) {
-    const { email, password } = credentials();
+export async function signIn(page: Page, who: Who = "A") {
+    const { email, password } = credentials(who);
     await page.goto("/auth/login");
     await page.getByTestId("login-email-input").fill(email);
     await page.getByTestId("login-next").click();
     await page.getByTestId("login-password-input").fill(password);
     await page.getByTestId("login-submit-btn").click();
-    await page.waitForURL((url) => !url.pathname.startsWith("/auth/"), { timeout: 45_000 });
+    // Past the sign-in screens, including the hop that decides where to land,
+    // before looking for the first-task screen.
+    await page.waitForURL((url) => !url.pathname.startsWith("/auth/") && url.pathname !== "/after-sign-in", { timeout: 45_000 });
     if (new URL(page.url()).pathname.startsWith("/welcome")) {
         await page.getByRole("button", { name: "Skip for now" }).click();
         await page.waitForURL((url) => !url.pathname.startsWith("/welcome"));

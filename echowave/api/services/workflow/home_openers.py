@@ -186,15 +186,24 @@ def build(
     return cards[:MAX_OPENERS]
 
 
-async def recent_questions(organization_id: int) -> list[str]:
+async def recent_questions(
+    organization_id: int, *, viewer_id: Optional[int] = None
+) -> list[str]:
     """The person's own lines to Decibyl, newest first, distinct.
 
     From the conversation being spoken in, when there is one: inside a turn
     the thread is set and these are the questions asked in that chat, and
     outside one -- the home screen -- it is the original thread, exactly as
     before threads existed.
+
+    With private threads on, a line is offered back only to the person who
+    wrote it (``viewer_id``): the original conversation is its author's, and
+    a member was being offered the owner's own words as a start card.
     """
+    from api import constants
     from api.services.workflow import agent_timeline
+
+    only_author = viewer_id if constants.DECIBYL_PRIVATE_THREADS_ENABLED else None
 
     try:
         rows = await db_client.agent_events(
@@ -213,6 +222,10 @@ async def recent_questions(organization_id: int) -> list[str]:
     seen: set[str] = set()
     for row in rows:
         if row.actor != AgentEventActor.HUMAN.value:
+            continue
+        if only_author is not None and str((row.payload or {}).get("author_id")) != str(
+            only_author
+        ):
             continue
         body = str((row.payload or {}).get("body") or row.summary or "").strip()
         key = body.casefold()
@@ -269,8 +282,10 @@ async def gather(
     members: list[dict[str, Any]],
     unreturned_missed_calls: int,
     now: Optional[datetime] = None,
+    viewer_id: Optional[int] = None,
 ) -> list[dict[str, Any]]:
-    """The cards for one account: the reads, then ``build``."""
+    """The cards for one account: the reads, then ``build``. ``viewer_id`` is
+    who is looking; with private threads on, only their own lines return."""
     if not members:
         door = await door_answers(organization_id)
         return build(
@@ -281,7 +296,7 @@ async def gather(
         )
     return build(
         members=members,
-        recent_questions=await recent_questions(organization_id),
+        recent_questions=await recent_questions(organization_id, viewer_id=viewer_id),
         unreturned_missed_calls=unreturned_missed_calls,
         stuck_tasks=await stuck_tasks(organization_id),
         now=now,

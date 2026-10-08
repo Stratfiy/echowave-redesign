@@ -220,7 +220,7 @@ below is behind the existing flags; nothing new to switch on.
 
 ## Migration
 
-`20261009phase3staff` (revises `20261009mobile`): `organizations.staff_suspended_at`
+`20261009phase3staff` (revises `20261009meetingstasks`): `organizations.staff_suspended_at`
 and `staff_content_grants`. Additive; downgrade drops both.
 
 `20261008staff` (revises `202610071500shell`): `staff_role_grants`,

@@ -94,9 +94,11 @@ class TestTheSchemaOffersExactlyTheseChoices:
 
         field = WorkflowConfigurationDefaults.model_fields["caller_environment"]
         allowed = set(getattr(field.annotation, "__args__", ()))
-        assert allowed == set(vad_sensitivity.SETTINGS)
+        # "auto" is the one choice that is not a setting: it picks one per call.
+        assert allowed == set(vad_sensitivity.SETTINGS) | {vad_sensitivity.AUTO}
 
-    def test_an_agent_that_says_nothing_stores_normal(self):
+    def test_an_agent_that_says_nothing_stores_auto(self):
         from api.schemas.workflow_configurations import WorkflowConfigurationDefaults
 
-        assert WorkflowConfigurationDefaults().caller_environment == "normal"
+        # Noisy on a phone line, normal in the browser (founder, Oct 2026).
+        assert WorkflowConfigurationDefaults().caller_environment == "auto"

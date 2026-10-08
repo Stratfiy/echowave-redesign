@@ -19644,6 +19644,10 @@ export type ThreadsResponse = {
      * Threads
      */
     threads: Array<ThreadSummary>;
+    /**
+     * Original Is Yours
+     */
+    original_is_yours?: boolean;
 };
 
 /**
@@ -22044,7 +22048,7 @@ export type WorkflowConfigurationDefaults = {
     /**
      * Caller Environment
      */
-    caller_environment?: 'quiet' | 'normal' | 'noisy';
+    caller_environment?: 'auto' | 'quiet' | 'normal' | 'noisy';
     /**
      * Dictionary
      */

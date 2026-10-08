@@ -17,6 +17,7 @@
 
 import { AlertTriangle, ArrowRight } from "lucide-react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
@@ -24,9 +25,9 @@ import {
   postMessageApiV1TimelineMessagePost,
   stopReplyApiV1ShellChatStopPost,
   teamHomeApiV1TeamHomeGet,
+  threadsApiV1TimelineThreadsGet,
 } from "@/client/sdk.gen";
 import type { Headline, Opener, Suggestion } from "@/client/types.gen";
-import { ArtImage } from "@/components/art/Art3D";
 import { type ChannelBot, ChannelComposer } from "@/components/channel/ChannelComposer";
 import { ChannelStream } from "@/components/channel/ChannelStream";
 import { ThreadList } from "@/components/home/ThreadList";
@@ -37,9 +38,10 @@ import { TemporaryBanner } from "@/components/settings/TemporaryBanner";
 import { Announcer } from "@/components/shell/Announcer";
 import { SourceCoverage } from "@/components/shell/SourceCoverage";
 import { ApprovalDock } from "@/components/today/ApprovalDock";
-import { jobArt } from "@/lib/art";
+import { detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
-import { useFeature } from "@/lib/features";
+import { useFeature, useFeaturesSettled } from "@/lib/features";
+import { onThreadStarted } from "@/lib/shell/chatEntryPoints";
 import type { SourceRead, TaskState, TurnStatus } from "@/lib/shell/taskState";
 import { cn } from "@/lib/utils";
 
@@ -186,6 +188,25 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
       return null;
     }
   });
+  // The router's address too: on a client-side navigation (Today's review
+  // link, a course card) the first render can come before window.location
+  // says ?learn=, and the lesson would not open.
+  const routed = useSearchParams();
+  const routedLearn = routed?.get("learn") ?? null;
+  const routedReview = routed?.get("review") ?? null;
+  const routedTopic = routed?.get("topic") ?? null;
+  useEffect(() => {
+    if (!routedLearn) return;
+    const review = Number(routedReview);
+    setLesson(
+      (open) =>
+        open ?? {
+          goalId: routedLearn === "new" ? null : routedLearn,
+          review: Number.isFinite(review) && review > 0 ? review : null,
+          topic: routedTopic,
+        },
+    );
+  }, [routedLearn, routedReview, routedTopic]);
   const showLesson = learning && lesson !== null;
   const openLesson = useCallback((goalId: string | null, review: number | null = null, topic: string | null = null) => {
     setLesson({ goalId, review, topic });
@@ -221,6 +242,9 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
   const [draftRequest, setDraftRequest] = useState<{ text: string; id: number } | null>(null);
   const [announcement, setAnnouncement] = useState<string | null>(null);
   const [stopNotice, setStopNotice] = useState<string | null>(null);
+  // A first task or starter that could not be sent: said, and its words
+  // kept in the box to send again, never dropped.
+  const [sendError, setSendError] = useState<string | null>(null);
   const [sources, setSources] = useState<{ list: SourceRead[]; replyId: number } | null>(null);
   // "?ask=": the first task from onboarding (screen 02), asked once on
   // arrival and taken off the address so a refresh does not ask it again.
@@ -321,6 +345,55 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
     }
   }, []);
   const newThread = useCallback(() => switchThread(crypto.randomUUID()), [switchThread]);
+  // With private threads on, the original conversation is only its author's
+  // (or an Admin's when nobody is on record), and the server says which.
+  // When it is not this person's, the start screen opens on nothing to read
+  // -- not on "Could not load this conversation" -- and the first message
+  // starts a new conversation of their own. Null until the server answers.
+  const privateThreads = useFeature("decibyl_private_threads");
+  const flagsSettled = useFeaturesSettled();
+  const [originalIsYours, setOriginalIsYours] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (!privateThreads || authLoading || !user) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const response = await threadsApiV1TimelineThreadsGet({ query: { limit: 1 } });
+        if (cancelled) return;
+        // No answer: read the original as before, and let its own load
+        // state say what happened.
+        setOriginalIsYours(response.error || !response.data ? true : response.data.original_is_yours !== false);
+      } catch {
+        if (!cancelled) setOriginalIsYours(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [privateThreads, authLoading, user]);
+  const startsFresh = privateThreads && threadId === null && originalIsYours === false;
+  // Not yet known whether the original may be read -- the flags have not
+  // answered, or the server has not -- nothing is fetched, and nothing is
+  // drawn, the same rule as first load.
+  const holdStream = threadId === null && (!flagsSettled || (privateThreads && originalIsYours === null));
+  useEffect(() => {
+    if (!startsFresh) return;
+    setRows(0);
+    setLoadState("ready");
+  }, [startsFresh]);
+  // A conversation started elsewhere from this screen -- Talk, which starts
+  // a new one when the original is not this person's -- is followed here.
+  const threadRef = useRef(threadId);
+  threadRef.current = threadId;
+  useEffect(
+    () =>
+      onThreadStarted((started) => {
+        if (threadRef.current !== null) return;
+        switchThread(started);
+        setThreadsVersion((v) => v + 1);
+      }),
+    [switchThread],
+  );
   const onCountChange = useCallback((count: number) => setRows(count), []);
   const refreshStream = useRef<() => void>(() => {});
   const registerRefresh = useCallback((refresh: () => void) => {
@@ -370,11 +443,13 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
 
   const asked_ = useRef(false);
   useEffect(() => {
-    if (!ask || asked_.current || authLoading || !user) return;
+    // Not before it is known where it goes: an invited member's first task
+    // belongs in a new conversation of their own, not the original.
+    if (!ask || asked_.current || authLoading || !user || holdStream) return;
     asked_.current = true;
     void sendOpener(ask);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ask, authLoading, user]);
+  }, [ask, authLoading, user, holdStream]);
 
   const onTurnStatus = useCallback((status: TurnStatus | null) => {
     setAnnouncement(status ? (TURN_ANNOUNCEMENT[status.state] ?? null) : null);
@@ -409,11 +484,18 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
 
   const sendOpener = async (text: string) => {
     setSendingOpener(text);
+    setSendError(null);
+    const started = startsFresh ? crypto.randomUUID() : undefined;
     const response = await postMessageApiV1TimelineMessagePost({
-      body: { assistant: true, thread_id: threadId, text },
+      body: { assistant: true, thread_id: started ?? threadId, text },
     });
     setSendingOpener(null);
-    if (response.error) return;
+    if (response.error) {
+      setSendError(detailFromResult(response, "Could not send that"));
+      setDraftRequest({ text, id: Date.now() });
+      return;
+    }
+    if (started) switchThread(started);
     asked();
     setThreadsVersion((v) => v + 1);
     refreshStream.current();
@@ -434,7 +516,7 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
       <div
         className={cn(
           "mx-auto flex min-h-0 w-full flex-1 flex-col",
-          empty ? "max-w-2xl justify-center overflow-y-auto py-6" : chatShell ? "max-w-[760px]" : "max-w-4xl",
+          empty ? "max-w-[720px] justify-start overflow-y-auto pb-6 pt-[8vh]" : chatShell ? "max-w-[760px]" : "max-w-4xl",
         )}
       >
       {showLesson && lesson && (
@@ -448,26 +530,19 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
         />
       )}
       {empty && !showLesson && (
-      <div className="flex shrink-0 flex-col items-center px-2 pb-6 text-center">
-        {/* The real mark, on a round tile with a soft grey halo: the
-            greeting's face. */}
-        <div
-          aria-hidden="true"
-          data-testid="decibyl-mark"
-          className="mt-1.5 flex h-[72px] w-[72px] items-center justify-center rounded-full border border-border bg-card shadow-[0_0_0_6px_var(--muted),0_10px_30px_-8px_rgba(0,0,0,0.25)]"
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/decibyl-mark.svg" alt="" width={56} height={56} className="h-14 w-14 dark:invert" />
-        </div>
-        <h2 className="mt-5 text-3xl font-semibold tracking-tight sm:text-4xl">
-          Hi, I&apos;m Decibyl!
+      <div className="flex shrink-0 flex-col items-center px-2 pb-5 text-center">
+        {/* The design handoff's home (screen 03): one plain question over
+            the box. The big mark and "Hi, I'm Decibyl!" went at the
+            founder's request -- the brand is already in the rail. */}
+        <h2 className="text-[28px] font-semibold tracking-[-0.015em]">
+          What can I do for you{firstName ? `, ${firstName}` : ""}?
         </h2>
-        <p className="mt-2 max-w-lg text-[15px] text-muted-foreground">
-          {greeting}
-          {firstName ? `, ${firstName}` : ""}.{" "}
+        <p className="mt-2 max-w-md text-[15px] text-muted-foreground">
           {brandNew
-            ? "Say hi, or tell me one thing you'd love off your plate this week. I'll set up an agent for it and you can hear it in a minute."
-            : `${headline ? summarise(headline, span) : ""} I know your agents, your numbers and your company's documents.`}
+            ? "Tell me one thing you'd love off your plate this week. I'll set up an agent for it."
+            : headline
+              ? summarise(headline, span)
+              : `${greeting}.`}
         </p>
       </div>
       )}
@@ -500,6 +575,7 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
             no rows from the last chat showing until the poll catches up,
             no cursor pointing into a different conversation. */}
         {memoryManager && threadId?.startsWith("tmp-") && <TemporaryBanner threadId={threadId} />}
+        {!startsFresh && !holdStream && (
         <ChannelStream
           key={threadId ?? "original"}
           assistant
@@ -510,12 +586,18 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
           onCountChange={onCountChange}
           waitingFor={waitingFor}
           onLoadState={setLoadState}
+          // With private threads on, the original conversation is an
+          // Admin's: a plain member starts a new one of their own, as New
+          // chat would, rather than meeting "Could not load". A named thread
+          // that is not theirs still says so.
+          onThreadNotFound={threadId === null ? newThread : undefined}
           chatShell={chatShell}
           onWaitingChange={chatShell ? setReplying : undefined}
           onTurnStatus={chatShell ? onTurnStatus : undefined}
           onOpenSources={chatShell ? onOpenSources : undefined}
           onOpenLesson={learning ? (goalId, topic) => openLesson(goalId, null, topic) : undefined}
         />
+        )}
       </div>
       {approvalDock && (
         // The composer's own gutter, so the dock lines up with the box it sits on.
@@ -538,7 +620,11 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
         onStop={() => void stop()}
         draftRequest={draftRequest}
         initialHelper={initialHelper}
-        onSent={() => {
+        startsNewThread={startsFresh}
+        originalUnknown={holdStream}
+        onSent={(_asked, started) => {
+          setSendError(null);
+          if (started) switchThread(started);
           asked();
           setThreadsVersion((v) => v + 1);
           refreshStream.current();
@@ -548,7 +634,7 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
       {empty && !showLesson && (
         <div className="flex flex-col items-center">
         <div
-          className="mt-4 grid w-full gap-2 sm:grid-cols-2"
+          className="mt-5 flex w-full flex-wrap justify-center gap-2"
           aria-label="Ask Decibyl"
         >
           {((cards: { kind: string; text: string }[]) =>
@@ -576,18 +662,10 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
                       ? setDraftRequest({ text, id: Date.now() })
                       : void sendOpener(text)
                 }
-                className="group flex w-full items-center gap-3 rounded-2xl border border-border bg-card/70 px-3.5 py-3 text-left text-sm font-medium transition-colors hover:border-[var(--accent-brand)]/40 hover:bg-card disabled:opacity-60"
+                // The handoff's chips: 36px pills, hairline edge, grey words.
+                className="h-9 max-w-full truncate rounded-full border border-border bg-background px-3.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-60"
               >
-                <ArtImage name={jobArt(text, "sphere")} size={28} />
-                <span className="line-clamp-2 min-w-0 flex-1">
-                  {sendingOpener === text ? "Asking…" : text}
-                </span>
-                <span
-                  aria-hidden="true"
-                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-all group-hover:translate-x-0.5 group-hover:bg-[var(--accent-brand)] group-hover:text-white"
-                >
-                  <ArrowRight className="h-3.5 w-3.5" />
-                </span>
+                {sendingOpener === text ? "Asking…" : text}
               </button>
             );
           })}
@@ -603,6 +681,11 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
         </div>
       )}
       </div>
+      {sendError && (
+        <p role="alert" className="px-4 text-sm text-destructive sm:px-6">
+          {sendError}
+        </p>
+      )}
       {chatShell && stopNotice && (
         <p role="status" className="px-4 text-sm text-muted-foreground sm:px-6">
           {stopNotice}

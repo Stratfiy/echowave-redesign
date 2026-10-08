@@ -102,6 +102,42 @@ describe("asking support about a failed task", () => {
         await waitFor(() => expect(router.push).toHaveBeenCalledWith("/help/13?attachment=failed"));
     });
 
+    it("sends exactly what the preview shows when two switches are flipped quickly", async () => {
+        // The first change's preview answers last. What the person reads on
+        // the panel and what is sent must still be the same thing.
+        let releaseFirst: () => void = () => {};
+        api.preview.mockImplementationOnce(async ({ body }: { body: { share: string[] | null } }) => previewFor(body.share));
+        api.preview.mockImplementationOnce(
+            ({ body }: { body: { share: string[] | null } }) =>
+                new Promise((resolve) => {
+                    releaseFirst = () => resolve(previewFor(body.share));
+                }),
+        );
+        api.create.mockResolvedValue({ data: { ticket: { id: 14 }, created: true } });
+        render(<HelpRequestForm affectedKind="task" affectedId={7} />);
+        await fill();
+        fireEvent.click(screen.getByLabelText(/Details/)); // details off: answers late
+        fireEvent.click(screen.getByLabelText(/The words themselves/)); // words on
+        await waitFor(() => expect(api.preview).toHaveBeenCalledTimes(3));
+        await waitFor(() => expect(screen.getByTestId("share-content").getAttribute("data-included")).toBe("true"));
+        releaseFirst();
+        await new Promise((r) => setTimeout(r, 0));
+        const shown = ["task_metadata", "content"].filter((k) => screen.getByTestId(`share-${k}`).getAttribute("data-included") === "true");
+        fireEvent.click(screen.getByRole("button", { name: "Send to support" }));
+        await waitFor(() => expect(api.create).toHaveBeenCalled());
+        expect(api.create.mock.calls[0][0].body.share).toEqual(shown);
+        expect(shown).toEqual(["content"]);
+    });
+
+    it("does not send while what would be shared cannot be shown", async () => {
+        render(<HelpRequestForm affectedKind="task" affectedId={7} />);
+        await fill();
+        api.preview.mockResolvedValueOnce({ error: { detail: "Server busy" }, response: { status: 503 } });
+        fireEvent.click(screen.getByLabelText(/The words themselves/));
+        expect(await screen.findByText("Could not show what will be shared.")).toBeTruthy();
+        expect((screen.getByRole("button", { name: "Send to support" }) as HTMLButtonElement).disabled).toBe(true);
+    });
+
     it("refuses a file type support cannot take, before sending", async () => {
         render(<HelpRequestForm />);
         await screen.findByTestId("share-preview");

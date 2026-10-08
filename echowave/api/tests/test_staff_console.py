@@ -129,6 +129,19 @@ class TestTheGate:
             ):
                 assert (await client.get(path)).status_code == 404
 
+    async def test_me_reports_the_support_switches(
+        self, signed_in, db_session, async_session, staff_on, monkeypatch
+    ):
+        """The console strip links the support inbox and actions only when
+        they are on, so it must be told whether they are."""
+        monkeypatch.setattr(constants, "SUPPORT_INBOX_ENABLED", True)
+        monkeypatch.setattr(constants, "SUPPORT_ACTIONS_ENABLED", False)
+        agent = await _user(db_session, async_session, "gate-support", "support")
+        async with signed_in(agent) as client:
+            body = (await client.get("/api/v1/admin/staff/me")).json()
+        assert body["features"]["support_inbox"] is True
+        assert body["features"]["support_actions"] is False
+
     async def test_a_customer_is_refused(
         self, signed_in, db_session, async_session, staff_on
     ):
@@ -1090,10 +1103,59 @@ class TestOverviewAndTrace:
         after = {i["key"]: i for i in snap["attention"]}
         assert after["failed_tasks"]["count"] == before["failed_tasks"]["count"] + 1
         assert after["failed_tasks"]["href"].startswith("/superadmin/operations")
-        # What must appear: support is shown as needs setup, never hidden.
-        assert after["support_escalations"]["state"] == "needs_setup"
+        # What must appear: support is shown even while its inbox is off.
+        assert after["support_escalations"]["state"] == "disabled_by_policy"
         assert snap["health"]["state"] == "unknown"  # redis and worker never answered
         assert snap["metrics"]["state"] == "ok"
+
+    async def test_support_escalations_count_overdue_cases_once_the_inbox_is_on(
+        self, db_session, async_session, staff_on, monkeypatch
+    ):
+        """The support stream landed: with ``support_inbox`` on the founder's
+        queue counts cases past their first-response target and links to
+        the inbox, rather than saying the inbox is still to be built."""
+        from api.db.support_models import SupportTicketModel
+        from api.services import system_status
+        from api.services.staff import overview
+
+        async def fake_snapshot():
+            return {"database": {"ok": True, "latency_ms": 1}}
+
+        monkeypatch.setattr(system_status, "snapshot", fake_snapshot)
+        monkeypatch.setattr(constants, "SUPPORT_INBOX_ENABLED", True)
+        before = {
+            i["key"]: i for i in (await overview.snapshot(async_session))["attention"]
+        }["support_escalations"]
+        assert before.get("state") is None
+        assert before["href"] == "/superadmin/support"
+
+        customer = await _user(db_session, async_session, "ov-help")
+        org = await _org(db_session, customer)
+        long_ago = datetime.now(UTC) - timedelta(days=4)
+        for severity, created, answered in (
+            ("normal", long_ago, None),  # overdue: counted
+            ("low", datetime.now(UTC) - timedelta(hours=2), None),  # within 72 h
+            ("normal", long_ago, long_ago),  # answered in time
+        ):
+            async_session.add(
+                SupportTicketModel(
+                    organization_id=org.id,
+                    requester_user_id=customer.id,
+                    category="other",
+                    subject="Help",
+                    status="open",
+                    severity=severity,
+                    shared={},
+                    created_at=created,
+                    updated_at=created,
+                    first_response_at=answered,
+                )
+            )
+        await async_session.flush()
+        after = {
+            i["key"]: i for i in (await overview.snapshot(async_session))["attention"]
+        }["support_escalations"]
+        assert after["count"] == before["count"] + 1
 
     async def test_a_trace_has_states_and_no_content(
         self, signed_in, db_session, async_session, staff_on

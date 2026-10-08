@@ -26,6 +26,8 @@ export type StaffLink = {
     legacy?: boolean;
     /** Built by another stream; shown, not linked, until it lands. */
     needsSetup?: string;
+    /** Behind a switch: linked while it is on, shown as needs setup while off. */
+    feature?: string;
     /** A page inside a destination that needs more than the destination. */
     capability?: string;
 };
@@ -34,10 +36,12 @@ export type DestinationSpec = {
     key: DestinationKey;
     label: string;
     href: string;
+    /** Where the destination opens instead while a switch is on. */
+    hrefWhenOn?: { feature: string; href: string };
     children: StaffLink[];
 };
 
-/** Where the support stream's inbox will live (screens 32-33). */
+/** The support stream's inbox and actions (screens 32-33). */
 export const SUPPORT_INBOX_HREF = "/superadmin/support";
 
 export const DESTINATIONS: DestinationSpec[] = [
@@ -61,9 +65,10 @@ export const DESTINATIONS: DestinationSpec[] = [
         key: "support",
         label: "Support",
         href: "/superadmin/verification",
+        hrefWhenOn: { feature: "support_inbox", href: SUPPORT_INBOX_HREF },
         children: [
-            { href: SUPPORT_INBOX_HREF, label: "Inbox and cases" },
-            { href: "/superadmin/support/actions", label: "Support actions" },
+            { href: SUPPORT_INBOX_HREF, label: "Inbox and cases", feature: "support_inbox" },
+            { href: `${SUPPORT_INBOX_HREF}/actions`, label: "Support actions", feature: "support_actions" },
             { href: "/superadmin/verification", label: "KYC queue" },
         ],
     },
@@ -183,6 +188,18 @@ export type Me = {
     environment: string;
     features: Record<string, boolean>;
 };
+
+/** Why a link is shown but not linked, or null when it is a link. */
+export function linkNeedsSetup(me: Me, link: StaffLink): string | null {
+    if (link.needsSetup) return link.needsSetup;
+    if (link.feature && !me.features[link.feature]) return `${link.feature} is off`;
+    return null;
+}
+
+/** Where a destination opens for this person. */
+export function destinationHref(me: Me, d: DestinationSpec): string {
+    return d.hrefWhenOn && me.features[d.hrefWhenOn.feature] ? d.hrefWhenOn.href : d.href;
+}
 
 /** The capability a page needs beyond its destination, if any. */
 export function pageCapability(pathname: string): string | null {

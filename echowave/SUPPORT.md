@@ -32,7 +32,9 @@ EmptyState, motion tokens). Everything ships **off**.
 * **Scope.** A ticket is its requester's, in the workspace it was opened
   from: a colleague in that workspace, or the same person in another
   workspace, gets 404. A task or reply from another workspace cannot be
-  attached (404). A private-thread reply is checked the way feedback is.
+  attached (404). A private-thread reply is checked the way feedback is,
+  and so is the workspace's conversation from before threads: like the
+  timeline, only the workspace's admins may attach a reply from it.
 * **Once.** Submit carries an `Idempotency-Key` (one ticket per key per
   person, a unique index); a reply carries a `client_key` (one message per
   key per ticket). The UI makes the key once per draft and keeps it, and the

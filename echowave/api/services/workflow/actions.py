@@ -716,6 +716,11 @@ async def resolve(
             # in the workspace may read, and a goal is its learner's own. The
             # learner's screen shows the title beside the card.
             "args": {"goal_uuid": goal_uuid, "user_id": owner},
+            # The learner's card alone, on whatever thread it sits: a goal
+            # started on the learning page has no thread, and the authorless
+            # one is an Admin's -- which hid a plain member's own card from
+            # them and showed it to the owner.
+            "private_to": owner,
             "label": "Delete a learning goal and all its practice",
             "why": why or "Asked to delete it from the progress page.",
             "reversible": False,
@@ -1150,6 +1155,14 @@ def _from_settings(payload: dict[str, Any]) -> bool:
     return payload.get("origin") == SETTINGS_ORIGIN
 
 
+def _personal_identity(payload: dict[str, Any]) -> bool:
+    if not payload.get("private_to"):
+        return False
+    from api.services.identity import cards as identity_cards
+
+    return identity_cards.is_personal(payload)
+
+
 async def propose_prepared(
     *,
     organization_id: int,
@@ -1216,6 +1229,12 @@ def answer_refusal(payload: dict[str, Any], user_id: int) -> str | None:
     cards a person may answer, so nobody is offered a Do it that would be
     refused. ``NOT_HERE`` means the card is private and not theirs to see.
     """
+    owner = payload.get("private_to")
+    if owner is not None and owner != user_id:
+        # First, before any rule with its own words: a card the caller cannot
+        # see answers as an id that names nothing does. "Only the person this
+        # is for..." told a colleague the card existed and was somebody's.
+        return NOT_HERE
     only = payload.get("only_user_id")
     if only is not None and int(only) != int(user_id):
         # A consent card (stream `care`): the person it is about answers it,
@@ -1248,9 +1267,6 @@ def answer_refusal(payload: dict[str, Any], user_id: int) -> str | None:
             # A meeting is private to whoever captured it; to anyone else
             # its card is not there, the way a wrong tenant is not.
             return NOT_HERE
-    owner = payload.get("private_to")
-    if owner is not None and owner != user_id:
-        return NOT_HERE
     return None
 
 
@@ -1396,9 +1412,11 @@ async def settle(
         # The approval matrix (KAN-160): a card is a "card" subject with no
         # amount. Raises ApprovalRequired, naming who must, before anything
         # is armed; a no-op while the switch is off.
-        if not _from_settings(payload):
+        if not _from_settings(payload) and not _personal_identity(payload):
             # A person's own Settings card (their memory, their saved item,
             # their data) is theirs to approve, not a workspace approver's.
+            # So is their own identity card (their app connection, their
+            # Decibyl address): private, so nobody else could approve it.
             await approvals.check(
                 organization_id,
                 subject=approvals.CARD,
@@ -1619,12 +1637,24 @@ async def revise(
         action=audit_log.CARD_REVISED,
         subject_kind="card",
         subject_id=event.id,
-        subject=str(payload.get("label") or action or "")[:255],
+        subject=_audit_subject(payload),
         actor_user_id=user_id,
         before={"state": state, "version": before},
         after={"state": PROPOSED, "version": after},
     )
     return payload
+
+
+def _audit_subject(payload: dict[str, Any]) -> str:
+    """What the workspace audit says a card was. A private card's label is
+    its owner's words (a name, an amount), and a meeting follow-up's is the
+    words of a meeting only its owner can open: the audit every admin reads
+    keeps who pressed what and when, not what the card said (admins do not
+    inherit private things, handoff 25)."""
+    action = payload.get("action")
+    if payload.get("private_to") or action == MEETING_FOLLOW_UP:
+        return f"Private card ({action})"[:255]
+    return str(payload.get("label") or action or "")[:255]
 
 
 async def _audit(
@@ -1636,15 +1666,7 @@ async def _audit(
         action=action,
         subject_kind="card",
         subject_id=event.id,
-        # A private card's label is its owner's words (a name, an amount):
-        # the workspace audit every admin reads keeps who pressed what and
-        # when, not what the card said (admins do not inherit private
-        # things, handoff 25).
-        subject=(
-            f"Private card ({payload.get('action')})"
-            if payload.get("private_to")
-            else str(payload.get("label") or payload.get("action") or "")
-        )[:255],
+        subject=_audit_subject(payload),
         actor_user_id=user_id,
         before={"state": was},
         after={"state": payload.get("state"), "action": payload.get("action")},
@@ -1682,6 +1704,10 @@ async def _say(event: Any, line: str) -> None:
         payload=payload,
         in_channel=event.folder_id is not None,
         visibility=_visibility(payload, (event.payload or {}).get("action")),
+        # Under the card, on the card's own conversation. The job runs in the
+        # worker, outside any turn, so the context names no thread and the
+        # line went to the person's original chat instead.
+        thread_id=getattr(event, "thread_id", None),
     )
 
 

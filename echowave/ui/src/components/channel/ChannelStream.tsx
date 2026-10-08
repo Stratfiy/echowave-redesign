@@ -368,6 +368,7 @@ export function ChannelStream({
     onTurnStatus,
     onOpenSources,
     onOpenLesson,
+    onThreadNotFound,
 }: {
     /** A channel's thread, or -- with `workflowId` instead -- one bot's own
      *  chat. Exactly one of the two. */
@@ -384,6 +385,10 @@ export function ChannelStream({
     /** Opens a lesson in this Chat column (Decibyl's thread). Without it a
      *  course card is a link to the lesson. */
     onOpenLesson?: (goalId: string | null, topic: string) => void;
+    /** Decibyl's conversation answered "not found": not this person's to
+     *  read (private threads). Given, the caller decides where they go
+     *  instead; without it, the failure shows with Retry. */
+    onThreadNotFound?: () => void;
     /** Bot id → display name, so an event can be attributed to a teammate
      *  rather than to an id. Missing names degrade to "A bot", never to a
      *  blank line. */
@@ -535,6 +540,10 @@ export function ChannelStream({
             query: { ...target, limit: PAGE },
         });
         if (response.error) {
+            if (assistant && onThreadNotFound && response.response?.status === 404) {
+                onThreadNotFound();
+                return;
+            }
             setError(detailFromResult(response, 'Could not load this channel'));
             return;
         }

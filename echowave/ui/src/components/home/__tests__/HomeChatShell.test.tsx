@@ -18,9 +18,17 @@ const seen = vi.hoisted(() => ({
     load: "ready" as "ready" | "error",
 }));
 const flags = vi.hoisted(() => ({ chat_shell: true, learning: false }));
+// The router's view of the address. On a client-side navigation (Today's
+// review link, a course card) it can carry ?learn= before window.location
+// does.
+const router = vi.hoisted(() => ({ params: new URLSearchParams() }));
+vi.mock("next/navigation", () => ({ useSearchParams: () => router.params }));
 
 vi.mock("@/lib/auth", () => ({ useAuth: () => ({ user: { id: 1 }, loading: false }) }));
-vi.mock("@/lib/features", () => ({ useFeature: (name: string) => Boolean((flags as Record<string, boolean>)[name]) }));
+vi.mock("@/lib/features", () => ({
+    useFeature: (name: string) => Boolean((flags as Record<string, boolean>)[name]),
+    useFeaturesSettled: () => true,
+}));
 vi.mock("@/client/sdk.gen", () => ({
     teamHomeApiV1TeamHomeGet: api.home,
     postMessageApiV1TimelineMessagePost: api.post,
@@ -95,6 +103,7 @@ beforeEach(() => {
     seen.load = "ready";
     flags.chat_shell = true;
     flags.learning = false;
+    router.params = new URLSearchParams();
     window.history.replaceState(null, "", "/overview");
 });
 
@@ -134,6 +143,18 @@ describe("Chat start", () => {
         expect(api.post).toHaveBeenCalledTimes(1);
     });
 
+    it("a first task that could not be sent is kept in the box, not lost", async () => {
+        // Phase 3: a failed send of the first task (or of a starter with the
+        // flag off) was dropped without a word.
+        api.home.mockResolvedValue({ data: { headline, suggestions: [], openers: [] } });
+        api.post.mockResolvedValue({ error: { detail: "Thread not found" } });
+        window.history.replaceState(null, "", "/overview?ask=Plan%20my%20week");
+        render(<HomeAboveTheFold />);
+        await waitFor(() => expect(api.post).toHaveBeenCalledTimes(1));
+        await waitFor(() => expect(screen.getByTestId("composer").getAttribute("data-draft")).toBe("Plan my week"));
+        expect(screen.getByRole("alert").textContent).toContain("Thread not found");
+    });
+
     it("sends Stop to the server for this thread", async () => {
         api.home.mockResolvedValue({ data: { headline, suggestions: [], openers: [] } });
         window.history.replaceState(null, "", "/overview?thread=t-9");
@@ -155,7 +176,7 @@ describe("Chat start", () => {
         seen.load = "error";
         render(<HomeAboveTheFold />);
         await waitFor(() => expect(seen.stream.length).toBeGreaterThan(0));
-        await waitFor(() => expect(screen.queryByText("Hi, I'm Decibyl!")).toBeNull());
+        await waitFor(() => expect(screen.queryByText(/What can I do for you/)).toBeNull());
     });
 
     it("passes the Chat states down to the stream and the composer", async () => {
@@ -238,6 +259,19 @@ describe("Learning inside Chat (screen 13)", () => {
     it("resumes a goal, on a review, from the address", async () => {
         flags.learning = true;
         window.history.replaceState(null, "", "/overview?learn=g-9&review=4");
+        api.home.mockResolvedValue({ data: { headline, suggestions: [], openers: [] } });
+        render(<HomeAboveTheFold />);
+        const lesson = await screen.findByTestId("lesson");
+        expect(lesson.getAttribute("data-goal")).toBe("g-9");
+        expect(lesson.getAttribute("data-review")).toBe("4");
+    });
+
+    it("opens the lesson the router navigated to, before the address bar catches up", async () => {
+        // Phase 3 (learning): Today's "Review ..." link sometimes landed on
+        // Chat with no lesson, because the lesson was read from
+        // window.location while it still said /tasks.
+        flags.learning = true;
+        router.params = new URLSearchParams("learn=g-9&review=4");
         api.home.mockResolvedValue({ data: { headline, suggestions: [], openers: [] } });
         render(<HomeAboveTheFold />);
         const lesson = await screen.findByTestId("lesson");

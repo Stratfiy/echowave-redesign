@@ -645,10 +645,16 @@ class TestDeleteIsACard:
         state = await _ready_goal(org, a.id)
         goal_id = state["goal"]["goal_id"]
         card = await core.request_deletion(org, a.id, goal_id)
-        done = await self._confirm_and_run(
-            org, card["event_id"], b.id, card["payload"].get("version")
-        )
-        assert done["state"] == "failed"
+        # The card is the learner's alone: a colleague's Confirm is refused
+        # as not there, before anything is armed.
+        from api.services.workflow import actions
+
+        with pytest.raises(actions.ActionError, match="not here"):
+            await self._confirm_and_run(
+                org, card["event_id"], b.id, card["payload"].get("version")
+            )
+        stored = await db_client.get_agent_event(card["event_id"], organization_id=org)
+        assert stored.payload["state"] == "proposed"
         assert await core.owns_goal(org, a.id, goal_id)
 
     async def test_with_the_ledger_the_card_is_version_bound(

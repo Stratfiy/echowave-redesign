@@ -223,23 +223,24 @@ export function TranscriberPanel({ config, onChange }: PanelProps) {
 
             <Setting
                 title="Where the caller is"
-                blurb="How loud and how clearly a sound must be speech before the agent treats it as the caller starting to talk. On a crowded line this stops the next table interrupting the agent mid-sentence."
+                blurb="How loud and how clearly a sound must be speech before the agent treats it as the caller starting to talk. On a crowded line this stops the next table interrupting the agent mid-sentence. Automatic treats phone calls as noisy and browser calls as normal."
                 control={
                     <Select
-                        value={config.caller_environment ?? "normal"}
+                        value={config.caller_environment ?? "auto"}
                         onValueChange={(v) =>
                             onChange({
-                                caller_environment: v as "quiet" | "normal" | "noisy",
+                                caller_environment: v as "auto" | "quiet" | "normal" | "noisy",
                             })
                         }
                     >
                         <SelectTrigger
-                            className="h-8 w-[150px] text-xs"
+                            className="h-8 w-[170px] text-xs"
                             aria-label="Where the caller is"
                         >
                             <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
+                            <SelectItem value="auto">Automatic</SelectItem>
                             <SelectItem value="quiet">Somewhere quiet</SelectItem>
                             <SelectItem value="normal">Normal</SelectItem>
                             <SelectItem value="noisy">Somewhere noisy</SelectItem>

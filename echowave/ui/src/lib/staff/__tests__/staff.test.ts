@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { orderAttention } from "../attention";
 import { commandOf, count, DASH, money, percent, words } from "../format";
-import { activeDestination, canOpen, classify, DESTINATIONS, firstAllowed, type Me } from "../nav";
+import { activeDestination, canOpen, classify, destinationHref, DESTINATIONS, firstAllowed, linkNeedsSetup, type Me } from "../nav";
 
 function me(roles: string[], allowed: string[]): Me {
     return {
@@ -41,12 +41,23 @@ describe("the eight destinations", () => {
         }
     });
 
-    it("link the support inbox and its actions now that the support stream has landed", () => {
+    it("show the support inbox as needs setup while its switch is off", () => {
         const support = DESTINATIONS.find((d) => d.key === "support")!;
-        const inbox = support.children.find((c) => c.href === "/superadmin/support");
-        expect(inbox).toBeTruthy();
-        expect(inbox?.needsSetup).toBeUndefined();
-        expect(support.children.some((c) => c.href === "/superadmin/support/actions")).toBe(true);
+        const inbox = support.children.find((c) => c.href === "/superadmin/support")!;
+        const off = me(["support"], ["support"]);
+        expect(linkNeedsSetup(off, inbox)).toBeTruthy();
+        expect(destinationHref(off, support)).toBe("/superadmin/verification");
+    });
+
+    it("link the support inbox and actions once they are on", () => {
+        const support = DESTINATIONS.find((d) => d.key === "support")!;
+        const on = { ...me(["support"], ["support"]), features: { support_inbox: true, support_actions: true } };
+        const inbox = support.children.find((c) => c.href === "/superadmin/support")!;
+        const actions = support.children.find((c) => c.href === "/superadmin/support/actions")!;
+        expect(linkNeedsSetup(on, inbox)).toBeNull();
+        expect(linkNeedsSetup(on, actions)).toBeNull();
+        expect(destinationHref(on, support)).toBe("/superadmin/support");
+        expect(canOpen(on, "/superadmin/support/actions/3")).toBe(true);
     });
 });
 

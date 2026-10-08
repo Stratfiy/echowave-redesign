@@ -11,14 +11,14 @@ Additive only:
 Downgrading drops both (any suspension in force and every grant).
 
 Revision ID: 20261009phase3staff
-Revises: 20261009mobile
+Revises: 20261009meetingstasks
 """
 
 import sqlalchemy as sa
 from alembic import op
 
 revision = "20261009phase3staff"
-down_revision = "20261009mobile"
+down_revision = "20261009meetingstasks"
 branch_labels = None
 depends_on = None
 
