@@ -9,11 +9,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const list = vi.hoisted(() => vi.fn());
 const usage = vi.hoisted(() => vi.fn());
 const translate = vi.hoisted(() => vi.fn());
+const update = vi.hoisted(() => vi.fn());
 vi.mock('@/client/sdk.gen', () => ({
     listDocumentsApiV1KnowledgeBaseDocumentsGet: list,
     getUsageApiV1KnowledgeBaseUsageGet: usage,
     deleteDocumentApiV1KnowledgeBaseDocumentsDocumentUuidDelete: vi.fn(),
     translateDocumentRouteApiV1KnowledgeBaseDocumentsDocumentUuidTranslatePost: translate,
+    updateDocumentApiV1KnowledgeBaseDocumentsDocumentUuidPatch: update,
 }));
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
@@ -77,5 +79,51 @@ describe('translating a document from the list', () => {
         });
         render(<DocumentList refreshTrigger={0} />);
         expect(await screen.findByText('A translation of another document here')).toBeTruthy();
+    });
+});
+
+describe('files in folders', () => {
+    const FOLDERS = [
+        { id: 4, folder_uuid: 'x', name: 'Policies', parent_id: null, path: 'Policies', file_count: 0, folder_count: 0 },
+    ];
+
+    it('lists only the open folder, and the top level as its own place', async () => {
+        list.mockResolvedValue({ data: { documents: [], total: 0, limit: 100, offset: 0 } });
+        const { rerender } = render(<DocumentList refreshTrigger={0} fileFolderId={null} folders={FOLDERS} />);
+        await waitFor(() => expect(list).toHaveBeenLastCalledWith({ query: { limit: 100, offset: 0, top_level: true } }));
+        rerender(<DocumentList refreshTrigger={0} fileFolderId={4} folders={FOLDERS} />);
+        await waitFor(() => expect(list).toHaveBeenLastCalledWith({ query: { limit: 100, offset: 0, file_folder_id: 4 } }));
+    });
+
+    it('moves a file to a folder picked from the list', async () => {
+        list.mockResolvedValue({ data: { documents: [doc({})], total: 1, limit: 100, offset: 0 } });
+        update.mockResolvedValue({ data: doc({ file_folder_id: 4 }) });
+        const changed = vi.fn();
+        render(<DocumentList refreshTrigger={0} fileFolderId={null} folders={FOLDERS} onChanged={changed} />);
+        fireEvent.click(await screen.findByRole('button', { name: 'Move rates.pdf' }));
+        fireEvent.click(await screen.findByRole('button', { name: /Policies/ }));
+        await waitFor(() =>
+            expect(update).toHaveBeenCalledWith({ path: { document_uuid: 'd1' }, body: { file_folder_id: 4 } }),
+        );
+        await waitFor(() => expect(changed).toHaveBeenCalled());
+    });
+
+    it('renames a file and says why when the name is refused', async () => {
+        list.mockResolvedValue({ data: { documents: [doc({})], total: 1, limit: 100, offset: 0 } });
+        update.mockResolvedValue({ error: { detail: 'Keep the .pdf ending: the file is read as that type.' } });
+        render(<DocumentList refreshTrigger={0} fileFolderId={null} folders={FOLDERS} />);
+        fireEvent.click(await screen.findByRole('button', { name: 'Rename rates.pdf' }));
+        fireEvent.change(await screen.findByLabelText('File name'), { target: { value: 'rates.txt' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Rename' }));
+        expect(await screen.findByText('Keep the .pdf ending: the file is read as that type.')).toBeTruthy();
+    });
+
+    it('can be dragged onto a folder', async () => {
+        list.mockResolvedValue({ data: { documents: [doc({})], total: 1, limit: 100, offset: 0 } });
+        render(<DocumentList refreshTrigger={0} fileFolderId={null} folders={FOLDERS} />);
+        const row = await screen.findByTestId('file-d1');
+        const data: Record<string, string> = {};
+        fireEvent.dragStart(row, { dataTransfer: { setData: (k: string, v: string) => (data[k] = v), effectAllowed: '' } });
+        expect(data['application/x-decibyl-file']).toBe('d1');
     });
 });

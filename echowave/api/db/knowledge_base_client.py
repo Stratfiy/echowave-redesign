@@ -1,8 +1,8 @@
 """Database client for managing knowledge base documents and chunks."""
 
 import hashlib
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import List, Optional
 
 from loguru import logger
 from sqlalchemy import delete, func, select
@@ -23,14 +23,15 @@ class KnowledgeBaseClient(BaseDBClient):
         file_size_bytes: int,
         file_hash: str,
         mime_type: str,
-        source_url: Optional[str] = None,
-        custom_metadata: Optional[dict] = None,
-        docling_metadata: Optional[dict] = None,
-        document_uuid: Optional[str] = None,
+        source_url: str | None = None,
+        custom_metadata: dict | None = None,
+        docling_metadata: dict | None = None,
+        document_uuid: str | None = None,
         retrieval_mode: str = "chunked",
         scope: str = "library",
-        folder_id: Optional[int] = None,
-        workflow_id: Optional[int] = None,
+        folder_id: int | None = None,
+        workflow_id: int | None = None,
+        file_folder_id: int | None = None,
     ) -> KnowledgeBaseDocumentModel:
         """Create a new knowledge base document record.
 
@@ -56,6 +57,7 @@ class KnowledgeBaseClient(BaseDBClient):
                 scope=scope,
                 folder_id=folder_id,
                 workflow_id=workflow_id,
+                file_folder_id=file_folder_id,
                 filename=filename,
                 file_size_bytes=file_size_bytes,
                 file_hash=file_hash,
@@ -86,8 +88,8 @@ class KnowledgeBaseClient(BaseDBClient):
         self,
         organization_id: int,
         *,
-        workflow_id: Optional[int],
-        folder_id: Optional[int],
+        workflow_id: int | None,
+        folder_id: int | None,
     ) -> list[str]:
         """The documents a run reads without a node naming them.
 
@@ -114,7 +116,7 @@ class KnowledgeBaseClient(BaseDBClient):
                 select(KnowledgeBaseDocumentModel.document_uuid)
                 .where(
                     KnowledgeBaseDocumentModel.organization_id == organization_id,
-                    KnowledgeBaseDocumentModel.is_active == True,  # noqa: E712
+                    KnowledgeBaseDocumentModel.is_active == True,
                     KnowledgeBaseDocumentModel.processing_status == "completed",
                     or_(*scopes),
                 )
@@ -125,7 +127,7 @@ class KnowledgeBaseClient(BaseDBClient):
     async def get_document_by_id(
         self,
         document_id: int,
-    ) -> Optional[KnowledgeBaseDocumentModel]:
+    ) -> KnowledgeBaseDocumentModel | None:
         """Get a document by its database ID.
 
         Args:
@@ -146,7 +148,7 @@ class KnowledgeBaseClient(BaseDBClient):
         self,
         document_uuid: str,
         organization_id: int,
-    ) -> Optional[KnowledgeBaseDocumentModel]:
+    ) -> KnowledgeBaseDocumentModel | None:
         """Get a document by its UUID, scoped to organization.
 
         Args:
@@ -172,7 +174,7 @@ class KnowledgeBaseClient(BaseDBClient):
 
     async def find_document_by_uuid_prefix(
         self, prefix: str, *, organization_id: int
-    ) -> Optional[KnowledgeBaseDocumentModel]:
+    ) -> KnowledgeBaseDocumentModel | None:
         """The one document of this organisation whose uuid starts with
         ``prefix`` (at least 8 characters), or None when none or several."""
         prefix = (prefix or "").strip().lower()
@@ -194,7 +196,7 @@ class KnowledgeBaseClient(BaseDBClient):
         self,
         file_hash: str,
         organization_id: int,
-    ) -> Optional[KnowledgeBaseDocumentModel]:
+    ) -> KnowledgeBaseDocumentModel | None:
         """Check if a document with the same hash already exists.
 
         Returns the first matching document if multiple exist (can happen with duplicates).
@@ -246,7 +248,7 @@ class KnowledgeBaseClient(BaseDBClient):
                     )
                 ).where(
                     KnowledgeBaseDocumentModel.organization_id == organization_id,
-                    KnowledgeBaseDocumentModel.is_active == True,  # noqa: E712
+                    KnowledgeBaseDocumentModel.is_active == True,
                 )
             )
             return int(total or 0)
@@ -254,14 +256,20 @@ class KnowledgeBaseClient(BaseDBClient):
     async def get_documents_for_organization(
         self,
         organization_id: int,
-        processing_status: Optional[str] = None,
-        scope: Optional[str] = None,
-        folder_id: Optional[int] = None,
-        workflow_id: Optional[int] = None,
+        processing_status: str | None = None,
+        scope: str | None = None,
+        folder_id: int | None = None,
+        workflow_id: int | None = None,
         limit: int = 100,
         offset: int = 0,
-    ) -> List[KnowledgeBaseDocumentModel]:
+        file_folder_id: int | None = None,
+        top_level_only: bool = False,
+    ) -> list[KnowledgeBaseDocumentModel]:
         """Get all documents for an organization.
+
+        ``file_folder_id`` narrows to the files in one Files-page folder, and
+        ``top_level_only`` to the ones in none. Neither is a channel filter:
+        that is ``folder_id``.
 
         Args:
             organization_id: ID of the organization
@@ -290,6 +298,12 @@ class KnowledgeBaseClient(BaseDBClient):
                 query = query.where(
                     KnowledgeBaseDocumentModel.processing_status == processing_status
                 )
+            if file_folder_id is not None:
+                query = query.where(
+                    KnowledgeBaseDocumentModel.file_folder_id == file_folder_id
+                )
+            elif top_level_only:
+                query = query.where(KnowledgeBaseDocumentModel.file_folder_id.is_(None))
 
             query = (
                 query.order_by(KnowledgeBaseDocumentModel.created_at.desc())
@@ -302,7 +316,7 @@ class KnowledgeBaseClient(BaseDBClient):
 
     async def merge_document_custom_metadata(
         self, document_id: int, *, organization_id: int, patch: dict
-    ) -> Optional[KnowledgeBaseDocumentModel]:
+    ) -> KnowledgeBaseDocumentModel | None:
         """Add keys to a document's custom_metadata, keeping what is there.
         Org-scoped: a document id from another tenant updates nothing."""
         async with self.async_session() as session:
@@ -325,10 +339,10 @@ class KnowledgeBaseClient(BaseDBClient):
     async def update_document_metadata(
         self,
         document_id: int,
-        file_size_bytes: Optional[int] = None,
-        file_hash: Optional[str] = None,
-        mime_type: Optional[str] = None,
-    ) -> Optional[KnowledgeBaseDocumentModel]:
+        file_size_bytes: int | None = None,
+        file_hash: str | None = None,
+        mime_type: str | None = None,
+    ) -> KnowledgeBaseDocumentModel | None:
         """Update document file metadata.
 
         Args:
@@ -367,12 +381,12 @@ class KnowledgeBaseClient(BaseDBClient):
         self,
         document_id: int,
         status: str,
-        error_message: Optional[str] = None,
-        total_chunks: Optional[int] = None,
-        docling_metadata: Optional[dict] = None,
-        page_count: Optional[int] = None,
-        scanned_page_count: Optional[int] = None,
-    ) -> Optional[KnowledgeBaseDocumentModel]:
+        error_message: str | None = None,
+        total_chunks: int | None = None,
+        docling_metadata: dict | None = None,
+        page_count: int | None = None,
+        scanned_page_count: int | None = None,
+    ) -> KnowledgeBaseDocumentModel | None:
         """Update document processing status.
 
         Args:
@@ -415,8 +429,8 @@ class KnowledgeBaseClient(BaseDBClient):
 
     async def create_chunks_batch(
         self,
-        chunks: List[KnowledgeBaseChunkModel],
-    ) -> List[KnowledgeBaseChunkModel]:
+        chunks: list[KnowledgeBaseChunkModel],
+    ) -> list[KnowledgeBaseChunkModel]:
         """Create multiple chunks in a batch.
 
         Args:
@@ -439,8 +453,8 @@ class KnowledgeBaseClient(BaseDBClient):
         self,
         document_id: int,
         organization_id: int,
-        chunks: List[KnowledgeBaseChunkModel],
-    ) -> List[KnowledgeBaseChunkModel]:
+        chunks: list[KnowledgeBaseChunkModel],
+    ) -> list[KnowledgeBaseChunkModel]:
         """Replace all chunks for a document with a new precomputed batch."""
         async with self.async_session() as session:
             await session.execute(
@@ -464,7 +478,7 @@ class KnowledgeBaseClient(BaseDBClient):
         self,
         document_id: int,
         organization_id: int,
-    ) -> List[KnowledgeBaseChunkModel]:
+    ) -> list[KnowledgeBaseChunkModel]:
         """Get all chunks for a document.
 
         Args:
@@ -489,13 +503,13 @@ class KnowledgeBaseClient(BaseDBClient):
 
     async def search_similar_chunks(
         self,
-        query_embedding: List[float],
+        query_embedding: list[float],
         organization_id: int,
         limit: int = 5,
-        document_ids: Optional[List[int]] = None,
-        document_uuids: Optional[List[str]] = None,
-        embedding_model: Optional[str] = None,
-    ) -> List[dict]:
+        document_ids: list[int] | None = None,
+        document_uuids: list[str] | None = None,
+        embedding_model: str | None = None,
+    ) -> list[dict]:
         """Search for similar chunks using vector similarity.
 
         Returns top-k most similar chunks without any similarity threshold filtering.
@@ -614,8 +628,8 @@ class KnowledgeBaseClient(BaseDBClient):
     async def get_full_text_documents(
         self,
         organization_id: int,
-        document_uuids: List[str],
-    ) -> List[KnowledgeBaseDocumentModel]:
+        document_uuids: list[str],
+    ) -> list[KnowledgeBaseDocumentModel]:
         """Get full_document mode documents by their UUIDs.
 
         Args:
@@ -665,12 +679,106 @@ class KnowledgeBaseClient(BaseDBClient):
                 return False
 
             document.is_active = False
+            document.archived_at = datetime.now(UTC)
             await session.commit()
 
             logger.info(
                 f"Deleted document {document_uuid} for organization {organization_id}"
             )
             return True
+
+    async def update_document_placement(
+        self,
+        document_uuid: str,
+        *,
+        organization_id: int,
+        filename: str | None = None,
+        file_folder_id: int | None = None,
+        move: bool = False,
+    ) -> KnowledgeBaseDocumentModel | None:
+        """Rename a file, and/or move it to ``file_folder_id`` when ``move``
+        (None then means the top level). Org-scoped; None when not found.
+
+        Nothing is re-read: a citation names the file by joining this row at
+        the moment it is read, so a rename or a move shows everywhere at once.
+        """
+        async with self.async_session() as session:
+            document = (
+                await session.execute(
+                    select(KnowledgeBaseDocumentModel).where(
+                        KnowledgeBaseDocumentModel.document_uuid == document_uuid,
+                        KnowledgeBaseDocumentModel.organization_id == organization_id,
+                        KnowledgeBaseDocumentModel.is_active == True,
+                    )
+                )
+            ).scalar_one_or_none()
+            if document is None:
+                return None
+            if filename is not None:
+                document.filename = filename
+            if move:
+                document.file_folder_id = file_folder_id
+            document.updated_at = datetime.now(UTC)
+            await session.commit()
+            await session.refresh(document)
+            return document
+
+    async def find_document_by_name_in_file_folder(
+        self,
+        *,
+        organization_id: int,
+        filename: str,
+        file_folder_id: int | None,
+        scope: str,
+        exclude_uuid: str | None = None,
+    ) -> KnowledgeBaseDocumentModel | None:
+        """The live file of this name in this folder and scope, newest first.
+
+        What a re-upload is matched against: the same name in the same place
+        is the same file, so it becomes a new version of it rather than a
+        second copy. Case-insensitive, because "Price List.pdf" and
+        "price list.pdf" are one file to the person who uploaded both.
+        """
+        async with self.async_session() as session:
+            query = select(KnowledgeBaseDocumentModel).where(
+                KnowledgeBaseDocumentModel.organization_id == organization_id,
+                KnowledgeBaseDocumentModel.is_active == True,
+                KnowledgeBaseDocumentModel.scope == scope,
+                func.lower(KnowledgeBaseDocumentModel.filename) == filename.lower(),
+            )
+            if file_folder_id is None:
+                query = query.where(KnowledgeBaseDocumentModel.file_folder_id.is_(None))
+            else:
+                query = query.where(
+                    KnowledgeBaseDocumentModel.file_folder_id == file_folder_id
+                )
+            if exclude_uuid:
+                query = query.where(
+                    KnowledgeBaseDocumentModel.document_uuid != exclude_uuid
+                )
+            rows = await session.execute(
+                query.order_by(KnowledgeBaseDocumentModel.created_at.desc()).limit(1)
+            )
+            return rows.scalars().first()
+
+    async def documents_changed_since(
+        self, organization_id: int, since: datetime | None, *, limit: int = 500
+    ) -> list[KnowledgeBaseDocumentModel]:
+        """Files added, re-read, renamed, moved or deleted after ``since``,
+        deleted ones included, oldest change first."""
+        async with self.async_session() as session:
+            query = select(KnowledgeBaseDocumentModel).where(
+                KnowledgeBaseDocumentModel.organization_id == organization_id
+            )
+            if since is not None:
+                query = query.where(KnowledgeBaseDocumentModel.updated_at > since)
+            rows = await session.execute(
+                query.order_by(
+                    KnowledgeBaseDocumentModel.updated_at,
+                    KnowledgeBaseDocumentModel.id,
+                ).limit(limit)
+            )
+            return list(rows.scalars().all())
 
     @staticmethod
     def compute_file_hash(file_path: str) -> str:

@@ -6248,6 +6248,10 @@ export type DocumentResponseSchema = {
      */
     workflow_id?: number | null;
     /**
+     * File Folder Id
+     */
+    file_folder_id?: number | null;
+    /**
      * Created At
      */
     created_at: string;
@@ -6267,6 +6271,23 @@ export type DocumentResponseSchema = {
      * Is Active
      */
     is_active: boolean;
+};
+
+/**
+ * DocumentUpdateSchema
+ *
+ * Rename and/or move a file. ``file_folder_id: null`` moves it to the
+ * top level; leaving it out leaves it where it is.
+ */
+export type DocumentUpdateSchema = {
+    /**
+     * Filename
+     */
+    filename?: string | null;
+    /**
+     * File Folder Id
+     */
+    file_folder_id?: number | null;
 };
 
 /**
@@ -7341,6 +7362,135 @@ export type FileDescriptor = {
      * File size in bytes (max 5MB)
      */
     file_size: number;
+};
+
+/**
+ * FileFolderCreateSchema
+ */
+export type FileFolderCreateSchema = {
+    /**
+     * Name
+     *
+     * The folder's name
+     */
+    name: string;
+    /**
+     * Parent Id
+     *
+     * The folder to create it in; none: the top level
+     */
+    parent_id?: number | null;
+};
+
+/**
+ * FileFolderDeleteResponseSchema
+ */
+export type FileFolderDeleteResponseSchema = {
+    /**
+     * Files Moved
+     */
+    files_moved?: number;
+    /**
+     * Folders Moved
+     */
+    folders_moved?: number;
+    /**
+     * Files Deleted
+     */
+    files_deleted?: number;
+    /**
+     * Folders Deleted
+     */
+    folders_deleted?: number;
+};
+
+/**
+ * FileFolderEnsureSchema
+ *
+ * A path of folders to find or create, for a dropped desktop folder.
+ */
+export type FileFolderEnsureSchema = {
+    /**
+     * Parent Id
+     */
+    parent_id?: number | null;
+    /**
+     * Path
+     *
+     * e.g. ["Contracts", "2026"]
+     */
+    path: Array<string>;
+};
+
+/**
+ * FileFolderListResponseSchema
+ */
+export type FileFolderListResponseSchema = {
+    /**
+     * Folders
+     */
+    folders: Array<FileFolderSchema>;
+};
+
+/**
+ * FileFolderSchema
+ *
+ * A folder on the Files page. Organises files; never a channel.
+ */
+export type FileFolderSchema = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Folder Uuid
+     */
+    folder_uuid: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Parent Id
+     */
+    parent_id?: number | null;
+    /**
+     * Path
+     */
+    path: string;
+    /**
+     * File Count
+     */
+    file_count?: number;
+    /**
+     * Folder Count
+     */
+    folder_count?: number;
+    /**
+     * Created At
+     */
+    created_at?: string | null;
+    /**
+     * Updated At
+     */
+    updated_at?: string | null;
+};
+
+/**
+ * FileFolderUpdateSchema
+ *
+ * Rename and/or move. Sending ``parent_id: null`` moves it to the top
+ * level; leaving ``parent_id`` out leaves it where it is.
+ */
+export type FileFolderUpdateSchema = {
+    /**
+     * Name
+     */
+    name?: string | null;
+    /**
+     * Parent Id
+     */
+    parent_id?: number | null;
 };
 
 /**
@@ -14819,6 +14969,12 @@ export type ProcessDocumentRequestSchema = {
      * For scope=agent.
      */
     workflow_id?: number | null;
+    /**
+     * File Folder Id
+     *
+     * The Files-page folder to put the file in (none: the top level). Organises only; it does not change who reads the file.
+     */
+    file_folder_id?: number | null;
     /**
      * Document Uuid
      *
@@ -60313,6 +60469,18 @@ export type ListDocumentsApiV1KnowledgeBaseDocumentsGetData = {
          * Offset
          */
         offset?: number;
+        /**
+         * File Folder Id
+         *
+         * Only the files in this Files-page folder
+         */
+        file_folder_id?: number | null;
+        /**
+         * Top Level
+         *
+         * Only the files in no Files-page folder
+         */
+        top_level?: boolean;
     };
     url: '/api/v1/knowledge-base/documents';
 };
@@ -60425,6 +60593,50 @@ export type GetDocumentApiV1KnowledgeBaseDocumentsDocumentUuidGetResponses = {
 
 export type GetDocumentApiV1KnowledgeBaseDocumentsDocumentUuidGetResponse = GetDocumentApiV1KnowledgeBaseDocumentsDocumentUuidGetResponses[keyof GetDocumentApiV1KnowledgeBaseDocumentsDocumentUuidGetResponses];
 
+export type UpdateDocumentApiV1KnowledgeBaseDocumentsDocumentUuidPatchData = {
+    body: DocumentUpdateSchema;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Document Uuid
+         */
+        document_uuid: string;
+    };
+    query?: never;
+    url: '/api/v1/knowledge-base/documents/{document_uuid}';
+};
+
+export type UpdateDocumentApiV1KnowledgeBaseDocumentsDocumentUuidPatchErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateDocumentApiV1KnowledgeBaseDocumentsDocumentUuidPatchError = UpdateDocumentApiV1KnowledgeBaseDocumentsDocumentUuidPatchErrors[keyof UpdateDocumentApiV1KnowledgeBaseDocumentsDocumentUuidPatchErrors];
+
+export type UpdateDocumentApiV1KnowledgeBaseDocumentsDocumentUuidPatchResponses = {
+    /**
+     * Successful Response
+     */
+    200: DocumentResponseSchema;
+};
+
+export type UpdateDocumentApiV1KnowledgeBaseDocumentsDocumentUuidPatchResponse = UpdateDocumentApiV1KnowledgeBaseDocumentsDocumentUuidPatchResponses[keyof UpdateDocumentApiV1KnowledgeBaseDocumentsDocumentUuidPatchResponses];
+
 export type SearchChunksApiV1KnowledgeBaseSearchPostData = {
     body: ChunkSearchRequestSchema;
     headers?: {
@@ -60507,6 +60719,224 @@ export type TranslateDocumentRouteApiV1KnowledgeBaseDocumentsDocumentUuidTransla
 };
 
 export type TranslateDocumentRouteApiV1KnowledgeBaseDocumentsDocumentUuidTranslatePostResponse = TranslateDocumentRouteApiV1KnowledgeBaseDocumentsDocumentUuidTranslatePostResponses[keyof TranslateDocumentRouteApiV1KnowledgeBaseDocumentsDocumentUuidTranslatePostResponses];
+
+export type ListFileFoldersApiV1KnowledgeBaseFileFoldersGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/knowledge-base/file-folders';
+};
+
+export type ListFileFoldersApiV1KnowledgeBaseFileFoldersGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListFileFoldersApiV1KnowledgeBaseFileFoldersGetError = ListFileFoldersApiV1KnowledgeBaseFileFoldersGetErrors[keyof ListFileFoldersApiV1KnowledgeBaseFileFoldersGetErrors];
+
+export type ListFileFoldersApiV1KnowledgeBaseFileFoldersGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: FileFolderListResponseSchema;
+};
+
+export type ListFileFoldersApiV1KnowledgeBaseFileFoldersGetResponse = ListFileFoldersApiV1KnowledgeBaseFileFoldersGetResponses[keyof ListFileFoldersApiV1KnowledgeBaseFileFoldersGetResponses];
+
+export type CreateFileFolderApiV1KnowledgeBaseFileFoldersPostData = {
+    body: FileFolderCreateSchema;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/knowledge-base/file-folders';
+};
+
+export type CreateFileFolderApiV1KnowledgeBaseFileFoldersPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateFileFolderApiV1KnowledgeBaseFileFoldersPostError = CreateFileFolderApiV1KnowledgeBaseFileFoldersPostErrors[keyof CreateFileFolderApiV1KnowledgeBaseFileFoldersPostErrors];
+
+export type CreateFileFolderApiV1KnowledgeBaseFileFoldersPostResponses = {
+    /**
+     * Successful Response
+     */
+    201: FileFolderSchema;
+};
+
+export type CreateFileFolderApiV1KnowledgeBaseFileFoldersPostResponse = CreateFileFolderApiV1KnowledgeBaseFileFoldersPostResponses[keyof CreateFileFolderApiV1KnowledgeBaseFileFoldersPostResponses];
+
+export type EnsureFileFolderPathApiV1KnowledgeBaseFileFoldersEnsurePostData = {
+    body: FileFolderEnsureSchema;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/knowledge-base/file-folders/ensure';
+};
+
+export type EnsureFileFolderPathApiV1KnowledgeBaseFileFoldersEnsurePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type EnsureFileFolderPathApiV1KnowledgeBaseFileFoldersEnsurePostError = EnsureFileFolderPathApiV1KnowledgeBaseFileFoldersEnsurePostErrors[keyof EnsureFileFolderPathApiV1KnowledgeBaseFileFoldersEnsurePostErrors];
+
+export type EnsureFileFolderPathApiV1KnowledgeBaseFileFoldersEnsurePostResponses = {
+    /**
+     * Response Ensure File Folder Path Api V1 Knowledge Base File Folders Ensure Post
+     *
+     * Successful Response
+     */
+    200: FileFolderSchema | null;
+};
+
+export type EnsureFileFolderPathApiV1KnowledgeBaseFileFoldersEnsurePostResponse = EnsureFileFolderPathApiV1KnowledgeBaseFileFoldersEnsurePostResponses[keyof EnsureFileFolderPathApiV1KnowledgeBaseFileFoldersEnsurePostResponses];
+
+export type DeleteFileFolderApiV1KnowledgeBaseFileFoldersFolderIdDeleteData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Folder Id
+         */
+        folder_id: number;
+    };
+    query?: {
+        /**
+         * Contents
+         *
+         * For a folder that is not empty: move_to_parent puts its files and folders one level up; delete removes them with it. Without it, a folder that is not empty is refused with 409.
+         */
+        contents?: string | null;
+    };
+    url: '/api/v1/knowledge-base/file-folders/{folder_id}';
+};
+
+export type DeleteFileFolderApiV1KnowledgeBaseFileFoldersFolderIdDeleteErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Not empty; say what to do with its contents
+     */
+    409: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteFileFolderApiV1KnowledgeBaseFileFoldersFolderIdDeleteError = DeleteFileFolderApiV1KnowledgeBaseFileFoldersFolderIdDeleteErrors[keyof DeleteFileFolderApiV1KnowledgeBaseFileFoldersFolderIdDeleteErrors];
+
+export type DeleteFileFolderApiV1KnowledgeBaseFileFoldersFolderIdDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    200: FileFolderDeleteResponseSchema;
+};
+
+export type DeleteFileFolderApiV1KnowledgeBaseFileFoldersFolderIdDeleteResponse = DeleteFileFolderApiV1KnowledgeBaseFileFoldersFolderIdDeleteResponses[keyof DeleteFileFolderApiV1KnowledgeBaseFileFoldersFolderIdDeleteResponses];
+
+export type UpdateFileFolderApiV1KnowledgeBaseFileFoldersFolderIdPatchData = {
+    body: FileFolderUpdateSchema;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Folder Id
+         */
+        folder_id: number;
+    };
+    query?: never;
+    url: '/api/v1/knowledge-base/file-folders/{folder_id}';
+};
+
+export type UpdateFileFolderApiV1KnowledgeBaseFileFoldersFolderIdPatchErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateFileFolderApiV1KnowledgeBaseFileFoldersFolderIdPatchError = UpdateFileFolderApiV1KnowledgeBaseFileFoldersFolderIdPatchErrors[keyof UpdateFileFolderApiV1KnowledgeBaseFileFoldersFolderIdPatchErrors];
+
+export type UpdateFileFolderApiV1KnowledgeBaseFileFoldersFolderIdPatchResponses = {
+    /**
+     * Successful Response
+     */
+    200: FileFolderSchema;
+};
+
+export type UpdateFileFolderApiV1KnowledgeBaseFileFoldersFolderIdPatchResponse = UpdateFileFolderApiV1KnowledgeBaseFileFoldersFolderIdPatchResponses[keyof UpdateFileFolderApiV1KnowledgeBaseFileFoldersFolderIdPatchResponses];
 
 export type GetUploadUrlsApiV1WorkflowRecordingsUploadUrlPostData = {
     body: BatchRecordingUploadRequestSchema;

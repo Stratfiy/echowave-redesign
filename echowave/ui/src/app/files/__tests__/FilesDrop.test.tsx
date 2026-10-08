@@ -10,6 +10,11 @@ const upload = vi.hoisted(() => vi.fn());
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
 
 vi.mock("sonner", () => ({ toast }));
+vi.mock("@/client/sdk.gen", () => ({
+    listFileFoldersApiV1KnowledgeBaseFileFoldersGet: vi.fn().mockResolvedValue({ data: { folders: [] } }),
+    ensureFileFolderPathApiV1KnowledgeBaseFileFoldersEnsurePost: vi.fn(),
+    updateDocumentApiV1KnowledgeBaseDocumentsDocumentUuidPatch: vi.fn(),
+}));
 vi.mock("@/lib/auth", () => ({ useAuth: () => ({ user: { id: 1 }, loading: false, redirectToLogin: vi.fn() }) }));
 vi.mock("@/lib/uploadKnowledge", async (actual) => ({
     ...(await actual<typeof import("@/lib/uploadKnowledge")>()),
@@ -66,6 +71,8 @@ describe("Files", () => {
         expect(upload).toHaveBeenCalledTimes(2);
         expect(upload.mock.calls.map((call) => call[0].name)).toEqual(["prices.pdf", "faq.txt"]);
         expect(upload.mock.calls[0][1]).toEqual({ scope: "org" });
+        // At the top level: no folder is open.
+        expect(upload.mock.calls[0][2]).toEqual({ fileFolderId: null });
         expect(toast.error.mock.calls[0][0]).toMatch(/^photo\.exe: /);
     });
 });

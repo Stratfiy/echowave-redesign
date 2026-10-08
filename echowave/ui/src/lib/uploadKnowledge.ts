@@ -42,7 +42,12 @@ export function rejectFile(file: File): string | null {
 export async function uploadKnowledge(
     file: File,
     target: KnowledgeTarget,
-    options: { retrievalMode?: string; onProgress?: (percent: number) => void } = {},
+    options: {
+        retrievalMode?: string;
+        onProgress?: (percent: number) => void;
+        /** The Files-page folder to put it in (not a channel). Organises only. */
+        fileFolderId?: number | null;
+    } = {},
 ): Promise<Uploaded> {
     const progress = options.onProgress ?? (() => {});
     const minted = await getUploadUrlApiV1KnowledgeBaseUploadUrlPost({
@@ -76,6 +81,7 @@ export async function uploadKnowledge(
             scope: target.scope,
             folder_id: target.scope === 'channel' ? target.folderId : null,
             workflow_id: target.scope === 'bot' ? target.workflowId : null,
+            file_folder_id: options.fileFolderId ?? null,
         },
     });
     if (processed.error) throw new Error(detailFromError(processed.error, 'The file was sent but could not be read'));

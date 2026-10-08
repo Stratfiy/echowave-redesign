@@ -1,7 +1,7 @@
 """API routes for knowledge base operations."""
 
 import uuid
-from typing import Annotated, Optional
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from loguru import logger
@@ -14,20 +14,72 @@ from api.schemas.knowledge_base import (
     ChunkSearchResponseSchema,
     DocumentListResponseSchema,
     DocumentResponseSchema,
+    DocumentUpdateSchema,
     DocumentUploadRequestSchema,
     DocumentUploadResponseSchema,
+    FileFolderCreateSchema,
+    FileFolderDeleteResponseSchema,
+    FileFolderEnsureSchema,
+    FileFolderListResponseSchema,
+    FileFolderSchema,
+    FileFolderUpdateSchema,
     ProcessDocumentRequestSchema,
 )
 from api.sdk_expose import sdk_expose
 from api.services.auth.depends import get_user
 from api.services.billing import subscription_plans
-from api.services.knowledge_base import staleness, translate_document, upload_keys
+from api.services.knowledge_base import (
+    folders,
+    staleness,
+    translate_document,
+    upload_keys,
+)
 from api.services.posthog_client import capture_event
 from api.services.storage import storage_fs
 from api.tasks.arq import enqueue_job
 from api.tasks.function_names import FunctionNames
 
 router = APIRouter(prefix="/knowledge-base", tags=["knowledge-base"])
+
+
+def _document_response(document, *, needs_reingest: bool = False, **overrides):
+    """One document row as the API shows it. The one place the row is
+    turned into the schema, so a new column cannot reach one endpoint and
+    not another. ``overrides`` state a value instead of reading it from the
+    row (a copy that has only just been queued, say)."""
+    readers = {
+        "id": lambda d: d.id,
+        "document_uuid": lambda d: d.document_uuid,
+        "filename": lambda d: d.filename,
+        "file_size_bytes": lambda d: d.file_size_bytes or 0,
+        "file_hash": lambda d: d.file_hash or "",
+        "mime_type": lambda d: d.mime_type or "application/octet-stream",
+        "processing_status": lambda d: d.processing_status,
+        "processing_error": lambda d: d.processing_error,
+        "total_chunks": lambda d: d.total_chunks or 0,
+        "retrieval_mode": lambda d: d.retrieval_mode or "chunked",
+        "custom_metadata": lambda d: d.custom_metadata or {},
+        "docling_metadata": lambda d: d.docling_metadata or {},
+        "source_url": lambda d: d.source_url,
+        "scope": lambda d: d.scope,
+        "folder_id": lambda d: d.folder_id,
+        "workflow_id": lambda d: d.workflow_id,
+        "file_folder_id": lambda d: d.file_folder_id,
+        "created_at": lambda d: d.created_at,
+        "updated_at": lambda d: d.updated_at,
+        "organization_id": lambda d: d.organization_id,
+        "created_by": lambda d: d.created_by,
+        "is_active": lambda d: d.is_active,
+    }
+    values = {
+        name: overrides[name] if name in overrides else read(document)
+        for name, read in readers.items()
+    }
+    return DocumentResponseSchema(needs_reingest=needs_reingest, **values)
+
+
+def _folder_error(exc: folders.FolderError) -> HTTPException:
+    return HTTPException(status_code=exc.status_code, detail=str(exc))
 
 
 def _mb(value: int) -> int:
@@ -298,6 +350,14 @@ async def process_document(
     scope, folder_id, workflow_id = await _checked_scope(
         user.selected_organization_id, request
     )
+    # Where it sits on the Files page, checked against this organisation like
+    # the scope above: a folder id from another workspace is "no such folder".
+    try:
+        file_folder_id = await folders.resolve(
+            user.selected_organization_id, request.file_folder_id
+        )
+    except folders.FolderError as exc:
+        raise _folder_error(exc) from exc
 
     try:
         # Extract filename from s3_key
@@ -317,6 +377,7 @@ async def process_document(
             scope=scope,
             folder_id=folder_id,
             workflow_id=workflow_id,
+            file_folder_id=file_folder_id,
         )
 
         # Enqueue background task for processing
@@ -347,29 +408,7 @@ async def process_document(
             },
         )
 
-        return DocumentResponseSchema(
-            id=document.id,
-            document_uuid=request.document_uuid,
-            filename=filename,
-            file_size_bytes=0,
-            file_hash="",
-            mime_type="application/octet-stream",
-            processing_status="pending",
-            processing_error=None,
-            total_chunks=0,
-            retrieval_mode=request.retrieval_mode,
-            custom_metadata={"s3_key": request.s3_key},
-            docling_metadata={},
-            source_url=None,
-            scope=document.scope,
-            folder_id=document.folder_id,
-            workflow_id=document.workflow_id,
-            created_at=document.created_at,
-            updated_at=document.updated_at,
-            organization_id=user.selected_organization_id,
-            created_by=user.id,
-            is_active=True,
-        )
+        return _document_response(document)
 
     except HTTPException:
         raise
@@ -428,16 +467,23 @@ async def get_usage(user=Depends(get_user)) -> KnowledgeBaseUsageSchema:
 )
 async def list_documents(
     status: Annotated[
-        Optional[str],
+        str | None,
         Query(description="Filter by processing status"),
     ] = None,
     scope: Annotated[
-        Optional[str], Query(description="library | org | channel | agent")
+        str | None, Query(description="library | org | channel | agent")
     ] = None,
-    folder_id: Annotated[Optional[int], Query()] = None,
-    workflow_id: Annotated[Optional[int], Query()] = None,
+    folder_id: Annotated[int | None, Query()] = None,
+    workflow_id: Annotated[int | None, Query()] = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 100,
     offset: Annotated[int, Query(ge=0)] = 0,
+    file_folder_id: Annotated[
+        int | None,
+        Query(description="Only the files in this Files-page folder"),
+    ] = None,
+    top_level: Annotated[
+        bool, Query(description="Only the files in no Files-page folder")
+    ] = False,
     user=Depends(get_user),
 ):
     """List all documents for the user's organization.
@@ -455,6 +501,8 @@ async def list_documents(
             workflow_id=workflow_id,
             limit=limit,
             offset=offset,
+            file_folder_id=file_folder_id,
+            top_level_only=top_level,
         )
 
         # Which of these the agent can no longer retrieve from, because the
@@ -475,30 +523,7 @@ async def list_documents(
 
         # Convert to response schema
         document_list = [
-            DocumentResponseSchema(
-                id=doc.id,
-                document_uuid=doc.document_uuid,
-                filename=doc.filename,
-                file_size_bytes=doc.file_size_bytes,
-                file_hash=doc.file_hash,
-                mime_type=doc.mime_type,
-                processing_status=doc.processing_status,
-                processing_error=doc.processing_error,
-                needs_reingest=doc.id in stranded,
-                total_chunks=doc.total_chunks,
-                retrieval_mode=doc.retrieval_mode,
-                custom_metadata=doc.custom_metadata,
-                docling_metadata=doc.docling_metadata,
-                source_url=doc.source_url,
-                scope=doc.scope,
-                folder_id=doc.folder_id,
-                workflow_id=doc.workflow_id,
-                created_at=doc.created_at,
-                updated_at=doc.updated_at,
-                organization_id=doc.organization_id,
-                created_by=doc.created_by,
-                is_active=doc.is_active,
-            )
+            _document_response(doc, needs_reingest=doc.id in stranded)
             for doc in documents
         ]
 
@@ -538,29 +563,7 @@ async def get_document(
         if not document:
             raise HTTPException(status_code=404, detail="Document not found")
 
-        return DocumentResponseSchema(
-            id=document.id,
-            document_uuid=document.document_uuid,
-            filename=document.filename,
-            file_size_bytes=document.file_size_bytes,
-            file_hash=document.file_hash,
-            mime_type=document.mime_type,
-            processing_status=document.processing_status,
-            processing_error=document.processing_error,
-            total_chunks=document.total_chunks,
-            retrieval_mode=document.retrieval_mode,
-            custom_metadata=document.custom_metadata,
-            docling_metadata=document.docling_metadata,
-            source_url=document.source_url,
-            scope=document.scope,
-            folder_id=document.folder_id,
-            workflow_id=document.workflow_id,
-            created_at=document.created_at,
-            updated_at=document.updated_at,
-            organization_id=document.organization_id,
-            created_by=document.created_by,
-            is_active=document.is_active,
-        )
+        return _document_response(document)
 
     except HTTPException:
         raise
@@ -771,26 +774,160 @@ async def translate_document_route(
     except translate_document.NotTranslatable as exc:
         status = 404 if "not found" in str(exc).lower() else 409
         raise HTTPException(status_code=status, detail=str(exc)) from exc
-    return DocumentResponseSchema(
-        id=document.id,
-        document_uuid=document.document_uuid,
-        filename=document.filename,
+    # Stated rather than read: the copy has only just been queued.
+    return _document_response(
+        document,
         file_size_bytes=0,
         file_hash="",
         mime_type="text/plain",
         processing_status="pending",
         processing_error=None,
         total_chunks=0,
-        retrieval_mode=document.retrieval_mode or "chunked",
-        custom_metadata=document.custom_metadata or {},
         docling_metadata={},
         source_url=None,
-        scope=document.scope,
-        folder_id=document.folder_id,
-        workflow_id=document.workflow_id,
-        created_at=document.created_at,
-        updated_at=document.updated_at,
         organization_id=user.selected_organization_id,
         created_by=user.id,
         is_active=True,
     )
+
+
+# --- Files: folders, renames and moves --------------------------------------
+#
+# "File folders" organise the Files page. They are not channels (those are
+# /folder) and they never change who reads a file. The rules live in
+# services/knowledge_base/folders.py; these handlers only resolve the caller's
+# organisation and shape the answer.
+
+
+@router.get(
+    "/file-folders",
+    response_model=FileFolderListResponseSchema,
+    summary="List the Files page's folders",
+)
+async def list_file_folders(user=Depends(get_user)) -> FileFolderListResponseSchema:
+    rows = await folders.listing(user.selected_organization_id)
+    return FileFolderListResponseSchema(
+        folders=[FileFolderSchema(**row) for row in rows]
+    )
+
+
+@router.post(
+    "/file-folders",
+    response_model=FileFolderSchema,
+    status_code=201,
+    summary="Create a folder on the Files page",
+)
+async def create_file_folder(
+    request: FileFolderCreateSchema, user=Depends(get_user)
+) -> FileFolderSchema:
+    try:
+        row = await folders.create(
+            user.selected_organization_id,
+            name=request.name,
+            parent_id=request.parent_id,
+            created_by=user.id,
+        )
+    except folders.FolderError as exc:
+        raise _folder_error(exc) from exc
+    return FileFolderSchema(**row)
+
+
+@router.post(
+    "/file-folders/ensure",
+    response_model=FileFolderSchema | None,
+    summary="Find or create a path of folders (a dropped desktop folder)",
+)
+async def ensure_file_folder_path(
+    request: FileFolderEnsureSchema, user=Depends(get_user)
+) -> FileFolderSchema | None:
+    try:
+        row = await folders.ensure_path(
+            user.selected_organization_id,
+            parent_id=request.parent_id,
+            segments=request.path,
+            created_by=user.id,
+        )
+    except folders.FolderError as exc:
+        raise _folder_error(exc) from exc
+    return FileFolderSchema(**row) if row else None
+
+
+@router.patch(
+    "/file-folders/{folder_id}",
+    response_model=FileFolderSchema,
+    summary="Rename or move a folder on the Files page",
+)
+async def update_file_folder(
+    folder_id: int, request: FileFolderUpdateSchema, user=Depends(get_user)
+) -> FileFolderSchema:
+    organization_id = user.selected_organization_id
+    try:
+        row = None
+        if request.name is not None:
+            row = await folders.rename(organization_id, folder_id, request.name)
+        if "parent_id" in request.model_fields_set:
+            row = await folders.move(organization_id, folder_id, request.parent_id)
+        if row is None:
+            raise folders.FolderError("Send a new name, a new parent_id, or both.")
+    except folders.FolderError as exc:
+        raise _folder_error(exc) from exc
+    return FileFolderSchema(**row)
+
+
+@router.delete(
+    "/file-folders/{folder_id}",
+    response_model=FileFolderDeleteResponseSchema,
+    summary="Delete a folder on the Files page",
+    responses={409: {"description": "Not empty; say what to do with its contents"}},
+)
+async def delete_file_folder(
+    folder_id: int,
+    contents: Annotated[
+        str | None,
+        Query(
+            description=(
+                "For a folder that is not empty: move_to_parent puts its files "
+                "and folders one level up; delete removes them with it. "
+                "Without it, a folder that is not empty is refused with 409."
+            )
+        ),
+    ] = None,
+    user=Depends(get_user),
+) -> FileFolderDeleteResponseSchema:
+    try:
+        outcome = await folders.delete(
+            user.selected_organization_id, folder_id, contents=contents
+        )
+    except folders.FolderError as exc:
+        raise _folder_error(exc) from exc
+    logger.info(
+        "Deleted file folder {} for org {} ({}): {}",
+        folder_id,
+        user.selected_organization_id,
+        contents or "empty",
+        outcome,
+    )
+    return FileFolderDeleteResponseSchema(**outcome)
+
+
+@router.patch(
+    "/documents/{document_uuid}",
+    response_model=DocumentResponseSchema,
+    summary="Rename a file or move it to another folder",
+)
+async def update_document(
+    document_uuid: str, request: DocumentUpdateSchema, user=Depends(get_user)
+) -> DocumentResponseSchema:
+    """A rename or a move shows everywhere at once: citations name the file
+    and its folder from the row as it is when they are read."""
+    try:
+        document = await folders.place_document(
+            user.selected_organization_id,
+            document_uuid,
+            filename=request.filename,
+            file_folder_id=request.file_folder_id,
+            move="file_folder_id" in request.model_fields_set,
+        )
+    except folders.FolderError as exc:
+        raise _folder_error(exc) from exc
+    return _document_response(document)
