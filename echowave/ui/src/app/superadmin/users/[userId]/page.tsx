@@ -103,7 +103,7 @@ export default function UserDetailPage() {
         try {
             const token = await getAccessToken();
             if (!token) throw new Error("Your session has expired. Sign in again.");
-            await impersonateAsSuperadmin({ accessToken: token, userId, reason: choice.reason, mode: choice.mode, redirectPath: "/overview", openInNewTab: true });
+            await impersonateAsSuperadmin({ accessToken: token, userId, who: email ?? undefined, reason: choice.reason, mode: choice.mode, redirectPath: "/overview", openInNewTab: true });
             window.setTimeout(() => void detail.refresh(), 1500);
         } catch (err) {
             setAccessError(err instanceof Error ? err.message : "Could not open the account.");

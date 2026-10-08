@@ -40,6 +40,7 @@ export function ImpersonateOwnerButton({
             await impersonateAsSuperadmin({
                 accessToken,
                 userId: ownerUserId,
+                who: ownerEmail ?? undefined,
                 reason: choice.reason,
                 mode: choice.mode,
                 redirectPath: "/overview",

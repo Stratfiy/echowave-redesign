@@ -172,7 +172,9 @@ below is behind the existing flags; nothing new to switch on.
   row. `mode=read_only` (the default) is refused every write on every route,
   and cannot open a websocket; the way out (`/impersonation/stop`) always
   works. A stopped session is refused on the server, not only in the browser.
-  Staff see an open session on the person screen and can end it
+  Signing in or out as yourself clears the "viewing as" marker, so a
+  staffer's own session never carries a customer's banner. Staff see an
+  open session on the person screen and can end it
   (`POST /admin/staff/users/{id}/assisted-access/end`). Under Stack Auth,
   read-only is refused (409): a Stack session cannot carry the claim.
 * **Workspace suspension.** `workspace.suspend` (two people, like

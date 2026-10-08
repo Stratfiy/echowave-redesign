@@ -173,6 +173,8 @@ export async function impersonateAsSuperadmin(params: {
   reason: string;
   /** `read_only` (view as; the API refuses every write) or `full`. */
   mode?: "read_only" | "full";
+  /** Who the banner names; a display hint only. */
+  who?: string;
   /**
    * If true the browser opens the impersonated session in a **new tab**
    * (via `window.open`). Defaults to `false` which navigates in the current tab.
@@ -187,6 +189,7 @@ export async function impersonateAsSuperadmin(params: {
     redirectPath,
     reason,
     mode = "read_only",
+    who,
     openInNewTab = false,
   } = params;
   const IMPERSONATION_TARGET = "decibyl_impersonation";
@@ -288,7 +291,7 @@ export async function impersonateAsSuperadmin(params: {
     mode,
     redirect_path: finalRedirect,
     // Who the banner names for the hour (KAN-82). A hint, never an identity.
-    who: email ?? (userId !== undefined ? `user ${userId}` : providerUserId ?? ""),
+    who: who ?? email ?? (userId !== undefined ? `user ${userId}` : providerUserId ?? ""),
   })) {
     const input = document.createElement("input");
     input.type = "hidden";
