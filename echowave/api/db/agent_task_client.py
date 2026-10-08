@@ -4,28 +4,69 @@ from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select, text
 
 from api.db.base_client import BaseDBClient
 from api.db.models import AgentTaskCommentModel, AgentTaskModel
 
+#: The first key of the advisory lock that serializes task numbering inside
+#: one workspace (the second key is the workspace's id).
+_NUMBERING_LOCK = 7_140_001
+
+
+def visible_clause(user_id: int | None):
+    """The tasks a person may see: the workspace's, and their own private
+    ones. ``None`` (nobody known) sees no private task."""
+    if user_id is None:
+        return AgentTaskModel.private_to_user_id.is_(None)
+    return or_(
+        AgentTaskModel.private_to_user_id.is_(None),
+        AgentTaskModel.private_to_user_id == user_id,
+    )
+
+
+def is_visible_to(task: Any, user_id: int | None) -> bool:
+    """``visible_clause`` for a row already read."""
+    owner = getattr(task, "private_to_user_id", None)
+    return owner is None or (user_id is not None and int(owner) == int(user_id))
+
+
+#: The default ``visible_to``: every task, for the worker and staff, which
+#: act on all of them.
+EVERYONE = object()
+
 
 class AgentTaskClient(BaseDBClient):
     async def tasks_for_organization(
-        self, organization_id: int, *, limit: int = 200
+        self,
+        organization_id: int,
+        *,
+        limit: int = 200,
+        visible_to: int | None | object = EVERYONE,
     ) -> Sequence[AgentTaskModel]:
+        """The workspace's tasks. A screen or a tool answering a person passes
+        ``visible_to`` with that person's id, so another person's private
+        task (a meeting's follow-up) is not among them."""
+        query = select(AgentTaskModel).where(
+            AgentTaskModel.organization_id == organization_id
+        )
+        if visible_to is not EVERYONE:
+            query = query.where(visible_clause(visible_to))
         async with self.async_session() as session:
             result = await session.execute(
-                select(AgentTaskModel)
-                .where(AgentTaskModel.organization_id == organization_id)
-                .order_by(AgentTaskModel.id.desc())
-                .limit(limit)
+                query.order_by(AgentTaskModel.id.desc()).limit(limit)
             )
             return result.scalars().all()
 
     async def get_task(
-        self, task_id: int, *, organization_id: int
+        self,
+        task_id: int,
+        *,
+        organization_id: int,
+        visible_to: int | None | object = EVERYONE,
     ) -> AgentTaskModel | None:
+        """One task, or None. With ``visible_to``, another person's private
+        task is None too, the way a wrong workspace's is."""
         async with self.async_session() as session:
             result = await session.execute(
                 select(AgentTaskModel).where(
@@ -33,7 +74,11 @@ class AgentTaskClient(BaseDBClient):
                     AgentTaskModel.organization_id == organization_id,
                 )
             )
-            return result.scalar_one_or_none()
+            task = result.scalar_one_or_none()
+        if task is not None and visible_to is not EVERYONE:
+            if not is_visible_to(task, visible_to):
+                return None
+        return task
 
     async def tasks_due_between(self, start, end) -> list[AgentTaskModel]:
         """Open tasks, every account, due inside [start, end): the daily
@@ -56,6 +101,14 @@ class AgentTaskClient(BaseDBClient):
         ``prefix-number``, and the number never moves."""
         async with self.async_session() as session:
             if fields.get("number") is None:
+                # Two tasks made at once (two cards confirmed together) would
+                # both read the same highest number and one would fail on
+                # ``uq_agent_tasks_org_number``. The lock is per workspace and
+                # held until this transaction commits.
+                await session.execute(
+                    text("SELECT pg_advisory_xact_lock(:k, :o)"),
+                    {"k": _NUMBERING_LOCK, "o": organization_id},
+                )
                 highest = await session.scalar(
                     select(func.max(AgentTaskModel.number)).where(
                         AgentTaskModel.organization_id == organization_id
@@ -122,17 +175,20 @@ class AgentTaskClient(BaseDBClient):
             return True
 
     async def subtasks_of(
-        self, task_id: int, *, organization_id: int
+        self,
+        task_id: int,
+        *,
+        organization_id: int,
+        visible_to: int | None | object = EVERYONE,
     ) -> list[AgentTaskModel]:
+        query = select(AgentTaskModel).where(
+            AgentTaskModel.parent_id == task_id,
+            AgentTaskModel.organization_id == organization_id,
+        )
+        if visible_to is not EVERYONE:
+            query = query.where(visible_clause(visible_to))
         async with self.async_session() as session:
-            result = await session.execute(
-                select(AgentTaskModel)
-                .where(
-                    AgentTaskModel.parent_id == task_id,
-                    AgentTaskModel.organization_id == organization_id,
-                )
-                .order_by(AgentTaskModel.id)
-            )
+            result = await session.execute(query.order_by(AgentTaskModel.id))
             return list(result.scalars().all())
 
     # --- comments (TB-1) ---------------------------------------------------

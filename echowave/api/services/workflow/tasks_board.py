@@ -363,16 +363,24 @@ def _row(task: Any, ctx: dict[str, Any]) -> dict[str, Any]:
 async def read_board(
     *, organization_id: int, arguments: dict[str, Any]
 ) -> dict[str, Any]:
-    """The tool: a listing, or one task with its comments. Never raises."""
-    from api.db import db_client
+    """The tool: a listing, or one task with its comments. Never raises.
 
+    Answers the member the turn runs as: another person's private task (a
+    meeting's follow-up) is not on the board for them, and with nobody known
+    no private task is."""
+    from api.db import db_client
+    from api.services import acting
+
+    viewer = acting.valid_member(acting.acting_user())
     task_id = arguments.get("task_id")
     if task_id not in (None, ""):
         try:
             task_id = int(task_id)
         except (TypeError, ValueError):
             return {"status": "error", "error": f"task_id {task_id!r} is not a number."}
-        task = await db_client.get_task(task_id, organization_id=organization_id)
+        task = await db_client.get_task(
+            task_id, organization_id=organization_id, visible_to=viewer
+        )
         if task is None:
             return {
                 "status": "error",
@@ -408,7 +416,7 @@ async def read_board(
             "status": "error",
             "error": f"{status!r} is not a status; use open or one of {', '.join(STATUSES)}.",
         }
-    rows = await db_client.tasks_for_organization(organization_id)
+    rows = await db_client.tasks_for_organization(organization_id, visible_to=viewer)
     ctx = await board_context(organization_id)
     wanted_status = OPEN if status == "open" else (status,)
     assignee = str(arguments.get("assignee") or "").strip()

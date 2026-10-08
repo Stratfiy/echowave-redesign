@@ -1122,6 +1122,180 @@ class TestPrivate:
         assert r.status_code == 404
 
 
+async def _confirmed_task(c, queued, team, *, index=0):
+    """A notes meeting whose ``index``-th action was confirmed and ran: the
+    meeting's id and the task the card made."""
+    mid = await _notes_meeting(c, queued)
+    item = (await c.get(f"/api/v1/meetings/{mid}")).json()["actions"][index]["id"]
+    card = next(
+        a
+        for a in (await c.post(f"/api/v1/meetings/{mid}/actions/{item}/review")).json()[
+            "actions"
+        ]
+        if a["id"] == item
+    )["card"]
+    with patch("api.tasks.arq.enqueue_job", new=AsyncMock()):
+        settled = await c.post(
+            f"/api/v1/meetings/{mid}/actions/{item}/settle",
+            json={"verb": "confirm", "version": card["version"]},
+        )
+    assert settled.status_code == 200, settled.text
+    await _run_card(team.org, card["event_id"])
+    task_id = next(
+        a
+        for a in (await c.get(f"/api/v1/meetings/{mid}")).json()["actions"]
+        if a["id"] == item
+    )["task_id"]
+    assert task_id
+    return mid, card, task_id
+
+
+@pytest.mark.asyncio
+class TestTheTaskStaysTheirs:
+    """Phase 3: the meeting is private, so the task its follow-up makes is
+    too. Found by sweeping every route as a colleague: the workspace's task
+    board showed the follow-up's words, the meeting's title and the quote
+    from its transcript to everyone in the workspace."""
+
+    @pytest.mark.parametrize("ledger", [True, False])
+    async def test_a_colleague_cannot_see_or_touch_the_task(
+        self, team, meetings_on, queued, reader, monkeypatch, ledger
+    ):
+        monkeypatch.setattr(constants, "TASK_LEDGER_ENABLED", ledger)
+        async with _client(team.a, team.org) as c:
+            mid, _card, task_id = await _confirmed_task(c, queued, team)
+            mine = (await c.get("/api/v1/tasks")).json()["tasks"]
+            assert [t["id"] for t in mine] == [task_id]
+            assert (await c.get(f"/api/v1/tasks/{task_id}")).status_code == 200
+        async with _client(team.b, team.org) as c:
+            board = await c.get("/api/v1/tasks")
+            assert board.status_code == 200
+            assert "Send the deck" not in board.text
+            assert "Launch sync" not in board.text
+            assert (await c.get(f"/api/v1/tasks/{task_id}")).status_code == 404
+            assert (
+                await c.patch(f"/api/v1/tasks/{task_id}", json={"priority": "high"})
+            ).status_code == 404
+            assert (
+                await c.post(
+                    f"/api/v1/tasks/{task_id}/comments", json={"body": "mine now"}
+                )
+            ).status_code == 404
+            assert (
+                await c.post(f"/api/v1/tasks/{task_id}/status", json={"status": "done"})
+            ).status_code == 404
+            assert (await c.delete(f"/api/v1/tasks/{task_id}")).status_code == 404
+        task = await db_client.get_task(task_id, organization_id=team.org)
+        assert task is not None and task.status == "todo"
+        assert task.private_to_user_id == team.a.id
+
+    async def test_the_board_tool_answers_only_its_owner(
+        self, team, meetings_on, queued, reader, ledger_on
+    ):
+        from api.services import acting
+        from api.services.workflow import tasks_board
+
+        async with _client(team.a, team.org) as c:
+            _mid, _card, task_id = await _confirmed_task(c, queued, team)
+        with acting.acting_as(team.b.id):
+            listing = await tasks_board.read_board(
+                organization_id=team.org, arguments={}
+            )
+            one = await tasks_board.read_board(
+                organization_id=team.org, arguments={"task_id": task_id}
+            )
+        assert "Send the deck" not in json.dumps(listing, default=str)
+        assert one["status"] == "error"
+        with acting.acting_as(team.a.id):
+            own = await tasks_board.read_board(
+                organization_id=team.org, arguments={"task_id": task_id}
+            )
+        assert own["status"] == "success"
+
+    async def test_today_does_not_open_a_colleagues_task(
+        self, team, meetings_on, queued, reader, ledger_on
+    ):
+        from api.services.today import activity
+        from api.services.today.scope import NotFound, Viewer
+
+        async with _client(team.a, team.org) as c:
+            _mid, _card, task_id = await _confirmed_task(c, queued, team)
+        owner = Viewer(user_id=team.a.id, organization_id=team.org, zone_name="UTC")
+        other = Viewer(user_id=team.b.id, organization_id=team.org, zone_name="UTC")
+        assert (await activity.detail(owner, "task", task_id))["kind"] == "task"
+        with pytest.raises(NotFound):
+            await activity.detail(other, "task", task_id)
+
+    async def test_the_workspace_audit_keeps_no_meeting_words(
+        self, team, meetings_on, queued, reader, ledger_on
+    ):
+        async with _client(team.a, team.org) as c:
+            await _confirmed_task(c, queued, team)
+        async with db_client.async_session() as session:
+            subjects = (
+                (
+                    await session.execute(
+                        text(
+                            "SELECT subject FROM audit_entries "
+                            "WHERE organization_id = :o AND subject_kind = 'card'"
+                        ),
+                        {"o": team.org},
+                    )
+                )
+                .scalars()
+                .all()
+            )
+        assert subjects, "the press is still audited"
+        assert not any("Send the deck" in (s or "") for s in subjects)
+
+    async def test_two_cards_running_at_once_make_two_tasks(
+        self, team, meetings_on, queued, reader
+    ):
+        """Found running the app: two confirmed cards whose undo windows
+        ended together both numbered their task T-1, and one failed on
+        ``uq_agent_tasks_org_number`` ("Something went wrong on our side")."""
+        import asyncio
+
+        async with _client(team.a, team.org) as c:
+            mid = await _notes_meeting(c, queued)
+            record = (await c.get(f"/api/v1/meetings/{mid}")).json()
+            cards = []
+            with patch("api.tasks.arq.enqueue_job", new=AsyncMock()):
+                for item in [a["id"] for a in record["actions"][:2]]:
+                    r = await c.post(f"/api/v1/meetings/{mid}/actions/{item}/review")
+                    card = next(a for a in r.json()["actions"] if a["id"] == item)[
+                        "card"
+                    ]
+                    await c.post(
+                        f"/api/v1/meetings/{mid}/actions/{item}/settle",
+                        json={"verb": "confirm", "version": card["version"]},
+                    )
+                    cards.append(card["event_id"])
+        await asyncio.gather(*(_run_card(team.org, e) for e in cards))
+        states = [
+            (await db_client.get_agent_event(e, organization_id=team.org)).payload[
+                "state"
+            ]
+            for e in cards
+        ]
+        assert states == ["done", "done"]
+        tasks = await db_client.tasks_for_organization(team.org)
+        assert sorted(t.number for t in tasks) == [1, 2]
+
+    async def test_tasks_made_together_get_their_own_numbers(self, team):
+        import asyncio
+
+        made = await asyncio.gather(
+            *(
+                db_client.create_task(
+                    organization_id=team.org, title=f"t{i}", brief="", status="todo"
+                )
+                for i in range(8)
+            )
+        )
+        assert sorted(t.number for t in made) == list(range(1, 9))
+
+
 # ---------------------------------------------------------------------------
 # Deleting a record
 # ---------------------------------------------------------------------------
