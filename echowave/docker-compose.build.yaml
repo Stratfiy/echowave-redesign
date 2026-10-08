@@ -33,6 +33,9 @@ services:
     build:
       context: .
       dockerfile: api/Dockerfile
+      args:
+        # true puts the voice-isolation models in the image (VOICE.md).
+        WITH_VOICE_ISOLATION: ${WITH_VOICE_ISOLATION:-false}
     # Local tag, so `docker compose up` finds the image just built rather than
     # going back to the registry for one that does not exist.
     image: decibyl-api:local

@@ -228,7 +228,9 @@ async def detail(session: AsyncSession, user_id: int) -> dict[str, Any] | None:
     )
     from api.services.staff import workspaces as staff_workspaces
 
-    summaries = await staff_workspaces.summaries(session, [o.id for _, o in memberships])
+    summaries = await staff_workspaces.summaries(
+        session, [o.id for _, o in memberships]
+    )
     workspaces = [
         {
             "id": org.id,

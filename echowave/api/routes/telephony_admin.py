@@ -219,7 +219,9 @@ async def list_phone_numbers(
             TelephonyConfigurationModel.id == n.telephony_configuration_id,
             isouter=True,
         )
-        .join(OrganizationModel, OrganizationModel.id == n.organization_id, isouter=True)
+        .join(
+            OrganizationModel, OrganizationModel.id == n.organization_id, isouter=True
+        )
         .order_by(n.id.desc())
         .limit(limit)
     )
@@ -242,7 +244,11 @@ async def list_phone_numbers(
                 "country_code": row[0].country_code,
                 "organization_id": row[0].organization_id,
                 "organization_name": row.organization_name
-                or (f"Organization {row[0].organization_id}" if row[0].organization_id else None),
+                or (
+                    f"Organization {row[0].organization_id}"
+                    if row[0].organization_id
+                    else None
+                ),
                 "telephony_configuration_id": row[0].telephony_configuration_id,
                 "configuration_name": row.name,
                 "provider": row.provider,

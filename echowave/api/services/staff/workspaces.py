@@ -147,9 +147,9 @@ async def summaries(session: AsyncSession, org_ids: list[int]) -> dict[int, dict
     suspended = dict(
         (
             await session.execute(
-                select(OrganizationModel.id, OrganizationModel.staff_suspended_at).where(
-                    OrganizationModel.id.in_(org_ids)
-                )
+                select(
+                    OrganizationModel.id, OrganizationModel.staff_suspended_at
+                ).where(OrganizationModel.id.in_(org_ids))
             )
         ).all()
     )
@@ -282,7 +282,9 @@ async def _unsuspend(
     org = await session.get(OrganizationModel, t.organization_id, with_for_update=True)
     org.staff_suspended_at = None
     invalidate()
-    return commands.Outcome({"organization_id": org.id, "message": "Workspace restored."})
+    return commands.Outcome(
+        {"organization_id": org.id, "message": "Workspace restored."}
+    )
 
 
 commands.register(

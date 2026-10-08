@@ -75,6 +75,9 @@ jobs:
             # The application root, not the service directory: the API
             # Dockerfile needs pipecat/ beside api/.
             context: echowave
+            # The caller voice-lock and DeepFilterNet models (~35 MB, VOICE.md).
+            # In the image only; each stays off until its flag is turned on.
+            build_args: WITH_VOICE_ISOLATION=true
           - name: ui
             dockerfile: echowave/ui/Dockerfile
             # Same: the UI Dockerfile copies from ui/ by path.
@@ -160,6 +163,7 @@ jobs:
           context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
           push: true
+          build-args: ${{ matrix.build_args || '' }}
           # The box is x86. Building arm64 as well would roughly double the
           # build for an architecture nothing runs.
           platforms: linux/amd64
@@ -196,6 +200,7 @@ jobs:
           context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
           push: true
+          build-args: ${{ matrix.build_args || '' }}
           platforms: linux/amd64
           tags: |
             ${{ steps.ecr.outputs.registry }}/decibyl-${{ matrix.name }}:latest

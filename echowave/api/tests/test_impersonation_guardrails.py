@@ -71,7 +71,9 @@ class TestTheGuard:
             pytest.raises(HTTPException) as exc,
         ):
             await superuser.impersonate(
-                ImpersonateRequest(provider_user_id="prov-5", reason="ticket 7", mode="full"),
+                ImpersonateRequest(
+                    provider_user_id="prov-5", reason="ticket 7", mode="full"
+                ),
                 _http(),
                 _superadmin(),
             )
@@ -106,7 +108,9 @@ class TestTheGuard:
             ),
         ):
             resp = await superuser.impersonate(
-                ImpersonateRequest(provider_user_id="prov-5", reason="ticket 7", mode="full"),
+                ImpersonateRequest(
+                    provider_user_id="prov-5", reason="ticket 7", mode="full"
+                ),
                 _http(),
                 _superadmin(),
             )
@@ -142,7 +146,9 @@ class TestTheGuard:
             pytest.raises(HTTPException) as exc,
         ):
             await superuser.impersonate(
-                ImpersonateRequest(provider_user_id="prov-5", reason="ticket 7", mode="full"),
+                ImpersonateRequest(
+                    provider_user_id="prov-5", reason="ticket 7", mode="full"
+                ),
                 _http(),
                 _superadmin(),
             )

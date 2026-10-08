@@ -397,3 +397,10 @@ hourly, reviews and merges each PR, and starts the next streams.
 - Merged into claude/simpler-rail: phase 3 shell #556, learning #555, meetings #554, reach #553, identity #552, support #551. One migration head (20261009meetingstasks), down/up round trip clean, 244 core + 19 new API tests pass, tsc clean, 1867 UI tests pass.
 - Still running: staff + superadmin audit, voice isolation. Waiting on founder: care push, People device sync, outreach permission.
 - Design pass to the handoff: system font stack, ink #0d0d0d / #5d5d5d / #8f8f8f, #f9f9f9 rail, hairline borders, 28px composer with Talk pill, pill starter chips, "What can I do for you?" home with no big logo, pastel job pictures instead of 3D renders.
+
+## Oct 8 (later) — care, People sync, staff, voice isolation
+
+- Merged: care #558 (reminders without a number, private care cards, channel wording), People #559 (phone address-book sync), staff + superadmin #560 (28 screens at both widths), voice isolation #557. One migration head (20261009phase3staff, after 20261008careapp).
+- Voice isolation, measured on 320 scenes (evals/voice_isolation): the caller voice lock halves false interruptions (4.21 -> 2.12 per minute; two people talking 11.9 -> 5.8) for ~120 ms on median acceptance. ON for launch: CALLER_VOICE_LOCK_ENABLED=true with images built WITH_VOICE_ISOLATION=true. DeepFilterNet alone doubles false interruptions: OFF, and only ever trialled together with the lock.
+- Finding: caller_environment normal vs noisy measured identical on interruptions (VAD thresholds are not on that path). The noisy default for phone agents is harmless but is not what stops background voices; the voice lock is.
+- Outreach #541: Treg lead source pushed (61 tests); uploads/pasted link and the receptionist agent still in progress.

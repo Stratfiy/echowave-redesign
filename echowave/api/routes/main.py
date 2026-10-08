@@ -56,7 +56,6 @@ from api.routes.organisation import router as organisation_router
 from api.routes.organisation_memory import router as organisation_memory_router
 from api.routes.organization import router as organization_router
 from api.routes.organization_members import router as organization_members_router
-from api.routes.staff_access import router as staff_access_router
 from api.routes.organization_usage import router as organization_usage_router
 from api.routes.packs import router as packs_router
 from api.routes.partner_admin import router as partner_admin_router
@@ -88,6 +87,7 @@ from api.routes.settings import router as settings_router
 from api.routes.shell import public_router as public_early_access_router
 from api.routes.shell import router as shell_router
 from api.routes.skills import router as skills_router
+from api.routes.staff_access import router as staff_access_router
 from api.routes.staff_console import router as staff_console_router
 from api.routes.studio import public_router as public_studio_router
 from api.routes.studio import router as studio_router

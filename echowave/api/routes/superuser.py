@@ -5,8 +5,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from loguru import logger
 from pydantic import BaseModel, Field
 
-from api.db import db_client
 from api.constants import AUTH_PROVIDER
+from api.db import db_client
 from api.db.models import AdminActionLogModel, UserModel
 from api.services.auth import impersonation_tokens
 from api.services.auth.depends import get_superuser

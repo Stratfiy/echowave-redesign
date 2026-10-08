@@ -428,7 +428,11 @@ async def active_calls(session: AsyncSession, *, now: datetime | None = None) ->
         age = _age_minutes(row.created_at)
         if row.state == "running" and age is not None and age > LONG_CALL_MINUTES:
             reason = "long_running"
-        elif row.state == "initialized" and age is not None and age > NOT_CONNECTED_MINUTES:
+        elif (
+            row.state == "initialized"
+            and age is not None
+            and age > NOT_CONNECTED_MINUTES
+        ):
             reason = "never_connected"
         else:
             continue

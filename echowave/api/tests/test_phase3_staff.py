@@ -155,7 +155,11 @@ class TestViewAsAndImpersonate:
         async with _client() as client:
             started = await client.post(
                 "/api/v1/superuser/impersonate",
-                json={"user_id": customer.id, "reason": "ticket 12", "mode": "read_only"},
+                json={
+                    "user_id": customer.id,
+                    "reason": "ticket 12",
+                    "mode": "read_only",
+                },
                 headers=_bearer(owner),
             )
             # Before phase 3 this called Stack Auth anyway and answered 500.
@@ -164,7 +168,9 @@ class TestViewAsAndImpersonate:
             assert body["auth_provider"] == "local" and body["mode"] == "read_only"
             borrowed = {"authorization": f"Bearer {body['access_token']}"}
 
-            me = await client.get("/api/v1/organizations/staff-access", headers=borrowed)
+            me = await client.get(
+                "/api/v1/organizations/staff-access", headers=borrowed
+            )
             assert me.status_code == 200
             write = await client.post(
                 "/api/v1/organizations/staff-access",
@@ -177,7 +183,9 @@ class TestViewAsAndImpersonate:
             stop = await client.post("/api/v1/impersonation/stop", headers=borrowed)
             assert stop.status_code == 200 and stop.json()["recorded"] is True
             # And once stopped, the token is refused on the server.
-            after = await client.get("/api/v1/organizations/staff-access", headers=borrowed)
+            after = await client.get(
+                "/api/v1/organizations/staff-access", headers=borrowed
+            )
             assert after.status_code == 401
 
         start = (
@@ -200,7 +208,11 @@ class TestViewAsAndImpersonate:
         async with _client() as client:
             started = await client.post(
                 "/api/v1/superuser/impersonate",
-                json={"email": customer.email, "reason": "set up for them", "mode": "full"},
+                json={
+                    "email": customer.email,
+                    "reason": "set up for them",
+                    "mode": "full",
+                },
                 headers=_bearer(owner),
             )
             assert started.status_code == 200, started.text
@@ -219,7 +231,9 @@ class TestViewAsAndImpersonate:
                 headers=_bearer(owner),
             )
             assert ended.json()["ended"] is True
-            refused = await client.get("/api/v1/organizations/staff-access", headers=borrowed)
+            refused = await client.get(
+                "/api/v1/organizations/staff-access", headers=borrowed
+            )
             assert refused.status_code == 401
             detail = await client.get(
                 f"/api/v1/admin/staff/users/{customer.id}", headers=_bearer(owner)
@@ -262,7 +276,9 @@ class TestViewAsAndImpersonate:
                 {"imp": 1, "imp_mode": "read_only"}, "WEBSOCKET", None
             )
         assert refused.value.status_code == 403
-        impersonation_tokens.refuse_write({"imp": 1, "imp_mode": "full"}, "WEBSOCKET", None)
+        impersonation_tokens.refuse_write(
+            {"imp": 1, "imp_mode": "full"}, "WEBSOCKET", None
+        )
 
     async def test_read_only_is_refused_under_stack_auth(
         self, db_session, async_session, staff_on, monkeypatch
@@ -364,7 +380,9 @@ class TestWorkspaceSuspension:
             )
             assert back.status_code == 200
 
-    async def test_off_with_the_console(self, db_session, async_session, staff_on, monkeypatch):
+    async def test_off_with_the_console(
+        self, db_session, async_session, staff_on, monkeypatch
+    ):
         customer = await _user(db_session, async_session, "ws2-customer")
         org = await _org(db_session, customer)
         org_row = await async_session.get(OrganizationModel, org.id)
@@ -383,8 +401,8 @@ class TestWorkspaceSuspension:
 async def test_user_detail_shows_plan_credit_flags_and_errors(
     db_session, async_session, staff_on
 ):
-    from api.db.models import AgentEventModel, CreditLedgerModel
     from api.db.feature_override_models import FeatureOverrideModel
+    from api.db.models import AgentEventModel, CreditLedgerModel
 
     agent = await _user(db_session, async_session, "pd-support", "support")
     customer = await _user(db_session, async_session, "pd-customer")
@@ -411,7 +429,10 @@ async def test_user_detail_shows_plan_credit_flags_and_errors(
                 at=datetime.now(UTC),
             ),
             FeatureOverrideModel(
-                feature="people", organization_id=org.id, enabled=True, set_by_user_id=agent.id
+                feature="people",
+                organization_id=org.id,
+                enabled=True,
+                set_by_user_id=agent.id,
             ),
         ]
     )
@@ -436,7 +457,9 @@ async def test_user_detail_shows_plan_credit_flags_and_errors(
     assert summary["balance_paise"] == int(ledger)  # whatever signup granted, plus ours
     assert summary["spent_paise_28d"] == 1200
     assert len(summary["recent_errors"]) == 1
-    assert any(f["name"] == "people" and f["source"] == "override" for f in summary["flags"])
+    assert any(
+        f["name"] == "people" and f["source"] == "override" for f in summary["flags"]
+    )
     # The failure's words never reach the console.
     assert "Ravi" not in response.text and "98400" not in response.text
     features.clear_snapshot()
@@ -513,8 +536,21 @@ class TestCallContent:
             recording_url="recordings/1.wav",
             logs={
                 "realtime_feedback_events": [
-                    {"type": "rtf-user-transcription", "payload": {"text": "Is my order out?", "final": True, "timestamp": "00:01"}},
-                    {"type": "rtf-bot-text", "payload": {"text": "It left this morning.", "timestamp": "00:03"}},
+                    {
+                        "type": "rtf-user-transcription",
+                        "payload": {
+                            "text": "Is my order out?",
+                            "final": True,
+                            "timestamp": "00:01",
+                        },
+                    },
+                    {
+                        "type": "rtf-bot-text",
+                        "payload": {
+                            "text": "It left this morning.",
+                            "timestamp": "00:03",
+                        },
+                    },
                 ]
             },
         )
@@ -528,7 +564,8 @@ class TestCallContent:
             assert detail.json()["has_recording"] is True
             assert detail.json()["content_access"]["state"] == "consent_required"
             transcript = await client.get(
-                f"/api/v1/admin/billing/calls/{run.id}/transcript", headers=_bearer(owner)
+                f"/api/v1/admin/billing/calls/{run.id}/transcript",
+                headers=_bearer(owner),
             )
             assert transcript.status_code == 403
             runs = await client.get(
@@ -557,10 +594,14 @@ class TestCallContent:
             )
             assert detail.json()["recording_url"] == "recordings/1.wav"
             transcript = await client.get(
-                f"/api/v1/admin/billing/calls/{run.id}/transcript", headers=_bearer(owner)
+                f"/api/v1/admin/billing/calls/{run.id}/transcript",
+                headers=_bearer(owner),
             )
             assert transcript.status_code == 200
-            assert [t["role"] for t in transcript.json()["turns"]] == ["caller", "agent"]
+            assert [t["role"] for t in transcript.json()["turns"]] == [
+                "caller",
+                "agent",
+            ]
 
             revoke = await client.delete(
                 f"/api/v1/organizations/staff-access/{grant.json()['id']}",
@@ -568,7 +609,8 @@ class TestCallContent:
             )
             assert revoke.status_code == 200
             again = await client.get(
-                f"/api/v1/admin/billing/calls/{run.id}/transcript", headers=_bearer(owner)
+                f"/api/v1/admin/billing/calls/{run.id}/transcript",
+                headers=_bearer(owner),
             )
             assert again.status_code == 403
 
@@ -636,10 +678,39 @@ async def test_active_calls_show_live_and_stuck(db_session, async_session):
     customer = await _user(db_session, async_session, "ac-customer")
     org = await _org(db_session, customer)
     now = datetime.now(UTC)
-    await _call(async_session, org, customer, state="running", is_completed=False, created_at=now - timedelta(minutes=2))
-    stuck = await _call(async_session, org, customer, state="running", is_completed=False, created_at=now - timedelta(minutes=45))
-    never = await _call(async_session, org, customer, state="initialized", is_completed=False, created_at=now - timedelta(minutes=10))
-    await _call(async_session, org, customer, mode="textchat", state="running", is_completed=False, created_at=now - timedelta(minutes=50))
+    await _call(
+        async_session,
+        org,
+        customer,
+        state="running",
+        is_completed=False,
+        created_at=now - timedelta(minutes=2),
+    )
+    stuck = await _call(
+        async_session,
+        org,
+        customer,
+        state="running",
+        is_completed=False,
+        created_at=now - timedelta(minutes=45),
+    )
+    never = await _call(
+        async_session,
+        org,
+        customer,
+        state="initialized",
+        is_completed=False,
+        created_at=now - timedelta(minutes=10),
+    )
+    await _call(
+        async_session,
+        org,
+        customer,
+        mode="textchat",
+        state="running",
+        is_completed=False,
+        created_at=now - timedelta(minutes=50),
+    )
     found = await operations.active_calls(async_session, now=now)
     ours = {c["workflow_run_id"]: c["reason"] for c in found["possibly_stuck"]}
     assert ours.get(stuck.id) == "long_running"
@@ -660,8 +731,20 @@ async def test_support_queue_narrows_to_one_person(db_session, async_session, st
 
     async_session.add_all(
         [
-            SupportTicketModel(organization_id=org.id, requester_user_id=customer.id, category="other", subject="Mine", shared={}),
-            SupportTicketModel(organization_id=org2.id, requester_user_id=other.id, category="other", subject="Theirs", shared={}),
+            SupportTicketModel(
+                organization_id=org.id,
+                requester_user_id=customer.id,
+                category="other",
+                subject="Mine",
+                shared={},
+            ),
+            SupportTicketModel(
+                organization_id=org2.id,
+                requester_user_id=other.id,
+                category="other",
+                subject="Theirs",
+                shared={},
+            ),
         ]
     )
     await async_session.flush()
@@ -751,11 +834,18 @@ async def test_grants_and_transcripts_survive_a_production_commit(
     owner = await _user(db_session, async_session, "exp-owner", "superadmin")
     customer = await _user(db_session, async_session, "exp-customer")
     org = await _org(db_session, customer)
-    run = await _call(async_session, org, customer, logs={"realtime_feedback_events": []})
+    run = await _call(
+        async_session, org, customer, logs={"realtime_feedback_events": []}
+    )
     run_id, org_id, owner_id, customer_id = run.id, org.id, owner.id, customer.id
     session = _ExpireOnCommit(async_session)
     granted = await call_content.grant(
-        session, organization_id=org_id, user_id=customer_id, workflow_run_id=run_id, days=1, reason=None
+        session,
+        organization_id=org_id,
+        user_id=customer_id,
+        workflow_run_id=run_id,
+        days=1,
+        reason=None,
     )
     assert granted["scope"] == "call"
     read = await call_content.read_transcript(
