@@ -25,6 +25,7 @@ from datetime import timedelta
 from typing import Any
 
 import httpx
+from loguru import logger
 
 #: How long a call may take from the thread.
 TIMEOUT_SECS = 20.0
@@ -86,8 +87,10 @@ async def probe(url: str, token: str | None = None) -> None:
                 },
             )
     except httpx.HTTPError as exc:
+        # The class is for the log; the person reads the sentence on the chip.
+        logger.info("Probing {} failed: {}", url, type(exc).__name__)
         raise WireError(
-            f"The server could not be reached: {type(exc).__name__}"
+            "The server could not be reached. Check the address and try again."
         ) from exc
     if response.status_code == 401:
         raise NeedsSignIn(_resource_metadata(response.headers.get("WWW-Authenticate")))
@@ -159,7 +162,8 @@ def _raise_for(exc: BaseException, what: str) -> None:
         raise NeedsSignIn() from exc
     if status is not None and 400 <= status < 500:
         raise ToolRefused(f"The server refused the request ({status}).") from exc
-    raise WireError(f"{what}: {type(exc).__name__}") from exc
+    logger.info("{}: {}", what, type(exc).__name__)
+    raise WireError(f"{what}.") from exc
 
 
 def _result_data(result: Any) -> Any:

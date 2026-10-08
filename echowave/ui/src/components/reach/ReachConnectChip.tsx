@@ -17,10 +17,11 @@
  */
 
 import { Check, Loader2, Plug, ShieldAlert } from 'lucide-react';
-import { useId, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 
 import {
     connectApiV1ReachConnectionsPost,
+    myConnectionsApiV1ReachConnectionsGet,
     refreshConnectionApiV1ReachConnectionsConnectionIdRefreshPost,
 } from '@/client/sdk.gen';
 import type { ReachConnection, TimelineEvent } from '@/client/types.gen';
@@ -111,6 +112,32 @@ export function ReachConnectChip({ event }: { event: TimelineEvent }) {
     };
 
     const needsSetup = chip.state === 'needs_setup';
+    const kind = isTool ? 'tool' : 'ordering';
+
+    // Coming back to the thread: an app connected since this chip was
+    // offered reads as connected, not as a sign-in to do again. Connected
+    // *before* it was offered does not count -- that is the chip Decibyl put
+    // here because the sign-in lapsed, and its button is the way back in.
+    useEffect(() => {
+        if (needsSetup || !chip.provider) return;
+        let live = true;
+        const offered = Date.parse(event.at);
+        void myConnectionsApiV1ReachConnectionsGet().then((result) => {
+            if (!live || result.error || !result.data) return;
+            const since = result.data.connections.find(
+                (c) =>
+                    c.kind === kind &&
+                    c.provider === chip.provider &&
+                    c.status === 'connected' &&
+                    !!c.connected_at &&
+                    Date.parse(c.connected_at) > offered,
+            );
+            if (since) setDone((current) => current ?? since);
+        });
+        return () => {
+            live = false;
+        };
+    }, [needsSetup, chip.provider, kind, event.at]);
 
     return (
         <section

@@ -10,9 +10,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const connect = vi.hoisted(() => vi.fn());
 const refresh = vi.hoisted(() => vi.fn());
+const mine = vi.hoisted(() => vi.fn());
 vi.mock("@/client/sdk.gen", () => ({
     connectApiV1ReachConnectionsPost: connect,
     refreshConnectionApiV1ReachConnectionsConnectionIdRefreshPost: refresh,
+    myConnectionsApiV1ReachConnectionsGet: mine,
 }));
 
 import { ReachConnectChip } from "../ReachConnectChip";
@@ -49,6 +51,8 @@ const connection = (over: Record<string, unknown> = {}) => ({
 beforeEach(() => {
     connect.mockReset();
     refresh.mockReset();
+    mine.mockReset();
+    mine.mockResolvedValue({ data: { connections: [] } });
     vi.spyOn(window, "open").mockImplementation(() => null);
 });
 
@@ -107,5 +111,25 @@ describe("an ordering app", () => {
         expect(screen.getByText("Needs setup")).toBeTruthy();
         expect(screen.getByText(/Builders Club access/)).toBeTruthy();
         expect(screen.queryByRole("button")).toBeNull();
+    });
+});
+
+describe("coming back to the thread", () => {
+    const zomato = (connected_at: string) =>
+        connection({ id: "z-1", kind: "ordering", provider: "zomato", name: "Zomato", auth: "oauth", connected_at });
+
+    it("says connected when it was connected after the chip was offered", async () => {
+        mine.mockResolvedValue({ data: { connections: [zomato("2026-10-08T00:05:00Z")] } });
+        render(<ReachConnectChip event={event({ reach_kind: "ordering", provider: "zomato", name: "Zomato", state: "available" })} />);
+        expect(await screen.findByText("Zomato is connected to your account.")).toBeTruthy();
+        expect(screen.queryByRole("button", { name: "Sign in to Zomato" })).toBeNull();
+    });
+
+    it("still offers the sign-in when the chip came after it, because it lapsed", async () => {
+        mine.mockResolvedValue({ data: { connections: [zomato("2026-10-07T23:00:00Z")] } });
+        render(<ReachConnectChip event={event({ reach_kind: "ordering", provider: "zomato", name: "Zomato", state: "available", why: "The Zomato sign-in expired." })} />);
+        await waitFor(() => expect(mine).toHaveBeenCalled());
+        expect(screen.getByRole("button", { name: "Sign in to Zomato" })).toBeTruthy();
+        expect(screen.getByTestId("reach-connect-chip").getAttribute("data-state")).toBe("available");
     });
 });
