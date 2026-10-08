@@ -67,7 +67,9 @@ async def test_the_name_reaches_the_switcher(async_session, db_session):
 
 
 @pytest.mark.asyncio
-async def test_an_unnamed_organisation_shows_its_number(async_session, db_session):
+async def test_an_unnamed_organisation_is_my_workspace_to_its_owner(
+    async_session, db_session
+):
     from api.app import app
     from api.services.auth.depends import get_user
 
@@ -78,7 +80,7 @@ async def test_an_unnamed_organisation_shows_its_number(async_session, db_sessio
             response = await client.get("/api/v1/organizations/mine")
     finally:
         app.dependency_overrides.pop(get_user, None)
-    assert response.json()[0]["name"] == f"Organization {org.id}"
+    assert response.json()[0]["name"] == "My workspace"
 
 
 @pytest.mark.asyncio
