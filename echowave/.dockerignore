@@ -16,6 +16,10 @@ api/.env
 .ruff_cache
 .venv
 evals/
+# ...except the DeepFilterNet export, which the API image's optional
+# voice-isolation stage runs (api/Dockerfile, WITH_VOICE_ISOLATION).
+!evals/voice_isolation/dfn_export/
+evals/voice_isolation/dfn_export/work/
 api/mcp_server/ts_validator/node_modules/
 sdk/
 venv

@@ -187,6 +187,51 @@ apps are outside this stream; the same authenticated APIs serve them.
 Browser microphone support varies: the screen reports what the browser says
 (`navigator.permissions`), and device testing is a human step.
 
+## Background voices on calls (voice isolation)
+
+Two flags, both off, both per organisation from the staff console. They are
+about phone agents, not live voice with Decibyl, and they are independent of
+the four above.
+
+| Flag | Constant | What it turns on |
+| --- | --- | --- |
+| `caller_voice_lock` | `CALLER_VOICE_LOCK_ENABLED` | While the agent speaks, an interruption counts only if it sounds like the caller |
+| `deepfilternet_filter` | `DEEPFILTERNET_FILTER_ENABLED` | DeepFilterNet3 instead of RNNoise as the inbound noise filter |
+
+**The problem.** A tester's agent stopped talking whenever somebody near the
+caller spoke. RNNoise keeps speech (other people talking *is* speech), and the
+`caller_environment` VAD thresholds do not touch the default turn start at all:
+MinWords counts the transcriber's words, and the transcriber hears the room.
+`evals/voice_isolation` measured it: `normal` and `noisy` give identical false
+interruptions.
+
+**Caller voice lock** (`services/pipecat/caller_voice_lock.py`). Learns the
+caller's voice from the loudest frames of their first answer (a speaker
+embedding from WeSpeaker's ECAPA-TDNN512-LM, CPU, onnxruntime), then wraps the
+MinWords or Flux turn start: while the agent is speaking, a proposed
+interruption whose last 1.5 s does not match the caller (cosine below 0.30) is
+dropped with its words. Everything uncertain behaves as before: not yet
+enrolled, too little speech (it waits up to 0.5 s for more), model missing,
+an error, or speech at least as loud as the caller. Cost: one 17-30 ms
+inference per judged interruption, off the event loop; ~6 ms of CPU per second
+of call; 56 MB per worker for the model, under 0.5 MB per call.
+
+**DeepFilterNet** (`services/pipecat/deepfilternet.py`). Same place and level
+as RNNoise, 30 ms of model delay, ~110 ms of CPU per second of call (RNNoise:
+~85). It removes traffic and fans far better -- and for exactly that reason the
+transcriber hears background *speech* more clearly, so on its own it doubles
+false interruptions. Use it only with the voice lock.
+
+**Models** are not in git. The API image carries them only when built with
+`--build-arg WITH_VOICE_ISOLATION=true` (~34 MB; the DeepFilterNet graph is
+exported from the official checkpoint by `evals/voice_isolation/dfn_export`
+and checked by sha256). `CALLER_VOICE_LOCK_MODEL_PATH` and
+`DEEPFILTERNET_MODEL_PATH` override the paths. Without the files, either flag
+logs that it is missing and changes nothing.
+
+Numbers, method and caveats: `evals/voice_isolation/README.md` and
+`results/results.md`. Rollback is the flag; nothing is stored.
+
 ## Migration
 
 `20261008voice` (revises `20261008settings`), additive: `voice_sessions`,

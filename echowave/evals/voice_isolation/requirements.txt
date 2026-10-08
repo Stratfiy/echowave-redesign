@@ -1,0 +1,5 @@
+# Evaluation only -- nothing here ships in the API image. Install on top of the
+# API's own requirements (which already bring numpy, soxr, soundfile,
+# onnxruntime and pipecat with Silero and RNNoise).
+vosk==0.3.45          # Apache-2.0; streaming partial transcripts for MinWords
+kokoro-onnx==0.6.1    # MIT runtime for Kokoro-82M (Apache-2.0 weights)

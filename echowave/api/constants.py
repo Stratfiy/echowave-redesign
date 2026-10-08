@@ -1002,6 +1002,23 @@ PEOPLE_FAKE_PROVIDER_URL = os.getenv("PEOPLE_FAKE_PROVIDER_URL") or None
 # turns on "enhanced push security"); without it the request is unsigned,
 # which Expo accepts for projects that have not.
 MOBILE_PUSH_ENABLED = _flag("MOBILE_PUSH_ENABLED")
+
+# Voice isolation (VOICE.md, "Background voices"). Both off by default and
+# both per-organisation through the staff console.
+#
+# caller_voice_lock: while the agent speaks, an interruption counts only if
+# the speech sounds like the caller, learnt from their first seconds on the
+# line. A WeSpeaker speaker-verification model on CPU; the file is put in the
+# image by the Dockerfile's WITH_VOICE_ISOLATION build argument, and while it
+# is missing every interruption counts as before.
+CALLER_VOICE_LOCK_ENABLED = _flag("CALLER_VOICE_LOCK_ENABLED")
+CALLER_VOICE_LOCK_MODEL_PATH = os.getenv("CALLER_VOICE_LOCK_MODEL_PATH", "").strip()
+# deepfilternet_filter: DeepFilterNet3 replaces RNNoise as the inbound noise
+# filter on agents that have noise suppression on. Same resampling (to 48 kHz
+# and back); the model is ONNX, run by onnxruntime, also placed by
+# WITH_VOICE_ISOLATION. Missing model: RNNoise, as before.
+DEEPFILTERNET_FILTER_ENABLED = _flag("DEEPFILTERNET_FILTER_ENABLED")
+DEEPFILTERNET_MODEL_PATH = os.getenv("DEEPFILTERNET_MODEL_PATH", "").strip()
 EXPO_PUSH_URL = os.getenv(
     "EXPO_PUSH_URL", "https://exp.host/--/api/v2/push/send"
 ).strip()
