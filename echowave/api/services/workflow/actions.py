@@ -1216,6 +1216,12 @@ def answer_refusal(payload: dict[str, Any], user_id: int) -> str | None:
     cards a person may answer, so nobody is offered a Do it that would be
     refused. ``NOT_HERE`` means the card is private and not theirs to see.
     """
+    owner = payload.get("private_to")
+    if owner is not None and owner != user_id:
+        # First, before any rule with its own words: a card the caller cannot
+        # see answers as an id that names nothing does. "Only the person this
+        # is for..." told a colleague the card existed and was somebody's.
+        return NOT_HERE
     only = payload.get("only_user_id")
     if only is not None and int(only) != int(user_id):
         # A consent card (stream `care`): the person it is about answers it,
@@ -1248,9 +1254,6 @@ def answer_refusal(payload: dict[str, Any], user_id: int) -> str | None:
             # A meeting is private to whoever captured it; to anyone else
             # its card is not there, the way a wrong tenant is not.
             return NOT_HERE
-    owner = payload.get("private_to")
-    if owner is not None and owner != user_id:
-        return NOT_HERE
     return None
 
 
@@ -1682,6 +1685,10 @@ async def _say(event: Any, line: str) -> None:
         payload=payload,
         in_channel=event.folder_id is not None,
         visibility=_visibility(payload, (event.payload or {}).get("action")),
+        # Under the card, on the card's own conversation. The job runs in the
+        # worker, outside any turn, so the context names no thread and the
+        # line went to the person's original chat instead.
+        thread_id=getattr(event, "thread_id", None),
     )
 
 

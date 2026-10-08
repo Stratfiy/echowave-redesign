@@ -39,6 +39,7 @@ from api.db import db_client
 from api.db.reach_models import ReachOrderDraftModel
 from api.services.reach import chips, connections, safety, wire
 from api.services.reach.ordering import normalise, providers
+from api.services.workflow import agent_timeline
 
 PROPOSED = "proposed"
 PLACING = "placing"
@@ -94,6 +95,24 @@ async def _reach(
         reason=described["reason"],
         why=why,
     )
+
+
+async def _signed_out(
+    organization_id: int, user_id: int, provider: providers.Provider
+) -> dict[str, Any]:
+    """The app stopped accepting the person's sign-in: a chip to sign in
+    again goes on the thread, where they are. "Connect it again" with
+    nothing to connect it with was a dead end."""
+    answer = await chips.offer(
+        organization_id=organization_id,
+        user_id=user_id,
+        kind=connections.ORDERING,
+        provider=provider.key,
+        name=provider.name,
+        state=providers.AVAILABLE,
+        why=f"The {provider.name} sign-in expired.",
+    )
+    return {**answer, "reason": f"The {provider.name} sign-in has expired."}
 
 
 async def _call(
@@ -254,10 +273,7 @@ async def search(
     try:
         data = await _call(provider, row, providers.SEARCH, {"query": query})
     except wire.NeedsSignIn:
-        return {
-            "status": "unavailable",
-            "reason": f"The {provider.name} sign-in has expired; connect it again.",
-        }
+        return await _signed_out(organization_id, user_id, provider)
     except (wire.ToolRefused, wire.WireError) as exc:
         return {
             "status": "error",
@@ -291,7 +307,9 @@ async def prepare(
             saved = normalise.addresses(
                 await _call(provider, row, providers.ADDRESSES, {})
             )
-        except (wire.ToolRefused, wire.WireError, wire.NeedsSignIn):
+        except wire.NeedsSignIn:
+            return await _signed_out(organization_id, user_id, provider)
+        except (wire.ToolRefused, wire.WireError):
             saved = []
         return {
             "status": "not_proposed",
@@ -321,10 +339,7 @@ async def prepare(
             "reason": f"{provider.name}: {exc} Nothing was proposed.",
         }
     except wire.NeedsSignIn:
-        return {
-            "status": "not_proposed",
-            "reason": f"The {provider.name} sign-in has expired; connect it again.",
-        }
+        return await _signed_out(organization_id, user_id, provider)
     except (wire.ToolRefused, wire.WireError) as exc:
         return {
             "status": "not_proposed",
@@ -623,7 +638,18 @@ async def revise(
     for key in ("address_id", "payment_method", "coupon"):
         if key in changes:
             request[key] = normalise.text(changes.get(key) or "", 80) or None
-    with _acting(user_id):
+    # The new card goes where the old one is: the edit comes in over HTTP,
+    # outside any turn, and without this it landed on the person's original
+    # chat while the card they were editing was declined in front of them.
+    card = (
+        await db_client.get_agent_event(
+            int(row.card_event_id), organization_id=organization_id
+        )
+        if row.card_event_id
+        else None
+    )
+    thread = str(card.thread_id) if card is not None and card.thread_id else None
+    with _acting(user_id), agent_timeline.in_thread(thread):
         answer = await prepare(
             organization_id=organization_id,
             user_id=user_id,
