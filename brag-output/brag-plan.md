@@ -28,3 +28,7 @@ All taglines are the launch plan's own words (`echowave/LAUNCH-PLAN.md`). Illust
 ## Build
 
 `work/launch.html` is one timeline where every frame is a pure function of `seek(t)`; `work/render.js` screenshots each frame with Playwright and pipes it to ffmpeg (`node work/render.js video`, or `stills <t>…`). `work/music.py` synthesises the soundtrack with numpy. The final mux bakes the poster (`brag.jpg`, the 15.4 s frame) in as frame 0 and loudness-normalises the audio to −16 LUFS.
+
+## Update: back to pastel and monochrome
+
+Per review, the final hero uses the product's own look again: the design's three flat pastel faces and monochrome screens on paper, keeping the realistic devices and camera moves. `brag.mp4` is now rendered from `launch-videos/specs/H1.json` by the shared engine in `launch-videos/engine/`. `work/` keeps the earlier colourful build for reference.

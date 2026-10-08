@@ -1,0 +1,156 @@
+{
+  "id": "H1",
+  "title": "Looking after Amma (hero)",
+  "aspect": "16:9",
+  "music": "story",
+  "poster": 17.0,
+  "share": "Meet Decibyl: one assistant for a person's whole life. Ask it in plain words and it calls the clinic, reminds Amma on WhatsApp in Hindi, and always asks before it acts. Join the free early access list at app.decibyl.ai",
+  "scenes": [
+    {
+      "type": "ask",
+      "dur": 3.6,
+      "name": "Priya",
+      "time": "4:10",
+      "ask": "Remind Amma about her 8 pm medicine, and move Friday's clinic visit to Saturday.",
+      "starters": [
+        "Plan my week",
+        "Call the bank for me"
+      ]
+    },
+    {
+      "type": "title",
+      "dur": 3.1,
+      "logo": true,
+      "text": "One assistant for a person's|whole life."
+    },
+    {
+      "type": "chat",
+      "dur": 6.4,
+      "caption": "Always asks|before it acts.",
+      "time": "4:11",
+      "agent": "Amma's care",
+      "color": "pink",
+      "user": "Remind Amma about her 8 pm medicine, and move Friday's clinic visit to Saturday.",
+      "reply": "I'll call Sunrise Clinic to move it to Saturday 11:30, and send Amma a WhatsApp reminder in Hindi every evening.",
+      "approval": {
+        "wants": "Call Sunrise Clinic and set Amma's reminder",
+        "detail": "Move Fri 10:00 → Sat 11:30 · WhatsApp to Amma daily at 8:00 pm, in Hindi"
+      },
+      "done": [
+        "Called · Saturday 11:30 confirmed",
+        "Reminder set · Amma, every day at 8:00 pm"
+      ]
+    },
+    {
+      "type": "phones",
+      "dur": 4.6,
+      "caption": "Acts on the phone and WhatsApp,|in their language.",
+      "phones": [
+        {
+          "screen": "call",
+          "time": "4:12",
+          "who": "Sunrise Clinic",
+          "sub": "Decibyl, calling for Priya",
+          "color": "green",
+          "lines": [
+            {
+              "who": "Clinic",
+              "text": "Saturday 11:30 is free.",
+              "at": 0.5
+            },
+            {
+              "who": "Decibyl",
+              "text": "Please book it for Kamala Sharma.",
+              "at": 1.9
+            }
+          ]
+        },
+        {
+          "screen": "messages",
+          "time": "8:00",
+          "contact": "Amma",
+          "color": "pink",
+          "messages": [
+            {
+              "dir": "out",
+              "text": "अम्मा, रात के 8 बज गए। दवा का समय है।",
+              "time": "8:00 pm",
+              "at": 0.6
+            },
+            {
+              "dir": "in",
+              "text": "ले ली, बेटा। 🙏",
+              "time": "8:01 pm",
+              "at": 1.4
+            },
+            {
+              "dir": "out",
+              "text": "बहुत अच्छा। कल फिर याद दिलाऊँगी।",
+              "time": "8:01 pm",
+              "at": 2.1
+            }
+          ]
+        }
+      ],
+      "chips": [
+        {
+          "text": "नमस्ते",
+          "at": 1.6
+        },
+        {
+          "text": "வணக்கம்",
+          "at": 1.75
+        },
+        {
+          "text": "నమస్కారం",
+          "at": 1.9
+        },
+        {
+          "text": "নমস্কার",
+          "at": 2.05
+        },
+        {
+          "text": "Hello",
+          "at": 2.2
+        }
+      ]
+    },
+    {
+      "type": "phones",
+      "dur": 3.5,
+      "side": "Teaches them at their|own pace.",
+      "phones": [
+        {
+          "screen": "today",
+          "time": "8:05",
+          "date": "Thursday, 8 October",
+          "rows": [
+            {
+              "color": "yellow",
+              "title": "Lesson 3 of 10",
+              "sub": "Spotting scam calls",
+              "progress": 30
+            },
+            {
+              "color": "pink",
+              "title": "Amma's medicine",
+              "sub": "8:00 pm · WhatsApp, Hindi",
+              "status": "Taken"
+            },
+            {
+              "color": "green",
+              "title": "Sunrise Clinic",
+              "sub": "Saturday 11:30 · moved by phone",
+              "status": "Confirmed"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "outro",
+      "dur": 3.4,
+      "line": "Talk to Decibyl. Get everyday things done."
+    }
+  ]
+}
