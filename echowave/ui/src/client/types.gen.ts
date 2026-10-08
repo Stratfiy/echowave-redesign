@@ -10765,6 +10765,24 @@ export type Medicine = {
 };
 
 /**
+ * MedicineEdit
+ */
+export type MedicineEdit = {
+    /**
+     * Label
+     */
+    label?: string | null;
+    /**
+     * Times
+     */
+    times?: Array<string> | null;
+    /**
+     * Language
+     */
+    language?: string | null;
+};
+
+/**
  * MedicineList
  */
 export type MedicineList = {
@@ -42987,6 +43005,94 @@ export type ResumeMedicineApiV1CareMedicinesMedicineIdResumePostResponses = {
 };
 
 export type ResumeMedicineApiV1CareMedicinesMedicineIdResumePostResponse = ResumeMedicineApiV1CareMedicinesMedicineIdResumePostResponses[keyof ResumeMedicineApiV1CareMedicinesMedicineIdResumePostResponses];
+
+export type RemoveMedicineApiV1CareMedicinesMedicineIdDeleteData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Medicine Id
+         */
+        medicine_id: number;
+    };
+    query?: never;
+    url: '/api/v1/care/medicines/{medicine_id}';
+};
+
+export type RemoveMedicineApiV1CareMedicinesMedicineIdDeleteErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RemoveMedicineApiV1CareMedicinesMedicineIdDeleteError = RemoveMedicineApiV1CareMedicinesMedicineIdDeleteErrors[keyof RemoveMedicineApiV1CareMedicinesMedicineIdDeleteErrors];
+
+export type RemoveMedicineApiV1CareMedicinesMedicineIdDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type RemoveMedicineApiV1CareMedicinesMedicineIdDeleteResponse = RemoveMedicineApiV1CareMedicinesMedicineIdDeleteResponses[keyof RemoveMedicineApiV1CareMedicinesMedicineIdDeleteResponses];
+
+export type EditMedicineApiV1CareMedicinesMedicineIdPatchData = {
+    body: MedicineEdit;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Medicine Id
+         */
+        medicine_id: number;
+    };
+    query?: never;
+    url: '/api/v1/care/medicines/{medicine_id}';
+};
+
+export type EditMedicineApiV1CareMedicinesMedicineIdPatchErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type EditMedicineApiV1CareMedicinesMedicineIdPatchError = EditMedicineApiV1CareMedicinesMedicineIdPatchErrors[keyof EditMedicineApiV1CareMedicinesMedicineIdPatchErrors];
+
+export type EditMedicineApiV1CareMedicinesMedicineIdPatchResponses = {
+    /**
+     * Successful Response
+     */
+    200: MedicineProposed;
+};
+
+export type EditMedicineApiV1CareMedicinesMedicineIdPatchResponse = EditMedicineApiV1CareMedicinesMedicineIdPatchResponses[keyof EditMedicineApiV1CareMedicinesMedicineIdPatchResponses];
 
 export type MarkTakenApiV1CareMedicinesMedicineIdTakenPostData = {
     body: MarkTaken;

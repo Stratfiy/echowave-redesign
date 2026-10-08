@@ -14,17 +14,19 @@
  * are simulated.
  */
 
-import { Loader2, Pause, Phone, Play, Plus, X } from "lucide-react";
+import { Loader2, Pause, Pencil, Phone, Play, Plus, Trash2, X } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
 import {
     addMedicineApiV1CareMedicinesPost,
     careCardApiV1CareCardsEventIdGet,
+    editMedicineApiV1CareMedicinesMedicineIdPatch,
     markTakenApiV1CareMedicinesMedicineIdTakenPost,
     myCircleApiV1CareCircleGet,
     myMedicinesApiV1CareMedicinesGet,
     pauseMedicineApiV1CareMedicinesMedicineIdPausePost,
+    removeMedicineApiV1CareMedicinesMedicineIdDelete,
     resumeMedicineApiV1CareMedicinesMedicineIdResumePost,
 } from "@/client/sdk.gen";
 import type { CircleMember, Medicine, MedicineList, TimelineEvent } from "@/client/types.gen";
@@ -113,38 +115,7 @@ function AddReminder({
                 <input className={FIELD} value={label} onChange={(e) => setLabel(e.target.value)} maxLength={80} placeholder="For example: BP tablet after breakfast" required />
             </label>
             <SpeakButton onText={(said) => setLabel(said.slice(0, 80))} />
-            <fieldset className="flex flex-col gap-2">
-                <legend className="mb-2 font-medium">At what times?</legend>
-                {times.map((time, index) => (
-                    <div key={index} className="flex items-center gap-2">
-                        <input
-                            type="time"
-                            className={cn(FIELD, "max-w-[12rem]")}
-                            value={time}
-                            aria-label={`Time ${index + 1}`}
-                            onChange={(e) => setTimes((all) => all.map((t, i) => (i === index ? e.target.value : t)))}
-                            required
-                        />
-                        {times.length > 1 && (
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                className="min-h-11 min-w-11"
-                                aria-label={`Remove time ${index + 1}`}
-                                onClick={() => setTimes((all) => all.filter((_, i) => i !== index))}
-                            >
-                                <X aria-hidden className="h-4 w-4" />
-                            </Button>
-                        )}
-                    </div>
-                ))}
-                {times.length < 6 && (
-                    <Button type="button" variant="outline" className="min-h-11 self-start gap-2" onClick={() => setTimes((all) => [...all, ""])}>
-                        <Plus aria-hidden className="h-4 w-4" />
-                        Add another time
-                    </Button>
-                )}
-            </fieldset>
+            <TimesField times={times} setTimes={setTimes} />
             <fieldset className="flex flex-col gap-2">
                 <legend className="mb-2 font-medium">How should Decibyl remind you?</legend>
                 <label className="flex min-h-11 items-start gap-3 py-1">
@@ -215,9 +186,144 @@ function AddReminder({
     );
 }
 
-function MedicineRow({ medicine, onChanged }: { medicine: Medicine; onChanged: (card?: TimelineEvent | null) => void }) {
-    const [busy, setBusy] = useState(false);
+function TimesField({ times, setTimes }: { times: string[]; setTimes: (update: (all: string[]) => string[]) => void }) {
+    return (
+        <fieldset className="flex flex-col gap-2">
+            <legend className="mb-2 font-medium">At what times?</legend>
+            {times.map((time, index) => (
+                <div key={index} className="flex items-center gap-2">
+                    <input
+                        type="time"
+                        className={cn(FIELD, "max-w-[12rem]")}
+                        value={time}
+                        aria-label={`Time ${index + 1}`}
+                        onChange={(e) => setTimes((all) => all.map((t, i) => (i === index ? e.target.value : t)))}
+                        required
+                    />
+                    {times.length > 1 && (
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            className="min-h-11 min-w-11"
+                            aria-label={`Remove time ${index + 1}`}
+                            onClick={() => setTimes((all) => all.filter((_, i) => i !== index))}
+                        >
+                            <X aria-hidden className="h-4 w-4" />
+                        </Button>
+                    )}
+                </div>
+            ))}
+            {times.length < 6 && (
+                <Button type="button" variant="outline" className="min-h-11 self-start gap-2" onClick={() => setTimes((all) => [...all, ""])}>
+                    <Plus aria-hidden className="h-4 w-4" />
+                    Add another time
+                </Button>
+            )}
+        </fieldset>
+    );
+}
+
+/** Change the name, times or language. The number is not here: a different
+ *  phone is a new reminder, with its own card. A running reminder stops
+ *  until the card with the new details is confirmed -- the card said so. */
+function EditReminder({
+    medicine,
+    languages,
+    onDone,
+    onCancel,
+}: {
+    medicine: Medicine;
+    languages: Record<string, string>;
+    onDone: (card: TimelineEvent | null) => void;
+    onCancel: () => void;
+}) {
+    const [label, setLabel] = useState(medicine.label);
+    const [times, setTimes] = useState<string[]>(medicine.times.length ? medicine.times : ["08:00"]);
+    const [language, setLanguage] = useState(medicine.language);
+    const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const running = medicine.state === "active" || medicine.state === "awaiting_approval";
+
+    const save = async () => {
+        setSaving(true);
+        setError(null);
+        const response = await editMedicineApiV1CareMedicinesMedicineIdPatch({
+            path: { medicine_id: medicine.id },
+            body: { label, times: times.filter(Boolean), language },
+        });
+        setSaving(false);
+        if (response.error || !response.data) {
+            setError(detailFromResult(response, "The change was not saved. Try again."));
+            return;
+        }
+        onDone(response.data.card ?? null);
+    };
+
+    return (
+        <form
+            className="flex flex-col gap-4"
+            onSubmit={(event) => {
+                event.preventDefault();
+                void save();
+            }}
+            data-testid="medicine-edit"
+        >
+            <label className="flex flex-col gap-2">
+                <span className="font-medium">Which medicine?</span>
+                <input className={FIELD} value={label} onChange={(e) => setLabel(e.target.value)} maxLength={80} required />
+            </label>
+            <TimesField times={times} setTimes={setTimes} />
+            {medicine.channel !== "app" && (
+                <label className="flex flex-col gap-2">
+                    <span className="font-medium">In which language?</span>
+                    <select className={FIELD} value={language} onChange={(e) => setLanguage(e.target.value)}>
+                        {Object.entries(languages).map(([tag, name]) => (
+                            <option key={tag} value={tag}>
+                                {name}
+                            </option>
+                        ))}
+                    </select>
+                </label>
+            )}
+            {running && (
+                <p className="text-sm text-muted-foreground">
+                    {medicine.channel === "app" ? "The reminders" : "The calls"} stop until you confirm the new details.
+                </p>
+            )}
+            {error && (
+                <p role="alert" className="text-sm text-destructive">
+                    {error}
+                </p>
+            )}
+            <div className="flex flex-wrap gap-2">
+                <Button type="submit" className="motion-m1 min-h-11" disabled={saving}>
+                    {saving && <Loader2 aria-hidden className="motion-continuous h-4 w-4 animate-spin" />}
+                    {running ? "Save and review" : "Save"}
+                </Button>
+                <Button type="button" variant="ghost" className="min-h-11" onClick={onCancel} disabled={saving}>
+                    Cancel
+                </Button>
+            </div>
+        </form>
+    );
+}
+
+function MedicineRow({ medicine, languages, onChanged }: { medicine: Medicine; languages: Record<string, string>; onChanged: (card?: TimelineEvent | null) => void }) {
+    const [busy, setBusy] = useState(false);
+    const [editing, setEditing] = useState(false);
+    const [confirmRemove, setConfirmRemove] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const remove = async () => {
+        setBusy(true);
+        setError(null);
+        const response = await removeMedicineApiV1CareMedicinesMedicineIdDelete({ path: { medicine_id: medicine.id } });
+        setBusy(false);
+        if (response.error) {
+            setError(detailFromResult(response, "It was not removed. Try again."));
+            return;
+        }
+        onChanged();
+    };
     const act = async (verb: "pause" | "resume") => {
         setBusy(true);
         setError(null);
@@ -278,13 +384,45 @@ function MedicineRow({ medicine, onChanged }: { medicine: Medicine; onChanged: (
                     {error}
                 </p>
             )}
-            {medicine.state === "active" && (
+            {editing ? (
+                <EditReminder
+                    medicine={medicine}
+                    languages={languages}
+                    onCancel={() => setEditing(false)}
+                    onDone={(card) => {
+                        setEditing(false);
+                        onChanged(card);
+                    }}
+                />
+            ) : confirmRemove ? (
+                <div role="group" aria-label="Remove this reminder" className="flex flex-wrap items-center gap-2">
+                    <span className="text-base">Remove {medicine.label}? {medicine.channel === "app" ? "The reminders" : "The calls"} stop now.</span>
+                    <Button type="button" variant="destructive" className="min-h-11" disabled={busy} onClick={() => void remove()}>
+                        Yes, remove
+                    </Button>
+                    <Button type="button" variant="ghost" className="min-h-11" disabled={busy} onClick={() => setConfirmRemove(false)}>
+                        Keep it
+                    </Button>
+                </div>
+            ) : (
+                <div className="flex flex-wrap gap-2">
+                    <Button type="button" variant="outline" className="min-h-11 gap-2" disabled={busy} onClick={() => setEditing(true)}>
+                        <Pencil aria-hidden className="h-4 w-4" />
+                        Edit
+                    </Button>
+                    <Button type="button" variant="ghost" className="min-h-11 gap-2" disabled={busy} onClick={() => setConfirmRemove(true)}>
+                        <Trash2 aria-hidden className="h-4 w-4" />
+                        Remove
+                    </Button>
+                </div>
+            )}
+            {!editing && !confirmRemove && medicine.state === "active" && (
                 <Button type="button" variant="outline" className="min-h-11 self-start gap-2" disabled={busy} onClick={() => void act("pause")}>
                     <Pause aria-hidden className="h-4 w-4" />
                     {medicine.channel === "app" ? "Pause the reminders" : "Pause the calls"}
                 </Button>
             )}
-            {medicine.state === "paused" && (
+            {!editing && !confirmRemove && medicine.state === "paused" && (
                 <Button type="button" variant="outline" className="min-h-11 self-start gap-2" disabled={busy} onClick={() => void act("resume")}>
                     <Play aria-hidden className="h-4 w-4" />
                     {medicine.channel === "app" ? "Start the reminders again" : "Start the calls again"}
@@ -379,6 +517,7 @@ export function MedicinesPanel() {
                             <MedicineRow
                                 key={medicine.id}
                                 medicine={medicine}
+                                languages={data.languages}
                                 onChanged={(card) => {
                                     if (card) setResumeCards((all) => [...all, card]);
                                     void load();

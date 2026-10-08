@@ -478,3 +478,108 @@ async def test_list_over_http_shows_test_mode_honestly(home):
     med = body["medicines"][0]
     assert med["state"] == "active" and med["phone_masked"] == "the number ending 3210"
     assert "phone" not in med
+
+
+@pytest.mark.asyncio
+class TestEdit:
+    """A reminder can be changed and removed. What the person confirmed is
+    what rings: a running reminder stops on an edit until the new card is
+    confirmed, and the number is never editable."""
+
+    async def test_editing_a_running_reminder_stops_it_until_confirmed(self, home):
+        medicine_id = await _active(home)
+        made = await medicines.edit(
+            home.org,
+            home.amma.id,
+            medicine_id,
+            label="BP tablet after food",
+            times=["09:00"],
+        )
+        med = made["medicine"]
+        assert med["state"] == medicines.PAUSED
+        assert med["label"] == "BP tablet after food" and med["times"] == ["09:00"]
+        assert made["event_id"]
+        # Not running: the old 08:00 never rings.
+        assert await calls.tick(_at(8, 1)) == 0
+        payload = await cs.press(home.org, made["event_id"], home.amma.id)
+        assert payload["state"] == actions.DONE, payload
+        (row,) = await medicines.list_mine(home.org, home.amma.id)
+        assert row["state"] == medicines.ACTIVE and row["times"] == ["09:00"]
+
+    async def test_the_old_card_cannot_start_changed_details(self, home):
+        made = await medicines.propose(
+            home.org,
+            home.amma.id,
+            label="BP tablet",
+            times=["08:00"],
+            phone="98765 43210",
+            language="ta-IN",
+        )
+        await medicines.edit(
+            home.org, home.amma.id, made["medicine"]["id"], times=["21:00"]
+        )
+        old = await cs.press(home.org, made["event_id"], home.amma.id)
+        assert old["state"] != actions.DONE
+        (row,) = await medicines.list_mine(home.org, home.amma.id)
+        assert row["state"] != medicines.ACTIVE
+
+    async def test_a_paused_reminder_just_saves(self, home):
+        medicine_id = await _active(home)
+        await medicines.pause(home.org, home.amma.id, medicine_id)
+        made = await medicines.edit(
+            home.org, home.amma.id, medicine_id, language="hi-IN"
+        )
+        assert made["event_id"] is None
+        assert made["medicine"]["state"] == medicines.PAUSED
+        assert made["medicine"]["language"] == "hi-IN"
+
+    async def test_nothing_changed_changes_nothing(self, home):
+        medicine_id = await _active(home)
+        made = await medicines.edit(
+            home.org, home.amma.id, medicine_id, label="BP tablet"
+        )
+        assert made["event_id"] is None
+        assert made["medicine"]["state"] == medicines.ACTIVE
+
+    async def test_dosing_advice_is_still_refused_on_edit(self, home):
+        medicine_id = await _active(home)
+        with pytest.raises(CareError):
+            await medicines.edit(
+                home.org, home.amma.id, medicine_id, label="how much should I take"
+            )
+
+    async def test_remove_stops_and_hides_it(self, home):
+        medicine_id = await _active(home)
+        await medicines.remove(home.org, home.amma.id, medicine_id)
+        assert await medicines.list_mine(home.org, home.amma.id) == []
+        assert await calls.tick(_at(8, 1)) == 0
+
+    async def test_over_http_and_only_mine(self, home):
+        medicine_id = await _active(home)
+        other = await cs.workspace(home.colleague.id)
+        try:
+            async with cs.client(home.colleague.id, other) as c:
+                r = await c.patch(
+                    f"/api/v1/care/medicines/{medicine_id}", json={"times": ["10:00"]}
+                )
+                assert r.status_code == 404
+                assert (
+                    await c.delete(f"/api/v1/care/medicines/{medicine_id}")
+                ).status_code == 404
+        finally:
+            await cs.cleanup(other)
+        async with cs.client(home.amma.id, home.org) as c:
+            r = await c.patch(
+                f"/api/v1/care/medicines/{medicine_id}", json={"phone": "99999 11111"}
+            )
+            assert r.status_code == 422
+            r = await c.patch(
+                f"/api/v1/care/medicines/{medicine_id}", json={"times": ["10:00"]}
+            )
+            assert r.status_code == 200, r.text
+            assert r.json()["medicine"]["times"] == ["10:00"]
+            assert r.json()["card"] is not None
+            assert (
+                await c.delete(f"/api/v1/care/medicines/{medicine_id}")
+            ).status_code == 204
+            assert (await c.get("/api/v1/care/medicines")).json()["medicines"] == []
