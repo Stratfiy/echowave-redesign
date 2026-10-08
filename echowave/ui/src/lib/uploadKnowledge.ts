@@ -10,6 +10,7 @@ import {
     getUploadUrlApiV1KnowledgeBaseUploadUrlPost,
     processDocumentApiV1KnowledgeBaseProcessDocumentPost,
 } from '@/client/sdk.gen';
+import { detailFromError } from '@/lib/apiError';
 
 export const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 // Kept in step with api/services/knowledge_base/extraction.py. Legacy .doc is
@@ -54,7 +55,9 @@ export async function uploadKnowledge(
             },
         },
     });
-    if (minted.error || !minted.data) throw new Error('Failed to get upload URL');
+    // The reason matters here: a full allowance, a plan without Files or a
+    // file too large are each something the person can act on.
+    if (minted.error || !minted.data) throw new Error(detailFromError(minted.error, 'Could not start the upload'));
     progress(25);
 
     const put = await fetch(minted.data.upload_url, {
@@ -75,7 +78,7 @@ export async function uploadKnowledge(
             workflow_id: target.scope === 'bot' ? target.workflowId : null,
         },
     });
-    if (processed.error) throw new Error('Failed to trigger processing');
+    if (processed.error) throw new Error(detailFromError(processed.error, 'The file was sent but could not be read'));
     progress(100);
     return { document_uuid: minted.data.document_uuid, filename: file.name, size_bytes: file.size };
 }
