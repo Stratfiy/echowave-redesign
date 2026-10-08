@@ -1017,3 +1017,157 @@ class TestPrivacyCenter:
                 )
             ).all()
         assert left == []
+
+
+# --- the phone app's address book ------------------------------------------------
+
+
+def _phone(cid: str, name: str, number: str) -> dict:
+    return {"id": cid, "name": name, "phones": [number]}
+
+
+@pytest.mark.asyncio
+class TestDeviceSync:
+    async def _post(self, c, **body):
+        response = await c.post(
+            "/api/v1/people/device/sync", json={"device_id": "pixel-1", **body}
+        )
+        assert response.status_code == 200, response.text
+        return response.json()
+
+    async def test_full_in_pages_then_only_changes(self, people, people_on):
+        async with client_as(people.as_user(people.a)) as c:
+            first = await self._post(
+                c,
+                full=True,
+                final=False,
+                contacts=[
+                    _phone("1", "Ravi", "98765 43210"),
+                    _phone("2", "Priya", "9812345678"),
+                ],
+            )
+            assert first["added"] == 2 and first["cursor"]
+            last = await self._post(
+                c,
+                cursor=first["cursor"],
+                full=True,
+                final=True,
+                contacts=[_phone("3", "Anil", "9988776655")],
+            )
+            assert (last["added"], last["removed"]) == (1, 0)
+            changes = await self._post(
+                c,
+                cursor=last["cursor"],
+                contacts=[_phone("1", "Ravi Kumar", "98765 43210")],
+                removed=["2"],
+            )
+        assert (changes["updated"], changes["removed"]) == (1, 1)
+        rows = {p.name: p for p in await _ours(people, people.a)}
+        assert sorted(rows) == ["Anil", "Ravi Kumar"]  # the phone's rename followed
+        assert rows["Ravi Kumar"].sources == ["device"]
+
+    async def test_a_cursor_that_does_not_match_changes_nothing(
+        self, people, people_on
+    ):
+        async with client_as(people.as_user(people.a)) as c:
+            done = await self._post(
+                c, full=True, contacts=[_phone("1", "Ravi", "9876543210")]
+            )
+            stale = await self._post(c, cursor="not-the-cursor", removed=["1"])
+            # The old cursor is spent too: each answer issues a new one.
+            await self._post(c, cursor=done["cursor"], contacts=[])
+            again = await self._post(c, cursor=done["cursor"], removed=["1"])
+        assert stale == {**stale, "full_required": True, "cursor": None, "removed": 0}
+        assert again["full_required"] is True
+        assert [p.name for p in await _ours(people, people.a)] == ["Ravi"]
+
+    async def test_a_full_resync_removes_what_the_phone_no_longer_has(
+        self, people, people_on
+    ):
+        async with client_as(people.as_user(people.a)) as c:
+            await self._post(
+                c,
+                full=True,
+                contacts=[
+                    _phone("1", "Ravi", "9876543210"),
+                    _phone("2", "Priya", "9812345678"),
+                    _phone("3", "Dev", "9811111111"),
+                ],
+            )
+            # Decibyl called Priya: her history keeps her when the phone drops her.
+            await interactions.record(
+                people.org,
+                people.a.id,
+                channel="call",
+                phone="9812345678",
+                line="Called",
+                ref="run:1",
+            )
+            again = await self._post(
+                c, full=True, contacts=[_phone("1", "Ravi", "9876543210")]
+            )
+        assert again["removed"] == 2
+        rows = {p.name: p for p in await _ours(people, people.a)}
+        assert sorted(rows) == ["Priya", "Ravi"]
+        assert rows["Priya"].sources == ["decibyl"]
+
+    async def test_another_persons_phone_never_meets_mine(self, people, people_on):
+        async with client_as(people.as_user(people.a)) as c:
+            mine = await self._post(
+                c, full=True, contacts=[_phone("1", "Ravi PRIVATE", "9876543210")]
+            )
+        async with client_as(people.as_user(people.b)) as c:
+            # Same device id, A's cursor: B gets no access to A's sync.
+            theirs = await self._post(c, cursor=mine["cursor"], removed=["1"])
+            assert theirs["full_required"] is True
+            await self._post(
+                c, full=True, contacts=[_phone("1", "B's friend", "9000000001")]
+            )
+            listed = (await c.get("/api/v1/people")).text
+        assert "PRIVATE" not in listed
+        assert [p.name for p in await _ours(people, people.a)] == ["Ravi PRIVATE"]
+        assert [p.name for p in await _ours(people, people.b)] == ["B's friend"]
+
+    async def test_limits_and_the_flag(self, people, people_on, monkeypatch):
+        async with client_as(people.as_user(people.a)) as c:
+            too_many = await c.post(
+                "/api/v1/people/device/sync",
+                json={
+                    "device_id": "p",
+                    "full": True,
+                    "contacts": [
+                        _phone(str(i), "X", "9876543210") for i in range(2001)
+                    ],
+                },
+            )
+            assert too_many.status_code == 422
+            monkeypatch.setattr(constants, "PEOPLE_ENABLED", False)
+            off = await c.post(
+                "/api/v1/people/device/sync", json={"device_id": "p", "full": True}
+            )
+            assert off.status_code == 404
+
+    async def test_the_six_hourly_resync_leaves_phones_alone(self, people, people_on):
+        async with client_as(people.as_user(people.a)) as c:
+            await self._post(c, full=True, contacts=[_phone("1", "Ravi", "9876543210")])
+        async with db_client.async_session() as session:
+            await session.execute(
+                update(PeopleSyncModel)
+                .where(PeopleSyncModel.user_id == people.a.id)
+                .values(last_synced_at=store.now() - timedelta(hours=7))
+            )
+            await session.commit()
+        assert await people_sync.resync_due() == 0
+        async with db_client.async_session() as session:
+            (row,) = (
+                (
+                    await session.execute(
+                        select(PeopleSyncModel).where(
+                            PeopleSyncModel.user_id == people.a.id
+                        )
+                    )
+                )
+                .scalars()
+                .all()
+            )
+        assert row.status == "ok"

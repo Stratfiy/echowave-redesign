@@ -5914,6 +5914,102 @@ export type Device = {
 };
 
 /**
+ * DeviceContactIn
+ *
+ * One contact as the phone holds it.
+ */
+export type DeviceContactIn = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Name
+     */
+    name?: string | null;
+    /**
+     * Phones
+     */
+    phones?: Array<string>;
+    /**
+     * Emails
+     */
+    emails?: Array<string>;
+    /**
+     * Company
+     */
+    company?: string | null;
+};
+
+/**
+ * DeviceSyncRequest
+ */
+export type DeviceSyncRequest = {
+    /**
+     * Device Id
+     */
+    device_id: string;
+    /**
+     * Cursor
+     */
+    cursor?: string | null;
+    /**
+     * Full
+     */
+    full?: boolean;
+    /**
+     * Final
+     */
+    final?: boolean;
+    /**
+     * Contacts
+     */
+    contacts?: Array<DeviceContactIn>;
+    /**
+     * Removed
+     */
+    removed?: Array<string>;
+};
+
+/**
+ * DeviceSyncResult
+ */
+export type DeviceSyncResult = {
+    /**
+     * Cursor
+     */
+    cursor?: string | null;
+    /**
+     * Full Required
+     */
+    full_required?: boolean;
+    /**
+     * Added
+     */
+    added?: number;
+    /**
+     * Updated
+     */
+    updated?: number;
+    /**
+     * Unchanged
+     */
+    unchanged?: number;
+    /**
+     * Removed
+     */
+    removed?: number;
+    /**
+     * Skipped
+     */
+    skipped?: number;
+    /**
+     * Open Merges
+     */
+    open_merges?: number;
+};
+
+/**
  * Disconnect
  */
 export type Disconnect = {
@@ -54794,6 +54890,45 @@ export type ImportPickedApiV1PeopleImportPickerPostResponses = {
 };
 
 export type ImportPickedApiV1PeopleImportPickerPostResponse = ImportPickedApiV1PeopleImportPickerPostResponses[keyof ImportPickedApiV1PeopleImportPickerPostResponses];
+
+export type SyncDeviceApiV1PeopleDeviceSyncPostData = {
+    body: DeviceSyncRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/people/device/sync';
+};
+
+export type SyncDeviceApiV1PeopleDeviceSyncPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SyncDeviceApiV1PeopleDeviceSyncPostError = SyncDeviceApiV1PeopleDeviceSyncPostErrors[keyof SyncDeviceApiV1PeopleDeviceSyncPostErrors];
+
+export type SyncDeviceApiV1PeopleDeviceSyncPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: DeviceSyncResult;
+};
+
+export type SyncDeviceApiV1PeopleDeviceSyncPostResponse = SyncDeviceApiV1PeopleDeviceSyncPostResponses[keyof SyncDeviceApiV1PeopleDeviceSyncPostResponses];
 
 export type StartSyncApiV1PeopleSyncProviderPostData = {
     body?: never;

@@ -44,6 +44,10 @@ job records once), `people_syncs`, `person_merges`, `person_shares`,
   5,000 contacts.
 * **The phone's picker**: `navigator.contacts.select` on Android Chrome; the
   button is not shown where the API does not exist.
+* **The native phone app** (`services/people/device.py`,
+  `POST /api/v1/people/device/sync`): the whole address book, in batches,
+  with the device's own id per contact and a server cursor, so a re-sync
+  sends only changes and deletions. Shapes below.
 * **Decibyl itself** (`services/people/interactions.record`, never raises):
   - a call placed for the person (`call_for_me.execute`, and the finished
     call's outcome from the post-call task, same `run:<id>` line),
@@ -55,6 +59,54 @@ job records once), `people_syncs`, `person_merges`, `person_shares`,
   Not recorded: inbound calls to a business number and campaign calls, where
   no one member is the party to the conversation; and an unknown WhatsApp
   sender, who is a stranger by design (IDENTITY.md).
+
+## Phone sync (`POST /api/v1/people/device/sync`)
+
+Signed in as the person (Bearer token); a 404 while `people` is off.
+
+Request:
+
+```json
+{
+  "device_id": "stable id of this install, 1-100 chars",
+  "cursor": "from the last answer, or null to start a full sync",
+  "full": false,
+  "final": true,
+  "contacts": [
+    {"id": "device contact id, 1-150 chars", "name": "Ravi Kumar",
+     "phones": ["+91 98765 43210"], "emails": ["ravi@example.in"],
+     "company": "Kumar Traders"}
+  ],
+  "removed": ["device contact ids deleted since the last sync"]
+}
+```
+
+At most 2,000 `contacts` and 2,000 `removed` per call (422 beyond); up to
+10 phones and 10 emails each. Response:
+
+```json
+{"cursor": "send with the next call", "full_required": false,
+ "added": 0, "updated": 0, "unchanged": 0, "removed": 0, "skipped": 0,
+ "open_merges": 0}
+```
+
+* **First sync, or after `full_required`**: `full: true`, `cursor: null` on
+  the first page; then each next page with `full: true` and the cursor just
+  returned; `final: true` on the last page. On the final page every contact
+  this device sent before but not in this full sync is removed (kept if
+  another source or Decibyl's own history holds it).
+* **Re-sync**: `full: false`, the last cursor, only contacts added or
+  changed since, and `removed`.
+* **Every answer issues a new cursor**; an old or wrong one changes nothing
+  and answers `full_required: true` with `cursor: null`. Store the cursor
+  only after the answer arrives; if an answer is lost, the next call gets
+  `full_required` and the app sends a full sync.
+* Contacts match by device id first, then by name plus a shared number or
+  address; a different name sharing one opens a merge (`open_merges`).
+  Numbers and addresses a later sync no longer lists are kept, as with
+  Google. `skipped` counts contacts with no name, number or address.
+* The device id is only looked up under the signed-in person, so the same
+  id on two people's phones never meets.
 
 ## Duplicates
 
