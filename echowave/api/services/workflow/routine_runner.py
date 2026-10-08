@@ -255,6 +255,7 @@ async def _load(routine_id: int) -> Optional[dict[str, Any]]:
             "workflow_id": routine.workflow_id,
             "name": routine.name,
             "instruction": routine.instruction,
+            "armed_by_card_event_id": routine.armed_by_card_event_id,
         }
 
 
@@ -302,8 +303,22 @@ async def _run_decibyl_routine(routine: dict[str, Any]) -> None:
     every Decibyl turn is (model_usage, feature "decibyl"). The obligation
     is the same as a bot routine's: a deliverable when it worked, a
     COULD_NOT when it did not, never silence."""
-    from api.services.workflow import decibyl
+    from api.services.workflow import decibyl, routines
 
+    organization_id = routine["organization_id"]
+    # A routine set on a card reports into the conversation that card was
+    # in -- someone's private chat, possibly -- not the shared original one.
+    card = await routines.origin_card(
+        organization_id, routine.get("armed_by_card_event_id")
+    )
+    thread = card.thread_id if card is not None else None
+    with agent_timeline.in_thread(thread):
+        await _run_decibyl_turn(routine, decibyl, thread)
+
+
+async def _run_decibyl_turn(
+    routine: dict[str, Any], decibyl: Any, thread: str | None
+) -> None:
     organization_id = routine["organization_id"]
     routine_id = routine["id"]
     try:
@@ -312,6 +327,7 @@ async def _run_decibyl_routine(routine: dict[str, Any]) -> None:
                 organization_id,
                 decibyl_briefing(routine["instruction"] or routine["name"]),
                 author_id=None,
+                thread_id=thread,
             )
             or ""
         ).strip()

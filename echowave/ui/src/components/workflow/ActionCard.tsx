@@ -54,6 +54,9 @@ export type ActionPayload = {
     fires_at?: string;
     error?: string;
     done?: { at?: string; note?: string };
+    /** Who took it back. Absent or no person: the system cancelled it (a
+     *  browser that closed, a computer that never took the step). */
+    cancelled?: { by?: number | null; at?: string };
     /** A browser step (services/browser/): the page and what the form
      *  sends, as the box read it, secrets already masked. An order card
      *  (stream `reach`): its draft. */
@@ -70,6 +73,8 @@ export type ActionPayload = {
     result?: {
         workflow_id?: number;
         handle?: string | null;
+        /** `chat` for an agent that answers in writing (build_from_spec). */
+        channel?: string | null;
         open_url?: string | null;
         order_id?: string | null;
         payment_link?: string | null;
@@ -272,6 +277,20 @@ export function ActionCard({
                             <Undo2 aria-hidden className="mr-1 h-3.5 w-3.5" />
                             {saving === 'undo' ? 'Putting back…' : 'Put it back'}
                         </Button>
+                    ) : action.result?.workflow_id && action.result.channel === 'chat' ? (
+                        // A chat agent has no phone to hear: it is used in
+                        // its own chat, and tried in the tester.
+                        <>
+                            <Button size="sm" asChild>
+                                <Link href={`/workflow/${action.result.workflow_id}/thread`}>
+                                    <MessageSquare aria-hidden className="mr-1 h-3.5 w-3.5" />
+                                    Open its chat
+                                </Link>
+                            </Button>
+                            {action.result.handle && (
+                                <span className="text-xs text-muted-foreground">@{action.result.handle}</span>
+                            )}
+                        </>
                     ) : action.result?.workflow_id ? (
                         // A built bot is not undone; it is heard. The two
                         // test verbs go straight into the tester, marked TEST.
@@ -326,7 +345,11 @@ export function ActionCard({
             {(state === 'undone' || state === 'cancelled' || state === 'declined') && (
                 <p className="mt-3 flex items-center gap-1.5 pl-6 text-sm text-muted-foreground">
                     <Undo2 aria-hidden className="h-4 w-4" />
-                    {state === 'undone' ? 'Put back' : state === 'cancelled' ? 'Undone before it ran' : 'Not done'}
+                    {state === 'undone'
+                        ? 'Put back'
+                        : state === 'cancelled' && action.cancelled?.by
+                          ? 'Undone before it ran'
+                          : 'Not done'}
                     {/* Why, when the card knows: a desktop step no computer
                         took in time (desktop_steps.sweep_unclaimed). */}
                     {state === 'cancelled' && action.error && <span>· {action.error}</span>}

@@ -70,11 +70,14 @@ export function LearningSession({
     goalId,
     reviewSkillId,
     threadId,
+    topic,
     onGoalChange,
     onClose,
 }: {
     /** The goal to resume; null starts a new one. */
     goalId: string | null;
+    /** For a new one: the course named in Chat, filled in. */
+    topic?: string | null;
     /** Open on a review of this skill (from Today). */
     reviewSkillId?: number | null;
     /** The Chat conversation it is started from. */
@@ -217,6 +220,7 @@ export function LearningSession({
             <NewGoal
                 status={status}
                 threadId={threadId ?? null}
+                topic={topic ?? null}
                 onStarted={(started) => {
                     setSession(started);
                     onGoalChange(started.goal.goal_id);
@@ -402,13 +406,15 @@ function LanguagePicker({
 function NewGoal({
     status,
     threadId,
+    topic,
     onStarted,
 }: {
     status: LearningStatus;
     threadId: string | null;
+    topic: string | null;
     onStarted: (session: Session) => void;
 }) {
-    const [title, setTitle] = useState("");
+    const [title, setTitle] = useState(topic ?? "");
     const [studyingFor, setStudyingFor] = useState(status.profile.studying_for ?? "");
     const [language, setLanguage] = useState(
         status.profile.explanation_language ?? status.profile.suggested_language ?? "en-IN",

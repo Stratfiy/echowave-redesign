@@ -271,10 +271,17 @@ def _may_see(
     """Whether a card is visible at all: its conversation's privacy, and --
     given the viewer -- a private card (a meeting's, an identity act) that
     is someone else's reads as not there."""
+    payload = dict(row.payload or {})
     if user_id is not None:
-        refusal = actions.answer_refusal(dict(row.payload or {}), user_id)
+        refusal = actions.answer_refusal(payload, user_id)
         if refusal == actions.NOT_HERE:
             return False
+        owner = payload.get("private_to")
+        if owner is not None and int(owner) == int(user_id):
+            # A card kept for one person is theirs on whatever thread it
+            # sits: a plain member's own card on the authorless thread (an
+            # Admin's) would otherwise be missing from their own Today.
+            return True
     if row.workflow_id is not None or row.folder_id is not None:
         return True
     return threads.get(row.thread_id, False)
@@ -334,7 +341,7 @@ async def pending(viewer: Viewer, *, limit: int = QUEUE_LIMIT) -> dict[str, Any]
     visible = [
         r
         for r in rows
-        if _may_see(r, threads)
+        if _may_see(r, threads, viewer.user_id)
         and actions.answer_refusal(dict(r.payload or {}), viewer.user_id) is None
     ]
     names = await _actor_names(viewer.organization_id, visible)
@@ -368,7 +375,7 @@ async def preview(viewer: Viewer, event_id: int) -> dict[str, Any]:
     if event is None or event.kind != AgentEventKind.ACTION_PROPOSED.value:
         raise NotFound("That approval is not here.")
     threads = await _visible_threads(viewer, [event])
-    if not _may_see(event, threads):
+    if not _may_see(event, threads, viewer.user_id):
         raise NotFound("That approval is not here.")
     payload = dict(event.payload or {})
     refusal = actions.answer_refusal(payload, viewer.user_id)

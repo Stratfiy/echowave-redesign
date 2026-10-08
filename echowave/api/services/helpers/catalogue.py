@@ -51,6 +51,8 @@ FOLLOW_UP_COMMITMENT = "follow_up_commitment"
 CREATE_TRACKER = "create_tracker"
 ADD_TO_TRACKER = "add_to_tracker"
 READ_TRACKER = "read_tracker"
+# Stream `learning`'s seam (services/learning/guide.py).
+START_COURSE = "start_course"
 
 #: Every helper may look things up in memory and files, and put a connect
 #: card on the thread for an app it needs -- the setup path that keeps the
@@ -173,6 +175,11 @@ HELPERS: tuple[Helper, ...] = (
             "'I infer'), and anything dated (give the date and say it may "
             "have changed). When sources disagree, give both and do not pick "
             "one silently. Name every page you tried and could not read. "
+            "Number the findings (1., 2., 3.) so the person can ask about a "
+            "point by its number. Follow-ups on your own answer are yours: "
+            "go deeper on a point with more sources, or turn the report into "
+            "a one-page brief (and save it with save_report if they ask); "
+            "never send the person to another helper. "
             + _UNTRUSTED
             + "When the person asks for a report, or the answer is long "
             "enough to keep, call save_report with the findings, each marked "
@@ -263,12 +270,20 @@ HELPERS: tuple[Helper, ...] = (
             "marks or fluency. Ask before remembering anything sensitive "
             "about their learning. When the context has a 'Learning goals' "
             "block, that is the person's record from evaluated practice: "
-            "build on it, never claim progress it does not show, and give "
-            "its Resume link to continue practice where answers are marked "
-            "and progress is kept; do not mark practice yourself."
+            "build on it and never claim progress it does not show. To "
+            "continue one of those goals, call start_course with its title: "
+            "that puts the card to open it on this thread (never paste a "
+            "link; Chat shows links as plain text). Do not mark practice "
+            "yourself: answers are marked in the lesson. When they "
+            "want to learn a course or skill over days -- a plan, daily "
+            "lessons, quizzes that are marked, reviews and a streak -- call "
+            "start_course with what they named (and their notes or syllabus "
+            "as material); the lesson then opens on this thread."
         ),
-        tools=COMMON | {WEB_SEARCH, WEB_FETCH, SCHEDULE_ROUTINE, CORRECT_MEMORY},
+        tools=COMMON
+        | {WEB_SEARCH, WEB_FETCH, SCHEDULE_ROUTINE, CORRECT_MEMORY, START_COURSE},
         templates=("Teach me something new in 10 minutes.",),
+        tool_flags={START_COURSE: "learning"},
     ),
     Helper(
         key=CALL_APPOINTMENT,
@@ -326,7 +341,10 @@ BUILDER_HELPER = Helper(
         "template, or build_bot_from_spec from their words; a routine "
         "(something you do on a cadence) -- schedule_routine; a tracker (a "
         "list they keep adding to: visits, expenses, leads) -- "
-        "create_tracker with its columns; or a one-off task -- just do it "
+        "create_tracker with its columns; a tutor or a course (they want to "
+        "learn something over days, with a plan, lessons, quizzes, reviews "
+        "or a streak) -- start_course, which keeps all of that, rather than "
+        "an agent that could not; or a one-off task -- just do it "
         "with your tools. Propose one card, say in one sentence what will "
         "exist after they confirm, and end your reply. If it is ambiguous, "
         "ask one question."
@@ -341,6 +359,7 @@ BUILDER_HELPER = Helper(
         READ_TRACKER,
         CREATE_TASK,
         INSTALL_FROM_REPOSITORY,
+        START_COURSE,
     },
     actions=frozenset({"create_bot"}),
     templates=(
@@ -352,6 +371,7 @@ BUILDER_HELPER = Helper(
         CREATE_TRACKER: "describe_builder",
         ADD_TO_TRACKER: "describe_builder",
         READ_TRACKER: "describe_builder",
+        START_COURSE: "learning",
     },
 )
 

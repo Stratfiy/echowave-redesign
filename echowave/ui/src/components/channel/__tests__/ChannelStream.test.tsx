@@ -402,6 +402,23 @@ describe('the thread carries its own next steps', () => {
         expect(post.mock.calls[0][0].body).toEqual({ assistant: true, thread_id: null, text: 'check my email' });
     });
 
+    it('asks for the chips of this thread, and a follow-up goes back to its helper', async () => {
+        reply();
+        chips.mockResolvedValue({
+            data: { chips: [{ kind: 'follow_up', text: 'Go deeper on point 2', helper: 'research' }] },
+        });
+        render(<ChannelStream assistant threadId="t-9" botNames={{}} />);
+        fireEvent.click(await screen.findByRole('button', { name: 'Go deeper on point 2' }));
+        expect(chips.mock.calls[0][0].query.thread_id).toBe('t-9');
+        await waitFor(() => expect(post).toHaveBeenCalled());
+        expect(post.mock.calls[0][0].body).toEqual({
+            assistant: true,
+            thread_id: 't-9',
+            text: 'Go deeper on point 2',
+            helper: 'research',
+        });
+    });
+
     it('clears them once one is pressed', async () => {
         // Leaving them under the question they just asked reads as if
         // nothing happened.
@@ -416,15 +433,19 @@ describe('the thread carries its own next steps', () => {
         );
     });
 
-    it('shows none on an agent\'s own chat', async () => {
-        // These are the workspace's questions, and Decibyl is who answers.
+    it('on an agent\'s own chat, only its reply\'s next steps, sent to the agent', async () => {
+        // The workspace's questions are Decibyl's; the agent's chat gets the
+        // next steps of the agent's own reply (found on staging: a research
+        // agent's report had nothing to tap).
         reply();
         chips.mockResolvedValue({
-            data: { chips: [{ kind: 'asked_before', text: 'check my email' }] },
+            data: { chips: [{ kind: 'follow_up', text: 'Go deeper on point 3', helper: null }] },
         });
         render(<ChannelStream workflowId={3} botNames={{}} />);
-        await waitFor(() => expect(timeline).toHaveBeenCalled());
-        expect(chips).not.toHaveBeenCalled();
+        fireEvent.click(await screen.findByRole('button', { name: 'Go deeper on point 3' }));
+        expect(chips.mock.calls[0][0].query).toEqual({ workflow_id: 3 });
+        await waitFor(() => expect(post).toHaveBeenCalled());
+        expect(post.mock.calls[0][0].body).toEqual({ workflow_id: 3, text: 'Go deeper on point 3' });
     });
 
     it('a thread whose chips fail to load is still a thread', async () => {
@@ -587,5 +608,115 @@ describe("Decibyl's private browser", () => {
         });
         render(<ChannelStream assistant botNames={{}} />);
         expect((await screen.findByTestId('browser-panel')).textContent).toBe('abc-123');
+    });
+});
+
+describe('a course started from the conversation', () => {
+    const course = (goalId: string | null) =>
+        event({
+            kind: 'activity',
+            summary: 'Course: Python basics',
+            workflow_id: null,
+            folder_id: null,
+            payload: {
+                learning_course: {
+                    goal_id: goalId,
+                    title: 'Python basics',
+                    href: goalId ? `/overview?learn=${goalId}` : '/overview?learn=new&topic=Python+basics',
+                },
+            },
+        });
+
+    it('opens the lesson right here in Chat, not on another screen', async () => {
+        timeline.mockResolvedValue({ data: { events: [course('g-1')], next_before_at: null, next_before_id: null } });
+        const onOpenLesson = vi.fn();
+        render(<ChannelStream assistant botNames={{}} onOpenLesson={onOpenLesson} />);
+        fireEvent.click(await screen.findByRole('button', { name: 'Open the lesson' }));
+        expect(onOpenLesson).toHaveBeenCalledWith('g-1', 'Python basics');
+    });
+
+    it('before it can start, the same button opens the start with the course named', async () => {
+        timeline.mockResolvedValue({ data: { events: [course(null)], next_before_at: null, next_before_id: null } });
+        const onOpenLesson = vi.fn();
+        render(<ChannelStream assistant botNames={{}} onOpenLesson={onOpenLesson} />);
+        fireEvent.click(await screen.findByRole('button', { name: 'Open the lesson' }));
+        expect(onOpenLesson).toHaveBeenCalledWith(null, 'Python basics');
+    });
+
+    it('without a lesson pane it is a link to the lesson', async () => {
+        timeline.mockResolvedValue({ data: { events: [course('g-1')], next_before_at: null, next_before_id: null } });
+        render(<ChannelStream assistant botNames={{}} />);
+        const link = await screen.findByRole('link', { name: 'Open the lesson' });
+        expect(link.getAttribute('href')).toBe('/overview?learn=g-1');
+    });
+});
+
+describe('a row with something to open is never folded away', () => {
+    it('keeps a course card and a saved report out of a run of steps', async () => {
+        const { groupRows } = await import('../ChannelStream');
+        const read = event({ id: 1, kind: 'activity', summary: 'Read the team (0 agents)', workflow_id: null, folder_id: null });
+        const course = event({
+            id: 2,
+            kind: 'activity',
+            summary: 'Course: Python',
+            workflow_id: null,
+            folder_id: null,
+            payload: { learning_course: { goal_id: 'g-1', title: 'Python', href: '/overview?learn=g-1' } },
+        });
+        const report = event({
+            id: 3,
+            kind: 'activity',
+            summary: 'Saved report: GST',
+            workflow_id: null,
+            folder_id: null,
+            payload: { saved_report: { uuid: 'r-1', title: 'GST' } },
+        });
+        const groups = groupRows([read, course, report] as never);
+        expect(groups.map((g) => g.events.map((e) => e.id))).toEqual([[1], [2], [3]]);
+    });
+
+    it('a course after a reading still shows its button', async () => {
+        timeline.mockResolvedValue({
+            data: {
+                events: [
+                    event({
+                        id: 2,
+                        kind: 'activity',
+                        at: '2026-09-13T06:00:02Z',
+                        summary: 'Course: Python',
+                        workflow_id: null,
+                        folder_id: null,
+                        payload: { learning_course: { goal_id: 'g-1', title: 'Python', href: '/overview?learn=g-1' } },
+                    }),
+                    event({ id: 1, kind: 'activity', summary: 'Read the team (0 agents)', workflow_id: null, folder_id: null }),
+                ],
+                next_before_at: null,
+                next_before_id: null,
+            },
+        });
+        render(<ChannelStream assistant botNames={{}} onOpenLesson={vi.fn()} />);
+        expect(await screen.findByRole('button', { name: 'Open the lesson' })).toBeTruthy();
+    });
+});
+
+describe('the next steps are in view', () => {
+    it('chips that arrive after the reply keep the thread at the bottom', async () => {
+        // At 390px the chips landed below the fold: the thread had been
+        // scrolled to the bottom before they arrived, and nobody saw them.
+        const height = vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockReturnValue(1000);
+        let release: (v: unknown) => void = () => {};
+        chips.mockReturnValue(new Promise((resolve) => (release = resolve)));
+        timeline.mockResolvedValue({
+            data: { events: [event({ workflow_id: null, folder_id: null })], next_before_at: null, next_before_id: null },
+        });
+        const { container } = render(<ChannelStream assistant botNames={{}} />);
+        await screen.findByText('Booked Meera for 4pm.');
+        const scroller = container.firstElementChild as HTMLElement;
+        scroller.scrollTop = 0;
+        height.mockReturnValue(1400);
+        release({ data: { chips: [{ kind: 'follow_up', text: 'Quiz me on this', helper: 'learning_guide' }] } });
+        await screen.findByRole('button', { name: 'Quiz me on this' });
+        await waitFor(() => expect(scroller.scrollTop).toBe(1400));
+        height.mockRestore();
     });
 });

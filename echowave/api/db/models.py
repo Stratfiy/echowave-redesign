@@ -6416,6 +6416,12 @@ class AgentTaskModel(Base):
     )
     blocked_by = Column(JSON, nullable=True)
     number = Column(Integer, nullable=True)
+    #: A task private to one person (a meeting's follow-up, MEETINGS.md):
+    #: the board, Today and the board tool show it to them alone. NULL is
+    #: the workspace's, as every task was before.
+    private_to_user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True
+    )
     #: TB-3: a task's labels, as a list of short strings. A label is only a
     #: word; the board's set of labels is whatever its tasks carry.
     labels = Column(JSON, nullable=True)
@@ -6903,10 +6909,23 @@ from api.db.meeting_models import (  # noqa: E402,F401
     MeetingModel,
     MeetingSegmentModel,
 )
+from api.db.mobile_push_models import (  # noqa: E402,F401
+    MobilePushTokenModel,
+)
 from api.db.ops_models import (  # noqa: E402,F401
     OpsCommandModel,
     OpsEvidenceModel,
     PlatformCredentialRotationModel,
+)
+from api.db.people_models import (  # noqa: E402,F401
+    PeopleSettingsModel,
+    PeopleSyncModel,
+    PersonHandleModel,
+    PersonInteractionModel,
+    PersonMergeModel,
+    PersonModel,
+    PersonShareModel,
+    PersonSourceModel,
 )
 from api.db.reach_models import (  # noqa: E402,F401
     ReachConnectionModel,

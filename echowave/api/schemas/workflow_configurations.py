@@ -324,7 +324,9 @@ class WorkflowConfigurationDefaults(BaseModel):
     # raises the bar before a sound counts as the caller starting to speak, so
     # the next table does not interrupt the agent -- see vad_sensitivity for
     # what it can and cannot fix.
-    caller_environment: Literal["quiet", "normal", "noisy"] = "normal"
+    # "auto" is noisy on a phone line and normal in the browser (see
+    # vad_sensitivity.PHONE_DEFAULT_ENVIRONMENT); a chosen value always wins.
+    caller_environment: Literal["auto", "quiet", "normal", "noisy"] = "auto"
     dictionary: str = ""
     # The hours this agent keeps. Off by default; off means always open.
     agent_schedule: AgentSchedule = Field(default_factory=AgentSchedule)

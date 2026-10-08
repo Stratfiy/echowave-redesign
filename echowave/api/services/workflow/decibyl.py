@@ -46,6 +46,7 @@ from api.services.documents import tools as procurement
 from api.services.knowledge_graph import personal as personal_memory
 from api.services.knowledge_graph import quiet, recall, teach
 from api.services.organization_preferences import get_organization_preferences
+from api.services.people import tools as people_tools
 from api.services.skills import imports as skill_imports
 from api.services.workflow import (
     actions,
@@ -305,6 +306,7 @@ def system_prompt(organization_id: int | None = None) -> str:
         + helper_tools.rules(organization_id)
         + (browser_tool.RULE if browser_tool.enabled(organization_id) else "")
         + care_tools.rules(organization_id)
+        + people_tools.rules(organization_id)
         + _reach().rules(organization_id)
         # The person's own choices for this turn (settings stream); "" when
         # none were set or the switches are off.
@@ -900,6 +902,13 @@ async def build_context(organization_id: int, question: str) -> str:
         f"{skills_section(skills, invoked)}"
         f"## Files this account has uploaded\n{documents_block(documents, bot_names)}\n"
         + _reach_context(await _reach().context_block(organization_id))
+        # The asking person's own contacts named in the question (People);
+        # "" for anyone else, or when nobody is signed in to the turn.
+        + _reach_context(
+            await people_tools.context_block(
+                organization_id, acting.valid_member(acting.acting_user()), question
+            )
+        )
     )
 
 
@@ -1337,7 +1346,7 @@ async def _answer(
             spoken.said = body
             await spoken.on_words(body)
         return body
-    await agent_timeline.record(
+    reply_id = await agent_timeline.record(
         organization_id=organization_id,
         kind=AgentEventKind.MESSAGE.value,
         actor=AgentEventActor.AGENT.value,
@@ -1365,6 +1374,17 @@ async def _answer(
     await reply_draft.clear(organization_id)
     if stopped:
         await reply_stop.clear(organization_id, thread_id)
+    # The person who asked, on their phone, while ``mobile_push`` is on
+    # (MOBILE.md). The app hides it while that thread is open. Never raises.
+    from api.services.identity import mobile_push
+
+    await mobile_push.announce_reply(
+        organization_id=organization_id,
+        user_id=author_id,
+        thread_id=thread_id,
+        event_id=reply_id,
+        body=body,
+    )
     # And into the graph, with time, so what the person said on the thread
     # can be asked about later (Family B). No graph, nothing happens.
     try:
@@ -1635,6 +1655,7 @@ def office_tools(organization_id: int | None = None) -> list[dict[str, Any]]:
         ),
         *care_tools.schemas(organization_id),
         *_outreach().schemas(organization_id),
+        *people_tools.schemas(organization_id),
         *(
             (_call_for_me().tool_schema(),)
             if _call_for_me().enabled(organization_id)
@@ -1736,6 +1757,9 @@ def _was_a_read(call: Any, result: Any) -> bool:
         if name in _outreach().READS:
             return result.get("status") in ("success", "error")
         return result.get("status") in ("error", "nothing_to_send", "not_proposed")
+    if name in people_tools.NAMES:
+        # A lookup is answered in the turn; the model may still draft or call.
+        return True
     if name in care_tools.NAMES and isinstance(result, dict):
         # A scam check or a phone-help step is answered in the turn; a
         # reminder card ends the round like any other card.
@@ -1999,6 +2023,10 @@ async def _tool(
             organization_id=organization_id,
             arguments=arguments,
             user_id=author_id,
+        )
+    if call.name in people_tools.NAMES:
+        return await people_tools.run(
+            organization_id, user_id=author_id, arguments=arguments
         )
     if call.name in care_tools.NAMES:
         return await care_tools.run(

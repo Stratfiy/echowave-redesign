@@ -31,6 +31,7 @@ import {
 import { EmptyState } from "@/components/EmptyState";
 import { GoogleCalendarConnect } from "@/components/integrations/GoogleCalendarConnect";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { LearningToday } from "@/components/learning/LearningToday";
 import { Announcer, ErrorState, SourceCoverage, TaskStatus } from "@/components/shell";
 import { ActivityDetailView } from "@/components/today/ActivityDetailView";
 import { ApprovalDetail } from "@/components/today/ApprovalDetail";
@@ -321,6 +322,10 @@ export function TodayPage() {
                         {rowError}
                     </p>
                 )}
+
+                {/* The day's lesson, streak and due reviews (stream `learning`);
+                    draws nothing unless learning is on and has something. */}
+                <LearningToday className="" />
 
                 <Section id="approvals" title="Waiting for your approval" count={s.approvals.count} state={s.approvals.state} message={s.approvals.message} onRetry={() => void load()}>
                     {s.approvals.items && s.approvals.items.length > 0 ? (

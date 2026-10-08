@@ -99,6 +99,9 @@ class LearningGoalModel(Base):
     #: ``new`` | ``some`` | ``confident`` -- from the evaluated baseline.
     baseline_level = Column(String(16), nullable=True)
     baseline_feedback = Column(Text, nullable=True)
+    #: The lesson names the teacher planned at placement, in order. Lessons
+    #: follow it; null for a goal placed before plans existed.
+    plan = Column(JSON, nullable=True)
     #: The Decibyl conversation it started in (handoff 23: saved records
     #: reopen in their original conversation). Null is the original thread.
     thread_id = Column(String(36), nullable=True)

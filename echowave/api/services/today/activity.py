@@ -21,6 +21,7 @@ from typing import Any
 from sqlalchemy import and_, or_, select
 
 from api.db import db_client
+from api.db.agent_task_client import visible_clause
 from api.db.models import AgentEventModel, AgentTaskModel
 from api.db.today_models import (
     DailyBriefModel,
@@ -296,6 +297,9 @@ async def _task_detail(viewer: Viewer, task_id: int) -> dict[str, Any]:
                 and_(
                     AgentTaskModel.id == task_id,
                     AgentTaskModel.organization_id == viewer.organization_id,
+                    # Another person's private task (a meeting's follow-up)
+                    # is not here, the way a wrong workspace's is not.
+                    visible_clause(viewer.user_id),
                 )
             )
         )

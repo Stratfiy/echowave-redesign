@@ -207,6 +207,19 @@ async def _composio_accounts(event: Any, payload: dict[str, Any]) -> Verdict:
         return Verdict(
             NOT_DELIVERED, "It is still connected at the app.", "still_connected"
         )
+    # The disconnect went through though its answer was lost: record it the
+    # way the card's own run would have.
+    from api.services.identity import connections
+
+    if owner and args.get("connected_account_id"):
+        await connections.record_revoked(
+            event.organization_id,
+            int(owner),
+            scope=str(args.get("scope") or ""),
+            toolkit=str(args.get("toolkit") or ""),
+            connected_account_id=str(args["connected_account_id"]),
+            only_if_changed=True,
+        )
     return Verdict(DELIVERED, "The app no longer lists the connection.")
 
 

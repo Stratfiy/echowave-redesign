@@ -367,7 +367,37 @@ async def _sent_today(user_id: int, topic: str, local_midnight_utc: datetime) ->
         )
 
 
-async def _push(user_id: int, payload: dict[str, Any]) -> str:
+async def _push(user_id: int, payload: dict[str, Any], *, web: bool = True) -> str:
+    """Push to the person's browsers and, while ``mobile_push`` is on, the
+    native app on their phones. ``web=False`` is the app alone (replies,
+    approvals and calls are announced there only; see mobile_push.py)."""
+    from api.services.identity import mobile_push
+
+    phones = await mobile_push.send_to_user(user_id, payload)
+    if not web:
+        return {"off": "needs_setup"}.get(phones, phones)
+    return _combined(await _web_push(user_id, payload), phones)
+
+
+def _combined(browsers: str, phones: str) -> str:
+    """One outcome for the push channel from its two kinds of device. A kind
+    with nothing to send to does not count; otherwise sent only when both
+    sent, partial when either did."""
+    nothing = ("off", "no_device", "needs_setup")
+    if phones in nothing:
+        if browsers == "needs_setup" and phones == "no_device":
+            return "no_device"
+        return browsers
+    if browsers in nothing:
+        return phones
+    if browsers == phones == "sent":
+        return "sent"
+    if "sent" in (browsers, phones) or "partial" in (browsers, phones):
+        return "partial"
+    return "failed"
+
+
+async def _web_push(user_id: int, payload: dict[str, Any]) -> str:
     async with db_client.async_session() as session:
         subs = list(
             await session.scalars(
@@ -461,16 +491,22 @@ async def notify(
     link: str | None = None,
     dedupe_key: str,
     now: datetime | None = None,
+    channels: tuple[str, ...] | None = None,
+    web: bool = True,
 ) -> dict[str, str]:
     """Tell one person one thing on the channels they chose. Returns the
     outcome per channel (or ``{"all": reason}`` when nothing was tried).
-    Never raises; does nothing while the flag is off everywhere."""
+    Never raises; does nothing while the flag is off everywhere.
+
+    ``channels`` narrows the person's choice (never widens it); ``web=False``
+    keeps push to the native app (``mobile_push``)."""
     if topic not in TOPICS or not features.on_anywhere(FLAG):
         return {"all": "off"}
     try:
         return await _notify(
             user_id, topic=topic, title=title, body=body, link=link,
             dedupe_key=dedupe_key[:128], now=now or _now(),
+            channels=channels, web=web,
         )  # fmt: skip
     except Exception as exc:  # noqa: BLE001 - a notice must never break its cause
         logger.warning("Could not notify user {} ({}): {}", user_id, topic, exc)
@@ -486,6 +522,8 @@ async def _notify(
     link: str | None,
     dedupe_key: str,
     now: datetime,
+    channels: tuple[str, ...] | None = None,
+    web: bool = True,
 ) -> dict[str, str]:
     prefs = await get(user_id)
     setting = prefs["topics"][topic]
@@ -517,7 +555,11 @@ async def _notify(
     if reason is not None:
         await _claim(user_id, topic, "all", dedupe_key, reason)
         return {"all": reason}
-    chosen = [c for c in CHANNELS if prefs["channels"].get(c)]
+    chosen = [
+        c
+        for c in CHANNELS
+        if prefs["channels"].get(c) and (channels is None or c in channels)
+    ]
     if not chosen:
         return {"all": "no_channel"}
     shown_title, shown_body = title, body
@@ -537,6 +579,7 @@ async def _notify(
                     "url": link or "/",
                     "tag": topic,
                 },
+                web=web,
             )
         elif channel == "email":
             outcome = await _email(user_id, shown_title, shown_body, link)

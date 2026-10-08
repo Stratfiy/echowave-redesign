@@ -181,6 +181,13 @@ export function useOrgFeatures(): Record<string, boolean> | null {
     return context?.orgFeatures ?? null;
 }
 
+/** Whether the organisation's config (and its feature map) has been asked
+ *  for and answered. Outside the provider there is nothing to wait for. */
+export function useOrgConfigSettled(): boolean {
+    const context = useContext(OrgConfigContext);
+    return !context || !context.loading;
+}
+
 export function useOrgConfig() {
     const context = useContext(OrgConfigContext);
     if (!context) {

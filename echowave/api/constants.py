@@ -983,6 +983,38 @@ LEAD_SEARCH_MAX_USD = os.getenv("LEAD_SEARCH_MAX_USD", "0.50")
 # How long a live voice session may go without a heartbeat before it is
 # treated as lost (its microphone and slot released).
 VOICE_SESSION_STALE_SECONDS = int(os.getenv("VOICE_SESSION_STALE_SECONDS", "90"))
+# People (9 October 2026; PEOPLE.md): a person's own contacts, synced from
+# Google and Microsoft, imported from a vCard, CSV or the phone's contact
+# picker, and kept current from Decibyl's own calls, messages, mail and
+# meetings, each with a short brief. Private to the person. Off by default.
+PEOPLE_ENABLED = _flag("PEOPLE_ENABLED")
+# Which connected app carries the contacts permission. Composio's Gmail and
+# Outlook connections by default; the People API (contacts.readonly) and
+# Graph (Contacts.Read) scopes must be on those auth configs.
+PEOPLE_GOOGLE_TOOLKIT = (os.getenv("PEOPLE_GOOGLE_TOOLKIT") or "gmail").lower()
+PEOPLE_MICROSOFT_TOOLKIT = (os.getenv("PEOPLE_MICROSOFT_TOOLKIT") or "outlook").lower()
+# A brief is rewritten this long after the latest interaction, not on every
+# one: a busy afternoon of calls costs one model call, not twenty.
+PEOPLE_BRIEF_DEBOUNCE_SECONDS = int(os.getenv("PEOPLE_BRIEF_DEBOUNCE_SECONDS", "600"))
+# Who writes briefs: ``model`` (the workspace's everyday model) or ``fake``
+# (a fixed sentence, for tests and local runs with no model key).
+PEOPLE_BRIEF_WRITER = (os.getenv("PEOPLE_BRIEF_WRITER") or "model").strip().lower()
+# Test seam honoured only when ENVIRONMENT is local, dev or test: a URL that
+# answers like the Google People API and Microsoft Graph, used instead of
+# Composio's proxy (api/tests/support/people_fakes.py).
+PEOPLE_FAKE_PROVIDER_URL = os.getenv("PEOPLE_FAKE_PROVIDER_URL") or None
+
+# The native app for iOS and Android (mobile/, MOBILE.md). Off by default.
+# Push to the app goes through Expo's push service, which relays to APNs and
+# FCM with the credentials uploaded to the Expo project; the server holds no
+# Apple or Google key. EXPO_ACCESS_TOKEN is optional (only when the project
+# turns on "enhanced push security"); without it the request is unsigned,
+# which Expo accepts for projects that have not.
+MOBILE_PUSH_ENABLED = _flag("MOBILE_PUSH_ENABLED")
+EXPO_PUSH_URL = os.getenv(
+    "EXPO_PUSH_URL", "https://exp.host/--/api/v2/push/send"
+).strip()
+EXPO_ACCESS_TOKEN = os.getenv("EXPO_ACCESS_TOKEN", "").strip()
 
 # Free while we are early (October 2026): no plans, nothing charged, nothing
 # locked. On by default -- the one launch switch that is -- and reversible

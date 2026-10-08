@@ -363,3 +363,64 @@ class TestDecibylOffersIt:
 def test_orgs_are_real_models():
     # Guard against the fixture drifting from the schema it scopes by.
     assert hasattr(OrganizationModel, "id")
+
+
+@pytest.mark.asyncio
+class TestOnlyThePersonItIsForCanAnswerIt:
+    """Phase 3, found with two people in one workspace: a colleague who
+    cannot read the thread could decline -- or confirm -- a call card made
+    for somebody else by guessing its id, and the reply echoed the card."""
+
+    async def _card(self, people) -> int:
+        from api.services.workflow import agent_timeline
+
+        with agent_timeline.in_thread("t-asha-own"), acting.acting_as(people.a.id):
+            proposed = await actions.propose(
+                organization_id=people.org,
+                workflow_id=None,
+                workflow_run_id=None,
+                in_channel=False,
+                arguments={**ASK, "action": actions.PLACE_CALL},
+            )
+        return int(proposed["event_id"])
+
+    async def test_a_colleague_cannot_answer_it(self, people, calls_ready):
+        event_id = await self._card(people)
+        for verb in ("confirm", "decline"):
+            with pytest.raises(actions.ActionError) as refused:
+                await actions.settle(
+                    organization_id=people.org,
+                    event_id=event_id,
+                    verb=verb,
+                    user_id=people.b.id,
+                )
+            assert str(refused.value) == actions.NOT_HERE
+        event = await db_client.get_agent_event(event_id, organization_id=people.org)
+        assert event.payload["state"] == actions.PROPOSED
+
+    async def test_the_person_it_is_for_can(self, people, calls_ready):
+        event_id = await self._card(people)
+        await actions.settle(
+            organization_id=people.org,
+            event_id=event_id,
+            verb="decline",
+            user_id=people.a.id,
+        )
+        event = await db_client.get_agent_event(event_id, organization_id=people.org)
+        assert event.payload["state"] == actions.DECLINED
+
+    async def test_the_card_is_marked_private_to_them(self, people, calls_ready):
+        with acting.acting_as(people.a.id):
+            payload = await actions.resolve(
+                organization_id=people.org,
+                workflow_id=None,
+                arguments={**ASK, "action": actions.PLACE_CALL},
+            )
+        assert payload["private_to"] == people.a.id
+        assert actions.answer_refusal(payload, people.b.id) == actions.NOT_HERE
+        assert actions.answer_refusal(payload, people.a.id) is None
+
+    def test_an_older_card_without_the_mark_is_still_theirs_alone(self):
+        payload = {"action": actions.PLACE_CALL, "args": {"principal_user_id": 7}}
+        assert actions.answer_refusal(payload, 8) == actions.NOT_HERE
+        assert actions.answer_refusal(payload, 7) is None

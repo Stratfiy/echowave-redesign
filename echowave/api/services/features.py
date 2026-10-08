@@ -182,6 +182,10 @@ FLAGS: dict[str, str] = {
     "call_appointment": "CALL_APPOINTMENT_ENABLED",
     # Outreach: leads from a lead-data provider, drafts as send cards.
     "outreach": "OUTREACH_ENABLED",
+    # The native app for iOS and Android (MOBILE.md).
+    "mobile_push": "MOBILE_PUSH_ENABLED",
+    # People: synced contacts with context (PEOPLE.md).
+    "people": "PEOPLE_ENABLED",
 }
 
 
@@ -299,6 +303,8 @@ DESCRIPTIONS: dict[str, str] = {
     "call_for_me": "Call it for me: Decibyl places one approved phone call for a person and announces itself first.",
     "call_appointment": "Call and Appointment: booking policy, open slots, booking within policy, verification and escalation on calls.",
     "outreach": "Outreach: find leads from a lead-data provider (Apollo), draft one email card per lead on the person's own mailbox, Confirm all.",
+    "mobile_push": "Push to the iOS and Android app through Expo: replies, approvals, reminders and calls, on the person's notification settings.",
+    "people": "People: a person's own contacts synced from Google and Outlook or imported, each with a brief and the last few interactions; private to them.",
 }
 
 

@@ -17,6 +17,15 @@ from typing import Any
 from api.services.care import circle, medicines
 
 
+def _private(args: dict[str, Any], audit_subject: str) -> dict[str, Any]:
+    """Every care card is the older person's alone: ``private_to`` keeps the
+    card and the lines under it (which carry an invitation code, a medicine)
+    off every colleague's timeline, whatever the private-threads switch
+    says, and the workspace audit log records the press under a neutral
+    subject rather than the medicine or the family member's name."""
+    return {"private_to": args["person_user_id"], "audit_subject": audit_subject}
+
+
 def _actions():
     from api.services.workflow import actions
 
@@ -43,6 +52,7 @@ async def resolve(
                 "reversible": True,
                 "state": actions.PROPOSED,
                 "only_user_id": args["person_user_id"],
+                **_private(args, "Care: a family member added"),
             }
         if action == actions.CARE_FAMILY_SHARE:
             args = await circle.card_args(organization_id, arguments)
@@ -62,9 +72,12 @@ async def resolve(
                 "reversible": True,
                 "state": actions.PROPOSED,
                 "only_user_id": args["person_user_id"],
+                **_private(args, "Care: what family can see"),
             }
         if action == actions.CARE_MEDICINE_CALLS:
             args = await medicines.card_args(organization_id, arguments)
+            if args.get("channel") == medicines.APP:
+                return _app_reminder_card(action, organization_id, args, why)
             language = medicines.LANGUAGE_NAMES.get(args["language"], args["language"])
             told = (
                 f"If a call is not answered or the medicine is not taken, "
@@ -89,10 +102,51 @@ async def resolve(
                 "reversible": True,
                 "state": actions.PROPOSED,
                 "only_user_id": args["person_user_id"],
+                **_private(args, "Care: medicine reminders"),
             }
     except circle.CareError as exc:
         raise actions.ActionError(str(exc)) from exc
     raise actions.ActionError("That is not something that can be done.")
+
+
+def _app_reminder_card(
+    action: str, organization_id: int, args: dict[str, Any], why: str
+) -> dict[str, Any]:
+    """The card for a reminder in Decibyl: no phone, nothing rings."""
+    from api import constants
+    from api.services import features
+
+    actions = _actions()
+    also = (
+        " and send it to the phones and browsers where you allowed Decibyl's "
+        "notifications"
+        if features.is_on("identity_notifications", organization_id)
+        else ""
+    )
+    told = (
+        f"If you do not tap I took it within {constants.CARE_CALL_ANSWER_MINUTES} "
+        f"minutes, {', '.join(args['alert_names'])} will be told."
+        if args["alert_names"]
+        else "Nobody else is told."
+    )
+    return {
+        "action": action,
+        "args": args,
+        "label": (
+            f"Reminders for {args['label']}: every day at "
+            f"{medicines.say_times(args['times'])}, in Decibyl"
+        ),
+        "why": why or "You asked to be reminded.",
+        "effect": (
+            f"Decibyl will remind you in Decibyl at these times ({args['timezone']})"
+            f"{also}. No phone number is needed. It only reminds; it never gives "
+            f"advice about doses. {told}"
+        ),
+        "reversible": True,
+        "state": actions.PROPOSED,
+        "only_user_id": args["person_user_id"],
+        **_private(args, "Care: medicine reminders"),
+    }
 
 
 async def execute(organization_id: int, payload: dict[str, Any]) -> str:

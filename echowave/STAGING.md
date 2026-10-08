@@ -167,3 +167,9 @@ against the staging checkout (health check and rollback included), then
 reply, thread and draft privacy between the two, inviting a teammate, and the
 screens the app opens on. It ends with the checks only a person can do (a call
 ringing, a WhatsApp arriving, Gmail consent) as a list to tick.
+
+Then the end-to-end suites in `e2e/` (see `e2e/README.md`): the core
+journeys over HTTP as A and B, a sweep of every GET route (no 5xx, under
+5 s), a privacy sweep (nothing A keeps private reaches B), and a browser
+pass at 390 and 1280 px. Their results are the run's `e2e-results-<run>`
+artifact.

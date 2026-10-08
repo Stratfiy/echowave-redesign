@@ -48,6 +48,16 @@ class TestConnecting:
         with pytest.raises(connections.ConnectError, match="not accepted"):
             await connect_notes(people.org, people.a.id, reach_on.base, token="wrong")
 
+    async def test_an_address_nothing_answers_is_refused_in_words(
+        self, reach_on, people
+    ):
+        """What the chip shows the person: words, never an exception's class."""
+        nobody = f"http://127.0.0.1:{reach_fakes.free_port()}/mcp"
+        with pytest.raises(connections.ConnectError) as refused:
+            await connect_notes(people.org, people.a.id, nobody.rsplit("/mcp", 1)[0])
+        assert "could not be reached" in str(refused.value)
+        assert "Error" not in str(refused.value), str(refused.value)
+
     async def test_a_sign_in_server_starts_a_sign_in(self, reach_on, people):
         from api.services.reach.ordering import providers
 

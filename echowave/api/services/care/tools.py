@@ -37,9 +37,10 @@ _HELP_RULE = (
     "next step it returns. One step per reply, plain words.\n"
 )
 _REMINDER_RULE = (
-    f"- {REMINDER_TOOL}: when someone asks to be reminded by phone call to take "
-    "a medicine. It puts a card in front of them showing the number, times and "
-    "language; nothing rings until they confirm. Write the medicine exactly as "
+    f"- {REMINDER_TOOL}: when someone asks to be reminded to take a medicine, "
+    "by phone call or in Decibyl. If calls need a phone line that is not set "
+    "up, offer a reminder in Decibyl, which needs no number. It puts a card in "
+    "front of them; nothing starts until they confirm. Write the medicine exactly as "
     "they said it. Never suggest a dose, a time to take it, or whether to take "
     "it: you remind, the doctor advises.\n"
 )
@@ -130,9 +131,10 @@ def schemas(organization_id: int | None) -> list[dict[str, Any]]:
         out.append(
             _fn(
                 REMINDER_TOOL,
-                "Propose reminder phone calls for a medicine. A card shows the "
-                "number, times and language; nothing rings until the person "
-                "confirms. Reminders only, never dosing advice.",
+                "Propose medicine reminders: a phone call (give a phone) or a "
+                "reminder in Decibyl (no phone; works without a phone line). A "
+                "card shows exactly what will happen; nothing starts until the "
+                "person confirms. Reminders only, never dosing advice.",
                 {
                     "label": {
                         "type": "string",
@@ -142,13 +144,17 @@ def schemas(organization_id: int | None) -> list[dict[str, Any]]:
                         "type": "array",
                         "items": {"type": "string", "description": "HH:MM, 24-hour"},
                     },
-                    "phone": {"type": "string", "description": "The phone to ring."},
+                    "phone": {
+                        "type": "string",
+                        "description": "The phone to ring, for a call. Omit for a reminder in Decibyl.",
+                    },
+                    "channel": {"type": "string", "enum": ["call", "app"]},
                     "language": {
                         "type": "string",
                         "description": "BCP 47, e.g. ta-IN. Omit for their own.",
                     },
                 },
-                ["label", "times", "phone"],
+                ["label", "times"],
             )
         )
     return out
@@ -200,7 +206,8 @@ async def run(
             user_id,
             label=str(arguments.get("label") or ""),
             times=list(arguments.get("times") or []),
-            phone=str(arguments.get("phone") or ""),
+            phone=str(arguments.get("phone") or "") or None,
+            channel=arguments.get("channel") or None,
             language=arguments.get("language") or None,
         )
         return {

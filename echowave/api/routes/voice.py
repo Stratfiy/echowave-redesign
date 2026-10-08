@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from datetime import date
 from typing import Annotated, Any, Literal
+from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field
@@ -146,7 +147,16 @@ async def start_session(
     from api.routes.agent_timeline import _assert_thread_is_theirs
 
     organization_id = _organization_id(user)
-    await _assert_thread_is_theirs(user, organization_id, body.thread_id)
+    thread_id = body.thread_id
+    try:
+        await _assert_thread_is_theirs(user, organization_id, thread_id)
+    except HTTPException:
+        if thread_id is not None:
+            raise
+        # Chat's start screen names no thread, and with private threads on
+        # the original conversation is not a member's to speak in. Talk
+        # starts a new one of their own, as "New chat" would.
+        thread_id = str(uuid4())
     prefs = await member_preferences.get(user.id)
     state = await readiness.live_voice(
         organization_id=organization_id, user_id=user.id, language=prefs.get("language")
@@ -191,7 +201,7 @@ async def start_session(
         session = await sessions.start(
             organization_id=organization_id,
             user_id=user.id,
-            thread_id=body.thread_id,
+            thread_id=thread_id,
             language=language,
             voice=voice if config["voice_compatible"] else None,
             config=config,

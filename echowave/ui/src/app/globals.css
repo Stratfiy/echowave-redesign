@@ -7,7 +7,7 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-app-sans);
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-mono: var(--font-app-mono);
   --color-rail: var(--rail);
   --color-rail-foreground: var(--rail-foreground);
@@ -154,44 +154,44 @@
      Not pure white, because cards are, and the floor has to be the darker of
      the two or every panel edge disappears. */
   --background: #ffffff;
-  --foreground: #24292e;
+  --foreground: #0d0d0d;
   /* Cards are solid white with a real edge. They were translucent, which is
      what made every panel read hazy — a card you can faintly see through has
      no boundary, and a screen of them has no structure. Opaque plus a hairline
      border plus the faintest lift is the whole effect. */
   --card: #ffffff;
-  --card-foreground: #24292e;
-  --popover: #f5f5f5;
-  --popover-foreground: #24292e;
+  --card-foreground: #0d0d0d;
+  --popover: #ffffff;
+  --popover-foreground: #0d0d0d;
 
   /* The committed action. Deep coral, white text, 5.55:1 — this is the button
      you press, and the colour that emphasised text on white is allowed to be.
      Used sparingly: one per surface, or it stops earning attention. */
-  --primary: #24292e;
+  --primary: #0d0d0d;
   --primary-foreground: #ffffff;
-  --primary-pressed: #505458;
+  --primary-pressed: #3a3a3a;
 
   /* The brand accent. Bright coral, for fills, active states, icon accents and
      the focus ring. Never body text — see the ratios above. */
-  --accent-brand: #24292e;
-  --accent-brand-soft: rgba(36, 41, 46, 0.08);
-  --accent-brand-tint: #f0f0f0;
+  --accent-brand: #0d0d0d;
+  --accent-brand-soft: rgba(13, 13, 13, 0.08);
+  --accent-brand-tint: #f9f9f9;
   /* Buzz's sidebar gradient, for anything that wants the brand wash. */
   --brand-gradient: linear-gradient(to bottom, #e6e6b6 0%, #c4d0da 100%);
   /* Gradient end only — see the note above. Never a fill behind text. */
   --brand-pink: #6e7781;
 
-  --secondary: #f0f0f0;
-  --secondary-foreground: #24292e;
-  --muted: #f0f0f0;
+  --secondary: #f4f4f4;
+  --secondary-foreground: #0d0d0d;
+  --muted: #f4f4f4;
   /* Fog is 4.74:1 on white but only 4.35:1 on the paper surface. Muted text
      sitting on #f5f5f5 uses steel instead — see --muted-foreground-on-paper. */
-  --muted-foreground: #596169;
-  --muted-foreground-on-paper: #596169;
+  --muted-foreground: #5d5d5d;
+  --muted-foreground-on-paper: #5d5d5d;
   /* Hover and selected rows. Neutral, not coral: something you merely hovered
      must not look like the thing you chose. */
-  --accent: #f0f0f0;
-  --accent-foreground: #24292e;
+  --accent: #ececec;
+  --accent-foreground: #0d0d0d;
 
   /* Destructive stays a true red, well clear of the coral in both lightness
      and saturation. The two are neighbours on the wheel, so the separation has
@@ -203,12 +203,12 @@
   --success: #28a745;
 
   /* The structural line. Used more than any other value in the system. */
-  --border: #e5e5e6;
+  --border: rgba(0, 0, 0, 0.1);
   /* Inputs carry a stronger edge than cards do — the reference makes this a
      signature: a field should look like something you are meant to fill in,
      not like a container that happens to be empty. */
-  --input: #e5e5e6;
-  --ring: #24292e;
+  --input: rgba(0, 0, 0, 0.15);
+  --ring: #0d0d0d;
 
   /* --brand-* are consumed by call sites written when the brand was blue. They
      are aliases onto the correct tokens, NOT a second palette.
@@ -221,18 +221,18 @@
      only read very slightly deeper for the change. The bright coral is still
      available as --accent-brand, for the fills and active states where nothing
      has to be read off it. */
-  --brand-blue: #24292e;
+  --brand-blue: #0d0d0d;
   --brand-blue-hover: #5b5f62;
   /* Button fills no longer read this alias — every pressable fill is
      --primary (ink). What remains on it is link text and tints. */
-  --brand-blue-soft: rgba(36, 41, 46, 0.08);
-  --brand-blue-glow: rgba(36, 41, 46, 0.12);
+  --brand-blue-soft: rgba(13, 13, 13, 0.08);
+  --brand-blue-glow: rgba(13, 13, 13, 0.12);
   --brand-panel: #ffffff;
-  --brand-heading: #24292e;
-  --brand-body: #596169;
+  --brand-heading: #0d0d0d;
+  --brand-body: #5d5d5d;
   --brand-chip: #f0f0f0;
   --brand-chip-border: #e5e5e6;
-  --brand-chip-fg: #24292e;
+  --brand-chip-fg: #0d0d0d;
   --brand-card: #ffffff;
   --brand-amber: #df8e1d;
 
@@ -274,12 +274,12 @@
    * accent survives on the brand mark, the active row and the unread dot. */
   --shell-gradient-top: #e6e6b6;
   --shell-gradient-bottom: #c4d0da;
-  --shell-ink: #24292e;
-  --rail: transparent;
-  --rail-foreground: #24292e;
-  --rail-accent: rgba(36, 41, 46, 0.08);
-  --rail-accent-foreground: #24292e;
-  --rail-border: rgba(36, 41, 46, 0.12);
+  --shell-ink: #0d0d0d;
+  --rail: #f9f9f9;
+  --rail-foreground: #0d0d0d;
+  --rail-accent: rgba(13, 13, 13, 0.08);
+  --rail-accent-foreground: #0d0d0d;
+  --rail-border: rgba(13, 13, 13, 0.12);
 
   /* The panel is dark, like the rail: option B of 15 Sept.
    *
@@ -297,17 +297,17 @@
    * uses --sidebar-foreground at 70%, never --muted-foreground, which is a
    * grey mixed for white and vanishes here. */
   --sidebar: transparent;
-  --sidebar-foreground: #24292e;
-  --sidebar-primary: #24292e;
+  --sidebar-foreground: #0d0d0d;
+  --sidebar-primary: #0d0d0d;
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: rgba(255, 255, 255, 0.6);
-  --sidebar-accent-foreground: #24292e;
-  --sidebar-border: rgba(36, 41, 46, 0.12);
-  --sidebar-ring: #24292e;
+  --sidebar-accent-foreground: #0d0d0d;
+  --sidebar-border: rgba(13, 13, 13, 0.12);
+  --sidebar-ring: #0d0d0d;
 
   /* --cta predates --primary and is used on a handful of CTAs. Both point at
      the same deep coral, so the two vocabularies cannot drift apart onscreen. */
-  --cta: #24292e;
+  --cta: #0d0d0d;
   --cta-foreground: #ffffff;
 
   /* Elevation, used sparingly. A card gets a hairline border and the faintest
@@ -367,7 +367,7 @@
   --glass-shadow: none;
   --glass-shadow-clay: none;
   --glass-shadow-clay-hover: var(--shadow-sm);
-  --glass-accent-fill: #24292e;
+  --glass-accent-fill: #0d0d0d;
   --glass-accent-fg: #ffffff;
   --glass-amber-fill: #f1eadb;
   --glass-amber-edge: #e1d1b3;
@@ -379,75 +379,75 @@
    (themeTokens) and checked against it by themes.test.ts -- change a colour
    there, not here. Other themes are applied over these by a stylesheet. */
 .dark {
-  --background: #24292e;
-  --foreground: #e1e4e8;
-  --card: #24292e;
-  --card-foreground: #e1e4e8;
-  --popover: #2d3236;
-  --popover-foreground: #e1e4e8;
-  --primary: #e1e4e8;
-  --primary-foreground: #24292e;
-  --primary-pressed: #bbbfc3;
-  --secondary: #31363b;
-  --secondary-foreground: #e1e4e8;
-  --muted: #31363b;
-  --muted-foreground: #8e959d;
-  --muted-foreground-on-paper: #8e959d;
-  --accent: #31363b;
-  --accent-foreground: #e1e4e8;
+  --background: #212121;
+  --foreground: #ececec;
+  --card: #212121;
+  --card-foreground: #ececec;
+  --popover: #2a2a2a;
+  --popover-foreground: #ececec;
+  --primary: #ececec;
+  --primary-foreground: #212121;
+  --primary-pressed: #c4c4c4;
+  --secondary: #2f2f2f;
+  --secondary-foreground: #ececec;
+  --muted: #2f2f2f;
+  --muted-foreground: #a3a3a3;
+  --muted-foreground-on-paper: #a3a3a3;
+  --accent: #2f2f2f;
+  --accent-foreground: #ececec;
   --destructive: #ea4a5a;
-  --destructive-foreground: #24292e;
+  --destructive-foreground: #212121;
   --warning: #d29922;
   --success: #34d058;
-  --border: #40454a;
-  --input: #40454a;
-  --ring: #e1e4e8;
-  --accent-brand: #e1e4e8;
-  --accent-brand-soft: rgba(225, 228, 232, 0.08);
-  --accent-brand-tint: #31363b;
-  --brand-blue: #e1e4e8;
-  --brand-blue-hover: #b2b5ba;
-  --brand-panel: #24292e;
-  --brand-heading: #e1e4e8;
-  --brand-body: #8e959d;
-  --brand-chip: #31363b;
-  --brand-chip-border: #40454a;
-  --brand-chip-fg: #e1e4e8;
-  --brand-card: #24292e;
+  --border: rgba(255, 255, 255, 0.12);
+  --input: rgba(255, 255, 255, 0.12);
+  --ring: #ececec;
+  --accent-brand: #ececec;
+  --accent-brand-soft: rgba(236, 236, 236, 0.08);
+  --accent-brand-tint: #2f2f2f;
+  --brand-blue: #ececec;
+  --brand-blue-hover: #c4c4c4;
+  --brand-panel: #212121;
+  --brand-heading: #ececec;
+  --brand-body: #a3a3a3;
+  --brand-chip: #2f2f2f;
+  --brand-chip-border: rgba(255, 255, 255, 0.12);
+  --brand-chip-fg: #ececec;
+  --brand-card: #212121;
   /* Macchiato's mantle into its crust: the frame recedes behind the base
      panel rather than tinting it olive. */
   --shell-gradient-top: #4a4616;
   --shell-gradient-bottom: #0a1423;
   /* Ink buttons turn over: light fill, dark text. */
-  --cta: #e1e4e8;
-  --cta-foreground: #24292e;
+  --cta: #ececec;
+  --cta-foreground: #212121;
   /* The pale washes behind badges and banners, as dark washes. */
   --tint-flame: #3c2d33;
   --tint-amber: #3c392c;
-  --tint-sand: #31363b;
-  --tint-slate: #31363b;
+  --tint-sand: #2f2f2f;
+  --tint-slate: #2f2f2f;
   --color-soft-mint: #264034;
   --glass-fill: rgba(36, 41, 46, 0.72);
-  --glass-fill-strong: #24292e;
-  --glass-edge: #40454a;
-  --glass-accent-fill: #e1e4e8;
-  --glass-accent-fg: #24292e;
+  --glass-fill-strong: #212121;
+  --glass-edge: rgba(255, 255, 255, 0.12);
+  --glass-accent-fill: #ececec;
+  --glass-accent-fg: #212121;
   --glass-amber-edge: #584b2a;
   --glass-amber-fg: #e0b864;
-  --shell-ink: #e1e4e8;
-  --rail-foreground: #e1e4e8;
-  --rail-accent: rgba(225, 228, 232, 0.14);
-  --rail-accent-foreground: #e1e4e8;
-  --rail-border: rgba(225, 228, 232, 0.12);
-  --sidebar-foreground: #e1e4e8;
-  --sidebar-primary: #e1e4e8;
+  --shell-ink: #ececec;
+  --rail-foreground: #ececec;
+  --rail-accent: rgba(236, 236, 236, 0.14);
+  --rail-accent-foreground: #ececec;
+  --rail-border: rgba(236, 236, 236, 0.12);
+  --sidebar-foreground: #ececec;
+  --sidebar-primary: #ececec;
   --sidebar-primary-foreground: #171a1d;
   --sidebar-accent: rgba(255, 255, 255, 0.16);
-  --sidebar-accent-foreground: #e1e4e8;
-  --sidebar-border: rgba(225, 228, 232, 0.12);
-  --brand-blue-soft: rgba(225, 228, 232, 0.08);
-  --brand-blue-glow: rgba(225, 228, 232, 0.12);
-  --sidebar-ring: #e1e4e8;
+  --sidebar-accent-foreground: #ececec;
+  --sidebar-border: rgba(236, 236, 236, 0.12);
+  --brand-blue-soft: rgba(236, 236, 236, 0.08);
+  --brand-blue-glow: rgba(236, 236, 236, 0.12);
+  --sidebar-ring: #ececec;
   --glass-amber-fill: #3c392c;
 }
 
@@ -468,8 +468,9 @@
      invisible to `tsc` and to `next build` — the font loads, nothing uses it —
      so this line is the whole reason the app is not in the system font. */
   html {
-    font-family: var(--font-app-sans), Inter, "Avenir Next", "Segoe UI",
-      ui-sans-serif, system-ui, sans-serif;
+    /* The design handoff's face: the platform's own UI font (SF on Apple,
+       Segoe on Windows, Roboto on Android), as ChatGPT sets it. */
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   }
 
   body {
@@ -487,10 +488,9 @@
      the way Slack sets a channel name over its messages; the display face
      that stood here made every screen read as two products. */
   h1, h2 {
-    font-family: var(--font-app-sans), Inter, "Avenir Next", "Segoe UI",
-      ui-sans-serif, system-ui, sans-serif;
-    font-weight: 700;
-    letter-spacing: -0.01em;
+    font-family: inherit;
+    font-weight: 600;
+    letter-spacing: -0.015em;
   }
 
   h3, h4, h5, h6 {

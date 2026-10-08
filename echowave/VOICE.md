@@ -68,7 +68,10 @@ asked for before anything starts on the server.
 * a session nobody has heard from in `VOICE_SESSION_STALE_SECONDS` (90) is
   ended as `lost` by the worker (`sweep_stale_voice_sessions`, every minute)
   and before every start;
-* private: every read and write is by organisation and person.
+* private: every read and write is by organisation and person. With
+  `decibyl_private_threads` on, a named thread must be the person's own
+  (else 404), and Talk from Chat's start screen, when the original
+  conversation is not theirs, starts in a new conversation of their own.
 
 **Interruption** (handoff 12): the user aggregator's turn strategies raise
 the pipeline's interruption; `DecibylVoiceBrain` cancels the turn in flight

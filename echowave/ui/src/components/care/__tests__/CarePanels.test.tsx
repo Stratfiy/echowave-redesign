@@ -169,14 +169,33 @@ describe("Help with my phone", () => {
 });
 
 describe("My medicine reminders", () => {
-    it("says needs setup and offers no form that would never ring", async () => {
+    it("says calls need setup and offers the way past right there", async () => {
         sdk.myMedicinesApiV1CareMedicinesGet.mockResolvedValue({
-            data: { medicines: [], calls: { state: "needs_setup", reason: "Reminder calls need a phone line for calling out." }, languages: {} },
+            data: {
+                medicines: [],
+                calls: { state: "needs_setup", reason: "Reminder calls need a phone line for calling out." },
+                app: { state: "ready", reason: "Reminders show in Decibyl, under Care, with I took it." },
+                languages: {},
+            },
         });
+        sdk.addMedicineApiV1CareMedicinesPost.mockResolvedValue({ data: { medicine: {}, card: null } });
         render(<MedicinesPanel />);
         expect(await screen.findByTestId("calls-needs-setup")).toBeTruthy();
-        expect(screen.getByText("Reminder calls need a phone line for calling out.")).toBeTruthy();
-        expect(screen.queryByRole("button", { name: /Add a reminder call/ })).toBeNull();
+        expect(screen.getByText(/No phone number is needed/)).toBeTruthy();
+        expect(screen.getByRole("link", { name: "Set up a phone line for calls" }).getAttribute("href")).toBe("/settings/phone-number");
+        expect(screen.queryByRole("button", { name: "Pause the calls" })).toBeNull();
+        fireEvent.click(screen.getByRole("button", { name: /Add a reminder/ }));
+        const inApp = screen.getByRole("radio", { name: /In Decibyl/ }) as HTMLInputElement;
+        const call = screen.getByRole("radio", { name: /A phone call/ }) as HTMLInputElement;
+        expect(inApp.checked).toBe(true);
+        expect(call.disabled).toBe(true);
+        expect(screen.queryByPlaceholderText("98765 43210")).toBeNull();
+        fireEvent.change(screen.getByPlaceholderText("For example: BP tablet after breakfast"), { target: { value: "BP tablet" } });
+        fireEvent.click(screen.getByRole("button", { name: "Review before it starts" }));
+        await waitFor(() => expect(sdk.addMedicineApiV1CareMedicinesPost).toHaveBeenCalled());
+        const body = sdk.addMedicineApiV1CareMedicinesPost.mock.calls[0][0].body;
+        expect(body.channel).toBe("app");
+        expect(body.phone).toBeNull();
     });
 
     it("says test mode, lists the reminder with today's calls, and offers I took it", async () => {
@@ -190,6 +209,7 @@ describe("My medicine reminders", () => {
                         timezone: "Asia/Kolkata",
                         language: "ta-IN",
                         language_name: "Tamil",
+                        channel: "call",
                         phone_masked: "the number ending 3210",
                         alert_member_ids: [],
                         state: "active",
@@ -198,6 +218,7 @@ describe("My medicine reminders", () => {
                     },
                 ],
                 calls: { state: "test_mode", reason: "Test mode: calls are simulated and nobody is rung." },
+                app: { state: "ready", reason: "Reminders show in Decibyl." },
                 languages: { "ta-IN": "Tamil" },
             },
         });
@@ -208,7 +229,7 @@ describe("My medicine reminders", () => {
         expect(screen.getByText("Not answered")).toBeTruthy();
         expect(screen.getByRole("button", { name: "I took it" })).toBeTruthy();
         expect(screen.getByRole("button", { name: "Pause the calls" })).toBeTruthy();
-        fireEvent.click(screen.getByRole("button", { name: /Add a reminder call/ }));
+        fireEvent.click(screen.getByRole("button", { name: /Add a reminder/ }));
         expect(screen.getByText(/never gives advice about doses/)).toBeTruthy();
     });
 });

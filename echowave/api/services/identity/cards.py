@@ -56,6 +56,33 @@ class CardError(Exception):
     """A card that cannot be proposed or run; ``str(exc)`` is safe to show."""
 
 
+def is_personal(payload: dict[str, Any]) -> bool:
+    """The person's own thing -- their app connection, their Decibyl
+    address -- and so theirs alone to approve. A workspace approval rule
+    cannot apply to it: nobody but its owner can confirm a private card, so
+    a rule naming somebody else would leave it unconfirmable."""
+    action = payload.get("action")
+    if action == SEND_IDENTITY_EMAIL:
+        return True
+    return (
+        action == DISCONNECT_APP and (payload.get("args") or {}).get("scope") == "mine"
+    )
+
+
+async def _check_approval(organization_id: int, owner: int) -> None:
+    """A card that affects the workspace (a number, a workspace connection)
+    still answers to the approval matrix -- checked here, before a card is
+    made, because only its owner can confirm it afterwards."""
+    from api.services.workflow import approvals
+
+    try:
+        await approvals.check(
+            organization_id, subject=approvals.CARD, amount_paise=None, user_id=owner
+        )
+    except approvals.ApprovalRequired as exc:
+        raise CardError(f"{exc} Ask them to do this from their own Settings.") from exc
+
+
 @contextmanager
 def _from_settings():
     token = _FROM_SETTINGS.set(True)
@@ -112,6 +139,8 @@ async def propose(
         existing = await waiting(organization_id, user_id, action, payload["key"])
         if existing is not None:
             return {"status": "already_proposed", "event_id": existing}
+        if not is_personal(payload):
+            await _check_approval(organization_id, user_id)
         told = await actions.propose(
             organization_id=organization_id,
             workflow_id=None,

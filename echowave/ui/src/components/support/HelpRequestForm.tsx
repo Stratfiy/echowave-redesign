@@ -62,10 +62,15 @@ export function HelpRequestForm({
         });
     }, []);
 
+    // Only the latest preview is shown: an earlier one answering late would
+    // show a share other than the one that is sent.
+    const latest = useRef(0);
     const refreshPreview = useCallback(
         async (next: string[] | null) => {
+            const asked = ++latest.current;
             setPreviewing(true);
             const outcome = await previewShare({ affectedKind, affectedId, share: next });
+            if (asked !== latest.current) return;
             setPreviewing(false);
             if (outcome.ok) {
                 setPreview(outcome.value);
@@ -81,9 +86,10 @@ export function HelpRequestForm({
         void refreshPreview(null);
     }, [refreshPreview]);
 
+    // The person's own choice once they have made one; the defaults before.
     const included = useMemo(
-        () => (preview ? preview.sections.filter((s) => s.included && !s.required).map((s) => s.key) : []),
-        [preview],
+        () => share ?? (preview ? preview.sections.filter((s) => s.included && !s.required).map((s) => s.key) : []),
+        [share, preview],
     );
 
     function toggle(sectionKey: string, on: boolean) {
@@ -106,7 +112,7 @@ export function HelpRequestForm({
         setFile(chosen);
     }
 
-    const canSend = Boolean(category && description.trim() && preview && !sending && !previewing);
+    const canSend = Boolean(category && description.trim() && preview && !previewError && !sending && !previewing);
 
     async function submit() {
         if (!canSend) return;

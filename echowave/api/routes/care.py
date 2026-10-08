@@ -105,6 +105,18 @@ async def care_status(user: Annotated[UserModel, Depends(get_user)]) -> CareStat
             continue
         if flag == care.MEDICINE_CALLS and organization_id:
             ready = await calls.readiness(organization_id)
+            if ready["state"] == "needs_setup":
+                # Reminders in Decibyl need no number, so the part works
+                # here; it is phone calls that wait for a line, said so.
+                parts.append(
+                    CarePart(
+                        key=flag,
+                        state="available",
+                        reason=f"Phone calls need setting up: {ready['reason']} "
+                        "Reminders in Decibyl work now.",
+                    )
+                )
+                continue
             state = "available" if ready["state"] == "ready" else ready["state"]
             parts.append(CarePart(key=flag, state=state, reason=ready["reason"]))
             continue
@@ -372,7 +384,7 @@ _medicine_flag = Depends(features.require(care.MEDICINE_CALLS, per_organization=
 class Dose(BaseModel):
     id: int
     due_at: str
-    #: calling | taken | not_taken | not_answered | unclear | failed
+    #: calling | reminded | taken | not_taken | not_answered | unclear | failed
     state: str
     reason: str | None = None
     alerted: bool
@@ -385,7 +397,10 @@ class Medicine(BaseModel):
     timezone: str
     language: str
     language_name: str
-    phone_masked: str
+    #: call (rings a phone) | app (shown in Decibyl and sent as a notification)
+    channel: str
+    #: Null for a reminder in Decibyl, which has no phone.
+    phone_masked: str | None = None
     alert_member_ids: list[int]
     #: awaiting_approval | active | paused | declined
     state: str
@@ -395,8 +410,11 @@ class Medicine(BaseModel):
 
 class MedicineList(BaseModel):
     medicines: list[Medicine]
-    #: ready | test_mode | needs_setup, and why.
+    #: Phone calls here: ready | test_mode | needs_setup, and why.
     calls: dict[str, str]
+    #: Reminders in Decibyl: always ready (no number needed), and how they
+    #: reach the person.
+    app: dict[str, str]
     languages: dict[str, str]
 
 
@@ -405,7 +423,10 @@ class MedicineWrite(BaseModel):
     #: Decibyl chose.
     label: str = Field(min_length=1, max_length=80)
     times: list[str] = Field(min_length=1, max_length=medicines.MAX_TIMES)
-    phone: str = Field(min_length=6, max_length=24)
+    #: Needed for a phone call; not for a reminder in Decibyl.
+    phone: str | None = Field(default=None, min_length=6, max_length=24)
+    #: call | app. Omitted: a call when a phone is given, else app.
+    channel: Literal["call", "app"] | None = None
     language: str | None = Field(default=None, max_length=16)
     alert_member_ids: list[int] = Field(default_factory=list, max_length=8)
 
@@ -431,6 +452,7 @@ async def my_medicines(user: Annotated[UserModel, Depends(get_user)]) -> Medicin
             Medicine(**m) for m in await medicines.list_mine(organization_id, user.id)
         ],
         calls=await calls.readiness(organization_id),
+        app=calls.app_readiness(organization_id),
         languages=dict(medicines.LANGUAGE_NAMES),
     )
 
@@ -449,6 +471,7 @@ async def add_medicine(
             label=body.label,
             times=body.times,
             phone=body.phone,
+            channel=body.channel,
             language=body.language,
             alert_member_ids=body.alert_member_ids,
         )

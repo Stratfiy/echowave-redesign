@@ -214,6 +214,15 @@ def resolve(arguments: dict[str, Any]) -> dict[str, Any]:
 ACTION = "build_from_spec"
 
 
+def done_note(name: str, steps: int, *, channel: str) -> str:
+    """The done card's line. A chat agent says where it answers: asked "how
+    do I use it?", Decibyl read only this, and had no answer."""
+    note = f"Built {name} — {steps} step{'' if steps == 1 else 's'}."
+    if channel == BotChannel.CHAT.value:
+        note += " It answers in its own chat: Open its chat on this card."
+    return note
+
+
 async def build(
     *, organization_id: int, user_id: int, args: dict[str, Any]
 ) -> dict[str, Any]:
@@ -310,7 +319,7 @@ async def build(
             logger.warning("Could not claim trigger paths for the built agent: {}", exc)
 
     steps = len((definition or {}).get("nodes") or [])
-    note = f"Built {workflow.name} — {steps} step{'' if steps == 1 else 's'}."
+    note = done_note(workflow.name, steps, channel=channel.value)
 
     # The schedule the person said, if they said one. Without this a bot asked
     # for "every morning at 8am" was built live with an empty triggers list:
@@ -335,6 +344,7 @@ async def build(
     return {
         "workflow_id": workflow.id,
         "handle": getattr(workflow, "handle", None),
+        "channel": channel.value,
         "steps": steps,
         "runs": scheduled,
         "waiting_on": waiting_on,

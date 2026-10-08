@@ -54,11 +54,35 @@ describe('a history that did not load', () => {
         render(<ChannelStream assistant botNames={{}} onLoadState={onLoadState} />);
         expect(await screen.findByText('Could not load this conversation')).toBeTruthy();
         expect(screen.queryByText('This channel is quiet.')).toBeNull();
-        expect(onLoadState).toHaveBeenLastCalledWith('error');
+        // Reported from an effect, a tick after the text shows.
+        await waitFor(() => expect(onLoadState).toHaveBeenLastCalledWith('error'));
         timeline.mockResolvedValue(page([row({ actor: 'human', summary: 'hi', payload: { body: 'hi' } })]));
         fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
         expect(await screen.findByText('hi')).toBeTruthy();
-        expect(onLoadState).toHaveBeenLastCalledWith('ready');
+        await waitFor(() => expect(onLoadState).toHaveBeenLastCalledWith('ready'));
+    });
+});
+
+describe('a conversation that is not this person\'s', () => {
+    // Phase 3 (learning), found as a plain member with private threads on:
+    // Chat's start screen reads the original conversation, which is an
+    // Admin's, and showed "Could not load this conversation" -- so the
+    // member never saw the starters ("Teach me something") or the resume
+    // link at all.
+    it('hands a not-found thread to the caller instead of failing', async () => {
+        timeline.mockResolvedValueOnce({ error: { detail: 'Thread not found' }, response: { status: 404 } });
+        const onThreadNotFound = vi.fn();
+        render(<ChannelStream assistant botNames={{}} onThreadNotFound={onThreadNotFound} />);
+        await waitFor(() => expect(onThreadNotFound).toHaveBeenCalledTimes(1));
+        expect(screen.queryByText('Could not load this conversation')).toBeNull();
+    });
+
+    it('still shows any other failure', async () => {
+        timeline.mockResolvedValueOnce({ error: { detail: 'boom' }, response: { status: 500 } });
+        const onThreadNotFound = vi.fn();
+        render(<ChannelStream assistant botNames={{}} onThreadNotFound={onThreadNotFound} />);
+        expect(await screen.findByText('Could not load this conversation')).toBeTruthy();
+        expect(onThreadNotFound).not.toHaveBeenCalled();
     });
 });
 

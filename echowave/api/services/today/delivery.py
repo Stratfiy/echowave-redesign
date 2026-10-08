@@ -119,15 +119,21 @@ async def channel_state(
     if channel == PUSH:
         # Web push is the identity stream's (services/identity): its switch,
         # the operator's VAPID keys, and at least one device this person
-        # allowed. Any one missing is "needs setup", said in words.
+        # allowed. Any one missing is "needs setup", said in words. A phone
+        # running the native app (``mobile_push``) counts as a device too.
         from api.services import features
         from api.services.identity import push
 
         if not features.is_on("identity_notifications", organization_id):
             return {"channel": channel, "state": NEEDS_SETUP, "reason": PUSH_NOT_ON}
-        if not push.configured():
+        from api.services.identity import mobile_push
+
+        phones = mobile_push.enabled(organization_id)
+        if not push.configured() and not phones:
             return {"channel": channel, "state": NEEDS_SETUP, "reason": PUSH_NOT_READY}
-        if not await _push_devices(user_id):
+        if not await _push_devices(user_id) and not (
+            phones and await mobile_push.has_device(user_id)
+        ):
             return {"channel": channel, "state": NEEDS_SETUP, "reason": PUSH_NO_DEVICE}
         return {"channel": channel, "state": AVAILABLE, "reason": None}
     if channel == WHATSAPP:

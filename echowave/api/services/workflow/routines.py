@@ -548,3 +548,30 @@ async def propose_schedule(
             "why": str(arguments.get("why") or "asked on the thread").strip(),
         },
     )
+
+
+async def origin_card(organization_id: int, card_event_id: int | None) -> Any | None:
+    """The card a routine was armed by (``routine_start_on``), or None.
+
+    That card sits in the conversation the routine was set in, which may be
+    a person's private chat: the routine is theirs to see, and its runs
+    report back there (stream `today`, phase 3).
+    """
+    if not card_event_id:
+        return None
+    from api.db import db_client
+
+    return await db_client.get_agent_event(
+        int(card_event_id), organization_id=organization_id
+    )
+
+
+async def hidden_from(routine: Any, user_id: int) -> bool:
+    """Whether a routine set in someone else's private chat is hidden from
+    ``user_id`` -- by the card's own thread rule (actions.thread_refusal)."""
+    from api.services.workflow import actions
+
+    card = await origin_card(routine.organization_id, routine.armed_by_card_event_id)
+    if card is None:
+        return False
+    return await actions.thread_refusal(card, user_id) is not None

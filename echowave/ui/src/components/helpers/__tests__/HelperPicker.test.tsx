@@ -151,6 +151,16 @@ describe('the picker', () => {
         await waitFor(() => expect(onChoose).toHaveBeenCalledWith({ key: 'builder', name: 'Build something' }));
     });
 
+    it('on a desktop it never grows past the room it has, so its top stays on screen', async () => {
+        // Phase 3: on an empty chat the box sits mid-screen and the menu,
+        // opening upward at a fixed 36rem, ran off the top with its Back.
+        picker();
+        fireEvent.click(screen.getByTestId('helper-picker'));
+        await screen.findByTestId('helper-row-research');
+        const menu = screen.getByTestId('helper-menu');
+        expect(menu.className).toContain('--radix-popover-content-available-height');
+    });
+
     it('is a full-height sheet with a fixed Use footer on a phone', async () => {
         window.innerWidth = 375;
         picker();

@@ -43,8 +43,10 @@ founder to set.
    as Markdown, delete, and Return to chat (the conversation it came from).
 5. **Act**, one card at a time: Review puts a suggestion on its own action
    card; Approve confirms that exact version; a short undo window; then exactly
-   one task on the workspace's task board. Edit before approving withdraws the
-   waiting card. "Take back" cancels the task while nobody has started it.
+   one task on the workspace's task board, private to the person who captured
+   the meeting (colleagues get 404 for it, as for the meeting). Edit before
+   approving withdraws the waiting card. "Take back" cancels the task while
+   nobody has started it.
 
 ## Honest states
 
@@ -106,6 +108,13 @@ founder to set.
   to the owner), no result line is posted to Decibyl's shared thread, and
   `actions.settle` refuses a meeting card to anyone but its owner, so the
   generic `/timeline/actions/settle` route cannot be used to confirm one.
+* The task a confirmed card makes carries `agent_tasks.private_to_user_id`
+  (the meeting's owner). The task board (`/tasks`, `/tasks/{id}` and every
+  write on it), Today's task detail and the `read_board` tool Decibyl and
+  bots use leave it out for everyone else; a colleague gets 404 by its id.
+* The workspace audit records each press on a meeting card as
+  "Private card (meeting_follow_up)", never the card's label: admins read the
+  audit, and the label is the meeting's words.
 * Analytics (event catalogue): `capture_started` (audio source, language),
   `capture_failed` (audio source, reason code), `meeting_processed` (status,
   reading status), `action_confirmed` (card state), plus the cards' own
@@ -166,3 +175,6 @@ state, read).
   meeting).
 * Schema: `alembic downgrade 202610071500shell` drops the four tables
   (additive migration `20261008meetings`; nothing else depends on them).
+  `alembic downgrade 20261009mobile` drops `agent_tasks.private_to_user_id`
+  (migration `20261009meetingstasks`, phase 3), after which meeting tasks are
+  the workspace's again; the audit labels it scrubbed stay scrubbed.

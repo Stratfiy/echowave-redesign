@@ -1,0 +1,48 @@
+name: Mobile app
+
+# The iOS and Android app (echowave/mobile).
+#
+# On every change to it: typecheck, lint and the jest-expo suite (no
+# simulator or phone needed). Store builds run on EAS, not here
+# (echowave/mobile/RELEASE.md).
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "echowave/mobile/**"
+      - ".github/workflows/mobile.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: [self-hosted, linux, x64, ci]
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: echowave/mobile
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: echowave/mobile/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Lint
+        run: npx expo lint
+
+      - name: Unit tests
+        run: npm test
