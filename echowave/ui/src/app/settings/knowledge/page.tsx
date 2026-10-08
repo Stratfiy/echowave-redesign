@@ -1,7 +1,8 @@
 "use client";
 
 import { ExternalLink, Upload } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
 import { KNOWLEDGE_TABS } from "@/components/layout/SectionTabs";
@@ -17,6 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/lib/auth";
+import { rejectFile, uploadKnowledge } from "@/lib/uploadKnowledge";
 
 import DocumentList from "./DocumentList";
 import DocumentUpload from "./DocumentUpload";
@@ -25,6 +27,38 @@ export default function FilesPage() {
     const { user, redirectToLogin, loading } = useAuth();
     const [refreshKey, setRefreshKey] = useState(0);
     const [isUploadOpen, setIsUploadOpen] = useState(false);
+    const [dragging, setDragging] = useState(false);
+    const [dropping, setDropping] = useState<string | null>(null);
+    // dragenter/dragleave fire for every child crossed; a count of the ones
+    // still under the pointer is what says the drag left the page.
+    const depth = useRef(0);
+
+    /** A drop anywhere on the page adds every file in it, one after another,
+     *  read by every agent -- the same door the Upload dialog uses. */
+    const addDropped = async (files: File[]) => {
+        let added = 0;
+        for (const file of files) {
+            const why = rejectFile(file);
+            if (why) {
+                toast.error(`${file.name}: ${why}`);
+                continue;
+            }
+            setDropping(file.name);
+            try {
+                await uploadKnowledge(file, { scope: "org" });
+                added += 1;
+            } catch (error) {
+                toast.error(`${file.name}: ${error instanceof Error ? error.message : "it was not added"}`);
+            }
+        }
+        setDropping(null);
+        if (added) {
+            toast.success(added === 1 ? "1 file added. Reading it now." : `${added} files added. Reading them now.`);
+            setRefreshKey((prev) => prev + 1);
+        }
+    };
+
+    const hasFiles = (event: React.DragEvent) => Array.from(event.dataTransfer?.types ?? []).includes("Files");
 
     // Redirect if not authenticated
     useEffect(() => {
@@ -48,12 +82,45 @@ export default function FilesPage() {
     }
 
     return (
-        <>
+        <div
+            className="relative min-h-full"
+            data-testid="files-drop-zone"
+            onDragEnter={(event) => {
+                if (!hasFiles(event) || isUploadOpen) return;
+                event.preventDefault();
+                depth.current += 1;
+                setDragging(true);
+            }}
+            onDragOver={(event) => {
+                if (!hasFiles(event) || isUploadOpen) return;
+                event.preventDefault();
+            }}
+            onDragLeave={(event) => {
+                if (!hasFiles(event) || isUploadOpen) return;
+                depth.current = Math.max(0, depth.current - 1);
+                if (depth.current === 0) setDragging(false);
+            }}
+            onDrop={(event) => {
+                if (!hasFiles(event) || isUploadOpen) return;
+                event.preventDefault();
+                depth.current = 0;
+                setDragging(false);
+                void addDropped(Array.from(event.dataTransfer.files ?? []));
+            }}
+        >
+            {dragging && (
+                <div
+                    aria-hidden
+                    className="pointer-events-none absolute inset-2 z-40 flex items-center justify-center rounded-2xl border-2 border-dashed border-foreground/30 bg-background/85 text-lg font-medium"
+                >
+                    Drop to add to Files
+                </div>
+            )}
             <PageHeader
                 tabs={KNOWLEDGE_TABS}
                 title={
                     <span className="flex flex-wrap items-center gap-2">
-                        Knowledge base
+                        Files
                         {/* Retrieval during a call is a real, measured cost, but
                             it is not billed as a separate line today — see
                             PRICING-DECISIONS.md. An absorbed feature nobody is
@@ -69,7 +136,7 @@ export default function FilesPage() {
                 }
                 description={
                     <>
-                        What every agent here reads: your price list, policies, FAQs. Drop a file into a channel or an agent&apos;s chat to give it to just them.{" "}
+                        What every agent here reads: your price list, policies, FAQs. Drag files anywhere on this page to add them. Drop a file into a channel or an agent&apos;s chat to give it to just them.{" "}
                         <a href="https://docs.decibyl.ai/voice-agent/knowledge-base" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 underline">
                             Learn more <ExternalLink className="h-3 w-3" />
                         </a>
@@ -78,16 +145,19 @@ export default function FilesPage() {
                 actions={
                     <Button onClick={() => setIsUploadOpen(true)}>
                         <Upload className="mr-2 h-4 w-4" />
-                        Upload document
+                        Upload
                     </Button>
                 }
             />
             <PageBody>
             <Card>
                 <CardHeader>
-                    <CardTitle>Documents</CardTitle>
+                    <CardTitle>Your files</CardTitle>
                     <CardDescription>
-                        The knowledge base is read by every agent. A file given to a channel or an agent is read there only. Library files are read by the steps that name them.
+                        {dropping ? (
+                            <span role="status">Adding {dropping}…</span>
+                        ) : null}{" "}
+                        Files here are read by every agent. A file given to a channel or an agent is read there only. Library files are read by the steps that name them.
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -98,7 +168,7 @@ export default function FilesPage() {
             <Dialog open={isUploadOpen} onOpenChange={setIsUploadOpen}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>Add to the knowledge base</DialogTitle>
+                        <DialogTitle>Add to Files</DialogTitle>
                         <DialogDescription>
                             Every agent in this workspace will be able to answer from it.
                         </DialogDescription>
@@ -107,6 +177,6 @@ export default function FilesPage() {
                 </DialogContent>
             </Dialog>
             </PageBody>
-        </>
+        </div>
     );
 }

@@ -4,8 +4,12 @@ import { activeHome, colleagueState, HOMES } from "../homes";
 import { parseTrial } from "../useRailData";
 
 describe("activeHome", () => {
-  it("has two homes, Chat and Today, and Studio only behind its flag", () => {
-    expect(HOMES.filter((h) => !h.flag).map((h) => h.title)).toEqual(["Chat", "Today"]);
+  it("has Chat, Today and Files, and Studio only behind its flag", () => {
+    expect(HOMES.filter((h) => !h.flag).map((h) => h.title)).toEqual(["Chat", "Today", "Files"]);
+  });
+
+  it.each(["/settings/knowledge", "/recordings"])("lights Files on %s", (path) => {
+    expect(activeHome(path)).toBe("files");
   });
 
   it.each([
@@ -22,7 +26,7 @@ describe("activeHome", () => {
     expect(activeHome(path)).toBe(home);
   });
 
-  it.each(["/settings", "/billing", "/settings/knowledge"])("lights no home on %s: Settings is in the profile menu", (path) => {
+  it.each(["/settings", "/billing", "/settings/models"])("lights no home on %s: Settings is in the profile menu", (path) => {
     expect(activeHome(path)).toBeUndefined();
   });
 

@@ -33,7 +33,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   { id: "daily-brief", title: "Daily brief", href: "/settings/daily-brief", group: "You", flags: ["daily_brief"] },
   { id: "notifications", title: "Notifications", href: "/settings/notifications", group: "You", flags: ["identity_notifications"] },
   { id: "models", title: "Models", href: "/settings/models", group: "Assistant", activePaths: ["/integrations"] },
-  { id: "knowledge", title: "Knowledge", href: "/settings/knowledge", group: "Assistant" },
+  { id: "knowledge", title: "Files", href: "/settings/knowledge", group: "Assistant" },
   { id: "apps", title: "Apps and tools", href: "/settings/apps", group: "Assistant", activePaths: ["/tools", "/marketplace"] },
   { id: "channels", title: "Channels", href: "/settings/channels", group: "Assistant", activePaths: ["/channels"] },
   {
@@ -123,7 +123,7 @@ export const SHELL_SECTIONS: readonly ShellSection[] = [
   { id: "workspace", title: "Workspace defaults", href: "/settings/workspace", mobileHref: "/settings/workspace", activePaths: ["/settings/general"], group: "Workspace", blurb: "The team's timezone, test number, approvals and apps." },
   { id: "team", title: "Team", href: "/settings/team", group: "Workspace", blurb: "Who is in the workspace, and their roles." },
   { id: "company", title: "Company", href: "/settings/company", group: "Workspace", blurb: "Business details, GST and invoices." },
-  { id: "knowledge", title: "Knowledge", href: "/settings/knowledge", group: "Workspace", blurb: "Documents your agents answer from." },
+  { id: "knowledge", title: "Files", href: "/settings/knowledge", group: "Workspace", blurb: "Files your agents answer from." },
   { id: "compliance", title: "Compliance", href: "/settings/compliance", group: "Workspace", blurb: "Do-not-call, retention, consent and the workspace's data.", activePaths: ["/do-not-call"] },
 ];
 

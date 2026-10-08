@@ -15,7 +15,7 @@ describe("Settings' sections", () => {
       "Daily brief",
       "Notifications",
       "Models",
-      "Knowledge",
+      "Files",
       "Apps and tools",
       "Channels",
       "Phone numbers",

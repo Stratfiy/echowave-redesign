@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { CalendarCheck, MessageCircle, Wand2 } from "lucide-react";
+import { CalendarCheck, FolderOpen, MessageCircle, Wand2 } from "lucide-react";
 
 import type { Feature } from "@/lib/features";
 
@@ -16,6 +16,9 @@ import type { Feature } from "@/lib/features";
  * - Today  -> /tasks, with its tabs: routines, contacts, what was handed
  *             over, and Activity (calls, missed calls, review, analytics,
  *             usage), which lights it too.
+ * - Files  -> /settings/knowledge: the workspace's files, which every agent
+ *             reads. A door on the rail because people drop files in often;
+ *             the page itself takes a drop anywhere on it.
  * - Studio -> /studio, only with the `studio` flag.
  *
  * Agents and Settings are in the profile menu (AccountMenu). Agents are
@@ -24,7 +27,7 @@ import type { Feature } from "@/lib/features";
  * rail used to name still lights a home or a Settings section.
  */
 
-export type HomeId = "chat" | "today" | "studio";
+export type HomeId = "chat" | "today" | "files" | "studio";
 
 export type Home = {
   id: HomeId;
@@ -62,6 +65,7 @@ export const HOMES: readonly Home[] = [
       "/missed-calls",
     ],
   },
+  { id: "files", title: "Files", url: "/settings/knowledge", icon: FolderOpen, activePaths: ["/recordings", "/files"] },
   { id: "studio", title: "Studio", url: "/studio", icon: Wand2, flag: "studio" },
 ];
 
