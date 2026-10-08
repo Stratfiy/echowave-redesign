@@ -226,6 +226,67 @@ def made(a, prefix, require_flag) -> dict[str, Private]:
         )
         assert after.get("custom_instructions") == m
 
+    # A's Decibyl address (IDENTITY.md, screen 23). Reserved, never set up,
+    # released afterwards; a name once held is not given out again, which
+    # is why the marker is unique per run.
+    if why := flag_on("identity_email"):
+        skipped["email_alias"] = why
+    else:
+        m = mark("alias")[-32:].lower()
+        reserved = a.post("/me/email-identity/reserve", {"alias": m})
+        if reserved.status_code == 200:
+            items["email_alias"] = Private("email_alias", m, ["/me/email-identity"])
+            cleanups.append(lambda: a.post("/me/email-identity/release"))
+        else:
+            skipped["email_alias"] = (
+                f"could not reserve: HTTP {reserved.status_code} {reserved.text[:120]}"
+            )
+
+    # A's own browser for push, named by A (screen 21). Needs the operator's
+    # push keys; without them the route says so and nothing is stored.
+    if why := flag_on("identity_notifications"):
+        skipped["push_device"] = why
+    else:
+        m = mark("device")
+        added = a.post(
+            "/me/push-subscriptions",
+            {
+                "endpoint": f"https://fcm.googleapis.com/fcm/send/{m}",
+                "keys": {
+                    "p256dh": "BNcRdreALRFXTkOOUHK1EtK2wtaz5Ry4YfYCA_0QTpQtUbVlUls0VJXg7A8u-Ts1XbjhazAkj7I99e8QcYP7DkM",
+                    "auth": "tBHItJI5svbpez7KI4CCXg",
+                },
+                "device_label": m,
+            },
+        )
+        if added.status_code == 200:
+            items["push_device"] = Private("push_device", m, ["/me/notifications"])
+            ids = [d["id"] for d in added.json()["devices"] if d["label"] == m]
+            cleanups.extend(
+                lambda i=i: a.delete(f"/me/push-subscriptions/{i}") for i in ids
+            )
+        else:
+            skipped["push_device"] = (
+                f"not configured here: HTTP {added.status_code} {added.text[:120]}"
+            )
+
+    # Why A connected an app for themselves: the consent is recorded before
+    # the app's sign-in, which is never finished here (screen 22).
+    if why := flag_on("identity_connections", "connections_per_person"):
+        skipped["consent"] = why
+    else:
+        m = mark("consent")
+        started = a.post(
+            "/me/connections/start",
+            {"toolkit": "gmail", "scope": "mine", "purpose": m},
+        )
+        if started.status_code == 200:
+            items["consent"] = Private("consent", m, ["/me/connections"])
+        else:
+            skipped["consent"] = (
+                f"not configured here: HTTP {started.status_code} {started.text[:120]}"
+            )
+
     made_items = dict(items)
     made_items["__skipped__"] = skipped  # type: ignore[assignment]
     yield made_items
@@ -294,6 +355,9 @@ KINDS = [
     "meeting",
     "commitment",
     "instructions",
+    "email_alias",
+    "push_device",
+    "consent",
 ]
 
 
