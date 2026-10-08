@@ -9,9 +9,11 @@ written many times a second and worth nothing once the row exists; a TTL
 rather than a delete-on-finish because a worker that dies mid-answer must
 not leave a half-sentence on the screen for ever.
 
-One key per thread: Decibyl's thread for the organisation, or a bot's chat
-(``workflow_id``) -- the same key shape for every bot, so the stream's poll
-does not care who is answering.
+One key per thread: each of Decibyl's threads in the organisation (its main
+thread, or one person's own thread by ``thread_id``), or a bot's chat
+(``workflow_id``). Keyed by thread, not only by organisation: two people
+talking to Decibyl at once in their own threads must never see each other's
+reply forming.
 """
 
 from __future__ import annotations
@@ -39,38 +41,78 @@ async def _client() -> aioredis.Redis:
     return _redis
 
 
-def key(organization_id: int, workflow_id: Optional[int] = None) -> str:
-    who = "assistant" if workflow_id is None else f"bot:{workflow_id}"
+def key(
+    organization_id: int,
+    workflow_id: Optional[int] = None,
+    thread_id: Optional[str] = None,
+) -> str:
+    if workflow_id is not None:
+        who = f"bot:{workflow_id}"
+    elif thread_id:
+        who = f"assistant:{thread_id}"
+    else:
+        who = "assistant"
     return f"reply_draft:{organization_id}:{who}"
 
 
+def _thread(workflow_id: Optional[int], thread_id: Optional[str]) -> Optional[str]:
+    """The thread being answered: the one given, else the one the worker is
+    answering in (``agent_timeline.in_thread``). A bot's chat has none."""
+    if workflow_id is not None:
+        return None
+    if thread_id:
+        return thread_id
+    from api.services.workflow import agent_timeline
+
+    return agent_timeline.current_thread()
+
+
 async def set_draft(
-    organization_id: int, text: str, *, workflow_id: Optional[int] = None
+    organization_id: int,
+    text: str,
+    *,
+    workflow_id: Optional[int] = None,
+    thread_id: Optional[str] = None,
 ) -> None:
     """The text so far. Silent on failure: a draft is a nicety, the row is
     the record, and a Redis blip must not end an answer."""
     try:
         redis = await _client()
         await redis.set(
-            key(organization_id, workflow_id), text[:MAX_CHARS], ex=TTL_SECONDS
+            key(organization_id, workflow_id, _thread(workflow_id, thread_id)),
+            text[:MAX_CHARS],
+            ex=TTL_SECONDS,
         )
     except Exception as exc:  # noqa: BLE001
         logger.debug("Could not write a reply draft: {}", exc)
 
 
-async def clear(organization_id: int, *, workflow_id: Optional[int] = None) -> None:
+async def clear(
+    organization_id: int,
+    *,
+    workflow_id: Optional[int] = None,
+    thread_id: Optional[str] = None,
+) -> None:
     try:
         redis = await _client()
-        await redis.delete(key(organization_id, workflow_id))
+        await redis.delete(
+            key(organization_id, workflow_id, _thread(workflow_id, thread_id))
+        )
     except Exception as exc:  # noqa: BLE001
         logger.debug("Could not clear a reply draft: {}", exc)
 
 
-async def get(organization_id: int, *, workflow_id: Optional[int] = None) -> str:
-    """The text so far, or empty."""
+async def get(
+    organization_id: int,
+    *,
+    workflow_id: Optional[int] = None,
+    thread_id: Optional[str] = None,
+) -> str:
+    """The text so far, or empty. Read by the screen, so the thread is the
+    one it asks about, never a worker's context."""
     try:
         redis = await _client()
-        return (await redis.get(key(organization_id, workflow_id))) or ""
+        return (await redis.get(key(organization_id, workflow_id, thread_id))) or ""
     except Exception as exc:  # noqa: BLE001
         logger.debug("Could not read a reply draft: {}", exc)
         return ""

@@ -138,12 +138,12 @@ export default function CampaignAdvancedSettings({
                 </p>
                 {fromNumbersCount > 0 && fromNumbersCount < orgConcurrentLimit && (
                     <p className="text-sm text-amber-600 dark:text-amber-400">
-                        Concurrency is limited to {fromNumbersCount} by your configured phone numbers. To use the full org limit of {orgConcurrentLimit}, add more CLIs in <Link href="/telephony-configurations" className="underline font-medium">Telephony Configuration</Link>.
+                        Concurrency is limited to {fromNumbersCount} by your configured phone numbers. To use the full org limit of {orgConcurrentLimit}, add more CLIs in <Link href="/settings/phone-number" className="underline font-medium">Telephony Configuration</Link>.
                     </p>
                 )}
                 {fromNumbersCount === 0 && (
                     <p className="text-sm text-amber-600 dark:text-amber-400">
-                        No phone numbers configured. Add CLIs in <Link href="/telephony-configurations" className="underline font-medium">Telephony Configuration</Link> before running the campaign.
+                        No phone numbers configured. Add CLIs in <Link href="/settings/phone-number" className="underline font-medium">Telephony Configuration</Link> before running the campaign.
                     </p>
                 )}
             </div>

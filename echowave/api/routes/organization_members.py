@@ -203,6 +203,12 @@ async def create_invitation(
             )
         except invitations.InvitationError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+        # Read the row before the commit: a commit expires it, and the
+        # session is closed by the time the email is sent, so reading it
+        # afterwards raised DetachedInstanceError and every invite was a 500.
+        await session.flush()
+        await session.refresh(invitation)
+        view = _invitation_view(invitation)
         await session.commit()
 
     link = f"{UI_APP_URL}/invitations/accept?token={quote(raw_token)}"
@@ -211,11 +217,11 @@ async def create_invitation(
     # either way; a mail server having a bad minute must not undo it, and the
     # link is in the response regardless.
     result = await send_email(
-        to=invitation.email,
+        to=view["email"],
         subject="You have been invited to a Decibyl account",
         body_text=(
             f"{user.email or 'Someone'} has invited you to join their Decibyl "
-            f"account as {invitation.role}.\n\n"
+            f"account as {view['role']}.\n\n"
             f"Accept the invitation:\n{link}\n\n"
             "The link expires in seven days. If you were not expecting this, "
             "you can ignore it."
@@ -223,7 +229,7 @@ async def create_invitation(
     )
 
     return {
-        "invitation": _invitation_view(invitation),
+        "invitation": view,
         "link": link,
         "email_sent": result.ok,
         "email_error": None if result.ok else result.error,

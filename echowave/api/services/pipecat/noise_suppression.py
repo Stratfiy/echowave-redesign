@@ -160,15 +160,46 @@ def build_levelled_filter_class():
     return LevelledRNNoiseFilter
 
 
-async def build_audio_in_filter(config: dict[str, Any] | None):
+def _organization_id() -> int | None:
+    """The organisation of the call being built, from the run context that
+    ``run_pipeline`` sets before it creates the transport."""
+    from pipecat.utils.run_context import get_current_org_id
+
+    org = get_current_org_id()
+    try:
+        return int(org) if org is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+async def build_audio_in_filter(
+    config: dict[str, Any] | None, organization_id: int | None = None
+):
     """The inbound audio filter for this call, or None to leave audio alone.
 
     Returns None rather than raising when the optional dependency is missing.
     A worker that cannot filter noise is still a worker that can take the call.
+
+    With ``deepfilternet_filter`` on for the organisation, DeepFilterNet3
+    takes RNNoise's place at the same level; without its model on the box,
+    RNNoise as before.
     """
     if not wants_suppression(config):
         return None
     level = resolve_level(config)
+
+    from api.services import features
+    from api.services.pipecat import deepfilternet
+
+    org = organization_id if organization_id is not None else _organization_id()
+    if features.is_on(deepfilternet.FEATURE, org):
+        try:
+            dfn = deepfilternet.build_filter(level=level)
+        except Exception as error:  # noqa: BLE001 - fall back to RNNoise
+            logger.warning(f"DeepFilterNet could not be built, using RNNoise: {error}")
+            dfn = None
+        if dfn is not None:
+            return dfn
     try:
         filter_class = (
             _rnnoise_filter_class()

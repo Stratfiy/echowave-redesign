@@ -72,10 +72,16 @@ def setup_logging():
     loguru.logger.configure(extra={"run_id": None})
 
     # Patch loguru to inject run_id
+    # Phone numbers never reach a handler in full; see utils/phone_masking.
+    from api.services.ops.redaction import redact_record as redact_telemetry
     from api.utils.phone_masking import redact_record
 
-    # Phone numbers never reach a handler in full; see utils/phone_masking.
-    patched = loguru.logger.patch(inject_run_id).patch(redact_record)
+    patched = (
+        loguru.logger.patch(inject_run_id)
+        .patch(redact_record)
+        # Secrets, emails and long tokens, while telemetry_redaction is on.
+        .patch(redact_telemetry)
+    )
 
     log_format = "{time:YYYY-MM-DD HH:mm:ss.SSS} | <level>{level}</level> | [run_id={extra[run_id]}] | {file.name}:{line} | {message}"
 

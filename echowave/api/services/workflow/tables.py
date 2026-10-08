@@ -95,7 +95,7 @@ TOP_VALUES = 8
 #: Characters of any one cell shown to the model.
 MAX_CELL_CHARS = 200
 
-TABLE_EXTENSIONS = {".csv": ",", ".tsv": "\t"}
+TABLE_EXTENSIONS = {".csv": ",", ".tsv": "\t", ".xlsx": "xlsx"}
 OPS = (
     "equals",
     "not_equals",
@@ -247,15 +247,30 @@ async def load(organization_id: int, file: str) -> Table:
     extension = os.path.splitext(document.filename or "")[1].lower()
     if extension not in TABLE_EXTENSIONS:
         raise TableError(
-            f"{document.filename} is not a CSV or TSV. Save it as CSV and attach "
-            "it again to work with every row."
+            f"{document.filename} is not a CSV, TSV or Excel file. Save it as "
+            "CSV and attach it again to work with every row."
         )
     data = await _download(_storage_key(document))
-    return parse(
-        _decode(data),
-        delimiter=TABLE_EXTENSIONS[extension],
-        name=document.filename,
-    )
+    return from_upload(data, extension, name=document.filename)
+
+
+def from_upload(data: bytes, extension: str, *, name: str) -> Table:
+    """The table in an uploaded file's bytes. A workbook is read from its
+    first sheet that has rows under a header; the others are named in the
+    error only when none has."""
+    if TABLE_EXTENSIONS.get(extension) == "xlsx":
+        from api.services.knowledge_base import extraction
+
+        try:
+            sheets = extraction.xlsx_sheets_as_csv(data)
+        except extraction.DocumentExtractionError as exc:
+            raise TableError(exc.user_message or str(exc)) from exc
+        for _title, text in sheets:
+            table = parse(text, delimiter=",", name=name)
+            if table.rows:
+                return table
+        raise TableError(f"{name} has no sheet with rows under a header.")
+    return parse(_decode(data), delimiter=TABLE_EXTENSIONS[extension], name=name)
 
 
 # --- Conditions and scores ---------------------------------------------------

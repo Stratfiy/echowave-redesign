@@ -28,7 +28,7 @@ def completed(
             "record of who asked and when."
         ),
         dedupe_key=f"erasure:{request_id}",
-        link="/privacy",
+        link="/settings/compliance",
     )
 
 

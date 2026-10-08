@@ -402,3 +402,58 @@ class TestTheRosterShowsWhoIsComing:
         await invitations.accept(async_session, raw_token=token, user=joiner)
 
         assert await invitations.pending_for_organization(async_session, org.id) == []
+
+
+@pytest.mark.asyncio
+class TestTheInviteRoute:
+    async def test_inviting_returns_the_link_instead_of_a_500(self, async_session):
+        """The route read the invitation after its session had committed and
+        closed, so every invitation raised DetachedInstanceError: a 500, and
+        no way to get a second person into the workspace."""
+        from types import SimpleNamespace
+        from unittest.mock import AsyncMock, patch
+
+        from api.routes import organization_members as route
+
+        org = await _org(async_session, "invite-route")
+        owner = await _user(async_session, "owner-invite-route@example.com")
+        await _member(async_session, org, owner, OrganizationRole.OWNER.value)
+
+        class _ClosingSession:
+            """The test's session, behaving as a real one does at the edges:
+            a commit expires every row, and leaving the block detaches them."""
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *exc):
+                async_session.expunge_all()
+                return False
+
+            def __getattr__(self, name):
+                return getattr(async_session, name)
+
+            async def commit(self):
+                await async_session.flush()
+                async_session.expire_all()
+
+        with (
+            patch.object(
+                route,
+                "send_email",
+                new=AsyncMock(return_value=SimpleNamespace(ok=True)),
+            ),
+            patch.object(
+                route.db_client, "async_session", return_value=_ClosingSession()
+            ),
+        ):
+            result = await route.create_invitation(
+                route.InviteRequest(email="new-teammate@example.com", role="member"),
+                user=SimpleNamespace(
+                    id=owner.id, email=owner.email, selected_organization_id=org.id
+                ),
+            )
+        assert result["invitation"]["email"] == "new-teammate@example.com"
+        assert result["invitation"]["role"] == "member"
+        assert result["invitation"]["created_at"]
+        assert "token=" in result["link"]

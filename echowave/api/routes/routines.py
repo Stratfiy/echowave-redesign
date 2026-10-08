@@ -334,6 +334,10 @@ async def list_all_routines(
     names: dict[int, str | None] = {}
     rendered = []
     for row in rows:
+        if row.workflow_id is None and await routine_rules.hidden_from(row, user.id):
+            # Set in a colleague's private chat: its name and instruction are
+            # their words (stream today, phase 3).
+            continue
         shown = await _render(row, organization_id=organization_id)
         if row.workflow_id is None:
             # Decibyl's own (KAN-156): no bot, run by the assistant's turn.
@@ -350,11 +354,16 @@ async def list_all_routines(
     return RoutineListResponse(routines=rendered)
 
 
-async def _decibyls(routine_id: int, organization_id: int):
+async def _decibyls(routine_id: int, organization_id: int, user_id: int):
     """One of Decibyl's own routines, or 404. A bot's routine is not reached
-    through here: its bot's path owns it."""
+    through here: its bot's path owns it. One set in a colleague's private
+    chat is not there either."""
     routine = await db_client.get_routine(routine_id, organization_id=organization_id)
-    if routine is None or routine.workflow_id is not None:
+    if (
+        routine is None
+        or routine.workflow_id is not None
+        or await routine_rules.hidden_from(routine, user_id)
+    ):
         raise HTTPException(status_code=404, detail="No such routine of Decibyl's.")
     return routine
 
@@ -369,7 +378,7 @@ async def test_decibyl_routine(
     """Run one of Decibyl's routines once, now, on purpose -- the same gate a
     bot's routine passes before it may arm."""
     organization_id = _organization_id(user)
-    await _decibyls(routine_id, organization_id)
+    await _decibyls(routine_id, organization_id, user.id)
     await db_client.mark_routine_tested(routine_id, organization_id=organization_id)
     try:
         await enqueue_job(FunctionNames.RUN_AGENT_ROUTINE, routine_id)
@@ -395,7 +404,7 @@ async def set_decibyl_routine_active(
 ) -> RoutineResponse:
     """Switch one of Decibyl's routines on (after a test run) or off."""
     organization_id = _organization_id(user)
-    routine = await _decibyls(routine_id, organization_id)
+    routine = await _decibyls(routine_id, organization_id, user.id)
     if active and not routine_rules.may_arm(routine_rules.spec_from_model(routine)):
         raise HTTPException(
             status_code=400,
@@ -423,5 +432,7 @@ async def delete_decibyl_routine(
     ],
 ) -> None:
     organization_id = _organization_id(user)
-    await _decibyls(routine_id, organization_id)
-    await db_client.delete_routine(routine_id, organization_id=organization_id)
+    await _decibyls(routine_id, organization_id, user.id)
+    await db_client.delete_routine(
+        routine_id, organization_id=organization_id, workflow_id=None
+    )

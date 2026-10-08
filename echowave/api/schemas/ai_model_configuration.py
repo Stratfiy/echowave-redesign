@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, TypeAdapter, ValidationError, model_validator
 
 from api.services.configuration.registry import (
     DecibylEmbeddingsConfiguration,
@@ -106,7 +106,14 @@ class DecibylManagedAIModelConfiguration(BaseModel):
     #: stored configuration still resolves (see ``managed_tiers``), and
     #: rejecting it at load would break an agent that has been dialling
     #: happily for months.
-    llm_tier: str = "default"
+    llm_tier: str = "auto"
+
+    #: Exact choices the workspace made in Settings -> Models, per slot
+    #: (``llm``, ``stt``, ``tts``, ``embeddings``). ``<vendor>/<model>`` runs
+    #: on our key; ``own:<vendor>/<model>`` runs on the workspace's own key,
+    #: read from its vault at call time. A slot absent here runs on its tier,
+    #: which is every account that has not chosen.
+    slots: dict[str, str] = Field(default_factory=dict)
 
     #: Which bundle the Simple picker was on when this was saved. Stored so the
     #: picker can show what is currently in force, which it previously could
@@ -227,6 +234,72 @@ def compile_ai_model_configuration_v2(
     )
 
 
+#: What each slot's choice is parsed as.
+_SLOT_TYPES = {
+    "llm": LLMConfig,
+    "stt": STTConfig,
+    "tts": TTSConfig,
+    "embeddings": EmbeddingsConfig,
+}
+
+OWN_KEY_PREFIX = "own:"
+
+
+def parse_slot_choice(value: str) -> tuple[str, str, bool] | None:
+    """``(vendor, model, own_key)`` for a stored slot choice, else None."""
+    raw = (value or "").strip()
+    own = raw.startswith(OWN_KEY_PREFIX)
+    if own:
+        raw = raw[len(OWN_KEY_PREFIX) :]
+    vendor, _, model = raw.partition("/")
+    if not vendor or not model:
+        return None
+    return vendor, model, own
+
+
+def chosen_section(configuration: DecibylManagedAIModelConfiguration, slot: str):
+    """The section the workspace chose for ``slot``, or None for its tier.
+
+    Our key: a real vendor on ``use_platform_key``, the direct managed path.
+    Their key: a real vendor with no key inline, which ``byok_resolution``
+    fills from the workspace's vault -- the ordinary BYOK shape.
+    """
+    parsed = parse_slot_choice((configuration.slots or {}).get(slot, ""))
+    if parsed is None:
+        return None
+    vendor, model, own = parsed
+    section: dict = {"provider": vendor, "model": model, "api_key": ""}
+    if not own:
+        section["use_platform_key"] = True
+    try:
+        return TypeAdapter(_SLOT_TYPES[slot]).validate_python(section)
+    except ValidationError as exc:
+        # A vendor we no longer build must not stop the agent answering; the
+        # slot falls back to its tier, which always resolves -- loudly, since
+        # that moves the workspace onto our key.
+        from loguru import logger
+
+        logger.warning(
+            "Workspace {} choice {}/{} no longer builds ({}); using its tier",
+            slot,
+            vendor,
+            model,
+            exc.error_count(),
+        )
+        return None
+
+
+def _managed_llm(configuration: DecibylManagedAIModelConfiguration):
+    """The workspace's brain: the exact model it chose, else its tier."""
+    return chosen_section(configuration, "llm") or DecibylLLMService(
+        provider=ServiceProviders.DECIBYL,
+        api_key=configuration.api_key,
+        # The tier, not a vendor model name — managed_resolution reads this
+        # field as the tier to resolve.
+        model=configuration.llm_tier,
+    )
+
+
 def _compile_decibyl_configuration(
     configuration: DecibylManagedAIModelConfiguration,
 ) -> EffectiveAIModelConfiguration:
@@ -238,6 +311,11 @@ def _compile_decibyl_configuration(
 
     realtime_tier = (configuration.realtime_tier or "").strip()
     if realtime_tier:
+        from api.services.configuration import managed_tiers
+
+        realtime_tier = managed_tiers.realtime_tier_for_language(
+            realtime_tier, configuration.language
+        )
         # No stt or tts slot at all. A realtime section that also named a
         # transcriber would be two answers to one question, and the compiler
         # would have to pick one. The llm slot still names the same tier
@@ -260,27 +338,23 @@ def _compile_decibyl_configuration(
         )
 
     return EffectiveAIModelConfiguration(
-        llm=DecibylLLMService(
-            provider=ServiceProviders.DECIBYL,
-            api_key=configuration.api_key,
-            # The tier, not a vendor model name — managed_resolution reads this
-            # field as the tier to resolve.
-            model=configuration.llm_tier,
-        ),
-        tts=DecibylTTSService(
+        llm=_managed_llm(configuration),
+        tts=chosen_section(configuration, "tts")
+        or DecibylTTSService(
             provider=ServiceProviders.DECIBYL,
             api_key=configuration.api_key,
             model=configuration.tts_tier,
             voice=configuration.voice,
             speed=configuration.speed,
         ),
-        stt=DecibylSTTService(
+        stt=chosen_section(configuration, "stt")
+        or DecibylSTTService(
             provider=ServiceProviders.DECIBYL,
             api_key=configuration.api_key,
             model=configuration.stt_tier,
             language=configuration.language,
         ),
-        embeddings=embeddings,
+        embeddings=chosen_section(configuration, "embeddings") or embeddings,
         is_realtime=False,
         managed_service_version=2,
     )

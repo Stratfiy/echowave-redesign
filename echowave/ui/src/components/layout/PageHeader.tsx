@@ -57,6 +57,10 @@ interface PageHeaderProps {
   className?: string;
 }
 
+function scrollIntoViewOnce(node: HTMLAnchorElement | null) {
+  node?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+}
+
 export function PageTabs({ tabs }: { tabs: PageTab[] }) {
   // Null outside the app router (unit tests render pages bare), and a strip
   // with nothing lit is the right answer there.
@@ -68,10 +72,10 @@ export function PageTabs({ tabs }: { tabs: PageTab[] }) {
     // `PageHeader` its tabs to get the underline that separates the header
     // band from the content.
     <nav
-      className="w-full overflow-x-auto border-b border-border/70"
+      className="w-full overflow-x-auto border-b border-border/70 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       aria-label="Section"
     >
-      <ul className="-mb-px flex min-w-max items-center gap-1 px-4 sm:px-6">
+      <ul className="-mb-px flex min-w-max items-center gap-0.5 px-2 sm:gap-1 sm:px-6">
       {tabs.map((tab) => {
         const isActive = tab.href === active;
         return (
@@ -79,8 +83,11 @@ export function PageTabs({ tabs }: { tabs: PageTab[] }) {
             <Link
               href={tab.href}
               aria-current={isActive ? "page" : undefined}
+              // On a phone the strip scrolls; the open tab is brought into
+              // view rather than left past the edge.
+              ref={isActive ? scrollIntoViewOnce : undefined}
               className={cn(
-                "-mb-px inline-block border-b-2 px-3 py-2.5 text-sm whitespace-nowrap transition-colors",
+                "-mb-px inline-block border-b-2 px-2.5 py-2.5 text-sm whitespace-nowrap transition-colors sm:px-3",
                 // The brand coral, not `--primary`. `--primary` is #171717 —
                 // near-black, and a near-black underline on a near-black label
                 // does not read as "this one". The section strip already used

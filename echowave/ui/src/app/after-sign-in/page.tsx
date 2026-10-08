@@ -13,11 +13,20 @@ import {
 } from "@/lib/auth/server";
 import { HIRE_COOKIE, resumePath } from "@/lib/hireResume";
 import logger from "@/lib/logger";
+import { shellLanding } from "@/lib/shell/landing";
 import { getRedirectUrl } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
-export default async function AfterSignInPage() {
+export default async function AfterSignInPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ verify?: string }>;
+}) {
+  // "Do this later" on the verify step comes back here with ?verify=later.
+  // Without honouring it, the check below sent the person straight back to
+  // the code they had just put off -- a loop with no way into the product.
+  const verifyLater = (await searchParams)?.verify === "later";
   logger.debug("[AfterSignInPage] Starting after-sign-in page");
   const authProvider = await getServerAuthProvider();
   logger.debug("[AfterSignInPage] Auth provider:", authProvider);
@@ -64,7 +73,7 @@ export default async function AfterSignInPage() {
       const me = await getAuthUserApiV1UserAuthUserGet({
         headers: { Authorization: `Bearer ${accessToken}` },
       });
-      if (me.data && me.data.email_verified === false) {
+      if (me.data && me.data.email_verified === false && !verifyLater) {
         logger.debug(
           "[AfterSignInPage] Email not verified - redirecting to /auth/verify",
         );
@@ -78,6 +87,14 @@ export default async function AfterSignInPage() {
       if (resume) {
         logger.debug("[AfterSignInPage] Resuming a hire:", resume);
         redirect(resume);
+      }
+
+      // Launch shell (first_task_onboarding): the first questions, then
+      // Chat -- never the build-an-agent journey. Null keeps the rule below.
+      const landing = await shellLanding(accessToken);
+      if (landing) {
+        logger.debug("[AfterSignInPage] Shell landing:", landing);
+        redirect(landing);
       }
 
       const countResponse = await getWorkflowCountApiV1WorkflowCountGet({

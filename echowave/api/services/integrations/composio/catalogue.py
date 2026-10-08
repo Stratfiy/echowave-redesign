@@ -88,10 +88,10 @@ SETUP_OURS = "ours"
 OURS: dict[str, str] = {
     # Telephony. Bring your own carrier credentials, or buy a number from us;
     # either way it is the telephony screen and never a connector.
-    "plivo": "/telephony-configurations",
-    "twilio": "/telephony-configurations",
-    "telnyx": "/telephony-configurations",
-    "vonage": "/telephony-configurations",
+    "plivo": "/settings/phone-number",
+    "twilio": "/settings/phone-number",
+    "telnyx": "/settings/phone-number",
+    "vonage": "/settings/phone-number",
     # Ours end to end: our OAuth application, our token table, no third party
     # between the agent and the booking. It already has its own card at the
     # top of the same screen.

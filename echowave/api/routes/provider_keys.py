@@ -106,7 +106,9 @@ async def list_provider_keys(user: UserModel = Depends(get_user)) -> dict[str, A
         # PLATFORM_CREDENTIAL_SECRET cannot store keys at all, and that is an
         # administrator's problem rather than the customer's mistake.
         "encryption_configured": creds.encryption_is_configured(),
-        "components": [c.value for c in creds.CREDENTIAL_COMPONENTS],
+        # ``data`` too: a lead-data key (Apollo) is held here for outreach.
+        "components": [c.value for c in creds.CREDENTIAL_COMPONENTS]
+        + [creds.DATA_COMPONENT.value],
     }
 
 
@@ -160,8 +162,11 @@ async def set_provider_key(
 
     # Staff accounts have every feature; for anyone else this is a commercial
     # arrangement switched on from the staff account page.
+    from api.services.billing import free_mode
+
     if not (
         is_superadmin(user)
+        or free_mode.on(organization_id)
         or (await get_organization_preferences(organization_id)).own_keys_allowed
     ):
         raise HTTPException(

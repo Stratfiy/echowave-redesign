@@ -228,6 +228,19 @@ async def timeline(
         limit=limit,
         before_at=before_at,
         before_id=before_id,
+        # A person's own reach rows (connect chips, comparisons, order
+        # cards) are theirs alone, whatever thread they sit on.
+        viewer_id=user.id,
+        # The whole-history feed holds Decibyl's rows too, from every
+        # thread. With private threads on, only the reader's own: the
+        # thread check above guards `assistant` reads, not this one.
+        decibyl_threads=await db_client.decibyl_threads_of(
+            organization_id=organization_id,
+            viewer_id=user.id,
+            viewer_is_admin=await _is_admin(user, organization_id),
+        )
+        if constants.DECIBYL_PRIVATE_THREADS_ENABLED and not assistant
+        else None,
     )
 
     events = [_as_event(row) for row in rows]
@@ -288,6 +301,10 @@ class PostMessageRequest(BaseModel):
     #: Any id the client mints; the thread exists from its first message.
     #: Null is the original thread.
     thread_id: Optional[str] = Field(default=None, max_length=36)
+    #: With ``assistant``: the helper chosen in the picker (screen 06), or
+    #: null for Automatic. Only an available helper is accepted; the server
+    #: decides, not the button (launch stream `agents`).
+    helper: Optional[str] = Field(default=None, max_length=32)
 
 
 class PostMessageResponse(BaseModel):
@@ -387,6 +404,10 @@ async def memory(
         folder = await db_client.get_folder(folder_id, organization_id=organization_id)
         if folder is None:
             raise HTTPException(status_code=404, detail="No such channel here")
+    if assistant:
+        # The same rule as reading the thread: how big somebody else's
+        # private conversation is, and that the id names one, is theirs.
+        await _assert_thread_is_theirs(user, organization_id, thread_id)
     usage = await chat_memory.usage(
         organization_id,
         workflow_id=workflow_id,
@@ -410,6 +431,11 @@ class ThreadSummary(BaseModel):
 
 class ThreadsResponse(BaseModel):
     threads: list[ThreadSummary]
+    #: Whether the reader may read and write the original (null) thread. With
+    #: private threads on it is only its author's, or an Admin's when nobody
+    #: is on record; Chat's start screen starts a new conversation instead of
+    #: opening one that would answer "Thread not found".
+    original_is_yours: bool = True
 
 
 async def _is_admin(user: UserModel, organization_id: int) -> bool:
@@ -424,6 +450,12 @@ async def _assert_thread_is_theirs(
     """A Decibyl conversation is its author's (D-1b). A thread that is not
     theirs is answered as not found, the way a wrong tenant is: a 403 would
     confirm the id names somebody else's chat."""
+    from api.services.meetings import is_meeting_thread
+
+    if is_meeting_thread(thread_id):
+        # A meeting's follow-up cards are read from the meeting record, by
+        # the person who captured it -- never as a chat, by anyone.
+        raise HTTPException(status_code=404, detail="Thread not found")
     if not constants.DECIBYL_PRIVATE_THREADS_ENABLED:
         return
     author = await db_client.thread_author(
@@ -469,8 +501,40 @@ async def threads(
         limit=limit,
         viewer_id=user.id if private else None,
         viewer_is_admin=await _is_admin(user, organization_id) if private else False,
+        reader_id=user.id,
     )
-    return ThreadsResponse(threads=[ThreadSummary(**row) for row in rows])
+    original_is_yours = True
+    if private:
+        try:
+            await _assert_thread_is_theirs(user, organization_id, None)
+        except HTTPException:
+            original_is_yours = False
+    return ThreadsResponse(
+        threads=[ThreadSummary(**row) for row in rows],
+        original_is_yours=original_is_yours,
+    )
+
+
+@router.get("/recents")
+async def recents(
+    limit: Annotated[int, Query(ge=1, le=50)] = 12,
+    user: UserModel = Depends(get_user),
+) -> dict:
+    """The rail's Recents: Decibyl chats and agent chats, newest first."""
+    from api.services.workflow import recents as recents_service
+
+    organization_id = user.selected_organization_id
+    if not organization_id:
+        raise HTTPException(status_code=400, detail="No organization selected")
+    private = constants.DECIBYL_PRIVATE_THREADS_ENABLED
+    items = await recents_service.recents(
+        organization_id=organization_id,
+        viewer_id=user.id if private else None,
+        viewer_is_admin=await _is_admin(user, organization_id) if private else False,
+        reader_id=user.id,
+        limit=limit,
+    )
+    return {"items": items}
 
 
 @router.post("/message", response_model=PostMessageResponse)
@@ -505,8 +569,19 @@ async def post_message(
             detail="Say it in a channel, to an agent, or to Decibyl, one of the three",
         )
 
+    if body.helper is not None and not body.assistant:
+        raise HTTPException(
+            status_code=422, detail="A helper is chosen for Decibyl only"
+        )
     if body.assistant:
         await _assert_thread_is_theirs(user, organization_id, body.thread_id)
+        if body.helper:
+            from api.services.helpers import states as helper_states
+
+            try:
+                await helper_states.assert_usable(organization_id, body.helper)
+            except helper_states.Unusable as exc:
+                raise HTTPException(status_code=409, detail=str(exc)) from exc
         text, attachments, line, preset = await _what_was_said(body, organization_id)
         asked = await decibyl.ask(
             organization_id=organization_id,
@@ -516,10 +591,17 @@ async def post_message(
             line=line,
             preset=preset,
             thread_id=body.thread_id,
+            **({"helper": body.helper} if body.helper else {}),
         )
         return PostMessageResponse(asked=asked, unknown=[], ambiguous=[])
 
     if body.workflow_id is not None:
+        if await decibyl.turn_refused(
+            organization_id=organization_id,
+            user_id=user.id,
+            workflow_id=body.workflow_id,
+        ):
+            return PostMessageResponse(asked=[], unknown=[], ambiguous=[])
         return await _post_direct_message(
             organization_id=organization_id, user=user, body=body
         )
@@ -551,6 +633,12 @@ async def post_message(
     text, attachments, line, preset = await _what_was_said(body, organization_id)
 
     resolution = mentions.resolve(text, roster)
+    if resolution.mentioned and await decibyl.turn_refused(
+        organization_id=organization_id, user_id=user.id, folder_id=body.folder_id
+    ):
+        # Asking a bot in a channel is a turn too; a line that addresses no
+        # bot asks no model and is not counted.
+        return PostMessageResponse(asked=[], unknown=[], ambiguous=[])
 
     await agent_timeline.record(
         organization_id=organization_id,
@@ -713,6 +801,9 @@ class ThreadChip(BaseModel):
 
     kind: str
     text: str
+    #: The helper a tapped chip is sent to: the one that wrote the reply it
+    #: follows. Null is Automatic.
+    helper: Optional[str] = None
 
 
 class ThreadChipsResponse(BaseModel):
@@ -721,6 +812,8 @@ class ThreadChipsResponse(BaseModel):
 
 @router.get("/chips", response_model=ThreadChipsResponse)
 async def thread_chips(
+    thread_id: Annotated[Optional[str], Query(max_length=36)] = None,
+    workflow_id: Annotated[Optional[int], Query()] = None,
     user: UserModel = Depends(get_user),
 ) -> ThreadChipsResponse:
     """What to offer under the last reply, so the thread carries its own
@@ -746,25 +839,103 @@ async def thread_chips(
     if not organization_id:
         raise HTTPException(status_code=400, detail="No organization selected")
 
+    if workflow_id is not None:
+        # An agent's own chat: only the next steps of its own last reply --
+        # the workspace's questions are Decibyl's to answer, not the agent's.
+        try:
+            return ThreadChipsResponse(
+                chips=await _agent_follow_ups(organization_id, workflow_id)
+            )
+        except Exception as exc:  # noqa: BLE001 - the chat still works
+            logger.warning("Could not build follow-ups for {}: {}", workflow_id, exc)
+            return ThreadChipsResponse(chips=[])
+
+    # The reply on screen first: a helper's own next steps for what it just
+    # said (services/helpers/follow_ups.py), sent back to that helper.
+    follow: list[ThreadChip] = []
+    if thread_id is not None:
+        try:
+            await _assert_thread_is_theirs(user, organization_id, thread_id)
+            follow = await _follow_ups(organization_id, thread_id)
+        except HTTPException:
+            follow = []
+        except Exception as exc:  # noqa: BLE001 - the thread still works
+            logger.warning("Could not build follow-ups for {}: {}", thread_id, exc)
+
     try:
         from api.routes.team import _members
 
         members = [m.model_dump() for m in await _members(organization_id, 24)]
         missed = await db_client.unreturned_missed_call_count(organization_id, hours=48)
         cards = await home_openers.gather(
-            organization_id, members=members, unreturned_missed_calls=missed
+            organization_id,
+            members=members,
+            unreturned_missed_calls=missed,
+            viewer_id=user.id,
         )
     except Exception as exc:  # noqa: BLE001 - the thread still works
         logger.warning("Could not build thread chips for {}: {}", organization_id, exc)
-        return ThreadChipsResponse(chips=[])
+        return ThreadChipsResponse(chips=follow)
 
     return ThreadChipsResponse(
-        chips=[
+        chips=follow
+        + [
             ThreadChip(kind=str(c.get("kind") or "suggestion"), text=str(c["text"]))
             for c in cards
             if c.get("text")
         ]
     )
+
+
+async def _agent_follow_ups(organization_id: int, workflow_id: int) -> list[ThreadChip]:
+    from api.services.helpers import follow_ups
+
+    rows = await db_client.agent_events(
+        organization_id=organization_id,
+        workflow_id=workflow_id,
+        kinds=[AgentEventKind.MESSAGE.value],
+        limit=10,
+    )
+    for row in rows:
+        if row.folder_id is not None:
+            continue
+        if row.actor != AgentEventActor.AGENT.value:
+            return []
+        payload = row.payload or {}
+        if payload.get("failed"):
+            return []
+        return [
+            ThreadChip(**chip)
+            for chip in follow_ups.for_agent_reply(str(payload.get("body") or ""))
+        ]
+    return []
+
+
+async def _follow_ups(organization_id: int, thread_id: str) -> list[ThreadChip]:
+    """Chips for the newest Decibyl reply in this thread, if a helper wrote
+    it and it did not fail or stop."""
+    from api.services.helpers import follow_ups
+
+    rows = await db_client.agent_events(
+        organization_id=organization_id,
+        assistant_thread=True,
+        thread_id=thread_id,
+        kinds=[AgentEventKind.MESSAGE.value],
+        limit=20,
+    )
+    for row in rows:
+        if row.actor != AgentEventActor.AGENT.value:
+            continue
+        payload = row.payload or {}
+        if payload.get("failed") or payload.get("stopped"):
+            return []
+        return [
+            ThreadChip(**chip)
+            for chip in follow_ups.for_reply(
+                payload.get("helper"), str(payload.get("body") or "")
+            )
+        ]
+    return []
 
 
 @router.post("/decide", response_model=TimelineEvent)
@@ -805,6 +976,7 @@ class DraftResponse(BaseModel):
 @router.get("/draft", response_model=DraftResponse)
 async def reply_draft_text(
     workflow_id: Annotated[Optional[int], Query()] = None,
+    thread_id: Annotated[Optional[str], Query(max_length=64)] = None,
     user: UserModel = Depends(get_user),
 ) -> DraftResponse:
     """The answer as it forms, for the thinking row. Decibyl's thread with
@@ -814,7 +986,9 @@ async def reply_draft_text(
     if not organization_id:
         raise HTTPException(status_code=400, detail="No organization selected")
     return DraftResponse(
-        text=await reply_draft.get(organization_id, workflow_id=workflow_id)
+        text=await reply_draft.get(
+            organization_id, workflow_id=workflow_id, thread_id=thread_id
+        )
     )
 
 
@@ -822,6 +996,9 @@ class SettleActionRequest(BaseModel):
     event_id: int
     #: confirm | decline | undo. See services/workflow/actions.py.
     verb: str = Field(max_length=16)
+    #: The card's payload version the person was shown. With the task
+    #: ledger on, Confirm approves exactly that version and no other.
+    version: Optional[str] = Field(default=None, max_length=32)
 
 
 @router.post("/actions/settle", response_model=TimelineEvent)
@@ -840,6 +1017,90 @@ async def settle_action(body: SettleActionRequest, user: UserModel = Depends(get
             organization_id=organization_id,
             event_id=body.event_id,
             verb=body.verb,
+            user_id=user.id,
+            version=body.version,
+        )
+    except actions.ActionError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    row = await db_client.get_agent_event(
+        body.event_id, organization_id=organization_id
+    )
+    if row is None:
+        raise HTTPException(status_code=404, detail="That proposal is not here")
+    return _as_event(row)
+
+
+class ConfirmAllItem(BaseModel):
+    event_id: int
+    #: The version this card showed. Required: a bulk Confirm approves each
+    #: card's words exactly as shown, or not at all.
+    version: Optional[str] = Field(default=None, max_length=32)
+
+
+class ConfirmAllRequest(BaseModel):
+    items: list[ConfirmAllItem] = Field(min_length=1)
+
+
+class ConfirmAllResult(BaseModel):
+    event_id: Optional[int] = None
+    ok: bool
+    state: Optional[str] = None
+    reason: Optional[str] = None
+
+
+class ConfirmAllResponse(BaseModel):
+    confirmed: int
+    results: list[ConfirmAllResult]
+
+
+@router.post("/actions/confirm-all", response_model=ConfirmAllResponse)
+async def confirm_all_actions(
+    body: ConfirmAllRequest, user: UserModel = Depends(get_user)
+):
+    """Confirm several waiting cards with one press -- each against the
+    version it showed, each on its own (services/workflow/actions.py,
+    ``settle_many``). A card that cannot be confirmed says why on its own
+    line; the others still go."""
+    organization_id = user.selected_organization_id
+    if not organization_id:
+        raise HTTPException(status_code=400, detail="No organization selected")
+    try:
+        results = await actions.settle_many(
+            organization_id=organization_id,
+            items=[item.model_dump() for item in body.items],
+            user_id=user.id,
+        )
+    except actions.ActionError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return ConfirmAllResponse(
+        confirmed=sum(1 for r in results if r["ok"]),
+        results=[ConfirmAllResult(**r) for r in results],
+    )
+
+
+class ReviseActionRequest(BaseModel):
+    event_id: int
+    #: The new arguments: a connected app's call arguments, or a document
+    #: card's note, recipient and channel.
+    arguments: dict[str, Any]
+
+
+@router.post("/actions/revise", response_model=TimelineEvent)
+async def revise_action(body: ReviseActionRequest, user: UserModel = Depends(get_user)):
+    """Edit what a waiting card will do (task ledger). The edit is a new
+    version; any Confirm given before it no longer stands."""
+    organization_id = user.selected_organization_id
+    if not organization_id:
+        raise HTTPException(status_code=400, detail="No organization selected")
+    from api.services.workflow import task_ledger
+
+    if not task_ledger.enabled(organization_id):
+        raise HTTPException(status_code=404, detail="Not Found")
+    try:
+        await actions.revise(
+            organization_id=organization_id,
+            event_id=body.event_id,
+            arguments=body.arguments,
             user_id=user.id,
         )
     except actions.ActionError as exc:

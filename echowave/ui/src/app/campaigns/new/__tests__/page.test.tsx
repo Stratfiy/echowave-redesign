@@ -54,6 +54,6 @@ describe("the campaign form", () => {
         render(<NewCampaignPage />);
         const get = await screen.findByText("Get a number");
         expect(get.getAttribute("href")).toBe("/numbers");
-        expect(screen.getByText("connect your own carrier").getAttribute("href")).toBe("/telephony-configurations");
+        expect(screen.getByText("connect your own carrier").getAttribute("href")).toBe("/settings/phone-number");
     });
 });

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { ErrorBanner } from "@/components/ErrorBanner";
+import { useAssistedAccessDialog } from "@/components/superadmin/AssistedAccessDialog";
 import { SystemStrip } from "@/components/superadmin/SystemStatus";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,6 +22,7 @@ export default function SuperadminPage() {
     const [error, setError] = useState<{ target: ImpersonationTarget; message: string } | null>(null);
     const [loadingTarget, setLoadingTarget] = useState<ImpersonationTarget | null>(null);
     const { user, getAccessToken } = useAuth();
+    const { ask: askAccess, dialog: accessDialog } = useAssistedAccessDialog();
 
     const handleImpersonate = async (target: ImpersonationTarget, value: string) => {
         const trimmedValue = value.trim();
@@ -50,8 +52,12 @@ export default function SuperadminPage() {
                 throw new Error('Missing admin access token');
             }
 
+            const choice = await askAccess(trimmedValue);
+            if (!choice) return;
             await impersonateAsSuperadmin({
                 accessToken: accessToken,
+                reason: choice.reason,
+                mode: choice.mode,
                 ...(target === "provider"
                     ? { providerUserId: trimmedValue }
                     : { email: trimmedValue }),
@@ -81,6 +87,7 @@ export default function SuperadminPage() {
 
     return (
         <>
+            {accessDialog}
             <main className="container mx-auto p-6 space-y-6 max-w-5xl">
                 {/* Left-aligned like every other screen. This was the only
                     centred page title in the product, which read as a

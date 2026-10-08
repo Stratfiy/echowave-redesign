@@ -49,13 +49,12 @@ describe("an agent's face", () => {
         expect(screen.queryByText("Front desk")).toBeNull();
     });
 
-    it("draws the job as a 3D picture when asked, with the shell on", () => {
+    it("draws the job as a pastel picture when asked, with the shell on", () => {
         flags.shell = true;
         const { container } = render(<BotAvatar id={1} name="Payment reminders" size="md" art />);
-        const img = container.querySelector("img");
-        expect(img?.getAttribute("src")).toBe("/art/3d/wallet.webp");
-        expect(img?.getAttribute("alt")).toBe("");
-        expect(container.querySelector("svg")).toBeNull();
+        const art = container.querySelector("[data-art]");
+        expect(art?.getAttribute("data-art")).toBe("wallet");
+        expect(art?.getAttribute("aria-hidden")).toBe("true");
     });
 
     it("keeps the icon when not asked for art", () => {

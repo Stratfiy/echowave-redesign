@@ -32,7 +32,6 @@ import { AgentAvatar } from "@/components/avatar/AgentAvatar";
 import { type Avatar, faceOf } from "@/components/avatar/avatar";
 import { AvatarCustomizer } from "@/components/avatar/AvatarCustomizer";
 import { detailFromError } from "@/lib/apiError";
-import { useFeature } from "@/lib/features";
 import { cn } from "@/lib/utils";
 
 import {
@@ -338,11 +337,12 @@ function OrgChart({ teams, onEditFace }: { teams: OrgTeam[]; onEditFace: (agent:
 
 function AgentNode({ agent, onEditFace }: { agent: OrgAgent; onEditFace: () => void }) {
     const tone = toneOf(agent.tone);
-    const facesOn = useFeature("agent_faces");
+    // Bloub faces for everyone (KAN-260): the flag is registered, no longer read.
+    const facesOn = true;
     return (
         <div className="group relative">
             <Link
-                href={`/workflow/${agent.id}`}
+                href={`/workflow/${agent.id}/thread`}
                 className="block rounded-2xl border bg-background p-3 transition hover:border-foreground/30 hover:shadow-sm"
             >
                 <div className="flex items-center gap-3 pr-6">

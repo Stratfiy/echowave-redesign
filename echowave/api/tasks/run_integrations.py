@@ -570,6 +570,35 @@ async def run_integrations_post_workflow_run(_ctx, workflow_run_id: int):
                 gathered_context=workflow_run.gathered_context,
                 interactions=await db_client.app_interactions_for_run(workflow_run_id),
             )
+            # People: a call placed for a person ends on that contact's page
+            # with how it went. Only calls with a person behind them (call it
+            # for me); the record line was written when it was dialled.
+            initial = workflow_run.initial_context or {}
+            if initial.get("trigger_source") == "call_for_me" and initial.get(
+                "principal_user_id"
+            ):
+                from api.services.people import interactions as people_interactions
+
+                gathered_now = workflow_run.gathered_context or {}
+                outcome = str(
+                    gathered_now.get("mapped_call_disposition")
+                    or gathered_now.get("call_disposition")
+                    or "finished"
+                ).replace("_", " ")
+                await people_interactions.record(
+                    organization_id,
+                    initial.get("principal_user_id"),
+                    channel="call",
+                    direction="out",
+                    phone=initial.get("phone_number") or initial.get("called_number"),
+                    name=initial.get("callee_name") or None,
+                    line=(
+                        f"Decibyl called for you: "
+                        f"{initial.get('call_purpose') or 'a call'} ({outcome})"
+                    ),
+                    ref=f"run:{workflow_run_id}",
+                    at=getattr(workflow_run, "created_at", None),
+                )
             # And into the graph, with time: who said what to whom on this
             # call, so relations can be asked about later (Family B). A
             # deployment with no graph returns False here and nothing

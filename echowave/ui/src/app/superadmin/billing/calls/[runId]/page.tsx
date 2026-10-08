@@ -29,6 +29,7 @@ import {
     useAuthReady,
     useChartMode,
 } from "@/components/charts/primitives";
+import { CallContent, type ContentAccess } from "@/components/superadmin/CallContent";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -442,18 +443,12 @@ export default function CallDetailPage() {
                 </Card>
             )}
 
-            {call.recording_url ? (
-                <Card>
-                    <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium">Recording</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <audio controls src={String(call.recording_url)} className="w-full">
-                            Your browser does not support audio playback.
-                        </audio>
-                    </CardContent>
-                </Card>
-            ) : null}
+            <CallContent
+                runId={runId}
+                access={(call as Record<string, unknown>).content_access as ContentAccess | undefined}
+                recordingUrl={call.recording_url ? String(call.recording_url) : null}
+                hasRecording={Boolean((call as Record<string, unknown>).has_recording)}
+            />
         </div>
     );
 }

@@ -1,5 +1,9 @@
 # Going live
 
+> Routine deploys, rollback, environment parity and day-to-day operations
+> are in **`OPS-RUNBOOK.md`**, which is reconciled against the workflows.
+> This page is the first-box and configuration reference.
+
 ## Deploying to test it yourself first
 
 Most of this document is about serving customers. If you are pushing to a box
@@ -81,12 +85,15 @@ use one or the other, never both.)
 **The box needs to be able to pull at all.** Two credentials, neither of them
 Decibyl's:
 
-* **Docker Hub.** `postgres`, `redis`, `minio`, `nginx`, `coturn` and the rest
-  come from Docker Hub, and an unauthenticated daemon shares one small pull
-  quota with every other machine on its IP. When that runs out the error names
-  the image and not the cause — `pull access denied for minio/minio,
-  repository does not exist or may require 'docker login'` on an image that is
-  public. `docker login` with any free account on the box fixes it.
+* **Docker Hub.** `postgres`, `redis`, `nginx`, `coturn` and the rest come
+  from Docker Hub, and an unauthenticated daemon shares one small pull quota
+  with every other machine on its IP. When that runs out the error names the
+  image and not the cause — `pull access denied for redis, repository does not
+  exist or may require 'docker login'` on an image that is public. `docker
+  login` with any free account on the box fixes it. MinIO is the exception:
+  `minio/minio` really is gone from Docker Hub, so compose builds it from
+  `deploy/minio/Dockerfile` (Chainguard's server plus curl for the health
+  check) on first `up`.
 * **GHCR.** `decibyl-api`, `decibyl-ui` and `decibyl-sandbox` are published to
   `ghcr.io/stratfiy`. If those packages are private the box needs a read token:
   `echo "$TOKEN" | docker login ghcr.io -u <user> --password-stdin`. Making the
@@ -355,7 +362,153 @@ overstated until you fill it in.
 
 ---
 
+## 7. Claude and other models through AWS (optional)
+
+Everything here is off until configured, and nothing in it needs an AWS key
+in `.env`: on EC2 the instance role signs every request (the standard AWS
+credential chain). Staff see each part's state, and the exact step still
+missing, at `GET /api/v1/superuser/aws-gateway`; a workspace sees "Needs setup"
+on Settings → Models for a choice that is listed but not ready. Code:
+`api/services/aws_gateway/`.
+
+### Where Claude runs: `CLAUDE_BACKEND`
+
+| Value | What it means | Also set |
+| --- | --- | --- |
+| `anthropic` (default) | Today: Anthropic's API on the platform key | — |
+| `aws_platform` | Claude Platform on AWS: Anthropic-operated, full API parity, IAM and AWS billing. Recommended | `CLAUDE_AWS_REGION` (or `AWS_REGION`), `ANTHROPIC_AWS_WORKSPACE_ID` |
+| `bedrock` | Amazon Bedrock: a feature subset (no server-side web search or fetch, batches, Files API or MCP connector; our own web tools still run) | `BEDROCK_REGION` (or `AWS_REGION`), `BEDROCK_CLAUDE_MODEL_IDS`, `BEDROCK_ENABLED_MODELS` |
+
+It moves the platform's own Claude everywhere it is used: Decibyl chat, the
+builder, Auto's routing and the call pipeline's managed brain (on Bedrock the
+call pipeline uses its existing Bedrock provider). A workspace that brought
+its own Anthropic key keeps going to Anthropic with it.
+
+`BEDROCK_CLAUDE_MODEL_IDS` maps each Claude model the tiers name to its Bedrock
+id, e.g. `claude-haiku-4-5=anthropic.claude-haiku-4-5-20251001-v1:0,claude-opus-5-5=anthropic.claude-opus-5-5`.
+Every tier model needs an entry (Haiku, Sonnet, Opus and the builder's model).
+
+**If the backend is chosen but not ready** (missing setting, model access not
+granted), Claude stays on Anthropic's API, the API log says why once, and the
+staff view shows "needs setup". It never fails a turn for that reason.
+
+### Bedrock model access: `BEDROCK_ENABLED_MODELS`
+
+Listing a region's models is not permission to use them. The read-only check
+on 7 Oct 2026 found ap-south-1 lists Anthropic's models while access is
+`NOT_AUTHORIZED` (agreement not accepted). So a Bedrock model is "needs setup"
+until it is in `BEDROCK_ENABLED_MODELS` (comma-separated Bedrock ids), and goes
+back to "needs setup" for ten minutes whenever AWS refuses it at runtime.
+
+What the founder enables in AWS, per model, in the Bedrock console → Model
+access (in the region set above): request access, accept the model's EULA or
+agreement (Anthropic's use-case form for Claude), wait for "Access granted",
+then add the id to `BEDROCK_ENABLED_MODELS` and restart.
+
+### The gateway beyond Claude (each behind its own flag)
+
+| Flag | What it does | Settings |
+| --- | --- | --- |
+| `AWS_FALLBACK_BRAIN_ENABLED` | When the platform's Claude errors or times out (after the usual vendor fallbacks), a Bedrock model answers the turn. The reply ends with "(Claude was unavailable just now, so a backup model answered this one.)"; usage is recorded as `aws_bedrock` under feature `<feature>:fallback` | `BEDROCK_FALLBACK_MODEL` (e.g. Amazon Nova Pro or an open-weight model), `BEDROCK_FALLBACK_TIMEOUT_SECONDS` (60) |
+| `AWS_CHEAP_TIER_ENABLED` | A small model sorts work for Auto in Laya's place; the rules still decide when it abstains. It sits under the same ops guardrails as Laya: the hard deadline and circuit breaker (`laya_guardrails`), and `laya_rollback` silences it | `BEDROCK_CHEAP_MODEL` (Nova Micro or Lite), `BEDROCK_CHEAP_TIMEOUT_MS` (1500) |
+| `AWS_EMBEDDINGS_ENABLED` | "Multilingual (AWS)" knowledge search on Settings → Models. The vector column holds 1536 numbers, so only a model that returns 1536 is offered (Cohere Embed v4); documents are re-read for the new model | `BEDROCK_EMBEDDING_MODEL`, `BEDROCK_EMBEDDING_DIMENSIONS` (1536) |
+| `AWS_NOVA_SONIC_ENABLED` | Nova Sonic speech-to-speech as the `nova` tier, for Hindi and Indian English only (any other language runs on the natural tier). Sarvam stays the default for Indian-language voice | `NOVA_SONIC_MODEL`, `NOVA_SONIC_REGION`, `NOVA_SONIC_VOICE` |
+
+Nova Sonic is served from a few regions only, none of them in India today
+(pipecat lists us-east-1, us-west-2 and ap-northeast-1 for Nova 2 Sonic), so
+call audio on that tier is processed outside India. Decide that before
+switching it on.
+
+### The instance role's policy
+
+Least privilege: only the actions and model ARNs in use. Replace the region,
+account and ids with yours; keep only the statements for what you enable.
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ClaudePlatformOnAWS",
+      "Effect": "Allow",
+      "Action": [
+        "aws-external-anthropic:CreateInference",
+        "aws-external-anthropic:CountTokens",
+        "aws-external-anthropic:GetModel",
+        "aws-external-anthropic:ListModels",
+        "aws-external-anthropic:GetWorkspace"
+      ],
+      "Resource": "arn:aws:aws-external-anthropic:ap-south-1:<account-id>:workspace/<wrkspc_id>"
+    },
+    {
+      "Sid": "BedrockModels",
+      "Effect": "Allow",
+      "Action": [
+        "bedrock:InvokeModel",
+        "bedrock:InvokeModelWithResponseStream"
+      ],
+      "Resource": [
+        "arn:aws:bedrock:ap-south-1::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0",
+        "arn:aws:bedrock:ap-south-1::foundation-model/anthropic.claude-opus-5-5",
+        "arn:aws:bedrock:ap-south-1::foundation-model/<fallback-model-id>",
+        "arn:aws:bedrock:ap-south-1::foundation-model/<cheap-model-id>",
+        "arn:aws:bedrock:ap-south-1::foundation-model/<embedding-model-id>"
+      ]
+    },
+    {
+      "Sid": "NovaSonic",
+      "Effect": "Allow",
+      "Action": ["bedrock:InvokeModelWithBidirectionalStream"],
+      "Resource": "arn:aws:bedrock:<nova-sonic-region>::foundation-model/<nova-sonic-model-id>"
+    }
+  ]
+}
+```
+
+Notes:
+
+* `bedrock:InvokeModel` covers Converse and `InvokeModelWithResponseStream`
+  covers ConverseStream; both are needed for streaming chat.
+* A model reached through a cross-region inference profile (`apac.`,
+  `global.` ids) also needs the profile's ARN
+  (`arn:aws:bedrock:<region>:<account-id>:inference-profile/<id>`) and the
+  foundation-model ARN in every destination region. Its id also needs its own
+  row on the rate card (Super admin → Billing → Rate card), or its usage shows
+  as unpriced.
+* The AWS-managed `AnthropicInferenceAccess` policy also works for Claude
+  Platform on AWS but grants read access to every resource in the workspace;
+  the statement above is narrower.
+* Check the Nova Sonic action name against the Bedrock IAM reference when you
+  add it; it is the one statement here not exercised by the read-only check.
+
+The fallback brain's spend, like every direct model call, counts toward the
+ops cost stop (`cost_stop`), which now reads `model_usage` priced on the rate
+card beside call receipts.
+
+### Prices
+
+Rows for `anthropic_aws` (Claude Platform on AWS) and `aws_bedrock` (Bedrock:
+Claude, Nova, Nova 2 Sonic and Cohere Embed v4) are in
+`api/services/billing/default_rates.py`, all marked provisional until an AWS
+invoice confirms them. Run `scripts.seed_provider_rates` after deploying.
+
+### Rollback
+
+Set `CLAUDE_BACKEND=anthropic` (or remove it) and switch the four
+`AWS_*_ENABLED` flags off (environment or Super admin → Flags), then restart.
+Claude goes back to Anthropic's API on the platform key. A workspace that
+chose "Multilingual (AWS)" runs on standard knowledge search from its next
+request (documents embedded by the Bedrock model show as needing to be read
+again), and a bundle on the `nova` tier runs on the natural tier. Nothing
+stored has to be edited.
+
 ## Updating a running box
+
+**Routinely, you do not do this by hand.** A merge to `main` runs
+`.github/workflows/deploy.yml`, which hands `scripts/ci_deploy.sh` to the box
+over SSM: fetch, build, up, migrate, seed rates, build docs, health check,
+roll back on failure (`OPS-RUNBOOK.md` section 4). The manual path below is for
+a box that is not wired to the workflow yet, and for break-glass.
 
 Pull and rebuild in place:
 
@@ -368,17 +521,18 @@ git pull --recurse-submodules
 cd echowave
 sudo ./remote_up.sh --build
 
-# Docs are a build artifact, not a container. A pull that changed .mdx files
-# changes nothing on the docs host until this runs.
+# Docs are a build artifact, not a container. ci_deploy.sh builds them on
+# every workflow deploy; on this manual path, this is what builds them.
 cd docs && npm ci && npm run build && cd ..
 ```
 
-### Migrations do not run themselves on this path
+### Migrations run at container start, and again in the deploy
 
-Only the Helm chart runs `alembic upgrade head` as a hook. On the Docker/EC2
-path above **nothing migrates the database for you** — the containers come up
-against whatever schema is already there, and the failures that produces are
-confusing rather than loud. Run it yourself, from the host, after the pull:
+`scripts/start_services_docker.sh` runs `alembic upgrade head` when the api
+container starts (roles `all` and `control`; a `media` node skips it), and
+`ci_deploy.sh` runs it once more after `up`. So both the workflow and
+`remote_up.sh` migrate. Check the result rather than assuming it, from the
+host or with the `migrate-status` action of `.github/workflows/ops.yml`:
 
 ```bash
 set -a && source api/.env && set +a

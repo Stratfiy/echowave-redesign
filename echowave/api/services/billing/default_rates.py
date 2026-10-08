@@ -73,6 +73,9 @@ def is_seeded_note(note: str | None) -> bool:
 PROVIDER_SOURCES: dict[str, str] = {
     "openai": "https://developers.openai.com/api/docs/pricing",
     "anthropic": "https://platform.claude.com/docs/en/about-claude/pricing",
+    # Claude Platform on AWS and Amazon Bedrock (stream aws-gateway).
+    "anthropic_aws": "https://platform.claude.com/docs/en/about-claude/pricing",
+    "aws_bedrock": "https://aws.amazon.com/bedrock/pricing/",
     "google": "https://ai.google.dev/gemini-api/docs/pricing",
     "sarvam": "https://docs.sarvam.ai/api-reference-docs/pricing",
     "deepgram": "https://deepgram.com/pricing",
@@ -176,6 +179,123 @@ def _blend(input_per_million: float, output_per_million: float) -> float:
     return per_million / 1000
 
 
+#: When the AWS rows were read. None is confirmed against an invoice yet.
+AWS_CHECKED_ON = "2026-10-07"
+
+
+@dataclass(frozen=True)
+class _AWSPrice:
+    provider: str
+    model: str
+    input_per_million: float
+    output_per_million: float
+    basis: str
+
+
+#: Claude and other models through AWS (stream aws-gateway), USD per million
+#: input and output tokens. Recorded under the door the call went through:
+#: ``anthropic_aws`` is Claude Platform on AWS (bare model ids), billed
+#: through AWS at what we take to be Anthropic's list; ``aws_bedrock`` is
+#: Amazon Bedrock (its own model ids, exactly as configured).
+#:
+#: **Every one is provisional.** Bedrock's pricing page did not render for
+#: the survey on 7 Oct 2026; the Nova figures are the published launch list
+#: prices, and Bedrock's Claude rows assume Anthropic's list in-region. A
+#: Bedrock id served through a cross-region inference profile (``apac.``,
+#: ``global.``...) is a different id and needs its own row on the rate card,
+#: or it shows as unpriced rather than mispriced.
+AWS_MODEL_PRICES: tuple[_AWSPrice, ...] = (
+    _AWSPrice(
+        "anthropic_aws",
+        "",
+        1.00,
+        5.00,
+        f"{PROVISIONAL_MARKER} — Claude Haiku 4.5 list via AWS",
+    ),
+    _AWSPrice(
+        "anthropic_aws",
+        "claude-haiku-4-5",
+        1.00,
+        5.00,
+        f"{PROVISIONAL_MARKER} — list via AWS",
+    ),
+    _AWSPrice(
+        "anthropic_aws",
+        "claude-sonnet-5",
+        2.00,
+        10.00,
+        f"{PROVISIONAL_MARKER} — list via AWS",
+    ),
+    _AWSPrice(
+        "anthropic_aws",
+        "claude-sonnet-5-5",
+        2.00,
+        10.00,
+        f"{PROVISIONAL_MARKER} — list via AWS",
+    ),
+    _AWSPrice(
+        "anthropic_aws",
+        "claude-opus-5-5",
+        4.00,
+        20.00,
+        f"{PROVISIONAL_MARKER} — list via AWS",
+    ),
+    # The provider-wide fallback is the cheapest Claude, as Anthropic's is:
+    # the id most likely to miss a row is a Claude model behind an inference
+    # profile, and Nova, which is cheaper still, is priced by name.
+    _AWSPrice(
+        "aws_bedrock",
+        "",
+        1.00,
+        5.00,
+        f"{PROVISIONAL_MARKER} — Claude Haiku 4.5 on Bedrock, assumed at list",
+    ),
+    _AWSPrice(
+        "aws_bedrock",
+        "anthropic.claude-haiku-4-5-20251001-v1:0",
+        1.00,
+        5.00,
+        f"{PROVISIONAL_MARKER} — Claude Haiku 4.5 on Bedrock, assumed at list",
+    ),
+    _AWSPrice(
+        "aws_bedrock",
+        "anthropic.claude-opus-5-5",
+        4.00,
+        20.00,
+        f"{PROVISIONAL_MARKER} — Claude Opus 5.5 on Bedrock, assumed at list",
+    ),
+    _AWSPrice(
+        "aws_bedrock",
+        "amazon.nova-micro-v1:0",
+        0.035,
+        0.14,
+        f"{PROVISIONAL_MARKER} — Nova Micro launch list",
+    ),
+    _AWSPrice(
+        "aws_bedrock",
+        "amazon.nova-lite-v1:0",
+        0.06,
+        0.24,
+        f"{PROVISIONAL_MARKER} — Nova Lite launch list",
+    ),
+    _AWSPrice(
+        "aws_bedrock",
+        "amazon.nova-pro-v1:0",
+        0.80,
+        3.20,
+        f"{PROVISIONAL_MARKER} — Nova Pro launch list",
+    ),
+    # Speech tokens; Nova 2 Sonic's text tokens are far cheaper, so pricing
+    # the whole call at the speech rate over-reports rather than under.
+    _AWSPrice(
+        "aws_bedrock",
+        "amazon.nova-2-sonic-v1:0",
+        3.00,
+        12.00,
+        f"{PROVISIONAL_MARKER} — Nova 2 Sonic speech tokens",
+    ),
+)
+
 #: Language models — unit is 1k tokens, blended. Provider-wide fallbacks are the
 #: cheapest common model, so an unpriced model under-reports rather than
 #: over-reports; a surprise on the invoice should be pleasant.
@@ -273,6 +393,24 @@ LLM_RATES = (
     ),
     DefaultRate(
         "anthropic",
+        "claude-sonnet-5-5",
+        CostComponent.LLM,
+        RateUnit.THOUSAND_TOKENS,
+        _blend(2.00, 10.00),
+        "$2.00/$10.00 per 1M, blended",
+        checked_on=CHECKED_ON,
+    ),
+    DefaultRate(
+        "anthropic",
+        "claude-opus-5-5",
+        CostComponent.LLM,
+        RateUnit.THOUSAND_TOKENS,
+        _blend(4.00, 20.00),
+        "$4.00/$20.00 per 1M, blended",
+        checked_on=CHECKED_ON,
+    ),
+    DefaultRate(
+        "anthropic",
         "claude-sonnet-5",
         CostComponent.LLM,
         RateUnit.THOUSAND_TOKENS,
@@ -318,6 +456,22 @@ LLM_RATES = (
         _blend(5.00, 25.00),
         "$5.00/$25.00 per 1M, blended",
         checked_on=CHECKED_ON,
+    ),
+    # Claude and other models through AWS (stream aws-gateway). Generated
+    # from ``AWS_MODEL_PRICES`` above so the blended and split books cannot
+    # disagree; every row is provisional until an AWS invoice confirms it.
+    *(
+        DefaultRate(
+            price.provider,
+            price.model,
+            CostComponent.LLM,
+            RateUnit.THOUSAND_TOKENS,
+            _blend(price.input_per_million, price.output_per_million),
+            f"{price.basis}, blended",
+            provisional=True,
+            checked_on=AWS_CHECKED_ON,
+        )
+        for price in AWS_MODEL_PRICES
     ),
     # The OpenAI-compatible vendors, all marked provisional.
     #
@@ -993,6 +1147,28 @@ TELEPHONY_RATES = (
 #: embedding (document upload) is a separate, unmetered event — see
 #: ``PRICING-DECISIONS.md``.
 EMBEDDING_RATES = (
+    # Knowledge search on Bedrock (stream aws-gateway). Provisional: Cohere's
+    # own list for Embed v4, not yet read off Bedrock's page or an invoice.
+    DefaultRate(
+        "aws_bedrock",
+        "",
+        CostComponent.EMBEDDING,
+        RateUnit.THOUSAND_TOKENS,
+        0.00012,
+        f"{PROVISIONAL_MARKER} — Cohere Embed v4 $0.12/1M tokens; confirm on invoice",
+        provisional=True,
+        checked_on="2026-10-07",
+    ),
+    DefaultRate(
+        "aws_bedrock",
+        "cohere.embed-v4:0",
+        CostComponent.EMBEDDING,
+        RateUnit.THOUSAND_TOKENS,
+        0.00012,
+        f"{PROVISIONAL_MARKER} — Cohere Embed v4 $0.12/1M tokens; confirm on invoice",
+        provisional=True,
+        checked_on="2026-10-07",
+    ),
     DefaultRate(
         "openai",
         "",
@@ -1109,12 +1285,21 @@ DEFAULT_RATES: tuple[DefaultRate, ...] = (
 CACHED_INPUT_SHARE: dict[str, float] = {
     "openai": 0.5,
     "anthropic": 0.1,
+    # Claude through AWS reads its cache at Claude's tenth; Bedrock's other
+    # models are listed per model below where their discount is known.
+    "anthropic_aws": 0.1,
     "google": 0.1,
     "deepseek": 0.1,
 }
 #: OpenAI's newer family discounts cached input further than the rest.
 CACHED_INPUT_SHARE_BY_MODEL: dict[tuple[str, str], float] = {
     ("openai", "gpt-5"): 0.1,
+    # Opus 5.5 reads its cache at $0.20 a million against $4 input: 0.05x,
+    # not the 0.1x the rest of Anthropic's line charges.
+    ("anthropic", "claude-opus-5-5"): 0.05,
+    ("anthropic_aws", "claude-opus-5-5"): 0.05,
+    ("aws_bedrock", "anthropic.claude-haiku-4-5-20251001-v1:0"): 0.1,
+    ("aws_bedrock", "anthropic.claude-opus-5-5"): 0.05,
 }
 
 #: What a vendor charges to write a token into its cache, as a multiple of
@@ -1124,6 +1309,11 @@ CACHED_INPUT_SHARE_BY_MODEL: dict[tuple[str, str], float] = {
 #: report it inside the prompt count, so they have no row and no line.
 CACHE_WRITE_SHARE: dict[str, float] = {
     "anthropic": 1.25,
+    "anthropic_aws": 1.25,
+    # Bedrock reports cache writes outside the prompt (Converse's
+    # cacheWriteInputTokens, and Claude's own count); Claude's premium is
+    # the one we pay on it, and the stand-in models write no cache.
+    "aws_bedrock": 1.25,
 }
 
 
@@ -1158,6 +1348,12 @@ LLM_MODEL_PRICES: tuple[ModelPrice, ...] = (
         "anthropic", "claude-haiku-4-5", 1.00, 5.00, "list", checked_on=CHECKED_ON
     ),
     ModelPrice(
+        "anthropic", "claude-sonnet-5-5", 2.00, 10.00, "list", checked_on=CHECKED_ON
+    ),
+    ModelPrice(
+        "anthropic", "claude-opus-5-5", 4.00, 20.00, "list", checked_on=CHECKED_ON
+    ),
+    ModelPrice(
         "anthropic", "claude-sonnet-5", 2.00, 10.00, "list", checked_on=CHECKED_ON
     ),
     ModelPrice(
@@ -1171,6 +1367,18 @@ LLM_MODEL_PRICES: tuple[ModelPrice, ...] = (
     ),
     ModelPrice(
         "anthropic", "claude-opus-4-8", 5.00, 25.00, "list", checked_on=CHECKED_ON
+    ),
+    *(
+        ModelPrice(
+            p.provider,
+            p.model,
+            p.input_per_million,
+            p.output_per_million,
+            p.basis,
+            provisional=True,
+            checked_on=AWS_CHECKED_ON,
+        )
+        for p in AWS_MODEL_PRICES
     ),
     ModelPrice(
         "cerebras", "", 0.25, 0.69, "gpt-oss-120b list — unconfirmed", provisional=True

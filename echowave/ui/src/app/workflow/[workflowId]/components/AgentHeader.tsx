@@ -32,6 +32,7 @@ export function AgentHeader({
     name,
     onBack,
     actions,
+    backHref,
 }: {
     workflowId: number;
     name: string;
@@ -48,16 +49,18 @@ export function AgentHeader({
      * otherwise.
      */
     onBack?: (go: () => void) => void;
+    /** Where the arrow goes; the agent's editor unless the page says otherwise. */
+    backHref?: string;
 }) {
     const router = useRouter();
-    const go = () => router.push(`/workflow/${workflowId}`);
+    const go = () => router.push(backHref ?? `/workflow/${workflowId}`);
 
     return (
         <header className="sticky top-0 z-10 flex items-center gap-3 border-b bg-background/95 px-6 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/60">
             <Button
                 variant="ghost"
                 size="icon"
-                aria-label="Back to agent"
+                aria-label={backHref ? "Back" : "Back to agent"}
                 onClick={() => (onBack ? onBack(go) : go())}
             >
                 <ArrowLeft className="h-4 w-4" />

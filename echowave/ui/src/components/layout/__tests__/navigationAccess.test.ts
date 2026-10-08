@@ -154,7 +154,7 @@ describe("what stays open to every member", () => {
     it("leaves the product itself reachable", () => {
         // The thing the customer bought. If a role filter ever swallows these,
         // the account looks empty rather than restricted.
-        for (const url of ["/workflow", "/campaigns", "/files", "/usage"]) {
+        for (const url of ["/workflow", "/campaigns", "/settings/knowledge", "/usage"]) {
             expect(urls(MEMBER)).toContain(url);
         }
     });

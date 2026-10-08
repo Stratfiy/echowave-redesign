@@ -587,6 +587,32 @@ async def get_spend_breakdown(
     }
 
 
+@router.get("/usage/agents")
+async def get_usage_by_agent(
+    days: int = Query(30, ge=1, le=365),
+    user: UserModel = Depends(get_user),
+) -> Dict[str, Any]:
+    """Activity -> Usage: runs, tokens and cost per agent and per model."""
+    if not user.selected_organization_id:
+        raise HTTPException(status_code=400, detail="No organization selected")
+
+    from datetime import UTC
+
+    from api.services.billing import agent_usage
+
+    # Datetimes, not _range's dates: an end date compared with ``<`` would
+    # leave out today, which is the day somebody opens this to look at.
+    end = datetime.now(UTC)
+    start = end - timedelta(days=days)
+    async with db_client.async_session() as session:
+        return await agent_usage.by_agent(
+            session,
+            organization_id=user.selected_organization_id,
+            start=start,
+            end=end,
+        )
+
+
 @router.get("/usage/calls")
 async def get_call_analytics(
     days: int = Query(30, ge=1, le=365),

@@ -1,0 +1,768 @@
+"use client";
+
+import { ExternalLink, Plus, RotateCcw, Search, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
+
+import {
+    createMcpDefinition,
+    createToolDefinition,
+    getCategoryConfig,
+    MCP_URL_PATTERN,
+    renderToolIcon,
+    TOOL_CATEGORIES,
+    type ToolCategory,
+} from "@/app/tools/config";
+import {
+    createToolApiV1ToolsPost,
+    deleteToolApiV1ToolsToolUuidDelete,
+    listToolsApiV1ToolsGet,
+    unarchiveToolApiV1ToolsToolUuidUnarchivePost,
+} from "@/client/sdk.gen";
+import type { CreateToolRequest, ToolResponse } from "@/client/types.gen";
+import { useConfirm } from "@/components/ConfirmDialog";
+import { CredentialSelector } from "@/components/http";
+import { useIntegrationsTabs } from "@/components/integrations/integrationsTabs";
+import { PageBody, PageHeader } from "@/components/layout/PageHeader";
+import {
+    type LibraryTool,
+    ToolLibraryDialog,
+} from "@/components/tools/ToolLibraryDialog";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
+} from "@/components/ui/card";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
+import { resolveBrowserBackendUrl } from "@/lib/apiClient";
+import { detailFromResult } from "@/lib/apiError";
+import { useAuth } from "@/lib/auth";
+
+export default function ToolsPage() {
+    const integrationsTabs = useIntegrationsTabs();
+    const { user, getAccessToken, redirectToLogin, loading } = useAuth();
+    const router = useRouter();
+
+    const [tools, setTools] = useState<ToolResponse[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const { confirm, dialog: confirmDialog } = useConfirm();
+    const [searchQuery, setSearchQuery] = useState("");
+    const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+    const [isLibraryOpen, setIsLibraryOpen] = useState(false);
+    const [creatingFromLibrary, setCreatingFromLibrary] = useState(false);
+    const [newToolName, setNewToolName] = useState("");
+    const [newToolDescription, setNewToolDescription] = useState("");
+    const [newToolCategory, setNewToolCategory] = useState<ToolCategory>("http_api");
+    const [isCreating, setIsCreating] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [createError, setCreateError] = useState<string | null>(null);
+
+    // MCP-specific create dialog state
+    const [mcpUrl, setMcpUrl] = useState("");
+    const [mcpCredentialUuid, setMcpCredentialUuid] = useState("");
+    const [mcpToolsFilter, setMcpToolsFilter] = useState("");
+
+    // Redirect if not authenticated
+    useEffect(() => {
+        if (!loading && !user) {
+            redirectToLogin();
+        }
+    }, [loading, user, redirectToLogin]);
+
+    const fetchTools = useCallback(async () => {
+        if (loading || !user) return;
+
+        try {
+            setIsLoading(true);
+            setError(null);
+            const accessToken = await getAccessToken();
+
+            const response = await listToolsApiV1ToolsGet({
+                headers: {
+                    Authorization: `Bearer ${accessToken}`,
+                },
+                query: {
+                    status: "active,archived",
+                },
+            });
+
+            // A shape that is not a list would take the whole screen down
+            // in the filter below, and an empty list is the honest reading.
+            if (Array.isArray(response.data)) {
+                setTools(response.data);
+            }
+        } catch (err) {
+            setError("Failed to fetch tools");
+            console.error("Error fetching tools:", err);
+        } finally {
+            setIsLoading(false);
+        }
+    }, [loading, user, getAccessToken]);
+
+    useEffect(() => {
+        fetchTools();
+    }, [fetchTools]);
+
+    // "?library=" from the Marketplace's Tools shelf: somebody pressed Add
+    // on a ready-made tool and this is where it is made. The picker opens
+    // rather than the tool being created outright -- a GET that writes is a
+    // duplicate tool on every refresh -- and the parameter comes off the
+    // address so it does not reopen behind them.
+    useEffect(() => {
+        try {
+            const params = new URLSearchParams(window.location.search);
+            if (!params.has("library")) return;
+            setIsLibraryOpen(true);
+            params.delete("library");
+            const rest = params.toString();
+            window.history.replaceState(null, "", `${window.location.pathname}${rest ? `?${rest}` : ""}`);
+        } catch {
+            // No URL to read: the picker opens from the button, as always.
+        }
+    }, []);
+
+    /** Create a tool from a catalogue entry.
+     *
+     * The entry is copied, not referenced: the operator lands on the detail
+     * page and changes the URL for their datacentre, attaches their
+     * credential, and edits anything else. Nothing re-reads the catalogue
+     * afterwards, so a later edit to the library never rewrites their tool.
+     */
+    const handlePickFromLibrary = async (entry: LibraryTool) => {
+        try {
+            setCreatingFromLibrary(true);
+            setError(null);
+            const accessToken = await getAccessToken();
+
+            // Fetched directly: the generated client predates this endpoint.
+            // Delete after `npm run generate-client`.
+            const seedResponse = await fetch(
+                `${resolveBrowserBackendUrl()}/api/v1/tool-library/${entry.key}/definition`,
+                { headers: { Authorization: `Bearer ${accessToken}` } },
+            );
+            if (!seedResponse.ok) {
+                setError("Could not load that ready-made tool.");
+                return;
+            }
+            const seed = (await seedResponse.json()) as {
+                name: string;
+                description: string;
+                definition: Record<string, unknown>;
+            };
+
+            const response = await createToolApiV1ToolsPost({
+                body: {
+                    name: seed.name,
+                    description: seed.description,
+                    category: "http_api",
+                    icon: "globe",
+                    icon_color: "#3B82F6",
+                    definition: seed.definition,
+                } as CreateToolRequest,
+                headers: { Authorization: `Bearer ${accessToken}` },
+            });
+
+            if (response.error) {
+                setError(detailFromResult(response, "Failed to create the tool"));
+                return;
+            }
+            if (response.data) {
+                setIsLibraryOpen(false);
+                router.push(`/tools/${response.data.tool_uuid}`);
+            }
+        } catch {
+            setError("Could not reach the server.");
+        } finally {
+            setCreatingFromLibrary(false);
+        }
+    };
+
+    const handleCreateTool = async () => {
+        if (!newToolName.trim()) {
+            setCreateError("Please enter a name for the tool");
+            return;
+        }
+
+        if (newToolCategory === "mcp" && !mcpUrl.trim()) {
+            setCreateError("Please enter the MCP server URL");
+            return;
+        }
+
+        if (newToolCategory === "mcp" && !MCP_URL_PATTERN.test(mcpUrl.trim())) {
+            setCreateError("MCP server URL must start with http:// or https://");
+            return;
+        }
+
+        try {
+            setIsCreating(true);
+            setCreateError(null);
+            const accessToken = await getAccessToken();
+
+            const categoryConfig = getCategoryConfig(newToolCategory);
+
+            const definition = newToolCategory === "mcp"
+                ? createMcpDefinition(mcpUrl, mcpCredentialUuid, mcpToolsFilter)
+                : createToolDefinition(newToolCategory);
+
+            const requestBody: CreateToolRequest = {
+                name: newToolName,
+                description: newToolDescription || undefined,
+                category: newToolCategory,
+                icon: categoryConfig?.iconName || "globe",
+                icon_color: categoryConfig?.iconColor || "#3B82F6",
+                definition,
+            };
+
+            const response = await createToolApiV1ToolsPost({
+                body: requestBody,
+                headers: {
+                    Authorization: `Bearer ${accessToken}`,
+                },
+            });
+
+            if (response.error) {
+                setCreateError(detailFromResult(response, "Failed to create tool"));
+                return;
+            }
+
+            if (response.data) {
+                setIsCreateDialogOpen(false);
+                setNewToolName("");
+                setNewToolDescription("");
+                setNewToolCategory("http_api");
+                setMcpUrl("");
+                setMcpCredentialUuid("");
+                setMcpToolsFilter("");
+                // Navigate to the new tool's detail page
+                router.push(`/tools/${response.data.tool_uuid}`);
+            }
+        } catch (err: unknown) {
+            let errorMessage = "Failed to create tool";
+            if (err && typeof err === "object") {
+                const errObj = err as Record<string, unknown>;
+                // Handle API client error response
+                if (errObj.error && typeof errObj.error === "object") {
+                    const errorData = errObj.error as Record<string, unknown>;
+                    if (typeof errorData.detail === "string") {
+                        errorMessage = errorData.detail;
+                    }
+                }
+                // Handle standard Error objects
+                else if (errObj.message && typeof errObj.message === "string") {
+                    errorMessage = errObj.message;
+                }
+            }
+            setCreateError(errorMessage);
+            console.error("Error creating tool:", err);
+        } finally {
+            setIsCreating(false);
+        }
+    };
+
+    const handleDeleteTool = async (toolUuid: string, e: React.MouseEvent) => {
+        e.stopPropagation();
+        const ok = await confirm({
+            title: "Archive this tool?",
+            description:
+                "Workflows that call it will stop being able to. You can still see it in your history; it just will not be offered to an agent again.",
+            confirmLabel: "Archive tool",
+            destructive: true,
+        });
+        if (!ok) return;
+
+        try {
+            setError(null);
+            const accessToken = await getAccessToken();
+
+            await deleteToolApiV1ToolsToolUuidDelete({
+                path: {
+                    tool_uuid: toolUuid,
+                },
+                headers: {
+                    Authorization: `Bearer ${accessToken}`,
+                },
+            });
+
+            fetchTools();
+        } catch (err) {
+            setError("Failed to archive tool");
+            console.error("Error archiving tool:", err);
+        }
+    };
+
+    const handleUnarchiveTool = async (toolUuid: string, e: React.MouseEvent) => {
+        e.stopPropagation();
+
+        try {
+            setError(null);
+            const accessToken = await getAccessToken();
+
+            await unarchiveToolApiV1ToolsToolUuidUnarchivePost({
+                path: {
+                    tool_uuid: toolUuid,
+                },
+                headers: {
+                    Authorization: `Bearer ${accessToken}`,
+                },
+            });
+
+            fetchTools();
+        } catch (err) {
+            setError("Failed to unarchive tool");
+            console.error("Error unarchiving tool:", err);
+        }
+    };
+
+    const filteredTools = tools.filter(
+        (tool) =>
+            tool.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            tool.description?.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
+    const activeTools = filteredTools.filter((tool) => tool.status === "active");
+    const archivedTools = filteredTools.filter((tool) => tool.status === "archived");
+
+    const getCategoryBadge = (category: string) => {
+        switch (category) {
+            case "http_api":
+                return <Badge variant="default">HTTP API</Badge>;
+            case "end_call":
+                return <Badge variant="destructive">End Call</Badge>;
+            case "calculator":
+                return <Badge variant="secondary">Calculator</Badge>;
+            case "native":
+                return <Badge variant="secondary">Native</Badge>;
+            case "integration":
+                return <Badge variant="outline">Integration</Badge>;
+            case "mcp":
+                return <Badge variant="outline">MCP</Badge>;
+            default:
+                return <Badge variant="outline">{category}</Badge>;
+        }
+    };
+
+    const getStatusBadge = (status: string) => {
+        switch (status) {
+            case "active":
+                return <Badge className="bg-green-500">Active</Badge>;
+            case "draft":
+                return <Badge variant="secondary">Draft</Badge>;
+            case "archived":
+                return <Badge variant="destructive">Archived</Badge>;
+            default:
+                return <Badge variant="outline">{status}</Badge>;
+        }
+    };
+
+    if (loading || !user) {
+        return (
+            <>
+                <PageHeader tabs={integrationsTabs} title="Your tools" />
+                <div className="min-h-screen flex items-center justify-center">
+                    <div className="space-y-4">
+                        <Skeleton className="h-12 w-64" />
+                        <Skeleton className="h-64 w-full max-w-96" />
+                    </div>
+                </div>
+            </>
+        );
+    }
+
+    return (
+        <>
+        <PageHeader
+            tabs={integrationsTabs}
+            title="Your tools"
+            description={
+                <>
+                    Tools you have built or added: one action an agent can take
+                    mid-call — look something up, book, send. Made once, given
+                    to any agent. For ready-made ones, see{" "}
+                    <Link href="/marketplace/tools" className="underline">
+                        the Marketplace
+                    </Link>
+                    .{" "}
+                    <a href="https://docs.decibyl.ai/voice-agent/tools/introduction" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 underline">
+                        Learn more <ExternalLink className="h-3 w-3" />
+                    </a>
+                </>
+            }
+        />
+        <div className="min-h-screen">
+            {confirmDialog}
+            <PageBody>
+                <div className="max-w-6xl mx-auto">
+                    {error && (
+                        <div className="mb-4 p-4 bg-destructive/10 border border-destructive/20 rounded-lg text-destructive">
+                            {error}
+                        </div>
+                    )}
+
+                    <Card className="mb-6">
+                        <CardHeader>
+                            <div className="flex flex-wrap items-center justify-between gap-3">
+                                <div>
+                                    <CardTitle>
+                                        {activeTools.length === 1 ? "1 tool" : `${activeTools.length} tools`}
+                                    </CardTitle>
+                                    <CardDescription>
+                                        Built here, and on any agent you hand them to.
+                                    </CardDescription>
+                                </div>
+                                <div className="flex gap-2">
+                                    <Button
+                                        variant="outline"
+                                        onClick={() => setIsLibraryOpen(true)}
+                                    >
+                                        Browse ready-made
+                                    </Button>
+                                    <Button onClick={() => setIsCreateDialogOpen(true)}>
+                                        <Plus className="w-4 h-4 mr-2" />
+                                        Build a tool
+                                    </Button>
+                                </div>
+                            </div>
+                        </CardHeader>
+                        <CardContent>
+                            {/* Search */}
+                            <div className="relative mb-4">
+                                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                <Input
+                                    placeholder="Search your tools…"
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    className="pl-10"
+                                />
+                            </div>
+
+                            {isLoading ? (
+                                <div className="space-y-4">
+                                    {[1, 2, 3].map((i) => (
+                                        <div
+                                            key={i}
+                                            className="flex items-center justify-between p-4 border rounded-lg"
+                                        >
+                                            <div className="space-y-2">
+                                                <Skeleton className="h-4 w-32" />
+                                                <Skeleton className="h-3 w-48" />
+                                            </div>
+                                            <Skeleton className="h-8 w-20" />
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : activeTools.length === 0 && archivedTools.length === 0 ? (
+                                <div className="text-center py-12">
+                                    {renderToolIcon("http_api", "w-12 h-12 text-muted-foreground mx-auto mb-4")}
+                                    <p className="text-muted-foreground mb-4">
+                                        {searchQuery
+                                            ? "No tools match your search."
+                                            : "Nothing here yet. Build one, or take a ready-made one from the Marketplace."}
+                                    </p>
+                                    {!searchQuery && (
+                                        <div className="flex flex-wrap justify-center gap-2">
+                                            <Button onClick={() => setIsCreateDialogOpen(true)}>
+                                                Build a tool
+                                            </Button>
+                                            <Button variant="outline" asChild>
+                                                <Link href="/marketplace/tools">Browse ready-made</Link>
+                                            </Button>
+                                        </div>
+                                    )}
+                                </div>
+                            ) : (
+                                <>
+                                    {/* Active Tools */}
+                                    {activeTools.length > 0 ? (
+                                        <div className="space-y-4">
+                                            {activeTools.map((tool) => (
+                                                <div
+                                                    key={tool.tool_uuid}
+                                                    className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 cursor-pointer transition-colors"
+                                                    onClick={() =>
+                                                        router.push(`/tools/${tool.tool_uuid}`)
+                                                    }
+                                                >
+                                                    <div className="flex items-center gap-4">
+                                                        <div
+                                                            className="w-10 h-10 shrink-0 rounded-lg flex items-center justify-center"
+                                                            style={{
+                                                                backgroundColor:
+                                                                    tool.icon_color || getCategoryConfig(tool.category as ToolCategory)?.iconColor || "#3B82F6",
+                                                            }}
+                                                        >
+                                                            {renderToolIcon(tool.category)}
+                                                        </div>
+                                                        <div>
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="font-medium">
+                                                                    {tool.name}
+                                                                </span>
+                                                                {getCategoryBadge(tool.category)}
+                                                            </div>
+                                                            {tool.description && (
+                                                                <p className="text-sm text-muted-foreground mt-1">
+                                                                    {tool.description}
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={(e) =>
+                                                            handleDeleteTool(tool.tool_uuid, e)
+                                                        }
+                                                        className="text-destructive hover:text-destructive/90"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </Button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : !searchQuery ? (
+                                        <div className="text-center py-8">
+                                            <p className="text-muted-foreground mb-4">
+                                                No active tools
+                                            </p>
+                                            <Button onClick={() => setIsCreateDialogOpen(true)}>
+                                                Create Your First Tool
+                                            </Button>
+                                        </div>
+                                    ) : null}
+
+                                    {/* Archived Tools */}
+                                    {archivedTools.length > 0 && (
+                                        <div className="mt-8">
+                                            <h3 className="text-lg font-semibold text-muted-foreground mb-4">
+                                                Archived Tools
+                                            </h3>
+                                            <div className="space-y-4">
+                                                {archivedTools.map((tool) => (
+                                                    <div
+                                                        key={tool.tool_uuid}
+                                                        className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 cursor-pointer transition-colors opacity-60"
+                                                        onClick={() =>
+                                                            router.push(`/tools/${tool.tool_uuid}`)
+                                                        }
+                                                    >
+                                                        <div className="flex items-center gap-4">
+                                                            <div
+                                                                className="w-10 h-10 shrink-0 rounded-lg flex items-center justify-center"
+                                                                style={{
+                                                                    backgroundColor:
+                                                                        tool.icon_color || getCategoryConfig(tool.category as ToolCategory)?.iconColor || "#3B82F6",
+                                                                }}
+                                                            >
+                                                                {renderToolIcon(tool.category)}
+                                                            </div>
+                                                            <div>
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="font-medium">
+                                                                        {tool.name}
+                                                                    </span>
+                                                                    {getCategoryBadge(tool.category)}
+                                                                    {getStatusBadge(tool.status)}
+                                                                </div>
+                                                                {tool.description && (
+                                                                    <p className="text-sm text-muted-foreground mt-1">
+                                                                        {tool.description}
+                                                                    </p>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            onClick={(e) =>
+                                                                handleUnarchiveTool(tool.tool_uuid, e)
+                                                            }
+                                                            className="text-primary hover:text-primary/90"
+                                                            title="Restore tool"
+                                                        >
+                                                            <RotateCcw className="w-4 h-4" />
+                                                        </Button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </>
+                            )}
+                        </CardContent>
+                    </Card>
+                </div>
+            </PageBody>
+
+            {/* Create Tool Dialog */}
+            <ToolLibraryDialog
+                open={isLibraryOpen}
+                onOpenChange={setIsLibraryOpen}
+                onPick={handlePickFromLibrary}
+                getAccessToken={getAccessToken}
+                creating={creatingFromLibrary}
+            />
+
+            <Dialog open={isCreateDialogOpen} onOpenChange={(open) => {
+                setIsCreateDialogOpen(open);
+                if (open) {
+                    setCreateError(null);
+                } else {
+                    // Reset MCP fields when dialog is closed without creating
+                    setMcpUrl("");
+                    setMcpCredentialUuid("");
+                    setMcpToolsFilter("");
+                }
+            }}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Create New Tool</DialogTitle>
+                        <DialogDescription>
+                            Create a new tool that can be used in your workflows.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                        <div className="grid gap-2">
+                            <Label>Tool Type</Label>
+                            <Select
+                                value={newToolCategory}
+                                onValueChange={(v) => {
+                                    const category = v as ToolCategory;
+                                    setNewToolCategory(category);
+                                    setCreateError(null);
+                                    const categoryConfig = getCategoryConfig(category);
+                                    if (categoryConfig?.autoFill) {
+                                        setNewToolName(categoryConfig.autoFill.name);
+                                        setNewToolDescription(categoryConfig.autoFill.description);
+                                    }
+                                }}
+                            >
+                                <SelectTrigger className="w-full">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {TOOL_CATEGORIES.map((category) => (
+                                        <SelectItem
+                                            key={category.value}
+                                            value={category.value}
+                                            disabled={category.disabled}
+                                        >
+                                            {category.label}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            <p className="text-xs text-muted-foreground">
+                                {getCategoryConfig(newToolCategory)?.description}
+                            </p>
+                        </div>
+                        <div className="grid gap-2">
+                            <Label htmlFor="name">Tool Name</Label>
+                            <Label className="text-xs text-muted-foreground">
+                                Use a descriptive name, like &quot;Get Weather using API&quot; for a tool that fetches weather
+                            </Label>
+                            <Input
+                                id="name"
+                                value={newToolName}
+                                onChange={(e) => setNewToolName(e.target.value)}
+                                placeholder="e.g., Book Appointment, Check Inventory"
+                            />
+                        </div>
+                        <div className="grid gap-2">
+                            <Label htmlFor="description">Description (Optional)</Label>
+                            <Label className="text-xs text-muted-foreground">
+                                Provide a description which makes it easy for LLM to understand what this tool does
+                            </Label>
+                            <Input
+                                id="description"
+                                value={newToolDescription}
+                                onChange={(e) => setNewToolDescription(e.target.value)}
+                                placeholder="What does this tool do?"
+                            />
+                        </div>
+
+                        {newToolCategory === "mcp" && (
+                            <>
+                                <div className="grid gap-2">
+                                    <Label htmlFor="mcp-url">MCP Server URL</Label>
+                                    <Input
+                                        id="mcp-url"
+                                        value={mcpUrl}
+                                        onChange={(e) => setMcpUrl(e.target.value)}
+                                        placeholder="https://your-mcp-server.example.com/mcp"
+                                    />
+                                </div>
+                                <div className="grid gap-2">
+                                    <Label>Transport</Label>
+                                    <Input
+                                        value="Streamable HTTP"
+                                        disabled
+                                        readOnly
+                                    />
+                                </div>
+                                <CredentialSelector
+                                    value={mcpCredentialUuid}
+                                    onChange={setMcpCredentialUuid}
+                                    label="Credential (Optional)"
+                                    description="Select a credential for authenticating with the MCP server, or leave empty for no auth."
+                                />
+                                <div className="grid gap-2">
+                                    <Label htmlFor="mcp-tools-filter">Tools Filter (Optional)</Label>
+                                    <Input
+                                        id="mcp-tools-filter"
+                                        value={mcpToolsFilter}
+                                        onChange={(e) => setMcpToolsFilter(e.target.value)}
+                                        placeholder="e.g., tool_one, tool_two"
+                                    />
+                                    <p className="text-xs text-muted-foreground">
+                                        Comma-separated list of tool names to allow. Leave empty and the
+                                        server starts with its read-only tools; add names here to allow
+                                        more, including ones that change things.
+                                    </p>
+                                </div>
+                            </>
+                        )}
+                    </div>
+                    {createError && (
+                        <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg text-destructive text-sm">
+                            {createError}
+                        </div>
+                    )}
+                    <DialogFooter>
+                        <Button
+                            variant="outline"
+                            onClick={() => setIsCreateDialogOpen(false)}
+                        >
+                            Cancel
+                        </Button>
+                        <Button onClick={handleCreateTool} disabled={isCreating}>
+                            {isCreating ? "Creating..." : "Create Tool"}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+        </div>
+        </>
+    );
+}

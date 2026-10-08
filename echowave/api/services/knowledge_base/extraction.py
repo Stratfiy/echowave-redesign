@@ -46,6 +46,8 @@ JSON_EXTENSIONS = {".json"}
 CSV_EXTENSIONS = {".csv", ".tsv"}
 PDF_EXTENSIONS = {".pdf"}
 DOCX_EXTENSIONS = {".docx"}
+#: Excel workbooks: every sheet read as rows, the same way a CSV is.
+XLSX_EXTENSIONS = {".xlsx"}
 
 #: Accepted by the upload picker, unreadable without a converter binary.
 LEGACY_WORD_EXTENSIONS = {".doc"}
@@ -58,6 +60,7 @@ SUPPORTED_EXTENSIONS = (
     | CSV_EXTENSIONS
     | PDF_EXTENSIONS
     | DOCX_EXTENSIONS
+    | XLSX_EXTENSIONS
 )
 
 #: A page or paragraph shorter than this after stripping is whitespace noise —
@@ -338,6 +341,66 @@ def _blocks_from_csv(text: str, *, delimiter: str) -> list[TextBlock]:
     return blocks
 
 
+def xlsx_sheets_as_csv(data: bytes) -> list[tuple[str, str]]:
+    """Each sheet of a workbook that has any cell filled, as ``(title, csv
+    text)``, in the workbook's order. Values, not formulas: what the owner
+    sees in the cell is what is read."""
+    import csv
+    import io
+
+    from openpyxl import load_workbook
+
+    try:
+        book = load_workbook(io.BytesIO(data), data_only=True, read_only=True)
+    except Exception as exc:  # noqa: BLE001 - a corrupt or encrypted file
+        raise DocumentExtractionError(
+            f"Could not open workbook: {exc}",
+            user_message=(
+                "This Excel file could not be opened. If it has a password, "
+                "remove it; otherwise save it again as .xlsx and upload it."
+            ),
+        ) from exc
+    sheets: list[tuple[str, str]] = []
+    try:
+        for sheet in book.worksheets:
+            out = io.StringIO()
+            writer = csv.writer(out)
+            filled = False
+            for row in sheet.iter_rows(values_only=True):
+                cells = ["" if v is None else _cell_text(v) for v in row]
+                if any(c.strip() for c in cells):
+                    filled = True
+                    writer.writerow(cells)
+            if filled:
+                sheets.append((sheet.title, out.getvalue()))
+    finally:
+        book.close()
+    return sheets
+
+
+def _cell_text(value: Any) -> str:
+    """A cell as a person reads it: 18, not 18.0; a date as a date."""
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value))
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+    return str(value)
+
+
+def _blocks_from_xlsx(path: str) -> list[TextBlock]:
+    with open(path, "rb") as fh:
+        sheets = xlsx_sheets_as_csv(fh.read())
+    blocks: list[TextBlock] = []
+    for title, text in sheets:
+        for block in _blocks_from_csv(text, delimiter=","):
+            # The sheet's name leads a row only when there is more than one:
+            # one sheet named "Sheet1" is noise on every row.
+            if len(sheets) > 1:
+                block = TextBlock(text=f"{title}: {block.text}")
+            blocks.append(block)
+    return blocks
+
+
 def _blocks_from_pdf(path: str, metadata: dict[str, Any]) -> list[TextBlock]:
     try:
         from pypdf import PdfReader
@@ -603,6 +666,9 @@ def extract_document(
         elif extension in CSV_EXTENSIONS:
             delimiter = "\t" if extension == ".tsv" else ","
             blocks = _blocks_from_csv(_read_text_file(file_path), delimiter=delimiter)
+        elif extension in XLSX_EXTENSIONS:
+            metadata["extractor"] = "openpyxl"
+            blocks = _blocks_from_xlsx(file_path)
         elif extension in HTML_EXTENSIONS:
             blocks = _blocks_from_html(_read_text_file(file_path))
         elif extension in MARKDOWN_EXTENSIONS:

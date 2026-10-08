@@ -78,13 +78,17 @@ class TestTheFunnel:
     async def test_a_cohort_that_did_nothing_stops_at_signup(
         self, db_session, async_session
     ):
+        # Measured as a change, not an absolute: other suites commit their own
+        # accounts and agents inside the same window, and an absolute zero
+        # failed whenever one of them ran first.
+        before = _by_key(await db_client.activation_funnel(*WINDOW))
         await _account(async_session, "did-nothing")
-        counts = _by_key(await db_client.activation_funnel(*WINDOW))
+        after = _by_key(await db_client.activation_funnel(*WINDOW))
 
-        assert counts["signed_up"] >= 1
-        assert counts["created_agent"] == 0
-        assert counts["first_call"] == 0
-        assert counts["first_topup"] == 0
+        assert after["signed_up"] - before["signed_up"] >= 1
+        assert after["created_agent"] == before["created_agent"]
+        assert after["first_call"] == before["first_call"]
+        assert after["first_topup"] == before["first_topup"]
 
     async def test_each_step_is_reached_in_turn(self, db_session, async_session):
         user, org = await _account(async_session, "full-journey")

@@ -789,7 +789,7 @@ const data = await response.json();`;
                 <div className="container mx-auto px-4 py-8">
                     <div className="max-w-4xl mx-auto text-center">
                         <h1 className="text-2xl font-bold mb-4">Tool not found</h1>
-                        <Button onClick={() => router.push("/tools")}>
+                        <Button onClick={() => router.push("/settings/apps")}>
                             <ArrowLeft className="w-4 h-4 mr-2" />
                             Back to Tools
                         </Button>
@@ -816,7 +816,7 @@ const data = await response.json();`;
                             <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => confirmNavigate(() => router.push("/tools"))}
+                                onClick={() => confirmNavigate(() => router.push("/settings/apps"))}
                             >
                                 <ArrowLeft className="w-4 h-4 mr-2" />
                                 Back

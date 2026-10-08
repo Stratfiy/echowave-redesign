@@ -27,4 +27,31 @@ export const REDESIGN_REDIRECTS: RedesignRedirect[] = [
     { source: "/analytics/spend", destination: "/billing/spend" },
     { source: "/verification", destination: "/numbers?verify=1" },
     { source: "/workflow/archived", destination: "/workflow?show=archived" },
+
+    // Settings holds everything set up once and left alone (October 2026):
+    // each of these is a section of it now. Detail pages (/tools/:id,
+    // /channels/:id) stay where they were.
+    { source: "/tools", destination: "/settings/apps" },
+    { source: "/files", destination: "/settings/knowledge" },
+    { source: "/channels", destination: "/settings/channels" },
+    { source: "/company", destination: "/settings/company" },
+    { source: "/api-keys", destination: "/settings/developer" },
+    { source: "/privacy", destination: "/settings/compliance" },
+    { source: "/integrations", destination: "/settings/models" },
+    // Own keys are added where they are used: Settings -> Models.
+    { source: "/settings/api-keys", destination: "/settings/models" },
+    { source: "/telephony-configurations", destination: "/settings/phone-number" },
+
+    // Launch shell (handoff sections 19-20): the logical destinations, Chat,
+    // Today and profile Settings, under the names people and the handoff use
+    // for them. Each lands on the existing route, and a conversation link
+    // keeps its record: /chat/<id> opens that thread, still checked
+    // server-side against the person reading it.
+    { source: "/chat", destination: "/overview" },
+    { source: "/chat/:threadId", destination: "/overview?thread=:threadId" },
+    { source: "/home", destination: "/overview" },
+    { source: "/assistant", destination: "/overview" },
+    { source: "/today", destination: "/tasks" },
+    { source: "/today/activity", destination: "/usage" },
+    { source: "/profile", destination: "/settings" },
 ];

@@ -42,6 +42,8 @@ def test_the_api_initialises_sentry_without_default_pii():
     """Guard the init call itself, not only the hook."""
     import pathlib
 
-    source = (pathlib.Path(__file__).parents[1] / "app.py").read_text()
+    source = (
+        pathlib.Path(__file__).parents[1] / "observability" / "sentry.py"
+    ).read_text()
     assert "send_default_pii=False" in source
     assert "before_send=scrub_event" in source

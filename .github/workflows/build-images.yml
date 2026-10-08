@@ -1,5 +1,11 @@
 # Build the api and ui images here, so the production box never builds anything.
 #
+# CURRENT STATE (7 Oct 2026, echowave/OPS-RUNBOOK.md section 2): the push
+# trigger was removed (commit 8e52017), so this runs on manual dispatch only
+# and nothing is built on merge; the box still builds its own images
+# (ci_deploy.sh defaults to IMAGE_SOURCE=build). The notes below describe the
+# intended state once ECR pushes are permitted and the trigger is restored.
+#
 # WHY THIS EXISTS. Deploys used to run `docker compose build` on the box. Two
 # consequences, and the second is the expensive one:
 #
@@ -69,6 +75,9 @@ jobs:
             # The application root, not the service directory: the API
             # Dockerfile needs pipecat/ beside api/.
             context: echowave
+            # The caller voice-lock and DeepFilterNet models (~35 MB, VOICE.md).
+            # In the image only; each stays off until its flag is turned on.
+            build_args: WITH_VOICE_ISOLATION=true
           - name: ui
             dockerfile: echowave/ui/Dockerfile
             # Same: the UI Dockerfile copies from ui/ by path.
@@ -85,6 +94,12 @@ jobs:
             # which is what compose gives it (`context: ./sandbox`). Building
             # it from echowave/ would fail on the first COPY.
             context: echowave/sandbox
+          # The isolated browser the sandbox starts per task. Nothing built it,
+          # so a fresh box pulled a name that did not exist and every browse
+          # said "still downloading" forever (sandbox/browser/README.md).
+          - name: browser-box
+            dockerfile: echowave/sandbox/browser/Dockerfile
+            context: echowave/sandbox/browser
 
     steps:
       - name: Check out, with pipecat
@@ -154,6 +169,7 @@ jobs:
           context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
           push: true
+          build-args: ${{ matrix.build_args || '' }}
           # The box is x86. Building arm64 as well would roughly double the
           # build for an architecture nothing runs.
           platforms: linux/amd64
@@ -190,6 +206,7 @@ jobs:
           context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
           push: true
+          build-args: ${{ matrix.build_args || '' }}
           platforms: linux/amd64
           tags: |
             ${{ steps.ecr.outputs.registry }}/decibyl-${{ matrix.name }}:latest

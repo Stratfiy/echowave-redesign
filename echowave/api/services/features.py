@@ -92,6 +92,103 @@ FLAGS: dict[str, str] = {
     "decibyl_teams": "DECIBYL_TEAMS_ENABLED",
     # Studio: agents and a website for them, built from one chat.
     "studio": "STUDIO_ENABLED",
+    # The Windows and Mac app, and working on a person's own computer.
+    "desktop_app": "DESKTOP_APP_ENABLED",
+    "desktop_computer_use": "DESKTOP_COMPUTER_USE_ENABLED",
+    # Free while we are early: no plans, nothing charged (on by default).
+    "free_mode": "FREE_MODE_ENABLED",
+    # AWS model gateway (stream aws-gateway).
+    "aws_fallback_brain": "AWS_FALLBACK_BRAIN_ENABLED",
+    "aws_cheap_tier": "AWS_CHEAP_TIER_ENABLED",
+    "aws_embeddings": "AWS_EMBEDDINGS_ENABLED",
+    "aws_nova_sonic": "AWS_NOVA_SONIC_ENABLED",
+    # Decibyl's private browser: one isolated browser per person and task.
+    "decibyl_browser": "DECIBYL_BROWSER_ENABLED",
+    # Launch stream `controls` (LAUNCH-PLAN.md, phase 1).
+    "capability_checklist": "CAPABILITY_CHECKLIST_ENABLED",
+    "operational_quotas": "OPERATIONAL_QUOTAS_ENABLED",
+    "task_ledger": "TASK_LEDGER_ENABLED",
+    "personal_space": "PERSONAL_SPACE_ENABLED",
+    "member_preferences": "MEMBER_PREFERENCES_ENABLED",
+    "event_catalogue": "EVENT_CATALOGUE_ENABLED",
+    "reply_feedback": "REPLY_FEEDBACK_ENABLED",
+    # Launch stream `shell` (LAUNCH-PLAN.md, phase 1).
+    "early_access": "EARLY_ACCESS_ENABLED",
+    "first_task_onboarding": "FIRST_TASK_ONBOARDING_ENABLED",
+    "chat_shell": "CHAT_SHELL_ENABLED",
+    "shell_mobile": "SHELL_MOBILE_ENABLED",
+    # Launch stream `agents` (LAUNCH-PLAN.md, phase 2).
+    "launch_helpers": "LAUNCH_HELPERS_ENABLED",
+    "research_reports": "RESEARCH_REPORTS_ENABLED",
+    "follow_up_ledger": "FOLLOW_UP_LEDGER_ENABLED",
+    "trading_summaries": "TRADING_SUMMARIES_ENABLED",
+    "describe_builder": "DESCRIBE_BUILDER_ENABLED",
+    # Launch stream `today` (LAUNCH-PLAN.md, phase 2).
+    "today_list": "TODAY_LIST_ENABLED",
+    "approval_dock": "APPROVAL_DOCK_ENABLED",
+    "today_reminders": "TODAY_REMINDERS_ENABLED",
+    "daily_brief": "DAILY_BRIEF_ENABLED",
+    "end_of_day_note": "END_OF_DAY_NOTE_ENABLED",
+    "routine_start_on": "ROUTINE_START_ON_ENABLED",
+    # Launch stream `support` (LAUNCH-PLAN.md, phase 2).
+    "support_help": "SUPPORT_HELP_ENABLED",
+    "support_inbox": "SUPPORT_INBOX_ENABLED",
+    "support_actions": "SUPPORT_ACTIONS_ENABLED",
+    # Stream ops (handoff 11, 14, 15 G-H, 34, 35).
+    "ops_console": "OPS_CONSOLE_ENABLED",
+    "server_analytics": "SERVER_ANALYTICS_ENABLED",
+    "telemetry_redaction": "TELEMETRY_REDACTION_ENABLED",
+    "session_replay": "SESSION_REPLAY_ENABLED",
+    "laya_guardrails": "LAYA_GUARDRAILS_ENABLED",
+    "laya_rollback": "LAYA_ROLLBACK_ENABLED",
+    "cost_stop": "COST_STOP_ENABLED",
+    # Launch stream `care` (LAUNCH-PLAN.md, phase 2).
+    "care_simple_mode": "CARE_SIMPLE_MODE_ENABLED",
+    "care_medicine_calls": "CARE_MEDICINE_CALLS_ENABLED",
+    "care_scam_check": "CARE_SCAM_CHECK_ENABLED",
+    "care_tech_help": "CARE_TECH_HELP_ENABLED",
+    "care_family_circle": "CARE_FAMILY_CIRCLE_ENABLED",
+    # Launch stream `reach` (LAUNCH-PLAN.md, phase 2).
+    "outside_tools": "OUTSIDE_TOOLS_ENABLED",
+    "ordering": "ORDERING_ENABLED",
+    "price_compare": "PRICE_COMPARE_ENABLED",
+    # Launch stream `learning` (LAUNCH-PLAN.md, phase 2).
+    "learning": "LEARNING_ENABLED",
+    "learning_today": "LEARNING_TODAY_ENABLED",
+    # Launch stream `meetings` (LAUNCH-PLAN.md, phase 2).
+    "meeting_capture": "MEETING_CAPTURE_ENABLED",
+    # Launch stream `staff` (LAUNCH-PLAN.md, phase 2; STAFF.md).
+    "staff_console": "STAFF_CONSOLE_ENABLED",
+    "staff_roles": "STAFF_ROLES_ENABLED",
+    "staff_refunds": "STAFF_REFUNDS_ENABLED",
+    "staff_evaluations": "STAFF_EVALUATIONS_ENABLED",
+    "staff_incidents": "STAFF_INCIDENTS_ENABLED",
+    # Launch stream `identity` (LAUNCH-PLAN.md, phase 2).
+    "identity_connections": "IDENTITY_CONNECTIONS_ENABLED",
+    "identity_email": "IDENTITY_EMAIL_ENABLED",
+    "identity_phone": "IDENTITY_PHONE_ENABLED",
+    "identity_notifications": "IDENTITY_NOTIFICATIONS_ENABLED",
+    "identity_reconciliation": "IDENTITY_RECONCILIATION_ENABLED",
+    # Launch stream `settings` (LAUNCH-PLAN.md, phase 2).
+    "settings_shell": "SETTINGS_SHELL_ENABLED",
+    "memory_manager": "MEMORY_MANAGER_ENABLED",
+    "privacy_center": "PRIVACY_CENTER_ENABLED",
+    "saved_items": "SAVED_ITEMS_ENABLED",
+    "model_inheritance": "MODEL_INHERITANCE_ENABLED",
+    # Launch stream `voice` (LAUNCH-PLAN.md, phase 2).
+    "decibyl_voice": "DECIBYL_VOICE_ENABLED",
+    "voice_latency": "VOICE_LATENCY_ENABLED",
+    "call_for_me": "CALL_FOR_ME_ENABLED",
+    "call_appointment": "CALL_APPOINTMENT_ENABLED",
+    # Outreach: leads from a lead-data provider, drafts as send cards.
+    "outreach": "OUTREACH_ENABLED",
+    # The native app for iOS and Android (MOBILE.md).
+    "mobile_push": "MOBILE_PUSH_ENABLED",
+    # People: synced contacts with context (PEOPLE.md).
+    "people": "PEOPLE_ENABLED",
+    # Voice isolation: background voices (VOICE.md).
+    "caller_voice_lock": "CALLER_VOICE_LOCK_ENABLED",
+    "deepfilternet_filter": "DEEPFILTERNET_FILTER_ENABLED",
 }
 
 
@@ -135,6 +232,84 @@ DESCRIPTIONS: dict[str, str] = {
     "decibyl_slack": "Decibyl in Slack.",
     "decibyl_teams": "Decibyl in Microsoft Teams.",
     "studio": "Studio: build agents and a website for them from one chat.",
+    "desktop_app": "The Windows and Mac app: notifications, files from disk, a watched folder.",
+    "desktop_computer_use": "Work on my computer: Decibyl uses the apps a person allows, asking before it sends, pays, deletes or submits.",
+    "free_mode": "Free while we are early: no plans, nothing charged, nothing locked.",
+    "aws_fallback_brain": "A Bedrock model answers when Claude fails, and says so.",
+    "aws_cheap_tier": "A small Bedrock model sorts work for Auto instead of Laya.",
+    "aws_embeddings": "Knowledge search on Bedrock embeddings as a managed choice.",
+    "aws_nova_sonic": "Nova Sonic speech-to-speech, Hindi and Indian English only.",
+    "decibyl_browser": (
+        "Decibyl's private browser: browses for a person in an isolated box, "
+        "live view and Take over, asks before submit, pay, send or book."
+    ),
+    "capability_checklist": "Staff see each capability's source, configuration and tested state.",
+    "operational_quotas": "Daily limits per person (turns, voice, sends, browser), even in free mode.",
+    "task_ledger": "One task state set, approvals bound to the exact payload, no stale updates.",
+    "personal_space": "Every person has a personal space beside the workspaces they join.",
+    "member_preferences": "A person's own language, timezone, voice and summary time.",
+    "event_catalogue": "Versioned analytics events with a private envelope, sent from an outbox.",
+    "reply_feedback": "Was this useful? Yes / Not quite under replies and finished tasks.",
+    "early_access": "The public waitlist and invitation pages (screen 01).",
+    "first_task_onboarding": "Language, timezone and a first task; new people land in Chat (screen 02).",
+    "chat_shell": "Chat: three starters, attach menu, Dictate and Talk, Stop, New content, sources and task states (screens 03-04).",
+    "staff_console": "The staff console: eight role-gated destinations under /superadmin (screens 29-31, 34-44).",
+    "staff_roles": "Console roles (operations, finance, quality) granted by an owner through an approved command.",
+    "staff_refunds": "Finance-only refunds: preview, second-person approval, run once, reconcile.",
+    "staff_evaluations": "Versioned evaluation cases, runs against a fixed set, and case comparison.",
+    "staff_incidents": "Incidents with an approved runbook: preflight, approval, execution, verification.",
+    "shell_mobile": "Phone shell: Chat and Today at the bottom, profile in the header, keyboard-aware bar, read-only workflow steps.",
+    "launch_helpers": "The helper picker in Chat: Automatic and the five helpers, each with its capability state (screen 06).",
+    "research_reports": "Research keeps saved reports with their sources; the export matches what was shown.",
+    "follow_up_ledger": "Follow-up tracks commitments a person approved, and answers who owes me.",
+    "trading_summaries": "Research summarises markets by a person's own interests: information only, never advice.",
+    "describe_builder": "Ask Decibyl to build anything: agents, routines and trackers from a description, in Chat.",
+    "today_list": "Today as one ordered list, the exact approval screen, task detail and activity (screens 07-09).",
+    "approval_dock": 'Pending approvals docked above the composer: "Decibyl wants to: ..." with Do it / Don\'t.',
+    "today_reminders": "Reminders and event-linked reminders with their editor and delivery (screen 10).",
+    "daily_brief": "One daily brief with source coverage, in-app, WhatsApp and push at the person's time (screen 20).",
+    "end_of_day_note": "An end-of-day note: what was done, what is left, missed calls handled.",
+    "routine_start_on": "A routine set from chat starts on once its card is confirmed.",
+    "support_help": "Help: ask support, choose exactly what is shared, follow the ticket (screen 28).",
+    "support_inbox": "Staff support inbox and case with internal notes (screen 32).",
+    "support_actions": "Typed support actions with a preview, a second person's approval and an audit (screen 33).",
+    "ops_console": "Staff operations: health, provider key lifecycle, typed commands, evidence.",
+    "server_analytics": "Server-owned product events to PostHog through a durable outbox.",
+    "telemetry_redaction": "Redact secrets and personal data from logs and error reports.",
+    "session_replay": "Session replay on non-sensitive screens only (off: no replay at all).",
+    "laya_guardrails": "Laya hard deadline, circuit breaker and shadow agreement statistics.",
+    "laya_rollback": "Rollback: Auto routes by rules alone and never asks Laya.",
+    "cost_stop": "Stop new billable work when provider spend runs away.",
+    "care_simple_mode": "Simple mode: large text, voice first, one thing at a time (needs member_preferences).",
+    "care_medicine_calls": "Medicine reminder calls in the person's language, with a family alert when a dose is missed.",
+    "care_scam_check": "Is this a scam? Paste or describe a message or call; a plain answer and why.",
+    "care_tech_help": "Step-by-step phone help in plain words, one step at a time, with did that work?",
+    "care_family_circle": "A family circle the older person consents to; family see only what is shared with them.",
+    "outside_tools": "Outside AI tools (MCP servers) a person connects in the Chat thread and uses from Chat; writes ask first.",
+    "ordering": "Order food and groceries from a list in Chat (Zomato; Swiggy when access arrives), always through an order card.",
+    "price_compare": "Compare prices and coupons across the ordering apps a person has connected, saying which and when.",
+    "learning": "Learning Guide: goals on any subject, lessons in Chat, evaluated practice and progress (screens 13-14).",
+    "learning_today": "Learning reviews that are due, listed in Today.",
+    "meeting_capture": "Meeting mode: record, upload or paste a meeting with consent; Sarvam transcript; summary, decisions and follow-ups confirmed one card at a time (screens 11-12).",
+    "identity_connections": "Connected apps and channels per person: consent, revocation and verified channel capabilities (screen 22).",
+    "identity_email": "A person's Decibyl email address: alias lifecycle, inbound routing, sends through cards (screen 23).",
+    "identity_phone": "Phone and verification lifecycle with the number payment flow explained (screen 24).",
+    "identity_notifications": "Notification preferences per person and web push (screen 21).",
+    "identity_reconciliation": "Checks with each provider whether a send whose outcome was unknown arrived.",
+    "settings_shell": "Settings grouped as Personal, Connections, Privacy, Advanced and the workspace, with search; Account, Personalization and Voice on the person's own preferences (screens 17-19).",
+    "memory_manager": "Memory manager: opt-in memory, provenance, edits as revisions, forget through a card, share to a team, temporary chats (screen 16).",
+    "privacy_center": "Privacy and security: personal export, personal deletion through a card, effective retention, MFA (screen 25).",
+    "saved_items": "Saved items and search in one scope at a time (screen 15).",
+    "model_inheritance": "Model defaults show where each comes from, readiness and agent overrides; saves are revision-checked (screen 26).",
+    "decibyl_voice": "Talk with Decibyl: live voice from Chat with interruption, mute, captions and reconnect (screen 05).",
+    "voice_latency": "Voice latency per turn: response and interruption times, p50/p95 by language and channel (handoff 12).",
+    "call_for_me": "Call it for me: Decibyl places one approved phone call for a person and announces itself first.",
+    "call_appointment": "Call and Appointment: booking policy, open slots, booking within policy, verification and escalation on calls.",
+    "outreach": "Outreach: find leads from a lead-data provider (Apollo), draft one email card per lead on the person's own mailbox, Confirm all.",
+    "mobile_push": "Push to the iOS and Android app through Expo: replies, approvals, reminders and calls, on the person's notification settings.",
+    "people": "People: a person's own contacts synced from Google and Outlook or imported, each with a brief and the last few interactions; private to them.",
+    "caller_voice_lock": "Only the caller can interrupt a phone agent: speech that does not match the caller's voice, learnt in their first seconds, no longer stops the agent.",
+    "deepfilternet_filter": "DeepFilterNet3 instead of RNNoise as the noise filter on calls with noise suppression on.",
 }
 
 
@@ -320,6 +495,20 @@ def is_on(name: str, organization_id: int | None = None) -> bool:
     if organization_id is None:
         return False
     return organization_id in org_overrides().get(name, frozenset())
+
+
+def on_anywhere(name: str) -> bool:
+    """Whether ``name`` is on for anyone at all: everyone, or at least one
+    organisation by a console row or ``FEATURE_ORG_OVERRIDES``. For a
+    scheduled job that would otherwise scan every workspace to find none."""
+    if is_on(name):
+        return True
+    if any(
+        feature == name and org is not None and row.enabled and row.live()
+        for (feature, org), row in _SNAPSHOT.items()
+    ):
+        return True
+    return bool(org_overrides().get(name))
 
 
 def public() -> dict[str, bool]:

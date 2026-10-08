@@ -212,6 +212,25 @@ class TestTheDraftKey:
     def test_one_key_per_thread(self):
         assert reply_draft.key(7) == "reply_draft:7:assistant"
         assert reply_draft.key(7, 3) == "reply_draft:7:bot:3"
+        assert reply_draft.key(7, thread_id="t-1") == "reply_draft:7:assistant:t-1"
+
+    def test_two_peoples_threads_never_share_a_draft(self):
+        # Two members talking to Decibyl at once, each in their own thread:
+        # one key for the organisation leaked each reply into the other's
+        # thinking row.
+        assert reply_draft.key(7, thread_id="priya") != reply_draft.key(
+            7, thread_id="arjun"
+        )
+
+    def test_the_worker_writes_to_the_thread_it_is_answering(self):
+        from api.services.workflow import agent_timeline
+
+        with agent_timeline.in_thread("t-9"):
+            assert reply_draft._thread(None, None) == "t-9"
+        assert reply_draft._thread(None, None) is None
+        # A bot's chat is its own thread, whatever the context says.
+        with agent_timeline.in_thread("t-9"):
+            assert reply_draft._thread(3, None) is None
 
 
 @pytest.mark.asyncio
@@ -289,5 +308,28 @@ class TestDecibylSpeaks:
             app.dependency_overrides.pop(get_user, None)
         assert response.status_code == 200
         assert response.json() == {"text": "Front desk"}
-        assert get.await_args.kwargs == {"workflow_id": 3}
+        assert get.await_args.kwargs == {"workflow_id": 3, "thread_id": None}
         assert get.await_args.args == (7,)
+
+    async def test_the_route_reads_only_the_thread_it_is_asked_for(self):
+        from httpx import ASGITransport, AsyncClient
+
+        from api.app import app
+        from api.services.auth.depends import get_user
+
+        app.dependency_overrides[get_user] = lambda: SimpleNamespace(
+            id=42, selected_organization_id=7
+        )
+        try:
+            with patch(
+                "api.routes.agent_timeline.reply_draft.get",
+                new=AsyncMock(return_value=""),
+            ) as get:
+                async with AsyncClient(
+                    transport=ASGITransport(app=app), base_url="http://test"
+                ) as http:
+                    response = await http.get("/api/v1/timeline/draft?thread_id=t-1")
+        finally:
+            app.dependency_overrides.pop(get_user, None)
+        assert response.status_code == 200
+        assert get.await_args.kwargs == {"workflow_id": None, "thread_id": "t-1"}

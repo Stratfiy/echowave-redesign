@@ -28,6 +28,7 @@ import { Input } from "@/components/ui/input";
 import { detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
 import { announceBalanceChanged } from "@/lib/billing/balanceEvents";
+import { useFeature } from "@/lib/features";
 
 const NEXT = "/after-sign-in";
 const ERROR_ID = "verify-step-error";
@@ -35,6 +36,8 @@ const copy = AUTH_COPY.verify;
 
 export default function VerifyEmailPage() {
   const { user, loading: authLoading } = useAuth();
+  // Free while we are early: no credits to promise (free_mode.py).
+  const freeMode = useFeature("free_mode");
   const [address, setAddress] = useState<string | null>(null);
   const [checked, setChecked] = useState(false);
   const [code, setCode] = useState("");
@@ -106,7 +109,7 @@ export default function VerifyEmailPage() {
         <>
           {copy.sentTo}{" "}
           {address ? <strong className="font-medium text-foreground">{address}</strong> : copy.yourAddress}.{" "}
-          {copy.bonus}
+          {!freeMode && copy.bonus}
         </>
       }
       footer={
@@ -119,7 +122,7 @@ export default function VerifyEmailPage() {
           >
             {copy.resend}
           </button>
-          <a href={NEXT} className="underline-offset-4 hover:text-foreground hover:underline">
+          <a href={`${NEXT}?verify=later`} className="underline-offset-4 hover:text-foreground hover:underline">
             {copy.later}
           </a>
         </div>

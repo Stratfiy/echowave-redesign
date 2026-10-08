@@ -24,10 +24,10 @@
  * every few seconds does not justify building one.
  */
 
-import { AlertTriangle, Bot, CheckCircle2, CircleSlash, Clock, FileText, Loader2, MessageSquare, Phone, Wrench } from 'lucide-react';
+import { AlertTriangle, ArrowDown, BookOpen, Bot, CheckCircle2, CircleSlash, Clock, FileText, LifeBuoy, Loader2, MessageSquare, Phone, RotateCcw, Wrench } from 'lucide-react';
 import Link from 'next/link';
 import React from 'react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
     postMessageApiV1TimelineMessagePost,
@@ -39,12 +39,22 @@ import {
 import type { ThreadChip, TimelineEvent } from '@/client/types.gen';
 import { Art3D } from '@/components/art/Art3D';
 import { BotAvatar } from '@/components/bot/BotAvatar';
+import { BrowserPanel } from '@/components/browser/BrowserPanel';
 import { type AttachedFile,AttachedFileChip } from '@/components/channel/AttachedFileChip';
 import { BlockedCard } from '@/components/channel/BlockedCard';
 import { tagTokens } from '@/components/channel/ChannelComposer';
 import { emphasisTokens } from '@/components/channel/emphasis';
+import { isJudgeableReply, ReplyFeedback, useMyFeedback } from '@/components/channel/ReplyFeedback';
+import { SaveReportButton } from '@/components/helpers/SaveReportButton';
+import { ComparisonCard } from '@/components/reach/ComparisonCard';
+import { ReachConnectChip } from '@/components/reach/ReachConnectChip';
+import { SaveReplyButton } from '@/components/settings/SaveReplyButton';
+import { ErrorState } from '@/components/shell/ErrorState';
+import { SourceCoverage } from '@/components/shell/SourceCoverage';
+import { TaskStatus } from '@/components/shell/TaskStatus';
 import { Button } from '@/components/ui/button';
 import { ActionCard } from '@/components/workflow/ActionCard';
+import { ConfirmAllBar } from '@/components/workflow/ConfirmAllBar';
 import { ConnectorCard } from '@/components/workflow/ConnectorCard';
 import { DecisionCard } from '@/components/workflow/DecisionCard';
 import { EditCard } from '@/components/workflow/EditCard';
@@ -52,7 +62,10 @@ import { SecretCard } from '@/components/workflow/SecretCard';
 import { detailFromResult } from '@/lib/apiError';
 import { useAuth } from '@/lib/auth';
 import { markSeen } from '@/lib/botSeen';
+import { useFeature } from '@/lib/features';
 import { hasIndicScript } from '@/lib/indic';
+import { scrollBehavior, useReducedMotion } from '@/lib/motion';
+import { latestTurnStatus, type SourceRead, sourcesForReply, type TurnStatus } from '@/lib/shell/taskState';
 import { cn } from '@/lib/utils';
 
 /** How often to look for new rows. */
@@ -128,6 +141,9 @@ const CARDS = new Set([
     'connector_offered',
     'needs_secret',
     'needs_decision',
+    // Stream `reach`: the connect chip and the comparison table.
+    'reach_connect_offered',
+    'reach_comparison',
 ]);
 
 /** How long a pause can be and still read as one person still talking. */
@@ -233,6 +249,30 @@ function ActivityRow({
 
 type Attached = AttachedFile;
 
+/** The helper names a reply can carry (launch stream `agents`). */
+const HELPER_NAMES: Record<string, string> = {
+    inbox: 'Inbox',
+    research: 'Research',
+    follow_up: 'Follow-up',
+    learning_guide: 'Learning Guide',
+    call_appointment: 'Call and Appointment',
+    builder: 'Build something',
+};
+
+/** A report Research saved, named by an activity row on the thread. */
+function savedReportOf(event: TimelineEvent): string | null {
+    const saved = (event.payload as { saved_report?: { uuid?: unknown } } | null)?.saved_report;
+    return typeof saved?.uuid === 'string' ? saved.uuid : null;
+}
+
+/** A course started from the conversation (stream `learning`'s start_course). */
+function courseOf(event: TimelineEvent): { goalId: string | null; title: string; href: string } | null {
+    const course = (event.payload as { learning_course?: { goal_id?: unknown; title?: unknown; href?: unknown } } | null)
+        ?.learning_course;
+    if (!course || typeof course.title !== 'string' || typeof course.href !== 'string') return null;
+    return { goalId: typeof course.goal_id === 'string' ? course.goal_id : null, title: course.title, href: course.href };
+}
+
 /** The files a message carried, if any. */
 function attachmentsOf(event: TimelineEvent): Attached[] {
     const list = (event.payload as { attachments?: unknown } | null)?.attachments;
@@ -289,7 +329,9 @@ export function groupRows(inOrder: TimelineEvent[]): Group[] {
         const foldable =
             (event.kind === 'call_ended' && (event.payload as { answered?: boolean } | null)?.answered === false) ||
             event.kind === 'agent_acted' ||
-            event.kind === 'activity';
+            // A step with something to open (a course, a saved report) is
+            // a result, not a reading: folded, its button was out of sight.
+            (event.kind === 'activity' && !courseOf(event) && !savedReportOf(event));
         const key = foldable ? `${event.kind}:${event.workflow_id}` : '';
         const last = groups[groups.length - 1];
         if (foldable && last && last.key === key) {
@@ -321,6 +363,13 @@ export function ChannelStream({
     onRegisterRefresh,
     onCountChange,
     waitingFor,
+    chatShell = false,
+    onLoadState,
+    onWaitingChange,
+    onTurnStatus,
+    onOpenSources,
+    onOpenLesson,
+    onThreadNotFound,
 }: {
     /** A channel's thread, or -- with `workflowId` instead -- one bot's own
      *  chat. Exactly one of the two. */
@@ -334,6 +383,13 @@ export function ChannelStream({
      *  the account has always had, so a caller that says nothing reads what
      *  it always read. */
     threadId?: string | null;
+    /** Opens a lesson in this Chat column (Decibyl's thread). Without it a
+     *  course card is a link to the lesson. */
+    onOpenLesson?: (goalId: string | null, topic: string) => void;
+    /** Decibyl's conversation answered "not found": not this person's to
+     *  read (private threads). Given, the caller decides where they go
+     *  instead; without it, the failure shows with Retry. */
+    onThreadNotFound?: () => void;
     /** Bot id → display name, so an event can be attributed to a teammate
      *  rather than to an id. Missing names degrade to "A bot", never to a
      *  blank line. */
@@ -345,12 +401,31 @@ export function ChannelStream({
     /** Bots asked something at this time and not yet heard from. Each shows
      *  as a thinking row until a row of theirs newer than this arrives. */
     waitingFor?: { since: string; bots: number[] } | null;
+    /** Screens 03-04 (`chat_shell`): New content, the turn's status under
+     *  the request, Retry on a failed or stopped reply, and Sources. */
+    chatShell?: boolean;
+    /** Whether the history loaded. "error" only when nothing could be shown:
+     *  the caller must not draw an empty conversation over a failure. */
+    onLoadState?: (state: 'loading' | 'ready' | 'error') => void;
+    /** True while a reply is forming, for the composer's Stop. */
+    onWaitingChange?: (waiting: boolean) => void;
+    onTurnStatus?: (status: TurnStatus | null) => void;
+    /** Open a reply's sources beside the thread; inline when not given. */
+    onOpenSources?: (sources: SourceRead[], replyId: number) => void;
 }) {
     const { user, loading: authLoading } = useAuth();
     const [events, setEvents] = useState<TimelineEvent[]>([]);
     const [cursor, setCursor] = useState<{ at: string; id: number } | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    // Whether any page has ever loaded. A failure before that is a failed
+    // history, shown as such with Retry -- never as an empty thread.
+    const [loadedOnce, setLoadedOnce] = useState(false);
+    const [retrying, setRetrying] = useState(false);
+    // New rows (or a growing reply) arrived while the reader was scrolled up.
+    const [hasNew, setHasNew] = useState(false);
+    const reducedMotion = useReducedMotion();
+    const [inlineSources, setInlineSources] = useState<Record<number, boolean>>({});
     const started = useRef(false);
     const scroller = useRef<HTMLDivElement | null>(null);
     const bottom = useRef<HTMLDivElement | null>(null);
@@ -381,19 +456,26 @@ export function ChannelStream({
     const [chips, setChips] = useState<ThreadChip[]>([]);
     const [sendingChip, setSendingChip] = useState<string | null>(null);
     const loadChips = useCallback(async () => {
-        if (!assistant) return;
-        const response = await threadChipsApiV1TimelineChipsGet();
+        if (!assistant && workflowId == null) return;
+        // This thread's, so a helper's follow-ups answer the reply on screen;
+        // on an agent's own chat, the next steps of the agent's last reply.
+        const response = await threadChipsApiV1TimelineChipsGet({
+            query: assistant ? { thread_id: threadId ?? undefined } : { workflow_id: workflowId! },
+        });
         if (response.error) return; // A thread with no chips is still a thread.
         setChips(response.data?.chips ?? []);
-    }, [assistant]);
-    const sendChip = async (text: string) => {
+    }, [assistant, threadId, workflowId]);
+    const sendChip = async (text: string, helper?: string | null) => {
         setSendingChip(text);
         // Cleared first: the chips answer the reply that is on screen, and
         // leaving them under the question they just asked reads as if
         // nothing happened.
         setChips([]);
+        // A follow-up goes back to the helper that wrote the reply it follows.
         const response = await postMessageApiV1TimelineMessagePost({
-            body: { assistant: true, thread_id: threadId, text },
+            body: assistant
+                ? { assistant: true, thread_id: threadId, text, ...(helper ? { helper } : {}) }
+                : { workflow_id: workflowId!, text },
         });
         setSendingChip(null);
         if (response.error) {
@@ -423,6 +505,30 @@ export function ChannelStream({
           ? { workflow_id: workflowId }
           : { folder_id: folderId };
     const fallbackName = assistant ? assistantName : 'An agent';
+    // Was this useful? under Decibyl's replies (reply_feedback). Read once
+    // per batch of replies, after auth, so a reload shows what was said.
+    const feedbackOn = useFeature('reply_feedback') && assistant;
+    // Launch stream `agents`: keep a reply as a saved report, and name the
+    // helper a reply came from (screen 04: reports share this surface).
+    const reportsFlag = useFeature('research_reports');
+    const reportsOn = reportsFlag && assistant;
+    // An agent's reply in its own chat can be kept too: a research agent
+    // built from Chat writes its report there, and has no save of its own.
+    const agentReportsOn = reportsFlag && workflowId != null;
+    // Stream today: a routine's result carries a small ✓ chip naming it.
+    const routineChip = useFeature('routine_start_on');
+    // Stream `reach`. Off, its rows are not drawn (the server does not
+    // write them while off either).
+    const outsideToolsOn = useFeature('outside_tools');
+    const orderingOn = useFeature('ordering');
+    const reachChipsOn = outsideToolsOn || orderingOn;
+    const comparisonOn = useFeature('price_compare');
+    // Screen 28: a failed reply offers Help about that one reply.
+    const helpOn = useFeature('support_help');
+    // Keep a reply in saved items (settings stream, screen 15).
+    const savingOn = useFeature('saved_items') && assistant;
+    const judgeable = feedbackOn ? events.filter(isJudgeableReply).map((e) => e.id) : [];
+    const feedback = useMyFeedback(judgeable, feedbackOn && !authLoading && Boolean(user));
     // Whether the reader is at the bottom. Scrolling them back down while they
     // are reading something further up is worse than a missed new message.
     const pinned = useRef(true);
@@ -435,10 +541,15 @@ export function ChannelStream({
             query: { ...target, limit: PAGE },
         });
         if (response.error) {
+            if (assistant && onThreadNotFound && response.response?.status === 404) {
+                onThreadNotFound();
+                return;
+            }
             setError(detailFromResult(response, 'Could not load this channel'));
             return;
         }
         setError(null);
+        setLoadedOnce(true);
         setEvents(response.data?.events ?? []);
         const at = response.data?.next_before_at ?? null;
         const id = response.data?.next_before_id ?? null;
@@ -498,13 +609,35 @@ export function ChannelStream({
         onCountChange?.(events.length);
     }, [onCountChange, events.length]);
 
+    const historyFailed = !loading && !loadedOnce && !!error;
+    useEffect(() => {
+        onLoadState?.(loading ? 'loading' : historyFailed ? 'error' : 'ready');
+    }, [onLoadState, loading, historyFailed]);
+
+    const retryHistory = async () => {
+        setRetrying(true);
+        await loadLatest();
+        setRetrying(false);
+    };
+
+    const scrollToBottom = () => {
+        const element = scroller.current;
+        if (!element) return;
+        pinned.current = true;
+        setHasNew(false);
+        element.scrollTo?.({ top: element.scrollHeight, behavior: scrollBehavior(reducedMotion) });
+        if (!element.scrollTo) element.scrollTop = element.scrollHeight;
+    };
+
     useEffect(() => {
         const newest = events[0]?.id ?? null;
         if (newest === newestSeen.current) return;
         newestSeen.current = newest;
         const element = scroller.current;
         if (pinned.current && element) element.scrollTop = element.scrollHeight;
-    }, [events]);
+        // Never moved while reading further up: a control says there is more.
+        else if (chatShell && newest !== null) setHasNew(true);
+    }, [events, chatShell]);
 
     // Bots asked and not yet heard from. A row of theirs newer than the
     // question ends it; so does the clock, because a reply that has not
@@ -552,7 +685,14 @@ export function ChannelStream({
         let cancelled = false;
         const read = async () => {
             const response = await replyDraftTextApiV1TimelineDraftGet({
-                query: workflowId != null ? { workflow_id: workflowId } : undefined,
+                // Decibyl's draft is per thread: a teammate's reply forming in
+                // their own thread must never show in this one.
+                query:
+                    workflowId != null
+                        ? { workflow_id: workflowId }
+                        : threadId
+                          ? { thread_id: threadId }
+                          : undefined,
             });
             if (!cancelled && !response.error) setDraft(response.data?.text ?? '');
         };
@@ -562,10 +702,71 @@ export function ChannelStream({
             cancelled = true;
             clearInterval(timer);
         };
-    }, [waiting, assistant, workflowId]);
+    }, [waiting, assistant, workflowId, threadId]);
+
+    // Chips arrive after the reply they follow: keep them in view for a
+    // reader at the bottom, or on a phone they land below the fold.
+    useEffect(() => {
+        if (chips.length === 0) return;
+        const element = scroller.current;
+        if (pinned.current && element) element.scrollTop = element.scrollHeight;
+    }, [chips]);
+
+    // The forming reply follows the reader only while they are at the
+    // bottom; scrolled up, it waits behind New content (screen 04).
+    useEffect(() => {
+        if (!chatShell || !draft) return;
+        const element = scroller.current;
+        if (pinned.current && element) element.scrollTop = element.scrollHeight;
+        else setHasNew(true);
+    }, [chatShell, draft]);
+
+    useEffect(() => {
+        onWaitingChange?.(waiting);
+    }, [onWaitingChange, waiting]);
+
+    const turn = useMemo(
+        () => (chatShell && assistant ? latestTurnStatus([...events].reverse(), waiting) : null),
+        [chatShell, assistant, events, waiting],
+    );
+    const turnKey = turn ? `${turn.requestId}:${turn.state}` : '';
+    useEffect(() => {
+        onTurnStatus?.(turn);
+        // Reported when the state changes, not on every poll.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [onTurnStatus, turnKey]);
+
+    const [resending, setResending] = useState<number | null>(null);
+    const askAgain = async (reply: TimelineEvent, ordered: TimelineEvent[]) => {
+        const index = ordered.findIndex((e) => e.id === reply.id);
+        const request = [...ordered.slice(0, index)].reverse().find((e) => e.actor === 'human');
+        const text = request ? messageBody(request) : '';
+        if (!text) return;
+        setResending(reply.id);
+        const response = await postMessageApiV1TimelineMessagePost({
+            body: { assistant: true, thread_id: threadId, text },
+        });
+        setResending(null);
+        if (!response.error) void loadLatest();
+    };
 
     if (loading) {
         return <p className="px-6 py-8 text-sm text-muted-foreground">Loading…</p>;
+    }
+
+    if (historyFailed && events.length === 0) {
+        // Not "This channel is quiet": the history did not load, and saying
+        // it is empty would be a fabricated conversation (screen 03).
+        return (
+            <div className="min-h-0 flex-1 overflow-y-auto bg-background px-4 py-4 sm:px-6">
+                <ErrorState
+                    title="Could not load this conversation"
+                    description="Nothing is lost. Your messages are still there."
+                    onRetry={() => void retryHistory()}
+                    retrying={retrying}
+                />
+            </div>
+        );
     }
 
     // Oldest first for reading. The API answers newest-first because that is
@@ -585,6 +786,7 @@ export function ChannelStream({
                 const element = scroll.currentTarget;
                 pinned.current =
                     element.scrollHeight - element.scrollTop - element.clientHeight < 80;
+                if (pinned.current && hasNew) setHasNew(false);
             }}
         >
             {error && (
@@ -723,7 +925,7 @@ export function ChannelStream({
                                         marker and reads as the text it is
                                         until the rest arrives. */}
                                     <Emphasised text={draft} />
-                                    <span className="ml-0.5 inline-block h-3.5 w-1.5 animate-pulse bg-[var(--accent-brand)] align-middle" aria-hidden />
+                                    <span className="motion-continuous ml-0.5 inline-block h-3.5 w-1.5 animate-pulse bg-[var(--accent-brand)] align-middle" aria-hidden />
                                 </p>
                             ) : (
                                 <p className="mt-0.5 flex items-center gap-1.5 text-sm text-muted-foreground">
@@ -735,12 +937,15 @@ export function ChannelStream({
                     </li>
                 ))}
             </ol>
+            {/* Two or more send cards waiting (outreach drafts): one press,
+                each still confirmed against the version it showed. */}
+            <ConfirmAllBar events={inOrder} onDone={() => void loadLatest()} />
             {/* What to ask next, so the thread carries its own next steps.
                 Hidden while a bot is thinking: offering a follow-up to an
                 answer that has not arrived is asking somebody to interrupt.
-                Hidden on a bot's own chat too -- these are the workspace's
-                questions, and Decibyl is who answers them. */}
-            {assistant && !waiting && chips.length > 0 && (
+                On a bot's own chat only its own reply's next steps: the
+                workspace's questions are Decibyl's to answer. */}
+            {(assistant || workflowId != null) && !waiting && chips.length > 0 && (
                 <ul
                     className="mt-3 flex flex-wrap gap-2"
                     aria-label="Suggested next steps"
@@ -751,7 +956,7 @@ export function ChannelStream({
                             <button
                                 type="button"
                                 disabled={sendingChip !== null}
-                                onClick={() => void sendChip(chip.text)}
+                                onClick={() => void sendChip(chip.text, chip.helper)}
                                 className="rounded-full border border-border bg-card px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:border-[var(--accent-brand)] hover:text-foreground disabled:opacity-50"
                             >
                                 {chip.text}
@@ -761,6 +966,19 @@ export function ChannelStream({
                 </ul>
             )}
             <div ref={bottom} />
+            {chatShell && hasNew && (
+                <div className="pointer-events-none sticky bottom-2 flex justify-center">
+                    <button
+                        type="button"
+                        onClick={scrollToBottom}
+                        className="motion-m1 motion-m2-enter pointer-events-auto inline-flex min-h-11 items-center gap-1.5 rounded-[var(--radius-pill)] border border-border bg-background px-4 text-sm shadow-[var(--shadow-raised)] hover:bg-accent md:min-h-9"
+                        data-testid="new-content"
+                    >
+                        <ArrowDown aria-hidden className="h-4 w-4" />
+                        New content
+                    </button>
+                </div>
+            )}
         </div>
     );
 
@@ -795,6 +1013,86 @@ export function ChannelStream({
                         </li>
                     )}
             </>
+        );
+    }
+
+    /** Screen 04 under a row: the latest request's state, a stopped or
+     *  failed reply's state with Retry, and a reply's sources on demand. */
+    function rowExtras(event: TimelineEvent) {
+        const fromPerson = event.actor === 'human';
+        if (fromPerson) {
+            if (!turn || turn.requestId !== event.id || turn.state === 'partial' || turn.state === 'failed') return null;
+            return (
+                <div className="mt-1" data-testid="turn-status">
+                    <TaskStatus state={turn.state} stage={turn.state === 'running' ? turn.stage : undefined} />
+                </div>
+            );
+        }
+        if (event.kind !== 'message' || event.workflow_id != null) return null;
+        const outcome = (event.payload ?? {}) as { stopped?: boolean; failed?: boolean; helper?: string };
+        const sources = sourcesForReply(inOrder, event.id);
+        const canSave = reportsOn && !outcome.failed && event.folder_id == null;
+        if (!outcome.stopped && !outcome.failed && sources.length === 0 && !canSave && !outcome.helper) return null;
+        return (
+            <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                {outcome.helper && (
+                    <span className="text-xs text-muted-foreground" data-testid="reply-helper">
+                        {HELPER_NAMES[outcome.helper] ?? outcome.helper}
+                    </span>
+                )}
+                {canSave && <SaveReportButton eventId={event.id} />}
+                {(outcome.stopped || outcome.failed) && (
+                    <>
+                        <TaskStatus state={outcome.stopped ? 'partial' : 'failed'} />
+                        <button
+                            type="button"
+                            disabled={resending === event.id}
+                            onClick={() => void askAgain(event, inOrder)}
+                            className="motion-m1 inline-flex min-h-11 items-center gap-1 rounded-md px-1 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline disabled:opacity-60 md:min-h-6"
+                        >
+                            <RotateCcw aria-hidden className="h-3.5 w-3.5" />
+                            {resending === event.id ? 'Asking again…' : 'Retry'}
+                        </button>
+                        {helpOn && outcome.failed && (
+                            <Link
+                                href={`/help/new?reply=${event.id}`}
+                                className="motion-m1 inline-flex min-h-11 items-center gap-1 rounded-md px-1 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline md:min-h-6"
+                                data-testid="reply-get-help"
+                            >
+                                <LifeBuoy aria-hidden className="h-3.5 w-3.5" />
+                                Get help
+                            </Link>
+                        )}
+                    </>
+                )}
+                {sources.length > 0 &&
+                    (onOpenSources ? (
+                        <button
+                            type="button"
+                            onClick={() => onOpenSources(sources, event.id)}
+                            className="motion-m1 inline-flex min-h-11 items-center gap-1 rounded-md px-1 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline md:min-h-6"
+                            data-testid="open-sources"
+                        >
+                            <BookOpen aria-hidden className="h-3.5 w-3.5" />
+                            Sources
+                        </button>
+                    ) : (
+                        <div className="w-full">
+                            {inlineSources[event.id] ? (
+                                <SourceCoverage sources={sources} defaultOpen />
+                            ) : (
+                                <button
+                                    type="button"
+                                    onClick={() => setInlineSources((all) => ({ ...all, [event.id]: true }))}
+                                    className="motion-m1 inline-flex min-h-11 items-center gap-1 text-xs text-muted-foreground underline-offset-2 hover:underline md:min-h-6"
+                                >
+                                    <BookOpen aria-hidden className="h-3.5 w-3.5" />
+                                    Sources
+                                </button>
+                            )}
+                        </div>
+                    ))}
+            </div>
         );
     }
 
@@ -903,7 +1201,36 @@ export function ChannelStream({
                             <React.Fragment key={event.id}>
                             {divider}
                             <li className="flex gap-3">
-                                <ActivityRow event={event} who={activityWho(event)} />
+                                <ActivityRow event={event} who={activityWho(event)}>
+                                    {(() => {
+                                        const course = courseOf(event);
+                                        if (!course) return null;
+                                        const style = 'ml-2 inline-flex min-h-11 items-center font-medium underline md:min-h-0';
+                                        return onOpenLesson ? (
+                                            <button
+                                                type="button"
+                                                className={style}
+                                                data-testid="open-course"
+                                                onClick={() => onOpenLesson(course.goalId, course.title)}
+                                            >
+                                                Open the lesson
+                                            </button>
+                                        ) : (
+                                            <Link href={course.href} className={style} data-testid="open-course">
+                                                Open the lesson
+                                            </Link>
+                                        );
+                                    })()}
+                                    {savedReportOf(event) && (
+                                        <Link
+                                            href={`/saved-reports/${savedReportOf(event)}`}
+                                            className="ml-2 inline-flex min-h-11 items-center underline md:min-h-0"
+                                            data-testid="open-saved-report"
+                                        >
+                                            Open report
+                                        </Link>
+                                    )}
+                                </ActivityRow>
                             </li>
                             </React.Fragment>
                         );
@@ -941,6 +1268,36 @@ export function ChannelStream({
                             </React.Fragment>
                         );
                     }
+                    if (event.kind === 'browser_session') {
+                        // Decibyl's private browser: the live view while it
+                        // runs, the receipt after. The row carries only the
+                        // session's id; the panel reads the rest as the
+                        // person who asked, and nobody else can.
+                        const sessionUuid = String(
+                            ((event.payload ?? {}) as { session_uuid?: string }).session_uuid ?? '',
+                        );
+                        return (
+                            <React.Fragment key={event.id}>
+                            {divider}
+                            <li className="flex gap-3">
+                                {face(event)}
+                                <div className="min-w-0 flex-1">
+                                    <p className="mb-1 text-sm">
+                                        <span className="font-medium">{fallbackName}</span>
+                                        <span className="ml-2 text-xs text-muted-foreground">
+                                            <time dateTime={event.at}>{when(event.at)}</time>
+                                        </span>
+                                    </p>
+                                    {sessionUuid ? (
+                                        <BrowserPanel sessionUuid={sessionUuid} />
+                                    ) : (
+                                        <p className="text-sm text-muted-foreground">{event.summary}</p>
+                                    )}
+                                </div>
+                            </li>
+                            </React.Fragment>
+                        );
+                    }
                     if (event.kind === 'connector_offered') {
                         // Decibyl offered an app. The card is the whole
                         // answer: what it is, what it brings, and the
@@ -961,6 +1318,36 @@ export function ChannelStream({
                                         </span>
                                     </p>
                                     <ConnectorCard event={event} />
+                                </div>
+                            </li>
+                            </React.Fragment>
+                        );
+                    }
+                    if (
+                        (event.kind === 'reach_connect_offered' && reachChipsOn) ||
+                        (event.kind === 'reach_comparison' && comparisonOn)
+                    ) {
+                        // An outside tool or ordering app to connect, in
+                        // the thread that needed it; or prices compared.
+                        const asker =
+                            (event.workflow_id != null && botNames[event.workflow_id]) || fallbackName;
+                        return (
+                            <React.Fragment key={event.id}>
+                            {divider}
+                            <li className="flex gap-3">
+                                {face(event)}
+                                <div className="min-w-0 flex-1">
+                                    <p className="mb-1 text-sm">
+                                        <span className="font-medium">{asker}</span>
+                                        <span className="ml-2 text-xs text-muted-foreground">
+                                            <time dateTime={event.at}>{when(event.at)}</time>
+                                        </span>
+                                    </p>
+                                    {event.kind === 'reach_connect_offered' ? (
+                                        <ReachConnectChip event={event} />
+                                    ) : (
+                                        <ComparisonCard event={event} />
+                                    )}
                                 </div>
                             </li>
                             </React.Fragment>
@@ -1112,6 +1499,15 @@ export function ChannelStream({
                                                 Handed to you
                                             </Link>
                                         )}
+                                        {routineChip &&
+                                            typeof (event.payload as { routine?: unknown } | null)?.routine === 'string' && (
+                                                <span
+                                                    className="ml-2 inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground"
+                                                    data-testid="routine-chip"
+                                                >
+                                                    ✓ {(event.payload as { routine: string }).routine}
+                                                </span>
+                                            )}
                                     </p>
                                 )}
                                 {/* whitespace-pre-wrap: somebody who typed a
@@ -1205,6 +1601,14 @@ export function ChannelStream({
                                         )}
                                     </div>
                                 )}
+                                {feedbackOn && isJudgeableReply(event) && (
+                                    <ReplyFeedback
+                                        eventId={event.id}
+                                        answer={feedback.answers[event.id]}
+                                        onAnswered={(answer) => feedback.remember(event.id, answer)}
+                                    />
+                                )}
+                                {savingOn && isJudgeableReply(event) && <SaveReplyButton event={event} threadId={threadId} />}
                                 {attachmentsOf(event).length > 0 && (
                                     <ul className="mt-1.5 flex flex-wrap gap-2" aria-label="Files">
                                         {attachmentsOf(event).map((file) => (
@@ -1212,6 +1616,16 @@ export function ChannelStream({
                                         ))}
                                     </ul>
                                 )}
+                                {chatShell && assistant && rowExtras(event)}
+                                {agentReportsOn &&
+                                    event.kind === 'message' &&
+                                    event.actor === 'agent' &&
+                                    event.folder_id == null &&
+                                    !(event.payload as { failed?: boolean } | null)?.failed && (
+                                        <div className="mt-1.5">
+                                            <SaveReportButton eventId={event.id} />
+                                        </div>
+                                    )}
                             </div>
                         </li>
                         </React.Fragment>

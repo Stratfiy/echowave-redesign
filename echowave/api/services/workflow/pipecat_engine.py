@@ -87,7 +87,7 @@ from api.services.workflow.transition_arguments import (
     argument_properties,
     supplied_values,
 )
-from api.utils.template_renderer import render_template
+from api.utils.template_renderer import render_spoken_template, render_template
 
 #: How many branch nodes may run back-to-back before the chain is treated as a
 #: cycle. Ten is far past any legitimate flow — three or four consecutive
@@ -170,6 +170,14 @@ class PipecatEngine:
         # Who-speaks-first bookkeeping. See open_call.
         self._caller_has_spoken = False
         self._opening_queued = False
+        # The start node's static greeting went out the moment the line was
+        # up, ahead of the LLM context. See queue_static_opening_early.
+        self._early_opening_queued = False
+        #: Set once the start node's system prompt and tools are in place.
+        #: The early greeting lets the caller hear the agent before that, so
+        #: the pipeline holds the caller's first turn on this rather than
+        #: letting the model answer with no instructions at all.
+        self.llm_context_ready = asyncio.Event()
         self._caller_first_wait_task: Optional[asyncio.Task] = None
         self._initialized = False
         self._call_disposed = False
@@ -504,6 +512,13 @@ class PipecatEngine:
         """Delegate prompt formatting to the shared workflow.utils implementation."""
 
         return render_template(prompt, self._call_context_vars)
+
+    def _format_spoken(self, text: str) -> str:
+        """Render text the caller will hear: an unset variable leaves no
+        stranded punctuation behind ("Namaste, ." -- see
+        render_spoken_template). Prompts keep _format_prompt."""
+
+        return render_spoken_template(text, self._call_context_vars)
 
     async def _create_transition_func(
         self,
@@ -914,6 +929,105 @@ class PipecatEngine:
         except AttributeError:
             logger.warning(f"context has no set_otel_span_name method")
 
+        # The four per-call reads the prompt needs. On the first node they
+        # are database round trips, and they used to run one after another
+        # after the registrations below -- all of it in front of the opening
+        # line. They are independent of each other and of the registrations,
+        # and each already turns its own failure into an empty block, so they
+        # run side by side with them.
+        #
+        # From the second node on they are cached and cost nothing, and the
+        # sequential path is kept exactly: a transition runs inside a tool
+        # call, and a task switch in the middle of set_node there lets a
+        # sibling tool's result reach the model before the new node exists
+        # (test_parallel_builtin_and_transition_calls_through_engine_1).
+        if self._prompt_inputs_cached():
+            await self._register_node_functions(node)
+            scoped_document_uuids = await self._get_scoped_document_uuids()
+            today_line = await self._get_today_line()
+            remembered = await self._get_remembered_block()
+            skills = await self._get_skills_block()
+        else:
+            reads = asyncio.ensure_future(self._read_prompt_inputs())
+            try:
+                await self._register_node_functions(node)
+                (
+                    scoped_document_uuids,
+                    today_line,
+                    remembered,
+                    skills,
+                ) = await reads
+            finally:
+                if not reads.done():
+                    reads.cancel()
+
+        # Register knowledge base retrieval over what the node names plus
+        # what the run reads unasked (company, channel, bot). Same union the
+        # composer offers, so the tool the model sees is the tool that runs.
+        run_documents = knowledge_for_run(node.document_uuids, scoped_document_uuids)
+        if run_documents:
+            await self._register_knowledge_base_function(run_documents)
+
+        can_run_scripts = await self._can_run_scripts(node)
+
+        # Compose prompt and functions via the context composer module
+        system_prompt = compose_system_prompt_for_node(
+            node=node,
+            workflow=self.workflow,
+            format_prompt=self._format_prompt,
+            has_recordings=self._has_recordings,
+            code_mixed_speech=self._code_mixed_speech,
+            opening_notes=self._opening_notes_for(node),
+            today_line=today_line,
+            agent_can_end_call=self._agent_can_end_call,
+            known_values=self._gathered_context,
+            remembered=remembered,
+            skills=skills,
+            steps=self._steps_block() if self._can_edit_self else None,
+        )
+        functions = await compose_functions_for_node(
+            node=node,
+            custom_tool_manager=self._custom_tool_manager,
+            agent_can_end_call=self._agent_can_end_call,
+            can_ask_for_decision=not self._is_voice,
+            scoped_document_uuids=scoped_document_uuids,
+            can_edit_self=self._can_edit_self,
+            can_run_scripts=can_run_scripts,
+        )
+        await self._update_llm_context(system_prompt, functions)
+
+    def _prompt_inputs_cached(self) -> bool:
+        return None not in (
+            self._scoped_document_uuids,
+            self._today_line,
+            self._remembered_block,
+            self._skills_block,
+        )
+
+    async def _read_prompt_inputs(self) -> tuple[list[str], str, str, str]:
+        """Shared knowledge, today, what is remembered and the skills, read together.
+
+        The run's organisation and bot ids are looked up first, once, because
+        every one of the four needs them and four concurrent cache misses
+        would be four identical queries. That lookup is allowed to fail here:
+        each reader repeats it under its own guard and degrades the way it
+        always has.
+        """
+        await asyncio.gather(
+            self._get_organization_id(),
+            self._get_workflow_id(),
+            return_exceptions=True,
+        )
+        return await asyncio.gather(
+            self._get_scoped_document_uuids(),
+            self._get_today_line(),
+            self._get_remembered_block(),
+            self._get_skills_block(),
+        )
+
+    async def _register_node_functions(self, node: Node) -> None:
+        """Register the handlers this node's tool table will name."""
+
         # Register transition functions if not an end node
         if not node.is_end:
             for outgoing_edge in node.out_edges:
@@ -963,52 +1077,19 @@ class PipecatEngine:
                 mcp_tool_filters=getattr(node, "mcp_tool_filters", None),
             )
 
-        # Running a script (Step 20): text and channel runs on a paid plan,
-        # on a node that has tools for the script to call. Same gate as the
-        # schema below, so the model is never offered a tool nothing answers.
-        can_run_scripts = False
-        if not self._is_voice and node.tool_uuids:
-            from api.services.sandbox import code_mode
+    async def _can_run_scripts(self, node: Node) -> bool:
+        """Running a script (Step 20): text and channel runs on a paid plan,
+        on a node that has tools for the script to call. Same gate as the
+        schema, so the model is never offered a tool nothing answers.
+        Registers the handler when it is allowed."""
+        if self._is_voice or not node.tool_uuids:
+            return False
+        from api.services.sandbox import code_mode
 
-            can_run_scripts = await code_mode.allowed(await self._get_organization_id())
-            if can_run_scripts:
-                self.llm.register_function(
-                    code_mode.TOOL_NAME, self._run_script_handler
-                )
-
-        # Register knowledge base retrieval over what the node names plus
-        # what the run reads unasked (company, channel, bot). Same union the
-        # composer offers, so the tool the model sees is the tool that runs.
-        scoped_document_uuids = await self._get_scoped_document_uuids()
-        run_documents = knowledge_for_run(node.document_uuids, scoped_document_uuids)
-        if run_documents:
-            await self._register_knowledge_base_function(run_documents)
-
-        # Compose prompt and functions via the context composer module
-        system_prompt = compose_system_prompt_for_node(
-            node=node,
-            workflow=self.workflow,
-            format_prompt=self._format_prompt,
-            has_recordings=self._has_recordings,
-            code_mixed_speech=self._code_mixed_speech,
-            opening_notes=self._opening_notes_for(node),
-            today_line=await self._get_today_line(),
-            agent_can_end_call=self._agent_can_end_call,
-            known_values=self._gathered_context,
-            remembered=await self._get_remembered_block(),
-            skills=await self._get_skills_block(),
-            steps=self._steps_block() if self._can_edit_self else None,
-        )
-        functions = await compose_functions_for_node(
-            node=node,
-            custom_tool_manager=self._custom_tool_manager,
-            agent_can_end_call=self._agent_can_end_call,
-            can_ask_for_decision=not self._is_voice,
-            scoped_document_uuids=scoped_document_uuids,
-            can_edit_self=self._can_edit_self,
-            can_run_scripts=can_run_scripts,
-        )
-        await self._update_llm_context(system_prompt, functions)
+        allowed = await code_mode.allowed(await self._get_organization_id())
+        if allowed:
+            self.llm.register_function(code_mode.TOOL_NAME, self._run_script_handler)
+        return allowed
 
     async def set_node(self, node_id: str, emit_transition_event: bool = True):
         """
@@ -1107,7 +1188,13 @@ class PipecatEngine:
             await asyncio.sleep(delay_duration)
 
         # Setup LLM context with prompts and functions.
-        await self._setup_llm_context(node)
+        try:
+            await self._setup_llm_context(node)
+        finally:
+            # Set on failure too: a context that could not be built is not
+            # made any better by holding the caller's turn until the gate
+            # times out.
+            self.llm_context_ready.set()
 
     def get_node_greeting(self, node_id: str) -> Optional[tuple[str, Optional[str]]]:
         """Return the greeting info for a node, or None if not configured.
@@ -1128,7 +1215,7 @@ class PipecatEngine:
             return ("audio", node.greeting_recording_id)
 
         if node.greeting:
-            return ("text", self._format_prompt(node.greeting))
+            return ("text", self._format_spoken(node.greeting))
 
         return None
 
@@ -1177,7 +1264,7 @@ class PipecatEngine:
 
         # Rendered like any other spoken copy, so a customer can address the
         # person by name or say which company is calling.
-        return self._format_prompt(text)
+        return self._format_spoken(text)
 
     def resolve_ai_disclosure(self, node_id: str) -> Optional[str]:
         """What to say about being an AI before this node opens, if anything.
@@ -1190,6 +1277,15 @@ class PipecatEngine:
         """
         if not self._is_voice:
             return None
+        # A call placed on a person's behalf ("call it for me", stream
+        # `voice`) always opens by saying who is calling and for whom, even
+        # where the agent's own AI line is switched off: the announcement is
+        # the condition the person approved the call on.
+        on_behalf = str(
+            (self._call_context_vars or {}).get("on_behalf_announcement") or ""
+        ).strip()
+        if on_behalf:
+            return on_behalf
         node = self.workflow.nodes.get(node_id)
         if not node:
             return None
@@ -1203,7 +1299,7 @@ class PipecatEngine:
             text = (AI_DISCLOSURE_TEXT or "").strip()
         if not text:
             return None
-        return self._format_prompt(text)
+        return self._format_spoken(text)
 
     def resolve_opening_disclosures(self, node_id: str) -> Optional[str]:
         """Everything said before the greeting, as one utterance: who is
@@ -1339,6 +1435,68 @@ class PipecatEngine:
             self._greet_if_caller_stays_silent(wait)
         )
 
+    def static_opening_line(self) -> str | None:
+        """The start node's opening, when it can be spoken before anything is ready.
+
+        That is a plain text greeting (with the disclosures in front of it,
+        as one utterance -- see _opening_line) on a voice call whose agent
+        speaks first. Everything else keeps waiting for the start node, for a
+        reason each:
+
+        - an audio greeting is fetched from storage, and has its own path;
+        - a dynamic greeting is *meant* to be asked for at answer time;
+        - ``delayed_start`` is an operator asking for the pause;
+        - a caller-first agent says nothing until its timer or the caller;
+        - no greeting means the model writes the opening, which needs the
+          context the start node builds.
+
+        A pre-call fetch templates the greeting with what it returns, so the
+        caller of this (event_handlers) does not ask while one is in flight.
+        """
+        if not self._is_voice or self.caller_speaks_first():
+            return None
+        node = self.workflow.nodes.get(self.workflow.start_node_id)
+        if node is None or node.delayed_start:
+            return None
+        if self._fetch_dynamic_greeting is not None:
+            return None
+        greeting_info = self.get_node_greeting(node.id)
+        if not greeting_info:
+            return None
+        greeting_type, greeting_value = greeting_info
+        if greeting_type != "text" or not greeting_value:
+            return None
+        return self._opening_line(
+            self.resolve_opening_disclosures(node.id), greeting_value
+        )
+
+    async def queue_static_opening_early(self) -> bool:
+        """Speak the start node's static greeting now, before the start node is set.
+
+        The greeting used to wait for ``set_node`` -- and set_node for the
+        whole of ``_setup_llm_context``: knowledge, memory, skills, tools --
+        none of which a fixed line of text needs. On run 23 on staging that
+        was 1.9s of a caller listening to nothing, on top of the provider
+        handshakes ahead of it, and one tester hung up.
+
+        Queued with ``append_to_context=True`` exactly as queue_node_opening
+        queues it, so the model sees its own greeting and does not greet
+        again. The start node is still set afterwards as it always was;
+        queue_node_opening then sees this flag and does not say it twice.
+
+        Returns whether the greeting was queued.
+        """
+        if self._opening_queued or self._early_opening_queued or self.task is None:
+            return False
+        line = self.static_opening_line()
+        if not line:
+            return False
+        self._early_opening_queued = True
+        self._opening_queued = True
+        logger.info("Speaking the static greeting while the start node is set up")
+        await self.task.queue_frame(TTSSpeakFrame(line, append_to_context=True))
+        return True
+
     async def _queue_start_opening(self) -> None:
         self._opening_queued = True
         await self.queue_node_opening(
@@ -1424,6 +1582,9 @@ class PipecatEngine:
         opening_node = (
             previous_node_id is None and node_id == self.workflow.start_node_id
         )
+        if opening_node and self._early_opening_queued:
+            # Already said, disclosures and all, by queue_static_opening_early.
+            return "greeting"
         disclosure = self.resolve_opening_disclosures(node_id) if opening_node else None
         disclosure_pending = bool(disclosure)
 
@@ -1632,7 +1793,7 @@ class PipecatEngine:
 
         filler_type = getattr(node.data, "filler_type", "none")
         if filler_type == "text":
-            text = self._format_prompt(getattr(node.data, "filler_text", "") or "")
+            text = self._format_spoken(getattr(node.data, "filler_text", "") or "")
             if text:
                 self._queued_speech_mute_state = "waiting"
                 await self.task.queue_frame(

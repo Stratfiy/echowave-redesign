@@ -69,6 +69,13 @@ async def _capture_call_event(
             event=event,
             properties=properties,
         )
+        # The catalogue's voice_session_* events and the voice allowance
+        # (launch stream controls). No-ops while their switches are off.
+        from api.services import voice_controls
+
+        await voice_controls.after_call_event(
+            workflow_run, user_provider_id, event, extra_properties
+        )
     except Exception:
         logger.exception(f"Background PostHog capture failed for '{event}'")
 
@@ -88,8 +95,15 @@ def register_event_handlers(
     integration_runtime_sessions: list[IntegrationRuntimeSession] | None = None,
     include_transcript_end_timestamps: bool = False,
     keep_recording: bool = True,
+    early_opening: bool = False,
 ):
     """Register all event handlers for transport and task events.
+
+    ``early_opening`` lets a static text greeting be queued the moment the
+    client connects instead of after the pipeline has started and the start
+    node is set (see PipecatEngine.queue_static_opening_early). Off unless the
+    caller asks: a realtime speech-to-speech pipeline has no TTS stage to
+    speak it through.
 
     Returns:
         In-memory recording buffers for use by other handlers.
@@ -287,6 +301,17 @@ def register_event_handlers(
         if keep_recording:
             await audio_buffer.start_recording()
         ready_state["client_connected"] = True
+        # The line is up. A fixed greeting needs nothing else -- not the
+        # transcriber's handshake, not the start node's prompt -- so it is
+        # queued now, ahead of everything still starting behind it. Frames
+        # keep their order through the pipeline, so it reaches the voice the
+        # moment the voice has started. Not while a pre-call fetch is out: what
+        # that returns is what the greeting is templated with.
+        if early_opening and pre_call_fetch_task is None:
+            try:
+                await engine.queue_static_opening_early()
+            except Exception as exc:  # noqa: BLE001 - the normal path still greets
+                logger.error(f"Could not queue the greeting early: {exc}")
         await maybe_trigger_initial_response()
 
     @transport.event_handler("on_client_disconnected")

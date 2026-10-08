@@ -14,7 +14,7 @@
  */
 
 import { Share2, Trash2, Undo2 } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import {
     readMemoryApiV1OrganisationMemoryGet,
@@ -42,21 +42,27 @@ export function MemoryList({
     const [busy, setBusy] = useState<number | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [all, setAll] = useState(false);
+    // A failed read is not an empty memory. Showing "nothing confirmed" for a
+    // 500 told people their agent had forgotten everything.
+    const [loadFailed, setLoadFailed] = useState(false);
+
+    const load = useCallback(async () => {
+        setLoadFailed(false);
+        const response = await readMemoryApiV1OrganisationMemoryGet({
+            query: workflowId != null ? { workflow_id: workflowId } : undefined,
+        });
+        if (response.error || !response.data) {
+            setLoadFailed(true);
+            return;
+        }
+        setFacts(response.data.facts ?? []);
+    }, [workflowId]);
 
     useEffect(() => {
         if (authLoading || !user || fetched.current) return;
         fetched.current = true;
-        void (async () => {
-            const response = await readMemoryApiV1OrganisationMemoryGet({
-                query: workflowId != null ? { workflow_id: workflowId } : undefined,
-            });
-            if (response.error || !response.data) {
-                setFacts([]);
-                return;
-            }
-            setFacts(response.data.facts ?? []);
-        })();
-    }, [authLoading, user, workflowId]);
+        void load();
+    }, [authLoading, user, load]);
 
     // Personal memory (MEM-1): a fact marked "mine" is only the signed-in
     // member's. Sharing makes it the workspace's, for every member and agent.
@@ -93,6 +99,16 @@ export function MemoryList({
         });
     };
 
+    if (loadFailed) {
+        return (
+            <p className="text-sm text-muted-foreground" role="alert" data-testid="memory-load-failed">
+                Could not load what is remembered.{' '}
+                <button type="button" onClick={() => void load()} className="underline underline-offset-2">
+                    Try again
+                </button>
+            </p>
+        );
+    }
     if (facts === null) return null;
     if (facts.length === 0) {
         return <p className="text-sm text-muted-foreground">Nothing confirmed about the business yet.</p>;
@@ -104,12 +120,17 @@ export function MemoryList({
             <ul className="space-y-1 text-sm" aria-label="Memory">
                 {shown.map((fact) => {
                     const gone = fact.id in forgotten;
+                    // A sentence taught as it is ("Teach Riya something")
+                    // has a made-up key; the sentence is the whole fact.
+                    const note = fact.key.startsWith("note_");
                     return (
                         <li key={fact.id} className="group flex items-center gap-2">
                             {gone ? (
                                 <span className="min-w-0 flex-1 truncate text-muted-foreground line-through">
-                                    {fact.key}
+                                    {note ? fact.value : fact.key}
                                 </span>
+                            ) : note ? (
+                                <span className="min-w-0 flex-1">{fact.value}</span>
                             ) : (
                                 <>
                                     <span className="shrink-0 text-muted-foreground">{fact.key}</span>

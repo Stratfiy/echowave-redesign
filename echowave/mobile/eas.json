@@ -1,0 +1,55 @@
+{
+  "cli": {
+    "version": ">= 16.0.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "base": {
+      "node": "22.22.0",
+      "env": {
+        "DECIBYL_APP_NAME": "Decibyl",
+        "DECIBYL_IOS_BUNDLE_ID": "ai.decibyl.app",
+        "DECIBYL_ANDROID_PACKAGE": "ai.decibyl.app"
+      }
+    },
+    "development": {
+      "extends": "base",
+      "developmentClient": true,
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://staging.decibyl.ai",
+        "EXPO_PUBLIC_WEB_URL": "https://staging.decibyl.ai"
+      }
+    },
+    "preview": {
+      "extends": "base",
+      "distribution": "internal",
+      "channel": "preview",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://staging.decibyl.ai",
+        "EXPO_PUBLIC_WEB_URL": "https://staging.decibyl.ai"
+      }
+    },
+    "production": {
+      "extends": "base",
+      "autoIncrement": true,
+      "channel": "production",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://app.decibyl.ai",
+        "EXPO_PUBLIC_WEB_URL": "https://app.decibyl.ai"
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "ascAppId": "SET_FROM_APP_STORE_CONNECT"
+      },
+      "android": {
+        "track": "internal",
+        "releaseStatus": "draft",
+        "serviceAccountKeyPath": "./secrets/play-service-account.json"
+      }
+    }
+  }
+}

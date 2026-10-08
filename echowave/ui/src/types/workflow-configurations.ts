@@ -357,7 +357,7 @@ const FALLBACK_WORKFLOW_CONFIGURATIONS: WorkflowConfigurations = {
     pronunciation_lexicon: [],
     call_outcomes: [],
     follow_caller_language: false,
-    caller_environment: "normal",
+    caller_environment: "auto",
     accept_keypad_input: false,
     speak_like_callers: true,
     dynamic_greeting_configuration: { enabled: false, url: "" },

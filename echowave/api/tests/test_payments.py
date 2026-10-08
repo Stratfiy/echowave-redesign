@@ -453,16 +453,16 @@ class TestEventsWeDoNotAct_On:
         account is created and nothing is credited.
         """
         body = _event(order_id="order_nobody", payment_id="pay_X", amount=50_000)
+        credited = select(func.coalesce(func.sum(CreditLedgerModel.delta_paise), 0))
+        # Relative to before: other tests share the ledger table.
+        before = int(await async_session.scalar(credited) or 0)
 
         result = await payments.handle_webhook(
             async_session, raw_body=body, signature=_sign(body)
         )
 
         assert result["status"] == "unknown_order"
-        total = await async_session.scalar(
-            select(func.coalesce(func.sum(CreditLedgerModel.delta_paise), 0))
-        )
-        assert int(total or 0) == 0
+        assert int(await async_session.scalar(credited) or 0) == before
 
     async def test_an_event_we_do_not_handle_is_ignored_quietly(self, async_session):
         """Returning an error would have Razorpay retry it forever."""

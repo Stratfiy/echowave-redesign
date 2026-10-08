@@ -575,12 +575,14 @@ redisinternal:
     limits: { cpu: 500m, memory: 256Mi }
 
 minio:
-  # Official upstream MinIO. Root creds are shared with the app (single source of
-  # truth) so they can't drift; the app creates its bucket on first use.
+  # Chainguard's MinIO: minio/minio is no longer published on Docker Hub, and
+  # Chainguard's free tier publishes only `latest`. The probes are httpGet, so
+  # the image needs no curl. Root creds are shared with the app (single source
+  # of truth) so they can't drift; the app creates its bucket on first use.
   image:
-    registry: docker.io
-    repository: minio/minio
-    tag: RELEASE.2025-04-22T22-12-26Z
+    registry: cgr.dev
+    repository: chainguard/minio
+    tag: latest
     pullPolicy: IfNotPresent
   auth:
     rootUser: minioadmin

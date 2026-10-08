@@ -157,8 +157,8 @@ export function TaskBoard({ initial, tabs }: Props) {
     return (
         <>
             <PageHeader
-                title="Tasks"
-                description="One board people and agents both work from. An agent's finished task waits in review for you; a blocked one says why."
+                title="Today"
+                description="What needs your attention: work waiting on you, what is due, and what your agents finished."
                 tabs={tabs}
                 actions={
                     <div className="flex items-center gap-2">

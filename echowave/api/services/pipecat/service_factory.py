@@ -8,11 +8,13 @@ import aiohttp
 from fastapi import HTTPException
 from loguru import logger
 
+from api import constants
 from api.constants import MPS_API_URL
 from api.schemas.ai_model_configuration import (
     DECIBYL_DEFAULT_VOICE,
     DECIBYL_GENDER_VOICES,
 )
+from api.services.aws_gateway import claude as aws_claude
 from api.services.configuration import voice_catalogue
 from api.services.configuration.options import (
     DEEPGRAM_FLUX_MODELS,
@@ -26,6 +28,7 @@ from api.services.pipecat.gemini_json_schema_adapter import (
 )
 from api.services.pipecat.minimax_tts import MiniMaxOwnedSessionTTSService
 from api.services.pipecat.sarvam_llm import DecibylSarvamLLMService
+from api.services.pipecat.sarvam_stt import DecibylSarvamSTTService
 from api.services.pipecat.sarvam_tts import DecibylSarvamTTSService
 from api.services.pipecat.stage_direction_filter import StageDirectionFilter
 from api.utils.url_security import validate_user_configured_service_url
@@ -34,7 +37,6 @@ from pipecat.pipeline.service_switcher import (
     ServiceSwitcherStrategyFailover,
 )
 from pipecat.services.anthropic.llm import (
-    AnthropicLLMService,
     AnthropicLLMSettings,
 )
 from pipecat.services.assemblyai.stt import AssemblyAISTTService, AssemblyAISTTSettings
@@ -103,7 +105,7 @@ from pipecat.services.sarvam.llm import SarvamLLMSettings
 from pipecat.services.sarvam.stt import (
     MODEL_CONFIGS as SARVAM_STT_MODEL_CONFIGS,
 )
-from pipecat.services.sarvam.stt import SarvamSTTService, SarvamSTTSettings
+from pipecat.services.sarvam.stt import SarvamSTTSettings
 from pipecat.services.sarvam.tts import SarvamTTSSettings
 from pipecat.services.smallest.stt import SmallestSTTService, SmallestSTTSettings
 from pipecat.services.smallest.tts import SmallestTTSService, SmallestTTSSettings
@@ -121,10 +123,19 @@ from pipecat.utils.text.xml_function_tag_filter import XMLFunctionTagFilter
 
 if TYPE_CHECKING:
     from api.services.pipecat.audio_config import AudioConfig
+from api.services.pipecat.anthropic_llm import (
+    DecibylAnthropicAWSLLMService,
+    DecibylAnthropicLLMService,
+)
+from api.services.pipecat.reasoning_effort import (
+    claude_effort,
+    claude_rejects_sampling,
+    claude_takes_effort,
+    takes_reasoning_effort,
+)
 from api.services.pipecat.reasoning_effort import (
     resolve as resolve_reasoning_effort,
 )
-from api.services.pipecat.reasoning_effort import takes_reasoning_effort
 
 DEEPGRAM_FLUX_LANGUAGE_HINTS = {
     "de": Language.DE,
@@ -500,7 +511,10 @@ def create_stt_service(
         else:
             # Unmapped BCP-47 codes pass through; Sarvam accepts them per https://docs.sarvam.ai/api-reference-docs/speech-to-text/transcribe
             pipecat_language = language
-        return SarvamSTTService(
+        # The subclass opens its websocket beside the call instead of in front
+        # of it, so the greeting is not queued behind the handshake. See
+        # sarvam_stt.
+        return DecibylSarvamSTTService(
             api_key=user_config.stt.api_key,
             settings=SarvamSTTSettings(
                 model=user_config.stt.model,
@@ -1674,19 +1688,41 @@ def create_llm_service_from_provider(
             **kwargs,
         )
     elif provider == ServiceProviders.ANTHROPIC.value:
-        return AnthropicLLMService(
-            api_key=api_key,
-            settings=AnthropicLLMSettings(
-                model=model,
-                # Anthropic bills cache writes above the normal input rate and
-                # cache reads well below it. A voice agent resends a system
-                # prompt and a growing transcript on every single turn, which
-                # is the shape caching is for — the prefix is stable and the
-                # turn count is high.
-                enable_prompt_caching=True,
-                **_llm_tuning(temperature, max_tokens, default_temperature=0.1),
+        claude_settings = AnthropicLLMSettings(
+            model=model,
+            # Anthropic bills cache writes above the normal input rate and
+            # cache reads well below it. A voice agent resends a system
+            # prompt and a growing transcript on every single turn, which
+            # is the shape caching is for — the prefix is stable and the
+            # turn count is high.
+            enable_prompt_caching=True,
+            # Newer Claude models refuse sampling parameters (a 400 on the
+            # first turn) and take an effort level instead, which is the
+            # agent's own reasoning-effort setting. See reasoning_effort.py.
+            extra=(
+                {"output_config": {"effort": claude_effort(reasoning_effort)}}
+                if claude_takes_effort(model)
+                else {}
+            ),
+            **(
+                _llm_tuning(None, max_tokens)
+                if claude_rejects_sampling(model)
+                else _llm_tuning(temperature, max_tokens, default_temperature=0.1)
             ),
         )
+        if aws_claude.is_aws_key(api_key):
+            # Claude Platform on AWS (CLAUDE_BACKEND=aws_platform): the same
+            # service on the SDK's AWS client, signed with the instance role.
+            # ``api_key`` is the gateway's marker and is never sent; the
+            # subclass exists so usage is priced as Claude on AWS.
+            return DecibylAnthropicAWSLLMService(
+                client=aws_claude.async_client(api_key, timeout=60.0, max_retries=2),
+                api_key=api_key,
+                settings=claude_settings,
+            )
+        # Our subclass: pipecat's own drops empty thinking blocks and parallel
+        # tool calls, both of which break a call. See anthropic_llm.py.
+        return DecibylAnthropicLLMService(api_key=api_key, settings=claude_settings)
     elif provider == ServiceProviders.CEREBRAS.value:
         return CerebrasLLMService(
             api_key=api_key,
@@ -1780,6 +1816,12 @@ def create_llm_service_from_provider(
             ),
         )
     elif provider == ServiceProviders.AWS_BEDROCK.value:
+        # A managed Claude brain on Bedrock (CLAUDE_BACKEND=bedrock) arrives
+        # here with the gateway's marker and no keys: pipecat then signs with
+        # the AWS credential chain (the instance role), in BEDROCK_REGION.
+        if aws_claude.is_aws_key(api_key):
+            aws_access_key = aws_secret_key = None
+            aws_region = aws_region or constants.BEDROCK_REGION
         return AWSBedrockLLMService(
             aws_access_key=aws_access_key,
             aws_secret_key=aws_secret_key,
@@ -2007,6 +2049,14 @@ def create_realtime_llm_service(user_config, audio_config: "AudioConfig"):
                 language=_realtime_language_setting(language),
             ),
         )
+    elif provider == "aws_nova_sonic":
+        # Managed only (the ``nova`` speech-to-speech tier, stream
+        # aws-gateway): signed with the instance role, so ``api_key`` is the
+        # gateway's marker and is not sent anywhere. The voice comes from
+        # configuration; Nova Sonic picks the language from it.
+        from api.services.aws_gateway import nova_sonic
+
+        return nova_sonic.build_service(model=model)
     elif provider == ServiceProviders.AZURE_REALTIME.value:
         from api.services.pipecat.realtime.azure_realtime import (
             DecibylAzureRealtimeLLMService,
@@ -2115,15 +2165,17 @@ def create_llm_service(user_config, correlation_id: str | None = None):
     api_key = user_config.llm.api_key
 
     kwargs: dict = {}
-    if provider == ServiceProviders.OPENAI.value:
-        _carry(kwargs, user_config.llm, "base_url")
-    elif provider == ServiceProviders.OPENROUTER.value:
+    if (
+        provider == ServiceProviders.OPENAI.value
+        or provider == ServiceProviders.OPENROUTER.value
+    ):
         _carry(kwargs, user_config.llm, "base_url")
     elif provider == ServiceProviders.AZURE.value:
         _carry(kwargs, user_config.llm, "endpoint")
-    elif provider == ServiceProviders.SPEACHES.value:
-        _carry(kwargs, user_config.llm, "base_url")
-    elif provider == ServiceProviders.CUSTOM_LLM.value:
+    elif (
+        provider == ServiceProviders.SPEACHES.value
+        or provider == ServiceProviders.CUSTOM_LLM.value
+    ):
         _carry(kwargs, user_config.llm, "base_url")
     elif provider == ServiceProviders.HUGGINGFACE.value:
         _carry(kwargs, user_config.llm, "base_url", "bill_to")

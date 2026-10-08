@@ -45,6 +45,7 @@ def build_pipeline(
     end_call_phrase_watcher=None,
     backchannel=None,
     voice_watch=None,
+    context_ready_gate=None,
 ):
     """Build the main pipeline with all components.
 
@@ -72,6 +73,10 @@ def build_pipeline(
         recording_router: Optional RecordingRouterProcessor. When provided,
             inserts between callback processor and TTS to route between
             pre-recorded audio playback and dynamic TTS.
+        context_ready_gate: Optional LLMContextReadyGate. When provided,
+            inserted directly in front of the LLM so a caller's turn that
+            lands before the start node has its prompt is held, not answered
+            blind. See context_ready_gate.
     """
     # Build processors list with optional voicemail detection
     processors = [
@@ -139,6 +144,9 @@ def build_pipeline(
     # determines whether a human or voicemail answered the call.
     if voicemail_detector:
         processors.append(voicemail_detector.llm_gate())
+
+    if context_ready_gate:
+        processors.append(context_ready_gate)
 
     processors.extend(
         [

@@ -1,0 +1,12 @@
+{
+  "name": "decibyl-e2e-browser",
+  "private": true,
+  "description": "Browser end-to-end checks against a running Decibyl (usually staging).",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.1",
+    "@types/node": "^22.20.5"
+  }
+}

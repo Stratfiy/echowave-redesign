@@ -48,7 +48,7 @@ class TestResolutionOrder:
         )
         after = managed_tiers.resolve("llm", "default")
 
-        assert before.provider == "openai"
+        assert before.provider == "anthropic"
         assert after.provider == "sarvam"
         assert after.model == "sarvam-105b"
 
@@ -58,7 +58,7 @@ class TestResolutionOrder:
         )
         managed_tiers._OVERRIDES = {}
 
-        assert managed_tiers.resolve("llm", "default").provider == "openai"
+        assert managed_tiers.resolve("llm", "default").provider == "anthropic"
 
     async def test_a_refresh_replaces_rather_than_merges(
         self, db_session, async_session
@@ -171,7 +171,7 @@ class TestListing:
 
         assert ("llm", "default") in by_key
         assert ("realtime", "natural") in by_key
-        assert by_key[("llm", "default")].provider == "openai"
+        assert by_key[("llm", "default")].provider == "anthropic"
         assert by_key[("llm", "default")].is_override is False
 
     async def test_a_stored_mapping_is_marked_as_an_override(
@@ -197,7 +197,7 @@ class TestListing:
         views = await tier_admin.list_tiers(async_session)
         by_key = {(v.component, v.tier): v for v in views}
 
-        assert by_key[("llm", "lite")].label == "Lite"
+        assert by_key[("llm", "lite")].label == "Fast"
         assert by_key[("realtime", "natural")].label == "Natural"
         assert by_key[("realtime", "premium")].blurb
 

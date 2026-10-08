@@ -279,8 +279,8 @@ describe("the Tasks door", () => {
         // /requests was this board; it is the Tasks door's until TB-1 is on.
         list.mockResolvedValue({ data: { tasks: [], board: { enabled: false } } });
         render(<TasksPage />);
-        expect(await screen.findByRole("heading", { name: "Tasks" })).toBeTruthy();
+        expect(await screen.findByRole("heading", { name: "Today" })).toBeTruthy();
         expect(screen.queryByRole("navigation", { name: "Inbox" })).toBeNull();
-        expect(screen.getByRole("link", { name: "Schedules" }).getAttribute("href")).toBe("/schedules");
+        expect(screen.getByRole("link", { name: "Routines" }).getAttribute("href")).toBe("/schedules");
     });
 });

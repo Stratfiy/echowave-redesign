@@ -1,6 +1,6 @@
 "use client";
 
-import { CircleHelp, ExternalLink, Menu, Search } from "lucide-react";
+import { CircleHelp, ExternalLink, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
@@ -14,10 +14,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { useSidebar } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { HELP_LINKS } from "@/constants/community";
 import { type AccessRoles, useAccessRoles } from "@/hooks/useAccessRoles";
+import { useFeature } from "@/lib/features";
 import { cn } from "@/lib/utils";
 
 import { BalanceChip } from "./BalanceChip";
@@ -173,18 +173,14 @@ function GlobalSearch() {
  * account controls in a persistent bar across the top of every board.
  */
 export function TopBar() {
-  const { toggleSidebar } = useSidebar();
+  // Free while we are early: no balance to watch, no credit to earn.
+  const freeMode = useFeature("free_mode");
+  const supportHelp = useFeature("support_help");
+  const router = useRouter();
   return (
     <header className="sticky top-0 z-40 flex h-11 shrink-0 items-center gap-2 px-3 text-rail-foreground">
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={toggleSidebar}
-        aria-label="Toggle navigation"
-        className="md:hidden"
-      >
-        <Menu className="h-5 w-5" />
-      </Button>
+      {/* No drawer toggle here: on a phone the bottom bar's Menu opens it,
+          next to Chat and Today (MobileTabBar). */}
 
       {/* Centred, the way Slack sets its search in the bar: the bar is the
           frame's top edge, and the search is the one thing on it. */}
@@ -198,10 +194,10 @@ export function TopBar() {
             every screen, not a page you visit. It lived only on Billing, so
             most people met the number for the first time after a call had
             already been refused. */}
-        <BalanceChip />
+        {!freeMode && <BalanceChip />}
         {/* What adds to that number for free: the credit steps and the
             referral link, one tap from the chip they feed. */}
-        <GiftMenu />
+        {!freeMode && <GiftMenu />}
 
         {/* The workspace is named at the head of the panel now, the way
             Slack names it, so it is not said a second time up here. */}
@@ -237,6 +233,19 @@ export function TopBar() {
           <DropdownMenuContent align="end" className="w-60">
             <DropdownMenuLabel>Help</DropdownMenuLabel>
             <DropdownMenuSeparator />
+            {/* Our own support desk (screen 28), first when it is on: a
+                request about this account, answered in the product. */}
+            {supportHelp && (
+              <DropdownMenuItem
+                className="flex cursor-pointer flex-col items-start"
+                onSelect={() => router.push("/help")}
+              >
+                <span>Ask Decibyl support</span>
+                <span className="text-xs text-muted-foreground">
+                  You see what is shared before it is sent
+                </span>
+              </DropdownMenuItem>
+            )}
             {HELP_LINKS.map((link) => (
               <DropdownMenuItem key={link.key} asChild>
                 <a

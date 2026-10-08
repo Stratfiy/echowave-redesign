@@ -51,7 +51,7 @@ class TestPlivo:
 
     def test_plivo_points_at_the_telephony_screen(self):
         rows = curate([_toolkit("plivo", "Plivo", auth_schemes=["API_KEY"])])
-        assert _by_slug(rows, "plivo").setup_url == "/telephony-configurations"
+        assert _by_slug(rows, "plivo").setup_url == "/settings/phone-number"
 
     def test_a_vendor_composio_cannot_offer_at_all_still_gets_a_row(self):
         # No auth schemes: _setup_kind returns None and the row would be

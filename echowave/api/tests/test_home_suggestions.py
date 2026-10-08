@@ -134,7 +134,7 @@ class TestTheChipsComeFromRealState:
 
 class TestTheHomeEndpoint:
     def _user(self, org=42):
-        return SimpleNamespace(selected_organization_id=org)
+        return SimpleNamespace(id=7, selected_organization_id=org)
 
     @pytest.mark.asyncio
     async def test_the_headline_adds_up_what_the_team_did(self):

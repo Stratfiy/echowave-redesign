@@ -68,3 +68,47 @@ def resolve(raw: Any) -> str:
         return DEFAULT
     cleaned = raw.strip().lower()
     return cleaned if cleaned in LEVELS else DEFAULT
+
+
+# --- Claude -----------------------------------------------------------------
+#
+# Anthropic's newer models moved both knobs. They take ``output_config.effort``
+# (low/medium/high/...), and they refuse ``temperature``/``top_p``/``top_k``
+# outright: the factory used to send ``temperature=0.1`` to every Claude model,
+# which is a 400 on the first turn of a call on Sonnet 5 or Opus 5 and later.
+#
+# Matched by name for the same reason as above. Haiku 4.5 and Sonnet 4.5 take
+# sampling and no effort; everything from Opus 4.7 on is the reverse; the 4.6
+# pair take both.
+
+_CLAUDE_NO_SAMPLING = (
+    "claude-opus-4-7",
+    "claude-opus-4-8",
+    "claude-opus-5",
+    "claude-sonnet-5",
+    "claude-fable",
+    "claude-mythos",
+)
+_CLAUDE_EFFORT = _CLAUDE_NO_SAMPLING + (
+    "claude-opus-4-5",
+    "claude-opus-4-6",
+    "claude-sonnet-4-6",
+)
+
+
+def claude_rejects_sampling(model: str | None) -> bool:
+    """Does this Claude model refuse ``temperature`` and friends?"""
+    return (model or "").startswith(_CLAUDE_NO_SAMPLING)
+
+
+def claude_takes_effort(model: str | None) -> bool:
+    """Does this Claude model accept ``output_config.effort``?"""
+    return (model or "").startswith(_CLAUDE_EFFORT)
+
+
+def claude_effort(raw: Any) -> str:
+    """The agent's effort in Claude's words. ``minimal`` is OpenAI's; Claude's
+    floor is ``low``, which is also the default here: on a call, thinking time
+    is dead air."""
+    level = resolve(raw)
+    return "low" if level == "minimal" else level

@@ -174,7 +174,7 @@ class TestTheWiringIsComplete:
         ).read_text()
 
         assert "ServiceProviders.ANTHROPIC.value" in factory
-        assert "AnthropicLLMService(" in factory
+        assert "DecibylAnthropicLLMService(" in factory
 
 
 class TestItIsPricedBeforeItIsSold:

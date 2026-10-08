@@ -1,0 +1,4 @@
+work/
+venv311/
+*.onnx
+export_info.json

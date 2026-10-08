@@ -594,10 +594,12 @@ class TestThePicker:
         ):
             menu = await chat_presets.menu(object())
         by_slug = {p["slug"]: p for p in menu["presets"]}
-        assert by_slug["everyday"]["reply_credits"] == 1
-        assert by_slug["smart"]["reply_credits"] == 1
-        # Deep is GPT-4.1: $3.80/M blended, 51.1 paise x 3.4 -> 4, plus 1.
-        assert by_slug["deep"]["reply_credits"] == 4
+        # Claude Haiku, Sonnet 5.5 and Opus 5.5, cheapest first. Haiku is a
+        # standard model but dearer per token than the minis, so a reply
+        # still runs past the included allowance.
+        assert by_slug["everyday"]["reply_credits"] == 3
+        assert by_slug["smart"]["reply_credits"] == 5
+        assert by_slug["deep"]["reply_credits"] == 9
         models = {m["slug"]: m for m in menu["vendors"][0]["models"]}
         assert models["model:openai/gpt-5-mini"]["reply_credits"] == 1
         assert models["model:openai/gpt-5"]["reply_credits"] == 4

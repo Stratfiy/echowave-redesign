@@ -200,8 +200,10 @@ export function WorkflowTable({
     // fronts rather than workers, so neither pays for the request.
     const activity = useAgentActivity(!showArchived);
 
+    // Opens the agent's own page -- its chat, voice, skills and memory. The
+    // editor is "Advanced setup" from there.
     const handleEdit = (id: number) => {
-        router.push(`/workflow/${id}`);
+        router.push(`/workflow/${id}/thread`);
     };
 
     const handleArchiveToggle = async (id: number, currentStatus: string) => {

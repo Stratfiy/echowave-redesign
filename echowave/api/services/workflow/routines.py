@@ -148,6 +148,9 @@ class RoutineSpec:
     last_fired_at: Optional[datetime] = None
     #: Apps the routine cannot do its job without, by connector slug.
     needs_apps: tuple[str, ...] = ()
+    #: Set from chat and armed by a person confirming its exact schedule on
+    #: the card (``routine_start_on``). Arms it like a test run; it is not one.
+    armed_by_card: bool = False
 
 
 @dataclass(frozen=True)
@@ -175,8 +178,13 @@ def may_arm(spec: RoutineSpec) -> bool:
     unsupervised it writes into somebody's real accounting software, and a
     test run is the one chance to see what it would do before it does it --
     which is worth nothing if the toggle does not wait for it.
+
+    One other way to arm, and only for a routine Decibyl proposed in the
+    thread: the person confirmed the card that showed its exact schedule and
+    instruction (``routine_start_on``). That confirmation is the look before
+    it runs.
     """
-    return spec.tested_at is not None
+    return spec.tested_at is not None or spec.armed_by_card
 
 
 def _windows(business_hours: Any, day: date) -> list[tuple[int, int]]:
@@ -442,6 +450,7 @@ def spec_from_model(model: Any) -> RoutineSpec:
         needs_apps=tuple(
             str(app) for app in (model.needs_apps or []) if isinstance(app, str)
         ),
+        armed_by_card=model.armed_by_card_event_id is not None,
     )
 
 
@@ -539,3 +548,30 @@ async def propose_schedule(
             "why": str(arguments.get("why") or "asked on the thread").strip(),
         },
     )
+
+
+async def origin_card(organization_id: int, card_event_id: int | None) -> Any | None:
+    """The card a routine was armed by (``routine_start_on``), or None.
+
+    That card sits in the conversation the routine was set in, which may be
+    a person's private chat: the routine is theirs to see, and its runs
+    report back there (stream `today`, phase 3).
+    """
+    if not card_event_id:
+        return None
+    from api.db import db_client
+
+    return await db_client.get_agent_event(
+        int(card_event_id), organization_id=organization_id
+    )
+
+
+async def hidden_from(routine: Any, user_id: int) -> bool:
+    """Whether a routine set in someone else's private chat is hidden from
+    ``user_id`` -- by the card's own thread rule (actions.thread_refusal)."""
+    from api.services.workflow import actions
+
+    card = await origin_card(routine.organization_id, routine.armed_by_card_event_id)
+    if card is None:
+        return False
+    return await actions.thread_refusal(card, user_id) is not None

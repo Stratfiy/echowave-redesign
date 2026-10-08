@@ -243,7 +243,7 @@ export default function TelephonyConfigurationDetailPage() {
   if (!config) {
     return (
       <div className="container mx-auto px-4 py-8">
-        <Button variant="ghost" onClick={() => router.push("/telephony-configurations")}>
+        <Button variant="ghost" onClick={() => router.push("/settings/phone-number")}>
           <ArrowLeft className="h-4 w-4 mr-2" /> Back
         </Button>
         <p className="mt-4 text-muted-foreground">Configuration not found.</p>
@@ -255,7 +255,7 @@ export default function TelephonyConfigurationDetailPage() {
     <div className="container mx-auto px-4 py-8 space-y-6">
       <div>
         <Link
-          href="/telephony-configurations"
+          href="/settings/phone-number"
           className="inline-flex items-center text-sm text-muted-foreground hover:underline"
         >
           <ArrowLeft className="h-4 w-4 mr-1" /> All configurations

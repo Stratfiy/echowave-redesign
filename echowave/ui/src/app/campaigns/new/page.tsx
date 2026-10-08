@@ -431,7 +431,7 @@ export default function NewCampaignPage() {
                                         </Link>
                                         , or{' '}
                                         <Link
-                                            href="/telephony-configurations"
+                                            href="/settings/phone-number"
                                             className="underline text-foreground"
                                         >
                                             connect your own carrier

@@ -71,6 +71,12 @@ async def fire_due_routines(ctx) -> None:
                 broken_apps=broken.get(organization_id, set()),
             )
 
+            # Lines about a routine set in a private chat go to that chat.
+            origin = await routines.origin_card(
+                organization_id, routine.armed_by_card_event_id
+            )
+            thread = origin.thread_id if origin is not None else None
+
             if decision.fire:
                 # Stamped before the job is enqueued, not after. The stamp is
                 # what stops a second firing, so a crash between the two must
@@ -85,6 +91,7 @@ async def fire_due_routines(ctx) -> None:
                     actor=AgentEventActor.SYSTEM.value,
                     summary=f"{routine.name} started its scheduled run",
                     workflow_id=routine.workflow_id,
+                    thread_id=thread,
                     payload={
                         "routine_id": routine.id,
                         "slot": decision.slot.isoformat(),
@@ -116,6 +123,7 @@ async def fire_due_routines(ctx) -> None:
                 actor=AgentEventActor.SYSTEM.value,
                 summary=f"{routine.name} did not run: {decision.detail}",
                 workflow_id=routine.workflow_id,
+                thread_id=thread,
                 payload={"routine_id": routine.id, "reason": reason},
             )
         except Exception as exc:  # noqa: BLE001
@@ -288,6 +296,7 @@ async def answer_decibyl_message(
     attachments: list[dict] | None = None,
     attempt: int = 0,
     thread_id: str | None = None,
+    helper: str | None = None,
 ) -> None:
     """Decibyl's turn on its own thread. See services/workflow/decibyl.py.
     ``reply_to`` sends the answer back on the channel it came from too.
@@ -321,6 +330,7 @@ async def answer_decibyl_message(
                 attachments=attachments,
                 attempt=attempt + 1,
                 thread_id=thread_id,
+                helper=helper,
                 _defer_by=timedelta(seconds=decibyl.UNREAD_RETRY_SECONDS),
             )
         except Exception as exc:  # noqa: BLE001
@@ -352,6 +362,7 @@ async def answer_decibyl_message(
             # way out is the one nobody keeps.
             last_try=bool(pending) and attempt >= decibyl.UNREAD_RETRIES,
             thread_id=thread_id,
+            **({"helper": helper} if helper else {}),
         )
     if not reply_to or not reply_to.get("channel"):
         return

@@ -15,7 +15,7 @@
 
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ChannelComposer, handleOf, mentionFragment } from '../ChannelComposer';
 
@@ -487,5 +487,70 @@ describe("which of Decibyl's chats it writes to", () => {
         fireEvent.click(screen.getByRole('button', { name: 'Send' }));
         await waitFor(() => expect(post).toHaveBeenCalled());
         expect(post.mock.calls[0][0].body.thread_id).toBeNull();
+    });
+});
+
+describe('inside the Windows and Mac app', () => {
+    const start = vi.fn();
+    const pickFiles = vi.fn();
+    const bridge = () => ({
+        isDesktop: true,
+        notify: vi.fn(),
+        setSession: vi.fn(),
+        pickFiles,
+        computer: { start, stop: vi.fn(), onEvent: () => () => undefined },
+        onFiles: () => () => undefined,
+    });
+
+    beforeEach(() => {
+        start.mockReset();
+        pickFiles.mockReset();
+        (window as unknown as { decibylDesktop: unknown }).decibylDesktop = bridge();
+    });
+    afterEach(() => {
+        delete (window as unknown as { decibylDesktop?: unknown }).decibylDesktop;
+        Object.assign(flags, { desktop_app: false, desktop_computer_use: false });
+    });
+
+    function assistant() {
+        return render(<ChannelComposer assistant bots={BOTS} channelName="Decibyl" />);
+    }
+
+    it('shows nothing extra while the switches are off', async () => {
+        assistant();
+        await waitFor(() => expect(screen.getByRole('button', { name: 'Attach a file' })).toBeTruthy());
+        expect(screen.queryByRole('button', { name: 'Attach a folder from this computer' })).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Do this on my computer' })).toBeNull();
+    });
+
+    it('attaches a folder picked on the computer', async () => {
+        Object.assign(flags, { desktop_app: true });
+        upload.mockResolvedValue({ document_uuid: 'd1', filename: 'inv.pdf' });
+        pickFiles.mockResolvedValue({
+            files: [{ name: 'inv.pdf', relativePath: 'Invoices/inv.pdf', size: 3, type: 'application/pdf', data: btoa('pdf') }],
+            skipped: ['Invoices/huge.mov: larger than 25 MB'],
+        });
+        assistant();
+        fireEvent.click(await screen.findByRole('button', { name: 'Attach a folder from this computer' }));
+        await waitFor(() => expect(upload).toHaveBeenCalled());
+        expect(pickFiles).toHaveBeenCalledWith({ folders: true });
+        expect((upload.mock.calls[0][0] as File).name).toBe('inv.pdf');
+        expect(await screen.findByText(/Not attached: Invoices\/huge.mov/)).toBeTruthy();
+    });
+
+    it('starts work on the computer from the box, and says why when it cannot', async () => {
+        Object.assign(flags, { desktop_computer_use: true });
+        start.mockResolvedValueOnce({ started: false, reason: 'Add a model key in Decibyl settings on this computer.' });
+        assistant();
+        const box = screen.getByRole('textbox');
+        fireEvent.change(box, { target: { value: 'File the invoices in Tally' } });
+        fireEvent.click(await screen.findByRole('button', { name: 'Do this on my computer' }));
+        await waitFor(() => expect(start).toHaveBeenCalledWith('File the invoices in Tally', null));
+        expect(await screen.findByText('Add a model key in Decibyl settings on this computer.')).toBeTruthy();
+        expect(post).not.toHaveBeenCalled();
+
+        start.mockResolvedValueOnce({ started: true, sessionId: 's' });
+        fireEvent.click(screen.getByRole('button', { name: 'Do this on my computer' }));
+        expect(await screen.findByText(/Decibyl is working on your computer/)).toBeTruthy();
     });
 });

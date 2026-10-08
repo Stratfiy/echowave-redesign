@@ -62,6 +62,8 @@ describe("POST /impersonate/stop", () => {
     );
     expect(response.status).toBe(303);
     const cookies = response.headers.getSetCookie().map(parse);
-    expect(cookies.map((c) => c.name)).toEqual(["decibyl-impersonating"]);
+    // The local sign-in cookies are cleared too (a borrowed local session).
+    expect(cookies.map((c) => c.name)).toEqual(["decibyl_auth_token", "decibyl_auth_user", "decibyl-impersonating"]);
+    expect(cookies.filter((c) => c.name.startsWith("decibyl_auth")).every((c) => c.maxAge === 0)).toBe(true);
   });
 });

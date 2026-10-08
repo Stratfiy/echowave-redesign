@@ -51,7 +51,8 @@ def test_decibyl_v2_compiles_to_effective_managed_pipeline_with_embeddings():
 
     assert effective.is_realtime is False
     assert effective.llm.provider == "decibyl"
-    assert effective.llm.model == "default"
+    # Auto is the brain of a workspace that has not chosen one.
+    assert effective.llm.model == "auto"
     assert effective.tts.provider == "decibyl"
     assert effective.tts.speed == 1.2
     assert effective.stt.provider == "decibyl"
@@ -688,4 +689,4 @@ def test_an_account_that_chose_nothing_runs_on_the_managed_stack():
     for section in (effective.llm, effective.stt, effective.tts, effective.embeddings):
         assert section is not None
         assert section.provider == "decibyl"
-    assert effective.llm.model == "default"
+    assert effective.llm.model == "auto"

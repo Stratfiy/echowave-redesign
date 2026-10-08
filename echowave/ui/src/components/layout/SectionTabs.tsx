@@ -51,15 +51,17 @@ export const CALLS_TABS: PageTab[] = [
   // Prefix: everything under /analytics is this tab, including the day view
   // (?date=), which was /reports.
   { href: "/analytics", label: "Analytics", prefix: true },
+  // The same work added up: runs, tokens and cost per agent and per model.
+  { href: "/activity/usage", label: "Usage", prefix: true },
 ];
 
 export const KNOWLEDGE_TABS: PageTab[] = [
-  { href: "/files", label: "Documents", prefix: true },
+  { href: "/settings/knowledge", label: "Documents", prefix: true },
   { href: "/recordings", label: "Audio clips", prefix: true },
 ];
 
 export const COMPLIANCE_TABS: PageTab[] = [
-  { href: "/privacy", label: "Privacy", prefix: true },
+  { href: "/settings/compliance", label: "Privacy", prefix: true },
   { href: "/do-not-call", label: "Do not call", prefix: true },
 ];
 
@@ -99,7 +101,7 @@ export const TELEPHONY_TABS: PageTab[] = [
   // Named for what it holds, which is what the page has always been titled:
   // "Carriers & numbers" on the tab against "Phone numbers" on the screen
   // meant the strip and the heading disagreed about where you were.
-  { href: "/telephony-configurations", label: "Your numbers", prefix: true },
+  { href: "/settings/phone-number", label: "Your numbers", prefix: true },
   { href: "/verified-numbers", label: "Test numbers", prefix: true },
 ];
 
@@ -112,7 +114,7 @@ export const DEVELOPER_TABS: PageTab[] = [
   // read "API keys & SDKs" and "API & webhooks" while the second page called
   // itself Connect, so the row, the tab and the heading were three names for
   // two things.
-  { href: "/api-keys", label: "API keys", prefix: true },
+  { href: "/settings/developer", label: "API keys", prefix: true },
   { href: "/deploy/connect", label: "Connect", prefix: true },
 ];
 
@@ -127,8 +129,12 @@ export const DEVELOPER_TABS: PageTab[] = [
  *  Contacts came from Setup: a contact is a person you deal with, which is
  *  desk work, not delivery. */
 export const DESK_TABS: PageTab[] = [
-  { href: "/tasks", label: "Tasks", prefix: true },
-  { href: "/schedules", label: "Schedules", prefix: true },
+  { href: "/tasks", label: "Today", prefix: true },
+  { href: "/schedules", label: "Routines", prefix: true },
+  // Activity sits under Today (product handoff, section 19): what happened,
+  // beside what is due. Its own tabs -- calls, missed, review, analytics,
+  // usage -- open from here.
+  { href: "/usage", label: "Activity", prefix: true },
   { href: "/contacts", label: "Contacts", prefix: true },
   // What the bots handed over. The timeline has marked these rows since it
   // was built and the route has taken `deliverables_only` for as long;

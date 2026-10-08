@@ -28,7 +28,10 @@ to its lowest common denominator everywhere.
 
 No vendor SDKs: the repository already talks to model vendors over httpx, and
 three SDKs for three shapes of the same request would be three more things to
-keep on their release trains.
+keep on their release trains. The one exception is Claude on AWS
+(``CLAUDE_BACKEND``, ``services/aws_gateway``): SigV4 signing is the SDK's
+job, so Claude Platform on AWS and Bedrock go through ``anthropic``'s own AWS
+clients with the same Messages body this module already builds.
 """
 
 from __future__ import annotations
@@ -44,6 +47,7 @@ from typing import Any
 import httpx
 from loguru import logger
 
+from api.services.aws_gateway import claude as aws_claude
 from api.services.billing import model_usage
 
 #: Vendors this loop can drive. Values match the provider names used in the
@@ -209,7 +213,7 @@ async def _fallback_model(provider: str, api_key: str) -> tuple[str, str, str] |
             own = await platform_credentials.resolve_api_key(
                 session, component=CostComponent.LLM, provider=provider
             )
-            if own != api_key:
+            if own != api_key and not aws_claude.is_aws_key(api_key):
                 return None
             order = [
                 p for p in constants.AGENT_BUILDER_PROVIDER_PREFERENCE if p != provider
@@ -223,7 +227,11 @@ async def _fallback_model(provider: str, api_key: str) -> tuple[str, str, str] |
                 model = constants.AGENT_BUILDER_MODELS.get(candidate)
                 if not model:
                     continue
-                key = await platform_credentials.resolve_api_key(
+                key = (
+                    aws_claude.platform_credential(model)
+                    if candidate == ANTHROPIC
+                    else None
+                ) or await platform_credentials.resolve_api_key(
                     session, component=CostComponent.LLM, provider=candidate
                 )
                 if key:
@@ -255,6 +263,9 @@ class ModelReply:
     #: there were any). None when the vendor said nothing, which is not the
     #: same as saying nothing was used.
     usage: dict[str, int] | None = None
+    #: The backup model's id when the fallback brain answered instead of the
+    #: model asked for (``services/aws_gateway/fallback.py``); empty otherwise.
+    fallback_model: str = ""
 
     @property
     def wants_tools(self) -> bool:
@@ -822,6 +833,14 @@ async def _complete_once(
     never returned: it can quote the request, and the request contains the
     account's prompts.
     """
+    if provider == ANTHROPIC and aws_claude.is_aws_key(api_key):
+        return await _aws_complete_once(
+            model=model,
+            api_key=api_key,
+            system=system,
+            conversation=conversation,
+            tools=tools,
+        )
     if provider == ANTHROPIC:
         url = "https://api.anthropic.com/v1/messages"
         headers = {
@@ -1047,6 +1066,15 @@ async def _stream_once(
     which is a slower screen and not a wrong one.
     """
     tools = tools or []
+    if provider == ANTHROPIC and aws_claude.is_aws_key(api_key):
+        return await _aws_stream_once(
+            model=model,
+            api_key=api_key,
+            system=system,
+            conversation=conversation,
+            on_text=on_text,
+            tools=tools,
+        )
     if provider == ANTHROPIC:
         url = "https://api.anthropic.com/v1/messages"
         headers = {
@@ -1136,10 +1164,210 @@ async def _stream_once(
     )
 
 
+# --- Claude on AWS -------------------------------------------------------------
+#
+# Claude Platform on AWS and Amazon Bedrock speak the Messages API, so the body
+# is ``_anthropic_request``'s and the reply is read by ``_anthropic_parse`` and
+# ``_StreamState.anthropic`` -- only the door differs. The SDK's AWS clients
+# sign each request with the instance role; its typed errors are mapped onto
+# this module's so the rate-limit and fallback handling below is unchanged.
+
+
+def _aws_error(exc: Exception, model: str) -> BuilderClientError:
+    import anthropic
+
+    from api.services.aws_gateway import config as aws_config
+
+    status = getattr(exc, "status_code", None)
+    logger.error("Claude on AWS ({}) failed: {} {}", model, status, exc)
+    if isinstance(exc, anthropic.RateLimitError):
+        return ProviderRateLimited(ANTHROPIC, _retry_after(exc.response.headers))
+    if isinstance(
+        exc, (anthropic.PermissionDeniedError, anthropic.AuthenticationError)
+    ):
+        # On AWS a 403 is the role lacking the action, the workspace id being
+        # wrong, or Bedrock model access not being granted. The last is the
+        # account's state today; record it so the screens say "needs setup".
+        if aws_config.claude_backend() == aws_config.BEDROCK:
+            aws_config.mark_not_authorized(model, f"HTTP {status}")
+        return BuilderClientError(
+            "Claude on AWS refused this request. An administrator needs to "
+            "finish its setup (IAM role, workspace or model access)."
+        )
+    if isinstance(exc, (anthropic.APITimeoutError, anthropic.APIConnectionError)):
+        return BuilderClientError(
+            "The assistant could not be reached just now. Try again in a moment."
+        )
+    return BuilderClientError("The assistant hit an error. Try again in a moment.")
+
+
+async def _aws_complete_once(
+    *,
+    model: str,
+    api_key: str,
+    system: str,
+    conversation: Conversation,
+    tools: list[dict[str, Any]],
+) -> ModelReply:
+    payload = aws_claude.adapt_payload(
+        api_key,
+        _anthropic_request(
+            model=model, system=system, conversation=conversation, tools=tools
+        ),
+    )
+    try:
+        sdk = aws_claude.async_client(api_key, timeout=_TIMEOUT_SECONDS)
+        message = await sdk.messages.create(**payload)
+    except Exception as exc:  # noqa: BLE001 - every SDK failure is mapped
+        raise _aws_error(exc, payload["model"]) from exc
+    body = message.model_dump() if hasattr(message, "model_dump") else dict(message)
+    reply = _anthropic_parse(body)
+    await model_usage.record(
+        provider=aws_claude.usage_provider(api_key),
+        model=payload["model"],
+        usage=reply.usage,
+    )
+    return reply
+
+
+async def _aws_stream_once(
+    *,
+    model: str,
+    api_key: str,
+    system: str,
+    conversation: Conversation,
+    on_text: Callable[[str], Awaitable[None]],
+    tools: list[dict[str, Any]],
+) -> ModelReply:
+    payload = aws_claude.adapt_payload(
+        api_key,
+        _anthropic_request(
+            model=model, system=system, conversation=conversation, tools=tools
+        ),
+    )
+    state = _StreamState()
+    try:
+        sdk = aws_claude.async_client(api_key, timeout=_TIMEOUT_SECONDS)
+        events = await sdk.messages.create(**payload, stream=True)
+        async for event in events:
+            data = event.model_dump() if hasattr(event, "model_dump") else dict(event)
+            if state.anthropic(data):
+                await on_text(state.text())
+    except Exception as exc:  # noqa: BLE001 - every SDK failure is mapped
+        raise _aws_error(exc, payload["model"]) from exc
+    usage = state.usage()
+    await model_usage.record(
+        provider=aws_claude.usage_provider(api_key),
+        model=payload["model"],
+        usage=usage,
+    )
+    return ModelReply(
+        text=state.text().strip(), tool_calls=state.tool_calls(), usage=usage
+    )
+
+
+# --- the fallback brain -----------------------------------------------------------
+
+
+async def _platform_claude(provider: str, api_key: str) -> bool:
+    """Whether this turn ran on the platform's own Claude -- the only turns the
+    fallback brain may answer. A workspace's own key is never moved (BYOK-1)."""
+    if provider != ANTHROPIC:
+        return False
+    if aws_claude.is_aws_key(api_key):
+        return True
+    from api.db import db_client
+    from api.enums import CostComponent
+    from api.services.configuration import platform_credentials
+
+    try:
+        async with db_client.async_session() as session:
+            own = await platform_credentials.resolve_api_key(
+                session, component=CostComponent.LLM, provider=ANTHROPIC
+            )
+    except Exception as exc:  # noqa: BLE001 - unknown is "not ours"
+        logger.warning("Could not tell whose Claude key this turn used: {}", exc)
+        return False
+    return bool(own) and own == api_key
+
+
+async def _fallback_brain(
+    error: BuilderClientError,
+    *,
+    provider: str,
+    api_key: str,
+    system: str,
+    conversation: Conversation,
+    tools: list[dict[str, Any]],
+    on_text: Callable[[str], Awaitable[None]] | None = None,
+) -> ModelReply:
+    """The backup model's answer to this turn, or ``error`` raised again.
+
+    Off unless ``aws_fallback_brain`` is on and its model is configured and
+    enabled; then only for the platform's own Claude."""
+    from api.services.aws_gateway import bedrock, fallback
+
+    if not fallback.available() or not await _platform_claude(provider, api_key):
+        raise error
+    try:
+        text, calls, usage = await fallback.answer(
+            system=system,
+            messages=conversation.messages,
+            tools=tools,
+            why=type(error).__name__,
+        )
+    except (bedrock.BedrockError, asyncio.TimeoutError) as exc:
+        logger.error("The backup model could not answer either: {}", exc)
+        raise error from exc
+    if on_text is not None and text:
+        await on_text(text)
+    return ModelReply(
+        text=text,
+        tool_calls=tuple(
+            ToolCall(id=c["id"], name=c["name"], arguments=c["arguments"])
+            for c in calls
+        ),
+        usage=usage,
+        fallback_model=fallback.model_id(),
+    )
+
+
 # --- falling back when a vendor is out of credit ------------------------------
 
 
 async def complete(
+    *,
+    provider: str,
+    model: str,
+    api_key: str,
+    system: str,
+    conversation: Conversation,
+    tools: list[dict[str, Any]],
+) -> ModelReply:
+    """One turn; see :func:`_complete`. When the platform's Claude still
+    cannot answer after every vendor fallback, the fallback brain may
+    (``services/aws_gateway/fallback.py``), and its reply says so."""
+    try:
+        return await _complete(
+            provider=provider,
+            model=model,
+            api_key=api_key,
+            system=system,
+            conversation=conversation,
+            tools=tools,
+        )
+    except BuilderClientError as exc:
+        return await _fallback_brain(
+            exc,
+            provider=provider,
+            api_key=api_key,
+            system=system,
+            conversation=conversation,
+            tools=tools,
+        )
+
+
+async def _complete(
     *,
     provider: str,
     model: str,
@@ -1215,8 +1443,42 @@ async def stream(
     on_text: Callable[[str], Awaitable[None]],
     tools: list[dict[str, Any]] | None = None,
 ) -> ModelReply:
+    """One turn, word by word; see :func:`_stream`. The fallback brain may
+    answer when the platform's Claude cannot, exactly as in :func:`complete`."""
+    try:
+        return await _stream(
+            provider=provider,
+            model=model,
+            api_key=api_key,
+            system=system,
+            conversation=conversation,
+            on_text=on_text,
+            tools=tools,
+        )
+    except BuilderClientError as exc:
+        return await _fallback_brain(
+            exc,
+            provider=provider,
+            api_key=api_key,
+            system=system,
+            conversation=conversation,
+            tools=tools or [],
+            on_text=on_text,
+        )
+
+
+async def _stream(
+    *,
+    provider: str,
+    model: str,
+    api_key: str,
+    system: str,
+    conversation: Conversation,
+    on_text: Callable[[str], Awaitable[None]],
+    tools: list[dict[str, Any]] | None = None,
+) -> ModelReply:
     """One turn, word by word; see :func:`_stream_once`. Falls back to
-    another vendor on out-of-credit exactly as :func:`complete` does."""
+    another vendor on out-of-credit exactly as :func:`_complete` does."""
     try:
         return await _stream_once(
             provider=provider,

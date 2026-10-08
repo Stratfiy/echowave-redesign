@@ -24,7 +24,8 @@ import {
   Workflow,
 } from "lucide-react";
 
-import { HOMES } from "./v2/homes";
+import { SETTINGS_SECTIONS } from "../settings/sections";
+import { HOMES, PROFILE_LINKS } from "./v2/homes";
 
 export type SidebarNavItem = {
   title: string;
@@ -240,7 +241,7 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
         // documents and clips a bot reads -- rather than the category the
         // industry files them under.
         title: "Knowledge",
-        url: "/files",
+        url: "/settings/knowledge",
         activePaths: ["/recordings"],
         icon: Database,
         keywords: [
@@ -293,8 +294,8 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
       // the same list under a second name.
       {
         title: "Your tools",
-        url: "/tools",
-        activePaths: ["/integrations", "/provider-keys"],
+        url: "/settings/apps",
+        activePaths: ["/tools", "/integrations", "/provider-keys"],
         icon: KeyRound,
         keywords: [
           "byok",
@@ -349,7 +350,7 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
     items: [
       {
         title: "Phone numbers",
-        url: "/telephony-configurations",
+        url: "/settings/phone-number",
         activePaths: ["/numbers", "/verified-numbers"],
         icon: Phone,
         showsTelephonyWarning: true,
@@ -444,7 +445,7 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
         // row beginning with the same word, and a panel where two of four
         // rows start "API" is a panel somebody reads twice.
         title: "API keys",
-        url: "/api-keys",
+        url: "/settings/developer",
         icon: Key,
         keywords: ["api", "sdk", "mcp", "token"],
       },
@@ -483,7 +484,7 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
       // — the rights of the people being called — so they share a door.
       {
         title: "Compliance",
-        url: "/privacy",
+        url: "/settings/compliance",
         activePaths: ["/do-not-call"],
         icon: Shield,
         keywords: [
@@ -530,9 +531,10 @@ export type ShellEntry = {
 };
 
 /**
- * Everything the rail's homes do not name, in the account menu at the foot
- * of the rail (AppRailV2's AccountMenu): the shop, apps and tools, the deploy
- * screens, billing and compliance.
+ * What neither the rail's homes nor Settings' sections hold, in the account
+ * menu at the foot of the rail (AppRailV2's AccountMenu): the shop, the
+ * deploy screens and billing. Everything set up once and left alone is a
+ * section of Settings (components/settings/sections.ts).
  *
  * Urls, never copies of items: titles, icons and roles still come from
  * NAV_SECTIONS, and the reachability test (shellNavigation.test.ts) fails if
@@ -540,45 +542,42 @@ export type ShellEntry = {
  */
 export const SHELL_MANAGE: ShellEntry[] = [
   { title: "Marketplace", icon: ShoppingBag, url: "/marketplace" },
-  { title: "Apps & tools", icon: KeyRound, url: "/tools" },
   {
     title: "Deploy",
     icon: Rocket,
     children: [
-      { url: "/telephony-configurations", title: "Phone numbers" },
       { url: "/campaigns", title: "Campaigns" },
       { url: "/deploy/web-widget", title: "Web widget" },
-      { url: "/api-keys", title: "API keys" },
       { url: "/deploy/connect", title: "Webhooks & triggers" },
     ],
   },
   { title: "Billing", icon: Wallet, url: "/billing" },
-  {
-    title: "Settings",
-    icon: Settings,
-    children: [
-      { url: "/settings", title: "General" },
-      { url: "/privacy", title: "Compliance" },
-    ],
-  },
 ];
 
+const bare = (url: string) => url.split("#")[0];
+
 /** SHELL_MANAGE as this person may see it: an entry or child whose nav item
- *  their role hides is dropped, and a group left empty goes with it. */
+ *  their role hides is dropped, and a group left empty goes with it. A page
+ *  with no nav item of its own (Company, Channels) has no role to hide it. */
 export function visibleShellManage(sections: SidebarNavSection[]): ShellEntry[] {
+  const navUrls = new Set(NAV_SECTIONS.flatMap((s) => s.items.map((i) => i.url)));
   const visible = new Set(sections.flatMap((s) => s.items.map((i) => i.url)));
+  const shows = (url: string) => !navUrls.has(bare(url)) || visible.has(bare(url));
   return SHELL_MANAGE.flatMap((entry) => {
-    if (entry.url) return visible.has(entry.url) ? [entry] : [];
-    const children = (entry.children ?? []).filter((c) => visible.has(c.url));
+    if (entry.url) return shows(entry.url) ? [entry] : [];
+    const children = (entry.children ?? []).filter((c) => shows(c.url));
     return children.length ? [{ ...entry, children }] : [];
   });
 }
 
-/** Every url the navigation reaches: the rail's homes and the account menu. */
+/** Every url the navigation reaches: the rail's homes, Settings' sections
+ *  and the account menu. */
 export function shellUrls(): string[] {
   const urls = [
-    ...HOMES.map((home) => home.url.split("#")[0]),
-    ...SHELL_MANAGE.flatMap((e) => (e.url ? [e.url] : (e.children ?? []).map((c) => c.url))),
+    ...HOMES.flatMap((home) => [bare(home.url), ...(home.reaches ?? [])]),
+    ...PROFILE_LINKS.map((link) => link.url),
+    ...SETTINGS_SECTIONS.map((section) => section.href),
+    ...SHELL_MANAGE.flatMap((e) => (e.url ? [e.url] : (e.children ?? []).map((c) => c.url))).map(bare),
   ];
   return [...new Set(urls)];
 }
