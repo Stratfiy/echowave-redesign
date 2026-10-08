@@ -1,5 +1,6 @@
 /**
- * A bot's face is its job, in a colour that does not move.
+ * A bot's face: its blob, from its id, so a rename does not repaint it.
+ * The job icon and tone helpers are still exported and tested.
  */
 
 import { cleanup, render, screen } from "@testing-library/react";
@@ -49,17 +50,16 @@ describe("an agent's face", () => {
         expect(screen.queryByText("Front desk")).toBeNull();
     });
 
-    it("draws the job as a pastel picture when asked, with the shell on", () => {
-        flags.shell = true;
-        const { container } = render(<BotAvatar id={1} name="Payment reminders" size="md" art />);
-        const art = container.querySelector("[data-art]");
-        expect(art?.getAttribute("data-art")).toBe("wallet");
-        expect(art?.getAttribute("aria-hidden")).toBe("true");
-    });
-
-    it("keeps the icon when not asked for art", () => {
-        flags.shell = true;
-        const { container } = render(<BotAvatar id={1} name="Payment reminders" />);
-        expect(container.querySelector("img")).toBeNull();
+    it("draws the agent's blob, the same one for the same id", () => {
+        const first = render(<BotAvatar id={7} name="Payment reminders" size="md" />);
+        const face = first.container.querySelector('[data-testid="blob-face"]');
+        expect(face?.getAttribute("aria-hidden")).toBe("true");
+        expect(face?.getAttribute("width")).toBe("32");
+        const fill = face?.querySelector("path")?.getAttribute("fill");
+        cleanup();
+        // Renamed, same id: same face.
+        const again = render(<BotAvatar id={7} name="Collections" size="md" />);
+        expect(again.container.querySelector('[data-testid="blob-face"] path')?.getAttribute("fill")).toBe(fill);
+        expect(again.container.querySelector("img")).toBeNull();
     });
 });

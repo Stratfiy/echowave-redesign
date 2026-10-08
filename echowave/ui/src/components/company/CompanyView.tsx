@@ -28,9 +28,9 @@ import { type FormEvent, useMemo, useState } from "react";
 
 import { postMessageApiV1TimelineMessagePost } from "@/client/sdk.gen";
 import type { RoutineResponse, TimelineEvent } from "@/client/types.gen";
-import { AgentAvatar } from "@/components/avatar/AgentAvatar";
 import { type Avatar, faceOf } from "@/components/avatar/avatar";
 import { AvatarCustomizer } from "@/components/avatar/AvatarCustomizer";
+import { BlobFace } from "@/components/brand/BlobFace";
 import { detailFromError } from "@/lib/apiError";
 import { cn } from "@/lib/utils";
 
@@ -348,7 +348,7 @@ function AgentNode({ agent, onEditFace }: { agent: OrgAgent; onEditFace: () => v
                 <div className="flex items-center gap-3 pr-6">
                     <span className="relative shrink-0">
                         {facesOn ? (
-                            <AgentAvatar avatar={faceOf(agent.id, agent.avatar)} tone={agent.tone} size={40} />
+                            <BlobFace seed={agent.id} avatar={agent.avatar} mood={agent.tone === "paused" ? "resting" : "awake"} size={40} />
                         ) : (
                             <span
                                 className="grid h-10 w-10 place-items-center rounded-full bg-muted text-sm font-medium"

@@ -33,9 +33,15 @@ export function AgentHeader({
     onBack,
     actions,
     backHref,
+    face,
+    status,
 }: {
     workflowId: number;
     name: string;
+    /** The agent's blob beside its name (the approved design's agent page). */
+    face?: ReactNode;
+    /** A few words on what it is doing, after the name. */
+    status?: string | null;
     /**
      * Buttons for the right of the bar -- the chat's About, Test and Share.
      * They used to share a row with the tab strip, and on a 1280px screen
@@ -56,7 +62,8 @@ export function AgentHeader({
     const go = () => router.push(backHref ?? `/workflow/${workflowId}`);
 
     return (
-        <header className="sticky top-0 z-10 flex items-center gap-3 border-b bg-background/95 px-6 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        // The design's 56px bar: the way back, the face, the name, a quiet status.
+        <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2.5 border-b border-[var(--line,var(--border))] bg-background px-3 sm:px-5">
             <Button
                 variant="ghost"
                 size="icon"
@@ -65,7 +72,9 @@ export function AgentHeader({
             >
                 <ArrowLeft className="h-4 w-4" />
             </Button>
-            <h1 className="min-w-0 truncate text-sm font-semibold">{name}</h1>
+            {face}
+            <h1 className="min-w-0 truncate text-base font-semibold">{name}</h1>
+            {status && <span className="hidden shrink-0 text-[13px] text-[var(--ink-2,#5d5d5d)] sm:inline">{status}</span>}
             {actions && <div className="ml-auto flex shrink-0 gap-2">{actions}</div>}
         </header>
     );

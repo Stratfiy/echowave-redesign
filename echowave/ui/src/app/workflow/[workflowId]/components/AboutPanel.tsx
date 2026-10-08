@@ -16,8 +16,8 @@ import {
 } from '@/client/sdk.gen';
 import { AgentMemory } from '@/components/agent/AgentMemory';
 import { AgentSkills } from '@/components/agent/AgentSkills';
-import { AgentAvatar } from '@/components/avatar/AgentAvatar';
-import { type Avatar, faceOf } from '@/components/avatar/avatar';
+import { type Avatar } from '@/components/avatar/avatar';
+import { BlobFace } from '@/components/brand/BlobFace';
 import { useAuth } from '@/lib/auth';
 import type { WorkflowConfigurations } from '@/types/workflow-configurations';
 
@@ -69,7 +69,7 @@ export function AboutPanel({
     return (
         <div className="flex h-full flex-col gap-6 overflow-y-auto px-1 pb-6" data-testid="about-agent">
             <div className="flex items-center gap-3 pt-1">
-                <AgentAvatar avatar={faceOf(workflowId, avatar)} size={48} animate={false} />
+                <BlobFace seed={workflowId} avatar={avatar} size={48} />
                 <span className="min-w-0 truncate text-base font-semibold">{name}</span>
             </div>
             <section aria-labelledby="agent-voice" className="space-y-2">

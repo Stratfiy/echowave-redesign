@@ -30,6 +30,7 @@ import {
 import type { Headline, Opener, Suggestion } from "@/client/types.gen";
 import { type ChannelBot, ChannelComposer } from "@/components/channel/ChannelComposer";
 import { ChannelStream } from "@/components/channel/ChannelStream";
+import { HomeToday } from "@/components/home/HomeToday";
 import { ThreadList } from "@/components/home/ThreadList";
 import { AuxiliaryPanel } from "@/components/layout/AuxiliaryPanel";
 import { LearningResume } from "@/components/learning/LearningResume";
@@ -168,6 +169,8 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
   const chatShell = useFeature("chat_shell");
   // Stream today: a pending approval docks above the composer.
   const approvalDock = useFeature("approval_dock");
+  // Today's list (screen 09); the empty Chat shows today's rows from it.
+  const todayList = useFeature("today_list");
   // Screen 13: the lesson inside Chat. "?learn=<goal>" resumes one (from
   // Today, the progress page or a shared link); "?learn=new" starts one;
   // "&review=<skill>" opens on a review; "&topic=" names a new one (a course
@@ -599,7 +602,7 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
         />
         )}
       </div>
-      {approvalDock && (
+      {approvalDock && !(chatShell && empty && !showLesson) && (
         // The composer's own gutter, so the dock lines up with the box it sits on.
         <div className="px-4 sm:px-6">
           <ApprovalDock refreshKey={threadsVersion} onSettled={() => refreshStream.current()} />
@@ -671,6 +674,17 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
           })}
         </div>
         {learning && <LearningResume onOpen={(goalId) => openLesson(goalId)} />}
+        {/* The approved design's home (Home.dc.html): under the box, what is
+            waiting for this person, then what happened today. Both are the
+            account's own (pending approvals, Today's Activity); with nothing
+            in either, nothing is drawn. On an empty Chat the waiting card
+            stands in for the dock above the composer. */}
+        {chatShell && (approvalDock || todayList) && (
+          <div className="mt-10 flex w-full flex-col gap-2.5">
+            <ApprovalDock variant="waiting" refreshKey={threadsVersion} onSettled={() => refreshStream.current()} />
+            {todayList && <HomeToday bots={bots} />}
+          </div>
+        )}
         {suggestions.length > 0 && !chatShell ? (
           <div className="mt-3 flex flex-wrap justify-center gap-2">
             {suggestions.map((chip) => (

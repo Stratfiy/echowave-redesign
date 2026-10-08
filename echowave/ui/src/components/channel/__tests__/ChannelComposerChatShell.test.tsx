@@ -230,3 +230,20 @@ describe('with the flag off', () => {
         expect(screen.queryByRole('button', { name: 'Attach' })).toBeNull();
     });
 });
+
+describe('the painted copy under the box', () => {
+    // The textarea writes in transparent ink over a copy that paints tags in
+    // blue. If the copy is set smaller at any width it wraps at different
+    // words, and a second line of typing shows nothing but the caret.
+    const typeClasses = (element: Element) =>
+        element.className.split(/\s+/).filter((name) => /(^|:)(text-(xs|sm|base|lg|xl)|leading-)/.test(name)).sort();
+
+    it.each([true, false])('uses exactly the textarea type (chatShell=%s)', (chatShell) => {
+        composer({ chatShell });
+        const box = screen.getByRole('textbox', { name: 'Message Decibyl' });
+        const painted = box.previousElementSibling as Element;
+        expect(painted.getAttribute('aria-hidden')).toBe('true');
+        expect(typeClasses(painted)).toEqual(typeClasses(box));
+        expect(typeClasses(box).length).toBeGreaterThan(0);
+    });
+});

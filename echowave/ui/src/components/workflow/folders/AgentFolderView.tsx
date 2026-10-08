@@ -6,9 +6,9 @@ import { useMemo, useRef, useState } from 'react';
 
 import type { FolderResponse, TeamMember, WorkflowListResponse } from '@/client/types.gen';
 import { ArtImage } from '@/components/art/Art3D';
-import { AgentAvatar } from '@/components/avatar/AgentAvatar';
 import { type Avatar, faceOf } from '@/components/avatar/avatar';
 import { AvatarCustomizer } from '@/components/avatar/AvatarCustomizer';
+import { BlobFace } from '@/components/brand/BlobFace';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { jobArt } from '@/lib/art';
@@ -24,13 +24,13 @@ interface AgentFolderViewProps {
     folders: FolderResponse[];
 }
 
-/** The dot, the word and the order for each tone; the order is the
+/** The dot (the design's green, amber and grey), the word and the order for each tone; the order is the
  *  roster's own (routes/team.py): the agents that need you first. */
 const TONES: Record<Tone, { label: string; dot: string; pill: string; order: number }> = {
-    attention: { label: 'Needs you', dot: 'bg-red-500', pill: 'bg-red-500/10 text-red-700 dark:text-red-300', order: 0 },
-    working: { label: 'Working', dot: 'bg-emerald-500', pill: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300', order: 1 },
-    idle: { label: 'Idle', dot: 'bg-sky-500', pill: 'bg-sky-500/10 text-sky-700 dark:text-sky-300', order: 2 },
-    paused: { label: 'Paused', dot: 'bg-amber-500', pill: 'bg-amber-500/10 text-amber-700 dark:text-amber-300', order: 3 },
+    attention: { label: 'Needs you', dot: 'bg-[#d97706]', pill: 'bg-red-500/10 text-red-700 dark:text-red-300', order: 0 },
+    working: { label: 'Working', dot: 'bg-[#1f9d55]', pill: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300', order: 1 },
+    idle: { label: 'Idle', dot: 'bg-[#c4c4c4]', pill: 'bg-sky-500/10 text-sky-700 dark:text-sky-300', order: 2 },
+    paused: { label: 'Paused', dot: 'bg-[#c4c4c4]', pill: 'bg-amber-500/10 text-amber-700 dark:text-amber-300', order: 3 },
 };
 
 function ago(at: string | null | undefined): string | null {
@@ -57,51 +57,51 @@ function TeamCard({
 }: {
     agent: WorkflowListResponse;
     member: TeamMember | undefined;
-    /** The agent's face, when faces are on (agent_faces); the job's picture otherwise. */
-    face: Avatar | null;
+    /** The agent's stored face (null for none); undefined draws the job's picture instead. */
+    face: Partial<Avatar> | null | undefined;
     onOpen: (event: React.MouseEvent<HTMLButtonElement>) => void;
 }) {
-    const tone = TONES[toneOf(member, agent.is_live)];
+    const toneId = toneOf(member, agent.is_live);
+    const tone = TONES[toneId];
     const when = ago(member?.last_at ?? member?.at);
     return (
+        // The approved design's agent card (Agents.dc.html): a soft 20px
+        // card, the blob large on the left, the state as a dot and a word on
+        // the right, the name, one sentence, and a quiet meta line.
         <div
             data-testid={`agent-card-${agent.id}`}
-            className="group relative flex min-w-0 flex-col rounded-2xl border border-border/70 bg-card p-4 transition-colors hover:border-border hover:bg-muted/30"
+            className="group relative flex min-w-0 flex-col gap-3.5 rounded-[20px] bg-[var(--paper-2,#f9f9f9)] p-5 transition-colors hover:bg-[var(--line,#ececec)]"
         >
             <button
                 type="button"
                 aria-label={`View ${agent.name}`}
                 onClick={onOpen}
-                className="absolute inset-0 z-10 rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="absolute inset-0 z-10 rounded-[20px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
-            <div className="flex items-start gap-3">
-                {face ? (
-                    <AgentAvatar avatar={face} tone={toneOf(member, agent.is_live)} size={48} />
+            <div className="flex items-center justify-between gap-3">
+                {face !== undefined ? (
+                    <BlobFace seed={agent.id} avatar={face} size={56} mood={toneId === 'paused' ? 'resting' : 'awake'} />
                 ) : (
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-muted/60">
-                        <ArtImage name={jobArt(agent.name)} size={36} />
+                    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-muted/60">
+                        <ArtImage name={jobArt(agent.name)} size={40} />
                     </div>
                 )}
-                <div className="min-w-0 flex-1">
-                    <p className="truncate font-medium">{agent.name}</p>
-                    <p className="truncate text-xs text-muted-foreground">
-                        {agent.handle ? `@${agent.handle}` : `${agent.total_runs ?? 0} runs`}
-                    </p>
-                </div>
-                <span className={cn('inline-flex shrink-0 items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium', tone.pill)}>
-                    <span className={cn('h-1.5 w-1.5 rounded-full', tone.dot)} />
+                <span className="inline-flex shrink-0 items-center gap-1.5 text-[13px] text-[var(--ink-2,#5d5d5d)]">
+                    <span className={cn('h-[7px] w-[7px] rounded-full', tone.dot)} />
                     {tone.label}
                 </span>
             </div>
-            <p className="mt-3 line-clamp-2 min-h-[2.5rem] text-sm text-foreground/80">
-                {member?.status ?? (agent.is_live === false ? 'Paused. Switch it on when it is ready.' : 'Nothing yet today.')}
-            </p>
-            {member?.last_line ? (
-                <p className="mt-2 line-clamp-1 rounded-lg bg-muted/50 px-2.5 py-1.5 text-xs text-muted-foreground">
-                    “{member.last_line}”
+            <div className="flex min-w-0 flex-col gap-1">
+                <p className="truncate text-[17px] font-semibold">{agent.name}</p>
+                <p className="line-clamp-2 text-sm leading-[1.45] text-[var(--ink-2,#5d5d5d)]">
+                    {member?.status ?? (agent.is_live === false ? 'Paused. Switch it on when it is ready.' : 'Nothing yet today.')}
                 </p>
-            ) : null}
-            <div className="mt-3 flex items-center gap-3 border-t border-border/60 pt-3 text-xs text-muted-foreground">
+                {member?.last_line ? (
+                    <p className="line-clamp-1 text-[13px] text-[var(--ink-3,#8f8f8f)]">“{member.last_line}”</p>
+                ) : null}
+            </div>
+            <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1 text-[13px] text-[var(--ink-2,#5d5d5d)]">
+                {agent.handle ? <span className="max-w-full truncate">@{agent.handle}</span> : null}
                 {member ? (
                     <>
                         <span><b className="font-semibold text-foreground">{member.calls}</b> today</span>
@@ -113,11 +113,11 @@ function TeamCard({
                 ) : (
                     <span>{agent.total_runs ?? 0} runs in all</span>
                 )}
-                <span className="ml-auto">{when ?? ''}</span>
+                {when ? <span>{when}</span> : null}
                 <Link
                     href={`/workflow/${agent.id}/thread`}
                     aria-label={`Message ${agent.name}`}
-                    className="relative z-20 inline-flex h-7 w-7 items-center justify-center rounded-full border border-border bg-background text-muted-foreground hover:text-foreground"
+                    className="relative z-20 ml-auto inline-flex h-8 w-8 items-center justify-center rounded-full border border-[rgba(0,0,0,0.1)] bg-background text-muted-foreground hover:text-foreground dark:border-border"
                 >
                     <MessageSquare className="h-3.5 w-3.5" />
                 </Link>
@@ -142,8 +142,10 @@ export function AgentFolderView({ workflows, folders }: AgentFolderViewProps) {
     const [editingFace, setEditingFace] = useState(false);
     // Bloub faces for everyone (KAN-260): the flag is registered, no longer read.
     const facesOn = true;
-    const faceFor = (agent: WorkflowListResponse) =>
-        faceOf(agent.id, agent.id in faces ? faces[agent.id] : (agent.avatar as Avatar | null | undefined));
+    /** The face the owner picked, if any: the blob keeps its colour. */
+    const storedFace = (agent: WorkflowListResponse): Avatar | null =>
+        agent.id in faces ? faces[agent.id] : ((agent.avatar as Avatar | null | undefined) ?? null);
+    const faceFor = (agent: WorkflowListResponse) => faceOf(agent.id, storedFace(agent));
 
     const counts = useMemo(() => {
         const out: Record<Tone, number> = { attention: 0, working: 0, idle: 0, paused: 0 };
@@ -204,13 +206,13 @@ export function AgentFolderView({ workflows, folders }: AgentFolderViewProps) {
                 </div>
             </div>
             {view === 'cards' ? (
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                     {shown.map((agent) => (
                         <TeamCard
                             key={agent.id}
                             agent={agent}
                             member={roster[agent.id]}
-                            face={facesOn ? faceFor(agent) : null}
+                            face={facesOn ? storedFace(agent) : undefined}
                             onOpen={(event) => { profileOpener.current = event.currentTarget; setSelectedId(agent.id); }}
                         />
                     ))}
@@ -228,11 +230,11 @@ export function AgentFolderView({ workflows, folders }: AgentFolderViewProps) {
                         <div className="space-y-6 px-4 pb-6">
                             {facesOn && (
                                 <div className="flex flex-col items-center gap-2">
-                                    <AgentAvatar
-                                        avatar={faceFor(selected)}
-                                        tone={toneOf(selectedMember, selected.is_live)}
-                                        size={120}
-                                        label={`${selected.name}'s face`}
+                                    <BlobFace
+                                        seed={selected.id}
+                                        avatar={storedFace(selected)}
+                                        mood={toneOf(selectedMember, selected.is_live) === 'paused' ? 'resting' : 'awake'}
+                                        size={96}
                                     />
                                     <Button variant="outline" size="sm" onClick={() => setEditingFace(true)}>Change face</Button>
                                 </div>
