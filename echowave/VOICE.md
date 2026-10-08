@@ -151,8 +151,17 @@ checking whether this was delivered. Please do not send it again."), never
 * **Escalate**: a line on the team's Decibyl thread, and a transfer number
   when the policy has one.
 * The tool is a built-in `appointments` tool row (new `tool_category`
-  value), added to the workspace when an admin chooses the helper; attaching
-  it to the helper's steps is the agent owner's choice in the editor.
+  value), added to the workspace when an admin chooses the helper, and put
+  on that helper's talking steps (its draft) at the same time: choosing the
+  agent that answers booking calls is the owner saying it books.
+* **From Chat**: `set_up_booking` proposes one card with exactly what
+  Confirm sets -- the agent, book or suggest, the hours by day, the
+  appointment length, the services and the hand-off. An admin's Confirm
+  saves the policy, the agent's hours (draft) and the tool on its steps
+  (`services/voice/booking_setup.py`). Nobody is sent to Settings to finish.
+* **Hours come from the version the call runs**: a test runs the draft and
+  books inside the draft's hours; a live call uses the published ones
+  (`appointments._schedule` reads the run's definition).
 
 A booking made by a caller on a call is the helper acting within the policy
 an admin granted (handoff 6, "book within granted policy"): the policy is the
