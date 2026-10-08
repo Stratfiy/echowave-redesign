@@ -216,7 +216,7 @@ export function AgentProfilePanel({
     return (
         <div className="flex flex-col gap-6 p-5" data-testid="agent-profile">
             <div className="flex items-center gap-3">
-                <BotAvatar id={workflowId} name={name || 'Agent'} size="lg" art />
+                <BotAvatar id={workflowId} name={name || 'Agent'} size="lg" />
                 <div className="min-w-0">
                     <p className="truncate text-base font-semibold">{name || 'Agent'}</p>
                     <p className="text-xs text-muted-foreground">

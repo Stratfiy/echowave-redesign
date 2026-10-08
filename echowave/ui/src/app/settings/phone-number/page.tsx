@@ -13,8 +13,7 @@ import {
   updatePhoneNumberApiV1OrganizationsTelephonyConfigsConfigIdPhoneNumbersPhoneNumberIdPut,
 } from "@/client/sdk.gen";
 import type { PhoneNumberResponse, TelephonyConfigurationListItem, VerifiedNumber } from "@/client/types.gen";
-import { AgentAvatar } from "@/components/avatar/AgentAvatar";
-import { faceOf } from "@/components/avatar/avatar";
+import { BlobFace } from "@/components/brand/BlobFace";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
 import { CarriersSection } from "@/components/telephony/CarriersSection";
 import { type NumberRow, numberRows, type NumberUse } from "@/components/telephony/numberRows";
@@ -239,7 +238,7 @@ function UseChip({
   if (use.kind === "calls_back") {
     return (
       <span className={cn(CHIP, "bg-[var(--paper-2)]")}>
-        <AgentAvatar avatar={faceOf(use.workflowId, null)} size={22} animate={false} />
+        <BlobFace seed={use.workflowId} size={22} />
         {use.name}
         <span className="text-xs text-muted-foreground">calls back</span>
       </span>
@@ -251,7 +250,7 @@ function UseChip({
   const chip =
     use.kind === "answers" ? (
       <>
-        <AgentAvatar avatar={faceOf(use.workflowId, null)} size={22} animate={false} />
+        <BlobFace seed={use.workflowId} size={22} />
         {use.name}
         <span className="text-xs text-muted-foreground">answers</span>
       </>
@@ -279,7 +278,7 @@ function UseChip({
         <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Who answers this number?</DropdownMenuLabel>
         {agents.map((agent) => (
           <DropdownMenuItem key={agent.id} onClick={() => onAssign(row, agent.id)} className="gap-2.5">
-            <AgentAvatar avatar={faceOf(agent.id, null)} size={22} animate={false} />
+            <BlobFace seed={agent.id} size={22} />
             {agent.name}
           </DropdownMenuItem>
         ))}

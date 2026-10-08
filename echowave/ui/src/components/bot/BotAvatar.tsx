@@ -1,7 +1,9 @@
 "use client";
 
 /**
- * A bot's face: an icon for the job it does, in a colour of its own.
+ * A bot's face. Drawn as its blob (BlobFace) since the approved design of
+ * October 2026; the job icon and tone below are what it used to draw, kept
+ * for the places that still say what a bot does in a glyph.
  *
  * Every bot wore the same grey tile with two letters in it, so a roster of
  * eight read as eight grey squares and the eye had to fall back to reading
@@ -34,9 +36,8 @@ import {
     Wallet,
 } from "lucide-react";
 
-import { ArtImage } from "@/components/art/Art3D";
-import { jobArt } from "@/lib/art";
-import { cn } from "@/lib/utils";
+import type { Avatar } from "@/components/avatar/avatar";
+import { BlobFace } from "@/components/brand/BlobFace";
 
 /** Name fragment to icon, first match wins. Ordered most specific first:
  *  "appointment reminder" is a diary, not a bell. */
@@ -84,47 +85,29 @@ export function botTone(id: number | string): string {
     return TONES[Math.abs(n) % TONES.length];
 }
 
-const SIZES = {
-    sm: { box: "h-6 w-6 rounded-md", glyph: "h-3.5 w-3.5", picture: 20 },
-    md: { box: "h-8 w-8 rounded-lg", glyph: "h-4 w-4", picture: 26 },
-    lg: { box: "h-12 w-12 rounded-xl", glyph: "h-6 w-6", picture: 40 },
-} as const;
+/** Pixel size of the face for each named size. */
+const SIZES = { sm: 24, md: 32, lg: 48 } as const;
 
+/**
+ * The agent's face: its blob (BlobFace), the same one the rail, the agents
+ * grid and the agent's page draw. The job icon and tone above stay exported
+ * for anything that still wants to say what a bot does in a glyph.
+ */
 export function BotAvatar({
     id,
-    name,
     size = "sm",
-    art = false,
+    avatar,
     className,
 }: {
     id: number | string;
+    /** Beside the face wherever it is drawn; not read out a second time. */
     name: string;
     size?: keyof typeof SIZES;
-    /** Draw the job as a 3D picture on a soft tile instead of an icon. */
-    art?: boolean;
+    /** The agent's stored face, if its owner picked one. */
+    avatar?: Partial<Avatar> | null;
     className?: string;
 }) {
-    const Icon = botIcon(name);
-    const { box, glyph, picture } = SIZES[size];
-    if (art) {
-        return (
-            <span
-                aria-hidden="true"
-                data-testid="bot-art"
-                className={cn("flex shrink-0 items-center justify-center bg-muted", box, className)}
-            >
-                <ArtImage name={jobArt(name)} size={picture} />
-            </span>
-        );
-    }
-    return (
-        <span
-            aria-hidden="true"
-            className={cn("flex shrink-0 items-center justify-center", box, botTone(id), className)}
-        >
-            <Icon className={glyph} />
-        </span>
-    );
+    return <BlobFace seed={id} avatar={avatar} size={SIZES[size]} className={className} />;
 }
 
 export default BotAvatar;

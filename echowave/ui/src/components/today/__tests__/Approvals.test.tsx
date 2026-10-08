@@ -108,6 +108,41 @@ describe("The approval dock", () => {
     });
 });
 
+describe("The home's waiting card (the approved design)", () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        settle.mockResolvedValue({ data: {} });
+    });
+
+    it("names who is waiting and what, with the agent's blob", async () => {
+        pending.mockResolvedValue({
+            data: { count: 1, items: [{ ...item, workflow_id: 9, sentence: "Accounts wants to: send a payment reminder to 12 patients" }] },
+        });
+        const { container } = render(<ApprovalDock variant="waiting" />);
+        expect((await screen.findByTestId("approval-waiting-request")).textContent).toBe("Send a payment reminder to 12 patients");
+        expect(screen.getByText("Accounts is waiting for you")).toBeTruthy();
+        expect(container.querySelector('[data-testid="blob-face"]')).toBeTruthy();
+        expect(screen.getByRole("link", { name: "See everything it will do" }).getAttribute("href")).toBe("/tasks/approvals/51");
+    });
+
+    it("Do it is the same confirm as the dock's, with the version shown", async () => {
+        pending.mockResolvedValue({ data: { count: 1, items: [item] } });
+        render(<ApprovalDock variant="waiting" />);
+        expect(await screen.findByText("Decibyl is waiting for you")).toBeTruthy();
+        fireEvent.click(screen.getByRole("button", { name: "Do it" }));
+        await waitFor(() => expect(settle).toHaveBeenCalled());
+        expect(settle.mock.calls[0][0].body).toEqual({ event_id: 51, verb: "confirm", version: "abc123def4567890" });
+        expect(await screen.findByRole("button", { name: "Undo" })).toBeTruthy();
+    });
+
+    it("draws nothing when nothing is waiting", async () => {
+        pending.mockResolvedValue({ data: { count: 0, items: [] } });
+        const { container } = render(<ApprovalDock variant="waiting" />);
+        await waitFor(() => expect(pending).toHaveBeenCalled());
+        expect(container.innerHTML).toBe("");
+    });
+});
+
 describe("The exact approval screen", () => {
     beforeEach(() => {
         vi.clearAllMocks();

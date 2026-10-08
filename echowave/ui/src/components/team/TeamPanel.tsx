@@ -57,7 +57,7 @@ function MemberRow({ member }: { member: TeamMember }) {
             href={`/workflow/${member.workflow_id}`}
             className="flex items-center gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-muted/60"
         >
-            <BotAvatar id={member.workflow_id} name={member.name} size="md" art />
+            <BotAvatar id={member.workflow_id} name={member.name} size="md" avatar={member.avatar ?? null} />
             <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                     <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", TONE_DOT[member.tone] ?? TONE_DOT.idle)} />

@@ -4,8 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { getUsageByAgentApiV1OrganizationsUsageAgentsGet } from "@/client/sdk.gen";
-import { AgentAvatar } from "@/components/avatar/AgentAvatar";
-import { faceOf } from "@/components/avatar/avatar";
+import { BlobFace } from "@/components/brand/BlobFace";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
 import { CALLS_TABS } from "@/components/layout/SectionTabs";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -153,7 +152,7 @@ export default function UsageByAgentPage() {
                   {report.agents.map((agent) => (
                     <li key={agent.workflow_id} className="py-3.5">
                       <div className="flex items-center gap-3">
-                        <AgentAvatar avatar={faceOf(agent.workflow_id, null)} size={28} animate={false} />
+                        <BlobFace seed={agent.workflow_id} size={28} />
                         <div className="min-w-0 flex-1">
                           <Link href={`/workflow/${agent.workflow_id}/thread`} className="text-[15px] hover:underline">
                             {agent.name}

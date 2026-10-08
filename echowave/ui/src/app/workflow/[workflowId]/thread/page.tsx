@@ -7,9 +7,12 @@ import { use, useCallback, useEffect, useRef, useState } from 'react';
 import { AboutPanel } from '@/app/workflow/[workflowId]/components/AboutPanel';
 import { AgentHeader } from '@/app/workflow/[workflowId]/components/AgentHeader';
 import { getWorkflowApiV1WorkflowFetchWorkflowIdGet } from '@/client/sdk.gen';
+import type { Avatar } from '@/components/avatar/avatar';
+import { BlobFace } from '@/components/brand/BlobFace';
 import { ChannelComposer } from '@/components/channel/ChannelComposer';
 import { ChannelStream } from '@/components/channel/ChannelStream';
 import { AuxiliaryPanel } from '@/components/layout/AuxiliaryPanel';
+import { colleagueState, RAIL_COPY } from '@/components/layout/v2/homes';
 import { Button } from '@/components/ui/button';
 import {
     DropdownMenu,
@@ -17,6 +20,7 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { useTeamStatus } from '@/components/workflow/useTeamStatus';
 import { useAuth } from '@/lib/auth';
 
 /**
@@ -45,6 +49,9 @@ export default function BotChatPage({
     const [name, setName] = useState<string>('');
     // A chat agent answers only in writing: no phone test to offer.
     const [chatOnly, setChatOnly] = useState(false);
+    // The face its owner picked, if any: the blob keeps its colour.
+    const [avatar, setAvatar] = useState<Partial<Avatar> | null>(null);
+    const member = useTeamStatus()[id];
     const started = useRef(false);
     const refreshStream = useRef<() => void>(() => {});
     // Open beside the chat on a wide screen; a button away on a narrow one.
@@ -62,6 +69,7 @@ export default function BotChatPage({
                 path: { workflow_id: id },
             });
             if (!response.error && response.data?.name) setName(response.data.name);
+            if (!response.error) setAvatar((response.data as { avatar?: Partial<Avatar> | null } | undefined)?.avatar ?? null);
             const configurations = response.data?.workflow_configurations as { channel?: string } | null | undefined;
             if (!response.error && configurations?.channel === 'chat') setChatOnly(true);
         })();
@@ -79,6 +87,8 @@ export default function BotChatPage({
                 workflowId={id}
                 name={name || 'Agent'}
                 backHref="/workflow"
+                face={<BlobFace seed={id} avatar={avatar} size={26} mood={member?.tone === 'paused' ? 'resting' : 'awake'} />}
+                status={member ? RAIL_COPY.state[colleagueState(member)] : null}
                 actions={
                     <>
                         <Button

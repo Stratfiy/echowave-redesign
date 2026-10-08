@@ -1101,12 +1101,23 @@ export function ChannelStream({
      *  three bots in it looked like one voice. */
     function face(event: TimelineEvent) {
         const name = (event.workflow_id != null && botNames[event.workflow_id]) || fallbackName;
+        // Decibyl is not one of the agents, so it wears the brand mark, not a blob.
+        if (assistant && event.workflow_id == null) {
+            return (
+                <span
+                    aria-hidden="true"
+                    className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-foreground text-xs font-semibold text-background"
+                >
+                    d
+                </span>
+            );
+        }
         return (
             <BotAvatar
                 id={event.workflow_id ?? name}
                 name={name}
                 size="sm"
-                className="mt-0.5 h-7 w-7 rounded-md"
+                className="mt-0.5 h-7 w-7"
             />
         );
     }

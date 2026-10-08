@@ -3,8 +3,8 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { recentsApiV1TimelineRecentsGet } from "@/client/sdk.gen";
-import { AgentAvatar } from "@/components/avatar/AgentAvatar";
-import { type Avatar, faceOf } from "@/components/avatar/avatar";
+import { type Avatar } from "@/components/avatar/avatar";
+import { BlobFace } from "@/components/brand/BlobFace";
 import { useAuth } from "@/lib/auth";
 
 import { RAIL_COPY } from "./homes";
@@ -61,9 +61,9 @@ export function RecentsList({ pathname, onNavigate }: { pathname: string; onNavi
             <li key={item.key}>
               <Link href={item.href} title={item.title} aria-current={active ? "page" : undefined} onClick={onNavigate}>
                 {item.kind === "agent" && item.workflow_id !== null ? (
-                  <AgentAvatar avatar={faceOf(item.workflow_id, item.avatar)} size={22} animate={false} />
+                  <BlobFace seed={item.workflow_id} avatar={item.avatar} size={26} />
                 ) : (
-                  <span className="grid h-[22px] w-[22px] shrink-0 place-items-center text-muted-foreground" aria-hidden="true">
+                  <span className="grid h-[26px] w-[26px] shrink-0 place-items-center text-muted-foreground" aria-hidden="true">
                     <MessageCircle className="h-4 w-4" strokeWidth={1.7} />
                   </span>
                 )}
