@@ -307,6 +307,46 @@ class TestPrivate:
             )
         assert sneaky.status_code == 422
 
+    async def test_a_goal_cannot_name_somebody_elses_conversation(
+        self, people, learning_on, monkeypatch
+    ):
+        """A goal's conversation is where its cards go. With private threads
+        on, naming a colleague's conversation is "not found", the way the
+        conversation itself is, and nothing is started."""
+        from api.enums import AgentEventActor, AgentEventKind
+        from api.services.workflow import agent_timeline
+
+        monkeypatch.setattr(constants, "DECIBYL_PRIVATE_THREADS_ENABLED", True)
+        a, b, org = people
+        theirs, mine = f"t-b-{uuid4().hex[:8]}", f"t-a-{uuid4().hex[:8]}"
+        for author, thread in ((b.id, theirs), (a.id, mine)):
+            await agent_timeline.record(
+                organization_id=org,
+                kind=AgentEventKind.MESSAGE.value,
+                actor=AgentEventActor.HUMAN.value,
+                summary="hi",
+                payload={"body": "hi", "author_id": author},
+                in_channel=False,
+                thread_id=thread,
+            )
+        async with _client(a.id, org) as c:
+            await _placed(c)
+            refused = await c.post(
+                "/api/v1/learning/goals", json={"title": "Tables", "thread_id": theirs}
+            )
+            assert refused.status_code == 404, refused.text
+            titles = [
+                g["title"] for g in (await c.get("/api/v1/learning/goals")).json()
+            ]
+            assert "Tables" not in titles
+            for thread in (mine, f"t-new-{uuid4().hex[:8]}"):
+                ok = await c.post(
+                    "/api/v1/learning/goals",
+                    json={"title": thread, "thread_id": thread},
+                )
+                assert ok.status_code == 201, ok.text
+                assert ok.json()["goal"]["thread_id"] == thread
+
 
 @pytest.mark.asyncio
 class TestDeletion:
@@ -340,3 +380,76 @@ class TestDeletion:
             await actions.run(card["event_id"], org)
             gone = await c.get(f"/api/v1/learning/goals/{goal_id}/session")
             assert gone.status_code == 404
+
+    async def test_a_plain_member_deletes_their_own_goal_with_private_threads_on(
+        self, people, learning_on, monkeypatch
+    ):
+        """A goal started on the learning page has no thread, so its card sat
+        on the authorless thread: an Admin's to see and answer, never a plain
+        member's. The learner was told "That proposal is not here" on their
+        own delete, while the workspace owner could see the card and arm it."""
+        from unittest.mock import AsyncMock, patch
+
+        from api.enums import OrganizationRole
+        from api.services.workflow import actions
+
+        monkeypatch.setattr(constants, "DECIBYL_PRIVATE_THREADS_ENABLED", True)
+        owner, member, org = people
+        await db_client.add_user_to_organization(
+            owner.id, org, OrganizationRole.OWNER.value
+        )
+        await db_client.add_user_to_organization(
+            member.id, org, OrganizationRole.MEMBER.value
+        )
+        async with _client(member.id, org) as c:
+            state = await _placed(c)
+            goal_id = state["goal"]["goal_id"]
+            card = (await c.post(f"/api/v1/learning/goals/{goal_id}/deletion")).json()
+        body = {
+            "event_id": card["event_id"],
+            "verb": "confirm",
+            "version": card["payload"].get("version"),
+        }
+        with patch("api.tasks.arq.enqueue_job", new=AsyncMock()):
+            # The owner cannot see a colleague's learning card, let alone arm it.
+            async with _client(owner.id, org) as c:
+                theirs = await c.post("/api/v1/timeline/actions/settle", json=body)
+            assert theirs.status_code == 409, theirs.text
+            assert "not here" in theirs.text
+            async with _client(member.id, org) as c:
+                settled = await c.post("/api/v1/timeline/actions/settle", json=body)
+        assert settled.status_code == 200, settled.text
+        await actions.run(card["event_id"], org)
+        async with _client(member.id, org) as c:
+            gone = await c.get(f"/api/v1/learning/goals/{goal_id}/session")
+        assert gone.status_code == 404
+
+    async def test_a_plain_members_card_is_in_their_today_and_nobody_elses(
+        self, people, learning_on, monkeypatch
+    ):
+        """Today listed a pending card by its thread: the authorless one is
+        an Admin's, so a member's own delete card was missing from their
+        approvals (and a 404 by id) while the owner's own showed."""
+        from api.enums import OrganizationRole
+
+        monkeypatch.setattr(constants, "DECIBYL_PRIVATE_THREADS_ENABLED", True)
+        monkeypatch.setattr(constants, "TODAY_LIST_ENABLED", True)
+        owner, member, org = people
+        await db_client.add_user_to_organization(
+            owner.id, org, OrganizationRole.OWNER.value
+        )
+        await db_client.add_user_to_organization(
+            member.id, org, OrganizationRole.MEMBER.value
+        )
+        async with _client(member.id, org) as c:
+            goal_id = (await _placed(c))["goal"]["goal_id"]
+            card = (await c.post(f"/api/v1/learning/goals/{goal_id}/deletion")).json()
+            listed = (await c.get("/api/v1/today/approvals")).json()
+            one = await c.get(f"/api/v1/today/approvals/{card['event_id']}")
+        assert card["event_id"] in [i["id"] for i in listed["items"]]
+        assert one.status_code == 200, one.text
+        async with _client(owner.id, org) as c:
+            theirs = (await c.get("/api/v1/today/approvals")).json()
+            by_id = await c.get(f"/api/v1/today/approvals/{card['event_id']}")
+        assert card["event_id"] not in [i["id"] for i in theirs["items"]]
+        assert by_id.status_code == 404

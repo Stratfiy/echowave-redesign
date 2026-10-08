@@ -17,6 +17,7 @@
 
 import { AlertTriangle, ArrowRight } from "lucide-react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
@@ -189,6 +190,25 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
       return null;
     }
   });
+  // The router's address too: on a client-side navigation (Today's review
+  // link, a course card) the first render can come before window.location
+  // says ?learn=, and the lesson would not open.
+  const routed = useSearchParams();
+  const routedLearn = routed?.get("learn") ?? null;
+  const routedReview = routed?.get("review") ?? null;
+  const routedTopic = routed?.get("topic") ?? null;
+  useEffect(() => {
+    if (!routedLearn) return;
+    const review = Number(routedReview);
+    setLesson(
+      (open) =>
+        open ?? {
+          goalId: routedLearn === "new" ? null : routedLearn,
+          review: Number.isFinite(review) && review > 0 ? review : null,
+          topic: routedTopic,
+        },
+    );
+  }, [routedLearn, routedReview, routedTopic]);
   const showLesson = learning && lesson !== null;
   const openLesson = useCallback((goalId: string | null, review: number | null = null, topic: string | null = null) => {
     setLesson({ goalId, review, topic });
@@ -568,6 +588,11 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
           onCountChange={onCountChange}
           waitingFor={waitingFor}
           onLoadState={setLoadState}
+          // With private threads on, the original conversation is an
+          // Admin's: a plain member starts a new one of their own, as New
+          // chat would, rather than meeting "Could not load". A named thread
+          // that is not theirs still says so.
+          onThreadNotFound={threadId === null ? newThread : undefined}
           chatShell={chatShell}
           onWaitingChange={chatShell ? setReplying : undefined}
           onTurnStatus={chatShell ? onTurnStatus : undefined}

@@ -331,6 +331,27 @@ async def _material_from_link(organization_id: int, notes: str | None) -> str | 
     return (head + text)[: teacher.MAX_MATERIAL_CHARS]
 
 
+async def _own_thread(
+    organization_id: int, user_id: int, thread_id: str | None
+) -> str | None:
+    """The Chat conversation a goal starts in, which is where its cards go.
+    With private threads on it must be the person's own (or a new one
+    nobody has spoken in yet): a colleague's is "not found", the way the
+    conversation itself is (routes/agent_timeline)."""
+    thread = _clean(thread_id, 36)
+    if thread is None:
+        return None
+    from api import constants
+
+    if constants.DECIBYL_PRIVATE_THREADS_ENABLED:
+        author = await db_client.thread_author(
+            organization_id=organization_id, thread_id=thread
+        )
+        if author is not None and author != user_id:
+            raise NotFound("That conversation is not here.")
+    return thread
+
+
 async def start_goal(
     organization_id: int,
     user_id: int,
@@ -352,6 +373,7 @@ async def start_goal(
     profile = await get_profile(organization_id, user_id)
     if not profile["adult_confirmed"]:
         raise ProfileNeeded("Confirm you are 18 or older to start learning.")
+    thread = await _own_thread(organization_id, user_id, thread_id)
     studying = _clean(studying_for, MAX_STUDYING_FOR) or profile["studying_for"]
     notes = await _material_from_link(
         organization_id, _clean(material, teacher.MAX_MATERIAL_CHARS)
@@ -380,7 +402,7 @@ async def start_goal(
         material=notes,
         status="baseline",
         baseline_question=baseline.question,
-        thread_id=_clean(thread_id, 36),
+        thread_id=thread,
         sensitive_confirmed_at=now if found else None,
         revision=0,
         created_at=now,

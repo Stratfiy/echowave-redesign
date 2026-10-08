@@ -18,6 +18,11 @@ const seen = vi.hoisted(() => ({
     load: "ready" as "ready" | "error",
 }));
 const flags = vi.hoisted(() => ({ chat_shell: true, learning: false }));
+// The router's view of the address. On a client-side navigation (Today's
+// review link, a course card) it can carry ?learn= before window.location
+// does.
+const router = vi.hoisted(() => ({ params: new URLSearchParams() }));
+vi.mock("next/navigation", () => ({ useSearchParams: () => router.params }));
 
 vi.mock("@/lib/auth", () => ({ useAuth: () => ({ user: { id: 1 }, loading: false }) }));
 vi.mock("@/lib/features", () => ({
@@ -98,6 +103,7 @@ beforeEach(() => {
     seen.load = "ready";
     flags.chat_shell = true;
     flags.learning = false;
+    router.params = new URLSearchParams();
     window.history.replaceState(null, "", "/overview");
 });
 
@@ -253,6 +259,19 @@ describe("Learning inside Chat (screen 13)", () => {
     it("resumes a goal, on a review, from the address", async () => {
         flags.learning = true;
         window.history.replaceState(null, "", "/overview?learn=g-9&review=4");
+        api.home.mockResolvedValue({ data: { headline, suggestions: [], openers: [] } });
+        render(<HomeAboveTheFold />);
+        const lesson = await screen.findByTestId("lesson");
+        expect(lesson.getAttribute("data-goal")).toBe("g-9");
+        expect(lesson.getAttribute("data-review")).toBe("4");
+    });
+
+    it("opens the lesson the router navigated to, before the address bar catches up", async () => {
+        // Phase 3 (learning): Today's "Review ..." link sometimes landed on
+        // Chat with no lesson, because the lesson was read from
+        // window.location while it still said /tasks.
+        flags.learning = true;
+        router.params = new URLSearchParams("learn=g-9&review=4");
         api.home.mockResolvedValue({ data: { headline, suggestions: [], openers: [] } });
         render(<HomeAboveTheFold />);
         const lesson = await screen.findByTestId("lesson");
