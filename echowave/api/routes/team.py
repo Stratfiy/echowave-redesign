@@ -218,6 +218,12 @@ class Opener(BaseModel):
 
     kind: str
     text: str
+    #: The helper the card is sent to, and its name for the chip; null is
+    #: Automatic. Only set when that helper can answer here.
+    helper: Optional[str] = None
+    helper_name: Optional[str] = None
+    #: The shelf role a life-stage starter is for (agent_templates id).
+    template: Optional[str] = None
 
 
 class HomeResponse(BaseModel):

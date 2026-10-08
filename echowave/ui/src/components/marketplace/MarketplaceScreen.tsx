@@ -42,6 +42,8 @@ import {
     industries,
     industryIcon,
     industryOf,
+    lifeStageOf,
+    lifeStages,
     type Shelf,
     toneFor,
     toolIcon,
@@ -176,6 +178,8 @@ function Chip({ name, tone }: { name: string; tone?: string }) {
 function BotCard({ template }: { template: BotTemplate }) {
     const industry = industryOf(template);
     const fn = functionOf(template);
+    const stage = lifeStageOf(template);
+    const call = template.call_step;
     return (
         <Card className="flex h-full flex-col overflow-hidden">
             {/* The job, as a picture, before any words: a shelf of cards
@@ -203,10 +207,21 @@ function BotCard({ template }: { template: BotTemplate }) {
                     </div>
                 </div>
                 <div className="flex flex-wrap gap-1.5">
+                    {stage && <Chip name={stage} tone="bg-brand-blue-soft text-brand-blue" />}
                     <Chip name={industry} tone={toneFor(industry)} />
                     <Chip name={fn} />
                 </div>
                 <p className="line-clamp-3 text-xs text-muted-foreground">{template.summary}</p>
+                {call && (
+                    // The care pattern: name the wall, and the way past it,
+                    // right here. The role itself needs no number.
+                    <p data-testid="call-step" className="text-xs text-muted-foreground">
+                        {`${call.what.charAt(0).toUpperCase()}${call.what.slice(1)} needs ${call.needs}. Until then it sends ${call.instead}. `}
+                        <Link href={call.href} className="underline underline-offset-2">
+                            Set up a phone line
+                        </Link>
+                    </p>
+                )}
                 <div className="mt-auto pt-1">
                     <Button asChild size="sm" variant="outline" className="w-full">
                         <Link href={hireHref(template.id)}>
@@ -235,6 +250,7 @@ function BotsShelf({ query }: { query: string }) {
     const [failed, setFailed] = useState(false);
     const [industry, setIndustry] = useState<string | null>(null);
     const [fn, setFn] = useState<string | null>(null);
+    const [stage, setStage] = useState<string | null>(null);
 
     useEffect(() => {
         if (authLoading || !user) return;
@@ -265,7 +281,11 @@ function BotsShelf({ query }: { query: string }) {
     const all = useMemo(() => templates ?? [], [templates]);
     const byIndustry: Shelf[] = useMemo(() => industries(all), [all]);
     const byFunction: Shelf[] = useMemo(() => functions(all), [all]);
-    const shown = useMemo(() => filterBots(all, { query, industry, fn }), [all, query, industry, fn]);
+    const byStage: Shelf[] = useMemo(() => lifeStages(all), [all]);
+    const shown = useMemo(
+        () => filterBots(all, { query, industry, fn, stage }),
+        [all, query, industry, fn, stage],
+    );
 
     if (templates === null) return <p className="text-sm text-muted-foreground">Loading…</p>;
     if (failed) {
@@ -280,6 +300,23 @@ function BotsShelf({ query }: { query: string }) {
 
     return (
         <>
+            {byStage.length > 0 && (
+                <section className="space-y-3" aria-label="By life stage">
+                    <SectionTitle>By life stage</SectionTitle>
+                    <div className="flex flex-wrap gap-2">
+                        {byStage.map((shelf) => (
+                            <FilterChip
+                                key={shelf.name}
+                                label={shelf.name}
+                                count={shelf.count}
+                                selected={stage === shelf.name}
+                                onSelect={() => setStage((cur) => (cur === shelf.name ? null : shelf.name))}
+                            />
+                        ))}
+                    </div>
+                </section>
+            )}
+
             <section className="space-y-3">
                 <SectionTitle>By industry</SectionTitle>
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -325,8 +362,8 @@ function BotsShelf({ query }: { query: string }) {
 
             <section className="space-y-3">
                 <SectionTitle>
-                    {industry || fn
-                        ? [industry, fn].filter(Boolean).join(" · ")
+                    {stage || industry || fn
+                        ? [stage, industry, fn].filter(Boolean).join(" · ")
                         : query.trim()
                           ? `Agents matching “${query.trim()}”`
                           : "All agents"}

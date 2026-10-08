@@ -10,6 +10,8 @@ import {
     hireHref,
     industries,
     industryOf,
+    lifeStageOf,
+    lifeStages,
     toneFor,
 } from "../marketplace";
 
@@ -78,5 +80,32 @@ describe("the shop front", () => {
 
     it("hiring hands the template to the first-agent flow", () => {
         expect(hireHref("clinic appointment")).toBe("/start?template=clinic%20appointment");
+    });
+});
+
+describe("life stages", () => {
+    const STAGED = [
+        ...SHELF,
+        bot({ id: "money", name: "Money Chaser", life_stage: "small_business", life_stage_label: "Small business" }),
+        bot({ id: "scam", name: "Scam Shield", life_stage: "seniors", life_stage_label: "Seniors (60+)" }),
+        bot({ id: "pills", name: "Medicine Caller", life_stage: "seniors", life_stage_label: "Seniors (60+)" }),
+        bot({ id: "odd", name: "Odd", life_stage: "toddlers", life_stage_label: null }),
+    ];
+
+    it("files by stage in the catalogue's order, counting only staged bots", () => {
+        expect(lifeStages(STAGED)).toEqual([
+            { name: "Small business", count: 1 },
+            { name: "Seniors (60+)", count: 2 },
+            // A stage with no heading still shows, under its key.
+            { name: "toddlers", count: 1 },
+        ]);
+        expect(lifeStages(SHELF)).toEqual([]);
+        expect(lifeStageOf(SHELF[0])).toBeNull();
+    });
+
+    it("filters by stage, alone and with the other filters", () => {
+        expect(filterBots(STAGED, { stage: "Seniors (60+)" }).map((b) => b.id)).toEqual(["scam", "pills"]);
+        expect(filterBots(STAGED, { stage: "Seniors (60+)", query: "scam" }).map((b) => b.id)).toEqual(["scam"]);
+        expect(filterBots(STAGED, { query: "small business" }).map((b) => b.id)).toEqual(["money"]);
     });
 });

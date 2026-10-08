@@ -880,7 +880,13 @@ async def thread_chips(
     return ThreadChipsResponse(
         chips=follow
         + [
-            ThreadChip(kind=str(c.get("kind") or "suggestion"), text=str(c["text"]))
+            ThreadChip(
+                kind=str(c.get("kind") or "suggestion"),
+                text=str(c["text"]),
+                # A life-stage starter goes to the helper that does its job,
+                # where that helper can answer here (home_openers).
+                helper=c.get("helper"),
+            )
             for c in cards
             if c.get("text")
         ]

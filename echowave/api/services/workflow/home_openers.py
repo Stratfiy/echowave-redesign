@@ -28,6 +28,7 @@ testable without a database. ``gather`` does the reads.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Optional
 
@@ -104,9 +105,118 @@ DEFAULT_FIRST_JOBS: tuple[str, ...] = (
     "Answer staff questions from our documents",
 )
 
+#: The card kind of a life-stage starter.
+LIFE_STAGE_KIND = "life_stage"
 
-def _opener(kind: str, text: str) -> dict[str, Any]:
-    return {"kind": kind, "text": text}
+#: The door's roles that name a life stage outright. Small business is read
+#: from an owner whose business has no list of its own above.
+LIFE_STAGE_BY_ROLE: dict[str, str] = {
+    "student": "college_students",
+    "senior": "seniors",
+    "creator": "creators",
+}
+SMALL_BUSINESS = "small_business"
+SMALL_BUSINESS_ROLES = frozenset({"owner"})
+
+
+@dataclass(frozen=True)
+class Starter:
+    """A first card for a life stage: the words sent, the shelf role it is
+    for (``agent_templates.life_stages``), and the helper that does that
+    role's job in Chat -- None for Automatic, which holds every tool."""
+
+    text: str
+    template: str
+    helper: Optional[str] = None
+
+
+#: The life stages the founder chose to come first (8 Oct 2026), four
+#: starters each. Every text is something a person would say; every
+#: template is on the shelf under the same stage, and every helper holds
+#: the tools that template's job is done with (test_life_stage_shelf.py).
+LIFE_STAGE_STARTERS: dict[str, tuple[Starter, ...]] = {
+    SMALL_BUSINESS: (
+        Starter(
+            "Who owes me money? Help me chase it politely",
+            "money_chaser",
+            "follow_up",
+        ),
+        Starter("Remind me before my GST and TDS dates", "compliance_clock"),
+        Starter("Find new customers for my business", "find_customers"),
+        Starter(
+            "Answer my phone and book appointments",
+            "clinic_appointment",
+            "call_appointment",
+        ),
+    ),
+    "seniors": (
+        Starter("Is this message a scam?", "scam_shield"),
+        Starter("Remind me to take my medicine", "medicine_caller"),
+        Starter("Help me with my phone, one step at a time", "phone_helper"),
+        Starter("Check in with me every morning", "daily_checkin"),
+    ),
+    "college_students": (
+        Starter(
+            "Plan my revision back from my exam date",
+            "exam_planner",
+            "learning_guide",
+        ),
+        Starter(
+            "Explain a doubt from my notes, step by step",
+            "doubt_desk",
+            "learning_guide",
+        ),
+        Starter(
+            "Quiz me every day on what I studied", "revision_coach", "learning_guide"
+        ),
+        Starter("Give me a mock interview", "interview_coach", "learning_guide"),
+    ),
+    "creators": (
+        Starter("Plan my content for this week", "content_planner"),
+        Starter("Write captions and hooks for my next post", "caption_hook_writer"),
+        Starter("Track my brand deals and draft follow-ups", "brand_deal_desk"),
+        Starter("Summarise my analytics for this week", "performance_digest"),
+    ),
+}
+
+
+def life_stage_for(role: Optional[str], business: Optional[str]) -> Optional[str]:
+    """The life stage the door's answers put somebody in, or None.
+
+    A role that names a stage decides it. An owner whose business has its
+    own first jobs keeps them -- a clinic owner wants the clinic's jobs, not
+    a general list -- and any other owner is a small business.
+    """
+    role = (role or "").strip().lower()
+    business = (business or "").strip().lower()
+    if role in LIFE_STAGE_BY_ROLE:
+        return LIFE_STAGE_BY_ROLE[role]
+    if role in SMALL_BUSINESS_ROLES and business not in FIRST_JOBS_BY_BUSINESS:
+        return SMALL_BUSINESS
+    return None
+
+
+def _opener(
+    kind: str,
+    text: str,
+    *,
+    helper: Optional[str] = None,
+    template: Optional[str] = None,
+) -> dict[str, Any]:
+    card: dict[str, Any] = {"kind": kind, "text": text}
+    if helper:
+        card["helper"] = helper
+    if template:
+        card["template"] = template
+    return card
+
+
+def starters(stage: str) -> list[dict[str, Any]]:
+    """The cards for one life stage."""
+    return [
+        _opener(LIFE_STAGE_KIND, s.text, helper=s.helper, template=s.template)
+        for s in LIFE_STAGE_STARTERS.get(stage, ())
+    ][:MAX_OPENERS]
 
 
 def _clip(text: str) -> str:
@@ -133,16 +243,22 @@ def build(
     unreturned_missed_calls: int = 0,
     stuck_tasks: int = 0,
     business: Optional[str] = None,
+    role: Optional[str] = None,
     now: Optional[datetime] = None,
 ) -> list[dict[str, Any]]:
     """The cards, most personal first, capped at four.
 
     ``recent_questions`` are the person's own lines to Decibyl, newest
     first. ``members`` are the team rows the home endpoint already has.
+    ``role`` and ``business`` are the door's answers; a role that names a
+    life stage gets that stage's starters (``life_stage_for``).
     """
     now = now or datetime.now()
 
     if not members:
+        stage = life_stage_for(role, business)
+        if stage:
+            return starters(stage)
         jobs = FIRST_JOBS_BY_BUSINESS.get((business or "").strip().lower())
         return [_opener("first_job", text) for text in (jobs or DEFAULT_FIRST_JOBS)][
             :MAX_OPENERS
@@ -288,11 +404,15 @@ async def gather(
     who is looking; with private threads on, only their own lines return."""
     if not members:
         door = await door_answers(organization_id)
-        return build(
-            members=members,
-            recent_questions=[],
-            business=door.get("business"),
-            now=now,
+        return await route_helpers(
+            organization_id,
+            build(
+                members=members,
+                recent_questions=[],
+                business=door.get("business"),
+                role=door.get("role"),
+                now=now,
+            ),
         )
     return build(
         members=members,
@@ -301,3 +421,46 @@ async def gather(
         stuck_tasks=await stuck_tasks(organization_id),
         now=now,
     )
+
+
+async def route_helpers(
+    organization_id: int, cards: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """Keep a card's helper only where that helper can answer here.
+
+    A turn sent to a helper that is switched off, or that needs setting up,
+    is refused (``helpers.states.assert_usable``), and a starter that is
+    refused is worse than one answered by Automatic -- which holds every
+    tool a helper does. So an unusable helper is dropped from the card, not
+    the card from the screen; a usable one carries its name for the chip.
+    """
+    wanted = {c["helper"] for c in cards if c.get("helper")}
+    if not wanted:
+        return cards
+    usable: dict[str, str] = {}
+    try:
+        from api.services.helpers import catalogue, states
+
+        if states.enabled(organization_id):
+            readings = await states.read(organization_id)
+            for key in wanted:
+                helper = catalogue.BY_KEY.get(key)
+                if (
+                    helper is not None
+                    and states.evaluate(helper, readings).state == states.AVAILABLE
+                ):
+                    usable[key] = helper.name
+    except Exception as exc:  # noqa: BLE001 - Automatic answers instead
+        logger.warning(
+            "Could not check helpers for org {}'s starters: {}", organization_id, exc
+        )
+    out: list[dict[str, Any]] = []
+    for card in cards:
+        key = card.get("helper")
+        if not key:
+            out.append(card)
+        elif key in usable:
+            out.append({**card, "helper_name": usable[key]})
+        else:
+            out.append({k: v for k, v in card.items() if k != "helper"})
+    return out
