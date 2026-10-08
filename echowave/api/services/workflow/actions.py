@@ -174,6 +174,10 @@ IDENTITY_ACTIONS = (DISCONNECT_APP, SEND_IDENTITY_EMAIL, REQUEST_NUMBER)
 #: Decibyl reaches it through its call_for_me tool, offered only while the
 #: flag is on. Never reversible: a call that rang cannot be unrung.
 PLACE_CALL = "place_call"
+#: Let an agent book appointments: the booking policy, the agent's hours and
+#: the booking tool, on one card (stream `voice`; services/voice/
+#: booking_setup.py). Internal: reached through set_up_booking.
+SET_UP_BOOKING = "set_up_booking"
 INTERNAL_ACTIONS = (
     PLACE_ORDER,
     RUN_OUTSIDE_TOOL,
@@ -191,6 +195,7 @@ INTERNAL_ACTIONS = (
     MEETING_FOLLOW_UP,
     *IDENTITY_ACTIONS,
     PLACE_CALL,
+    SET_UP_BOOKING,
 )
 
 #: The states a proposal moves through. Terminal ones are the last four.
@@ -749,6 +754,17 @@ async def resolve(
             "reversible": True,
             "state": PROPOSED,
         }
+
+    if action == SET_UP_BOOKING:
+        from api.services.voice import booking_setup
+
+        try:
+            card = await booking_setup.resolve(
+                organization_id=organization_id, arguments=arguments
+            )
+        except booking_setup.BookingSetupError as exc:
+            raise ActionError(str(exc)) from exc
+        return {"action": action, "why": why, "state": PROPOSED, **card}
 
     if action == PLACE_CALL:
         from api.services import acting
@@ -1965,6 +1981,15 @@ async def _execute(
                 organization_id, payload, event_id=event_id
             )
         except identity_cards.CardError as exc:
+            raise ActionError(str(exc)) from exc
+    if action == SET_UP_BOOKING:
+        from api.services.voice import appointments, booking_setup
+
+        try:
+            return await booking_setup.execute(
+                organization_id=organization_id, payload=payload
+            )
+        except (booking_setup.BookingSetupError, appointments.PolicyInvalid) as exc:
             raise ActionError(str(exc)) from exc
     if action == PLACE_CALL:
         from api.services.voice import call_for_me

@@ -313,7 +313,15 @@ def system_prompt(organization_id: int | None = None) -> str:
         + settings_profile.turn_block()
         + (call_for_me.RULES if call_for_me.enabled(organization_id) else "")
         + (_outreach().RULES if _outreach().enabled(organization_id) else "")
+        + (_booking().RULES if _booking().enabled(organization_id) else "")
     )
+
+
+def _booking():
+    """Stream `voice`: set_up_booking, one card for an agent to book."""
+    from api.services.voice import booking_setup
+
+    return booking_setup
 
 
 def _outreach():
@@ -1655,6 +1663,7 @@ def office_tools(organization_id: int | None = None) -> list[dict[str, Any]]:
         ),
         *care_tools.schemas(organization_id),
         *_outreach().schemas(organization_id),
+        *((_booking().tool_schema(),) if _booking().enabled(organization_id) else ()),
         *people_tools.schemas(organization_id),
         *(
             (_call_for_me().tool_schema(),)
@@ -2016,6 +2025,14 @@ async def _tool(
             author_id=author_id,
             request=request,
             thread_id=thread_id,
+        )
+    if call.name == _booking().TOOL_NAME and _booking().enabled(organization_id):
+        return await actions.propose(
+            organization_id=organization_id,
+            workflow_id=None,
+            workflow_run_id=None,
+            arguments={**arguments, "action": actions.SET_UP_BOOKING},
+            in_channel=False,
         )
     if call.name in _outreach().NAMES and _outreach().enabled(organization_id):
         return await _outreach().run(
