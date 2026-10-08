@@ -8,6 +8,7 @@ import { useStaffConsole } from "@/components/staff/StaffShell";
 const ORDER: Array<[string, string]> = [
     ["providers.read", "/superadmin/controls/providers"],
     ["policy.read", "/superadmin/controls/policy"],
+    ["policy.read", "/superadmin/controls/routing"],
     ["roles.manage", "/superadmin/controls/roles"],
     ["audit.read", "/superadmin/controls/audit"],
 ];

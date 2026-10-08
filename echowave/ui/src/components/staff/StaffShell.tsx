@@ -21,7 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { type LoadState, useStaffData } from "@/lib/staff/data";
 import { ago } from "@/lib/staff/format";
-import { canOpen, DESTINATIONS, type Me } from "@/lib/staff/nav";
+import { activeDestination, canOpen, DESTINATIONS, type Me } from "@/lib/staff/nav";
 import { cn } from "@/lib/utils";
 
 export const PERIODS = [7, 28, 90] as const;
@@ -66,10 +66,11 @@ function timezoneLabel(): string {
 function Rail({ me, pathname, onNavigate }: { me: Me; pathname: string; onNavigate?: () => void }) {
     const allowed = new Set(me.destinations.filter((d) => d.allowed).map((d) => d.key));
     const owner = me.roles.includes("owner");
+    const current = activeDestination(pathname);
     return (
         <nav aria-label="Staff console" className="flex flex-col gap-1 p-3 text-sm">
             {DESTINATIONS.filter((d) => allowed.has(d.key)).map((d) => {
-                const active = d.children.some((c) => pathname === c.href || pathname.startsWith(`${c.href}/`)) || pathname.startsWith(d.href);
+                const active = d.key === current;
                 const children = d.children.filter((c) => (!c.legacy || owner) && (!c.capability || me.capabilities.includes(c.capability)));
                 return (
                     <div key={d.key}>

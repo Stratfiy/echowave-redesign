@@ -4,7 +4,7 @@ import { Loader2, UserCog } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { useConfirm } from "@/components/ConfirmDialog";
+import { useAssistedAccessDialog } from "@/components/superadmin/AssistedAccessDialog";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
 import { impersonateAsSuperadmin } from "@/lib/utils";
@@ -25,18 +25,14 @@ export function ImpersonateOwnerButton({
     ownerEmail: string | null;
 }) {
     const { getAccessToken } = useAuth();
-    const { confirm, dialog } = useConfirm();
+    const { ask, dialog } = useAssistedAccessDialog();
     const [busy, setBusy] = useState(false);
     const who = ownerEmail ?? "the owner";
 
     const start = async () => {
         if (ownerUserId === null) return;
-        const ok = await confirm({
-            title: `Sign in as ${who}?`,
-            description: COPY.impersonateExplainer,
-            confirmLabel: COPY.impersonateOwner,
-        });
-        if (!ok) return;
+        const choice = await ask(who);
+        if (!choice) return;
         setBusy(true);
         try {
             const accessToken = await getAccessToken();
@@ -44,6 +40,8 @@ export function ImpersonateOwnerButton({
             await impersonateAsSuperadmin({
                 accessToken,
                 userId: ownerUserId,
+                reason: choice.reason,
+                mode: choice.mode,
                 redirectPath: "/overview",
                 openInNewTab: true,
             });

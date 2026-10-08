@@ -910,7 +910,7 @@ class TestUsers:
         body = detail.json()
         assert body["user"]["access_state"] == "active"
         assert body["user"]["last_useful_outcome_at"] is not None
-        assert body["assisted_access"] == "off"
+        assert body["assisted_access"] == {"state": "off"}  # phase 3: live state, not a constant
         assert [w["id"] for w in body["workspaces"]] == [org.id]
         assert tasks.status_code == 200 and tasks.json()["tasks"][0]["state"] == "done"
         assert "Ravi" not in tasks.text and "secret brief" not in tasks.text

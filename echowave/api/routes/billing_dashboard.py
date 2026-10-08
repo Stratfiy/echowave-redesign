@@ -15,7 +15,7 @@ from __future__ import annotations
 from datetime import date, datetime, time, timedelta
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from loguru import logger
 from pydantic import BaseModel, Field
 from sqlalchemy import select
@@ -534,8 +534,18 @@ async def list_calls(
 
 
 @router.get("/calls/{workflow_run_id}")
-async def get_call(workflow_run_id: int) -> dict[str, Any]:
-    """A call receipt: metadata, itemised cost, and per-turn latency."""
+async def get_call(
+    workflow_run_id: int,
+    request: Request,
+    user: UserModel = Depends(get_superuser),
+) -> dict[str, Any]:
+    """A call receipt: metadata, itemised cost, and per-turn latency.
+
+    The recording is the customer's conversation: its address is returned
+    only while the workspace allows staff to read this call
+    (``services/staff/call_content.py``), and handing it out is logged."""
+    from api.services.staff import call_content
+
     async with db_client.async_session() as session:
         detail = await dash.call_detail(session, workflow_run_id=workflow_run_id)
         if detail is None:
@@ -545,7 +555,44 @@ async def get_call(workflow_run_id: int) -> dict[str, Any]:
         detail["latency_summary"] = await dash.call_latency_summary(
             session, workflow_run_id=workflow_run_id
         )
+        access = await call_content.access_state(session, workflow_run_id)
+        detail["content_access"] = access
+        detail["has_recording"] = bool(detail.get("recording_url"))
+        if access["state"] != "granted":
+            detail["recording_url"] = None
+        elif detail.get("recording_url"):
+            await call_content.record_recording_access(
+                session,
+                organization_id=detail["organization_id"],
+                workflow_run_id=workflow_run_id,
+                staff_user_id=user.id,
+                ip_address=request.client.host if request.client else None,
+            )
         return detail
+
+
+@router.get("/calls/{workflow_run_id}/transcript")
+async def get_call_transcript(
+    workflow_run_id: int,
+    request: Request,
+    user: UserModel = Depends(get_superuser),
+) -> dict[str, Any]:
+    """The call's transcript, only under the workspace's consent (403
+    ``consent_required`` otherwise). Every read is logged."""
+    from api.services.staff import call_content
+
+    async with db_client.async_session() as session:
+        try:
+            return await call_content.read_transcript(
+                session,
+                workflow_run_id=workflow_run_id,
+                staff_user_id=user.id,
+                ip_address=request.client.host if request.client else None,
+            )
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
 
 
 # ---------------------------------------------------------------------------

@@ -41,8 +41,18 @@ class _AuditSession:
     def add(self, row):
         self._sink.append(row)
 
+    async def flush(self):
+        for row in self._sink:
+            row.id = row.id or len(self._sink)
+
     async def commit(self):
         pass
+
+
+@pytest.fixture(autouse=True)
+def _stack_auth(monkeypatch):
+    # These cover the Stack Auth path; local sign-in is in test_phase3_staff.py.
+    monkeypatch.setattr(superuser, "AUTH_PROVIDER", "stack")
 
 
 @pytest.mark.asyncio
@@ -61,7 +71,7 @@ class TestTheGuard:
             pytest.raises(HTTPException) as exc,
         ):
             await superuser.impersonate(
-                ImpersonateRequest(provider_user_id="prov-5"),
+                ImpersonateRequest(provider_user_id="prov-5", reason="ticket 7", mode="full"),
                 _http(),
                 _superadmin(),
             )
@@ -96,7 +106,7 @@ class TestTheGuard:
             ),
         ):
             resp = await superuser.impersonate(
-                ImpersonateRequest(provider_user_id="prov-5"),
+                ImpersonateRequest(provider_user_id="prov-5", reason="ticket 7", mode="full"),
                 _http(),
                 _superadmin(),
             )
@@ -132,7 +142,7 @@ class TestTheGuard:
             pytest.raises(HTTPException) as exc,
         ):
             await superuser.impersonate(
-                ImpersonateRequest(provider_user_id="prov-5"),
+                ImpersonateRequest(provider_user_id="prov-5", reason="ticket 7", mode="full"),
                 _http(),
                 _superadmin(),
             )

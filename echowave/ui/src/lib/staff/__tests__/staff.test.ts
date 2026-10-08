@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { orderAttention } from "../attention";
 import { commandOf, count, DASH, money, percent, words } from "../format";
-import { canOpen, classify, DESTINATIONS, firstAllowed, type Me } from "../nav";
+import { activeDestination, canOpen, classify, DESTINATIONS, firstAllowed, type Me } from "../nav";
 
 function me(roles: string[], allowed: string[]): Me {
     return {
@@ -18,6 +18,17 @@ function me(roles: string[], allowed: string[]): Me {
     };
 }
 
+describe("the rail's active destination", () => {
+    it("is one destination, the most specific, and never Overview by accident", () => {
+        expect(activeDestination("/superadmin/users/2")).toBe("users");
+        expect(activeDestination("/superadmin/billing/calls/1")).toBe("operations");
+        expect(activeDestination("/superadmin/billing/payments")).toBe("revenue");
+        expect(activeDestination("/superadmin/controls/routing")).toBe("controls");
+        expect(activeDestination("/superadmin")).toBe("overview");
+        expect(activeDestination("/superadmin/support/2")).toBe("support");
+    });
+});
+
 describe("the eight destinations", () => {
     it("are the handoff's eight, in order", () => {
         expect(DESTINATIONS.map((d) => d.key)).toEqual(["overview", "users", "support", "quality", "analytics", "revenue", "operations", "controls"]);
@@ -30,9 +41,12 @@ describe("the eight destinations", () => {
         }
     });
 
-    it("show the support inbox as needs setup until that stream lands", () => {
+    it("link the support inbox and its actions now that the support stream has landed", () => {
         const support = DESTINATIONS.find((d) => d.key === "support")!;
-        expect(support.children.find((c) => c.href === "/superadmin/support")?.needsSetup).toBeTruthy();
+        const inbox = support.children.find((c) => c.href === "/superadmin/support");
+        expect(inbox).toBeTruthy();
+        expect(inbox?.needsSetup).toBeUndefined();
+        expect(support.children.some((c) => c.href === "/superadmin/support/actions")).toBe(true);
     });
 });
 

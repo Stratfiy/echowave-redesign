@@ -62,7 +62,8 @@ export const DESTINATIONS: DestinationSpec[] = [
         label: "Support",
         href: "/superadmin/verification",
         children: [
-            { href: SUPPORT_INBOX_HREF, label: "Inbox and cases", needsSetup: "Built by the support stream" },
+            { href: SUPPORT_INBOX_HREF, label: "Inbox and cases" },
+            { href: "/superadmin/support/actions", label: "Support actions" },
             { href: "/superadmin/verification", label: "KYC queue" },
         ],
     },
@@ -91,6 +92,7 @@ export const DESTINATIONS: DestinationSpec[] = [
             { href: "/superadmin/revenue/ledger", label: "Ledger and refunds" },
             { href: "/superadmin/billing", label: "Billing", legacy: true },
             { href: "/superadmin/billing/unit-economics", label: "Unit economics", legacy: true },
+            { href: "/superadmin/partners", label: "Partners", legacy: true },
         ],
     },
     {
@@ -101,6 +103,9 @@ export const DESTINATIONS: DestinationSpec[] = [
             { href: "/superadmin/operations", label: "Jobs and delivery" },
             { href: "/superadmin/operations/latency", label: "Voice latency" },
             { href: "/superadmin/operations/incidents", label: "Incidents", capability: "operations.read" },
+            { href: "/superadmin/telephony", label: "Phone numbers and telephony", legacy: true },
+            { href: "/superadmin/billing/calls", label: "Calls and transcripts", legacy: true },
+            { href: "/superadmin/billing/campaigns", label: "Campaigns", legacy: true },
             { href: "/superadmin/system", label: "System", legacy: true },
             { href: "/superadmin/runs", label: "Runs", legacy: true },
         ],
@@ -112,10 +117,12 @@ export const DESTINATIONS: DestinationSpec[] = [
         children: [
             { href: "/superadmin/controls/providers", label: "Providers and secrets", capability: "providers.read" },
             { href: "/superadmin/controls/policy", label: "Flags, budgets, models", capability: "policy.read" },
+            { href: "/superadmin/controls/routing", label: "Routing, cost stop, rollbacks", capability: "policy.read" },
             { href: "/superadmin/controls/roles", label: "Staff roles", capability: "roles.manage" },
             { href: "/superadmin/controls/audit", label: "Audit", capability: "audit.read" },
             { href: "/superadmin/flags", label: "Feature flags", legacy: true },
             { href: "/superadmin/provider-keys", label: "Provider keys", legacy: true },
+            { href: "/superadmin/privacy/readiness", label: "Privacy readiness", legacy: true },
         ],
     },
 ];
@@ -149,6 +156,20 @@ export function classify(pathname: string): { destination: DestinationKey | null
         }
     }
     return { destination: null, legacy: true };
+}
+
+/** The one destination a path belongs to in the rail: the one with the
+ *  most specific link to it. `/superadmin` itself only matches exactly, or
+ *  every page would light up Overview. */
+export function activeDestination(pathname: string): DestinationKey | null {
+    let best: { key: DestinationKey; length: number } | null = null;
+    for (const d of DESTINATIONS) {
+        for (const href of [d.href, ...d.children.map((c) => c.href)]) {
+            const hit = href === "/superadmin" ? pathname === href : under(pathname, href);
+            if (hit && (!best || href.length > best.length)) best = { key: d.key, length: href.length };
+        }
+    }
+    return best?.key ?? classify(pathname).destination;
 }
 
 export type Me = {

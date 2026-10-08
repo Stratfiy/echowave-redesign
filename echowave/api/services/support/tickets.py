@@ -575,9 +575,11 @@ async def queue(
     severity: str | None = None,
     overdue_only: bool = False,
     limit: int = 100,
+    requester_user_id: int | None = None,
 ) -> list[dict[str, Any]]:
     """The inbox. Oldest first and stable, so a ticket being worked does not
-    jump under the cursor when another one changes."""
+    jump under the cursor when another one changes. ``requester_user_id``
+    narrows it to one person's tickets (the person screen's Support tab)."""
     query = (
         select(SupportTicketModel, UserModel.email, OrganizationModel.name)
         .join(UserModel, UserModel.id == SupportTicketModel.requester_user_id)
@@ -602,6 +604,8 @@ async def queue(
         if severity not in SEVERITIES:
             raise TicketError("Unknown severity filter.")
         query = query.where(SupportTicketModel.severity == severity)
+    if requester_user_id is not None:
+        query = query.where(SupportTicketModel.requester_user_id == requester_user_id)
     async with db_client.async_session() as session:
         rows = (
             await session.execute(

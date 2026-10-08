@@ -56,6 +56,7 @@ from api.routes.organisation import router as organisation_router
 from api.routes.organisation_memory import router as organisation_memory_router
 from api.routes.organization import router as organization_router
 from api.routes.organization_members import router as organization_members_router
+from api.routes.staff_access import router as staff_access_router
 from api.routes.organization_usage import router as organization_usage_router
 from api.routes.packs import router as packs_router
 from api.routes.partner_admin import router as partner_admin_router
@@ -154,6 +155,7 @@ router.include_router(partners_router)
 router.include_router(partner_admin_router)
 router.include_router(managed_numbers_router)
 router.include_router(organization_members_router)
+router.include_router(staff_access_router)
 router.include_router(platform_credentials_router)
 router.include_router(provider_keys_router)
 router.include_router(dialer_connections_router)
