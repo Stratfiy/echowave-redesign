@@ -36,7 +36,6 @@ Off (``call_appointment``), the tool is not offered and the routes are 404s.
 from __future__ import annotations
 
 import json
-
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo

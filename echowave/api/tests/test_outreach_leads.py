@@ -30,7 +30,7 @@ from sqlalchemy import text
 
 from api import constants
 from api.db import db_client
-from api.db.models import OrganizationModel
+from api.db.models import OrganizationModel, UserModel
 from api.enums import AgentEventKind, CostComponent
 from api.services.configuration import organization_credentials
 from api.services.outreach import leads
@@ -196,6 +196,18 @@ async def _org() -> int:
         organization_id = int(org.id)
         await session.commit()
     return organization_id
+
+
+async def _user() -> int:
+    """A real user to record as the key's setter: ``set_by`` is a foreign key,
+    and a hard-coded id only exists when some earlier test happened to make it."""
+    async with db_client.async_session() as session:
+        user = UserModel(provider_id=f"outreach-user-{uuid4().hex}")
+        session.add(user)
+        await session.flush()
+        user_id = int(user.id)
+        await session.commit()
+    return user_id
 
 
 @pytest.fixture
@@ -400,7 +412,7 @@ class TestTheKeyForm:
                 organization_id=org,
                 event_id=event_id,
                 values={"api_key": "sk-live-apollo-5678"},
-                user_id=1,
+                user_id=await _user(),
             )
         assert payload["provided"]["hint"] == "5678"
         assert "sk-live" not in json.dumps(payload)
@@ -435,7 +447,7 @@ class TestTheKeyForm:
                 organization_id=org,
                 event_id=event_id,
                 values={"api_key": "wrong"},
-                user_id=1,
+                user_id=await _user(),
             )
         assert (await leads.key_for(org, "apollo")).kind == leads.NONE
 
