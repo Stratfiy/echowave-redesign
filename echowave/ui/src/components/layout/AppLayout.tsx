@@ -129,6 +129,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
     // questions after sign-in. One column, nothing to wander off into.
     !pathname.startsWith("/early-access") &&
     !pathname.startsWith("/invite/") &&
+    !pathname.startsWith("/invite-requests/") &&
     !pathname.startsWith("/welcome") &&
     !(staffConsole && pathname.startsWith("/superadmin"));
 

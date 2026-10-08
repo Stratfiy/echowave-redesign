@@ -5,14 +5,19 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import {
+    approveInviteRequestApiV1SuperuserInviteRequestsRequestIdApprovePost,
+    listInviteRequestsApiV1SuperuserInviteRequestsGet,
     listInvitesApiV1SuperuserInvitesGet,
     mintInvitesApiV1SuperuserInvitesPost,
+    rejectInviteRequestApiV1SuperuserInviteRequestsRequestIdRejectPost,
     revokeInviteApiV1SuperuserInvitesInviteIdRevokePost,
 } from "@/client/sdk.gen";
+import type { InviteRequestView } from "@/client/types.gen";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { detailFromResult } from "@/lib/apiError";
 
 /**
  * Invite codes (INVITE-1, KAN-273). Staff mint codes here while signup is
@@ -39,6 +44,12 @@ interface Invite {
     redemptions: Redemption[];
 }
 
+const STATE_STYLE: Record<string, string> = {
+    pending: "bg-amber-100 text-amber-900 dark:bg-amber-900/30 dark:text-amber-200",
+    approved: "bg-emerald-100 text-emerald-900 dark:bg-emerald-900/30 dark:text-emerald-200",
+    rejected: "bg-muted text-muted-foreground",
+};
+
 function inviteLink(code: string): string {
     const origin = typeof window !== "undefined" ? window.location.origin : "";
     return `${origin}/auth/signup?invite=${encodeURIComponent(code)}`;
@@ -62,6 +73,18 @@ export default function InvitesPage() {
     const [note, setNote] = useState("");
     const [minting, setMinting] = useState(false);
     const [fresh, setFresh] = useState<string[]>([]);
+    const [requests, setRequests] = useState<InviteRequestView[] | null>(null);
+    const [deciding, setDeciding] = useState<number | null>(null);
+
+    const loadRequests = useCallback(async () => {
+        const res = await listInviteRequestsApiV1SuperuserInviteRequestsGet();
+        if (res.error || !res.data) {
+            toast.error("Could not load invite requests");
+            setRequests([]);
+            return;
+        }
+        setRequests((res.data as { requests: InviteRequestView[] }).requests);
+    }, []);
 
     const load = useCallback(async () => {
         const res = await listInvitesApiV1SuperuserInvitesGet();
@@ -77,7 +100,32 @@ export default function InvitesPage() {
 
     useEffect(() => {
         void load();
-    }, [load]);
+        void loadRequests();
+    }, [load, loadRequests]);
+
+    const decide = async (id: number, action: "approve" | "reject") => {
+        setDeciding(id);
+        try {
+            const call =
+                action === "approve"
+                    ? approveInviteRequestApiV1SuperuserInviteRequestsRequestIdApprovePost
+                    : rejectInviteRequestApiV1SuperuserInviteRequestsRequestIdRejectPost;
+            const res = await call({ path: { request_id: id } });
+            if (res.error || !res.data) {
+                toast.error(detailFromResult(res, `Could not ${action}`));
+                return;
+            }
+            const data = res.data as { message: string; mail_sent?: boolean | null };
+            if (data.mail_sent === false && action === "approve") {
+                toast.warning("Approved, but the welcome email was not sent. Copy the code from the list below.");
+            } else {
+                toast.success(data.message);
+            }
+            await Promise.all([loadRequests(), load()]);
+        } finally {
+            setDeciding(null);
+        }
+    };
 
     const mint = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -127,6 +175,64 @@ export default function InvitesPage() {
                             : "Signup is open (INVITE_ONLY_SIGNUP_ENABLED is off). Codes still work and are recorded."}
                 </p>
             </div>
+
+            <Card>
+                <CardHeader>
+                    <CardTitle>Requests</CardTitle>
+                    <CardDescription>
+                        People who asked for an invite. Approving mints a code for their address and emails it with a short welcome; rejecting emails nobody.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="overflow-x-auto">
+                    {requests === null ? (
+                        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                    ) : requests.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">No requests yet.</p>
+                    ) : (
+                        <table className="w-full text-sm" data-testid="invite-requests-table">
+                            <thead className="text-left text-muted-foreground">
+                                <tr>
+                                    <th className="py-2 pr-4 font-medium">Who</th>
+                                    <th className="py-2 pr-4 font-medium">Note</th>
+                                    <th className="py-2 pr-4 font-medium">State</th>
+                                    <th className="py-2 pr-4 font-medium" />
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {requests.map((r) => (
+                                    <tr key={r.id} className="border-t align-top" data-testid={`invite-request-${r.id}`}>
+                                        <td className="py-2 pr-4">
+                                            <div>{r.name || "—"}</div>
+                                            <div className="text-xs text-muted-foreground">{r.email}</div>
+                                        </td>
+                                        <td className="max-w-xs py-2 pr-4">
+                                            <div className="line-clamp-3 whitespace-pre-wrap break-words">{r.note || "—"}</div>
+                                        </td>
+                                        <td className="py-2 pr-4">
+                                            <span className={`rounded px-2 py-0.5 text-xs ${STATE_STYLE[r.state] ?? STATE_STYLE.rejected}`}>{r.state}</span>
+                                            {r.decided_by && (
+                                                <div className="mt-1 text-xs text-muted-foreground">by {r.decided_by}</div>
+                                            )}
+                                        </td>
+                                        <td className="py-2 pr-4 text-right">
+                                            {r.state === "pending" && (
+                                                <div className="flex justify-end gap-1">
+                                                    <Button size="sm" disabled={deciding === r.id} onClick={() => decide(r.id, "approve")}>
+                                                        Approve
+                                                    </Button>
+                                                    <Button size="sm" variant="ghost" disabled={deciding === r.id} onClick={() => decide(r.id, "reject")}>
+                                                        Reject
+                                                    </Button>
+                                                </div>
+                                            )}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    )}
+                </CardContent>
+            </Card>
 
             <Card>
                 <CardHeader>

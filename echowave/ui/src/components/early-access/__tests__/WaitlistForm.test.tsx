@@ -59,12 +59,14 @@ describe("WaitlistForm", () => {
         render(<WaitlistForm />);
         await screen.findByRole("option", { name: "தமிழ் · Tamil" });
         fill(" asha@example.in ");
+        fireEvent.change(screen.getByLabelText("Your name (optional)"), { target: { value: " Asha Rao " } });
         fireEvent.change(screen.getByLabelText("Language"), { target: { value: "ta" } });
         fireEvent.change(screen.getByLabelText(/What would you ask/), { target: { value: "Plan my week" } });
         fireEvent.click(screen.getByRole("button", { name: "Join the waitlist" }));
         await waitFor(() => expect(api.join).toHaveBeenCalled());
         expect(api.join.mock.calls[0][0].body).toMatchObject({
             email: "asha@example.in",
+            name: "Asha Rao",
             language: "ta",
             first_task: "Plan my week",
             phone: null,

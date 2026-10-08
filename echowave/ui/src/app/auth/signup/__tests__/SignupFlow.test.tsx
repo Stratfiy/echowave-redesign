@@ -125,6 +125,16 @@ describe("sign-up, one question per screen", () => {
     expect(stepOf()).toBe("name");
   });
 
+  it("arrives with the email and code from an approval mail filled in", () => {
+    inviteOnly = true;
+    search = new URLSearchParams("code=WXYZ-9876&email=asha%40clinic.in");
+    render(<SignupFlow />);
+    expect((screen.getByTestId("signup-email-input") as HTMLInputElement).value).toBe("asha@clinic.in");
+    next();
+    expect(stepOf()).toBe("invite");
+    expect((screen.getByTestId("signup-invite-input") as HTMLInputElement).value).toBe("WXYZ-9876");
+  });
+
   it("requires the agreement before creating the account, then sends it", async () => {
     signupMock.mockResolvedValue({
       data: { token: "t", user: {}, email_verification_required: true },

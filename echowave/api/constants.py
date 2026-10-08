@@ -747,6 +747,20 @@ def _flag(name: str) -> bool:
 
 # INVITE-1 (KAN-273): signup needs an invite code.
 INVITE_ONLY_SIGNUP_ENABLED = _flag("INVITE_ONLY_SIGNUP_ENABLED")
+# Who is mailed Approve / Reject when somebody asks for an invite
+# (services/auth/invite_requests.py). Comma-separated. Unset, the request
+# goes to every superadmin's address instead, with a warning in the log: a
+# request nobody hears about is a request silently lost.
+INVITE_APPROVER_EMAILS = [
+    a.strip().lower()
+    for a in os.getenv("INVITE_APPROVER_EMAILS", "").split(",")
+    if a.strip()
+]
+# How long the Approve / Reject links in that mail work.
+INVITE_DECISION_TTL_DAYS = int(os.getenv("INVITE_DECISION_TTL_DAYS", "14"))
+# A rejected request is told nothing unless this is on; then it gets one
+# kind line.
+INVITE_REJECT_NOTIFY = _flag("INVITE_REJECT_NOTIFY")
 # PLAN-1 (KAN-255): a time-boxed trial plan replaces Free for new accounts.
 TRIAL_PLAN_ENABLED = _flag("TRIAL_PLAN_ENABLED")
 # BYOK-1 (KAN-254): Decibyl, the builder and Decibyl routines use the

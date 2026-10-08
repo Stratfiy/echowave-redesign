@@ -40,6 +40,7 @@ from api.routes.folder import router as folder_router
 from api.routes.helpers import router as helpers_router
 from api.routes.identity import router as identity_router
 from api.routes.impersonation import router as impersonation_router
+from api.routes.invite_requests import router as public_invite_requests_router
 from api.routes.knowledge_base import router as knowledge_base_router
 from api.routes.kyc import router as kyc_router
 from api.routes.kyc_admin import router as kyc_admin_router
@@ -218,6 +219,7 @@ router.include_router(public_download_router)
 router.include_router(public_studio_router)
 router.include_router(public_trust_router)
 router.include_router(public_early_access_router)
+router.include_router(public_invite_requests_router)
 router.include_router(shell_router)
 router.include_router(reach_router)
 router.include_router(people_router)

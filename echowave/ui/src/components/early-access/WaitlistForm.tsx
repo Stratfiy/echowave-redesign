@@ -41,6 +41,7 @@ export function WaitlistForm({ renewal = false, initialEmail = "" }: { renewal?:
     const [languages, setLanguages] = useState<LanguageOption[]>(FALLBACK_LANGUAGES);
     const [values, setValues] = useState({
         email: initialEmail,
+        name: "",
         language: "en",
         firstTask: "",
         phone: "",
@@ -50,7 +51,7 @@ export function WaitlistForm({ renewal = false, initialEmail = "" }: { renewal?:
     const [error, setError] = useState<string | null>(null);
     const [emailError, setEmailError] = useState<string | null>(null);
     const [result, setResult] = useState<Result | null>(null);
-    const ids = { email: useId(), language: useId(), task: useId(), phone: useId(), occupation: useId(), emailHint: useId() };
+    const ids = { email: useId(), name: useId(), language: useId(), task: useId(), phone: useId(), occupation: useId(), emailHint: useId() };
 
     useEffect(() => {
         let cancelled = false;
@@ -83,6 +84,7 @@ export function WaitlistForm({ renewal = false, initialEmail = "" }: { renewal?:
             const response = await joinWaitlistApiV1PublicEarlyAccessWaitlistPost({
                 body: {
                     email: values.email.trim(),
+                    name: values.name.trim() || null,
                     language: values.language,
                     first_task: values.firstTask.trim() || null,
                     phone: values.phone.trim() || null,
@@ -157,6 +159,17 @@ export function WaitlistForm({ renewal = false, initialEmail = "" }: { renewal?:
                 <p id={ids.emailHint} className={emailError ? "text-sm text-destructive" : "text-sm text-muted-foreground"}>
                     {emailError ?? COPY.emailHint}
                 </p>
+            </div>
+            <div className="flex flex-col gap-1.5">
+                <Label htmlFor={ids.name}>{COPY.name}</Label>
+                <Input
+                    id={ids.name}
+                    autoComplete="name"
+                    maxLength={120}
+                    value={values.name}
+                    onChange={(event) => update("name", event.target.value)}
+                    className="min-h-11 text-base"
+                />
             </div>
             <div className="flex flex-col gap-1.5">
                 <Label htmlFor={ids.language}>{COPY.language}</Label>

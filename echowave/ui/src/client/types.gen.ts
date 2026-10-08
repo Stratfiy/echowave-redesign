@@ -9331,6 +9331,54 @@ export type InternalBillingRequest = {
 };
 
 /**
+ * InviteDecisionBody
+ */
+export type InviteDecisionBody = {
+    /**
+     * Token
+     */
+    token: string;
+};
+
+/**
+ * InviteDecisionPreview
+ */
+export type InviteDecisionPreview = {
+    /**
+     * Action
+     */
+    action: string;
+    request: InviteRequestView;
+};
+
+/**
+ * InviteDecisionResult
+ */
+export type InviteDecisionResult = {
+    /**
+     * Action
+     */
+    action?: string | null;
+    /**
+     * Outcome
+     */
+    outcome: string;
+    /**
+     * Message
+     */
+    message: string;
+    request: InviteRequestView;
+    /**
+     * Mail Sent
+     */
+    mail_sent?: boolean | null;
+    /**
+     * Signup Link
+     */
+    signup_link?: string | null;
+};
+
+/**
  * InviteRequest
  */
 export type InviteRequest = {
@@ -9346,6 +9394,56 @@ export type InviteRequest = {
      * The seat they get. member, admin or owner.
      */
     role?: string;
+};
+
+/**
+ * InviteRequestView
+ */
+export type InviteRequestView = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Name
+     */
+    name?: string | null;
+    /**
+     * Email
+     */
+    email: string;
+    /**
+     * Note
+     */
+    note?: string | null;
+    /**
+     * Occupation
+     */
+    occupation?: string | null;
+    /**
+     * Source
+     */
+    source?: string | null;
+    /**
+     * State
+     */
+    state: string;
+    /**
+     * Created At
+     */
+    created_at?: string | null;
+    /**
+     * Decided At
+     */
+    decided_at?: string | null;
+    /**
+     * Decided By
+     */
+    decided_by?: string | null;
+    /**
+     * Decided Message
+     */
+    decided_message?: string | null;
 };
 
 /**
@@ -22019,6 +22117,10 @@ export type WaitlistJoinRequest = {
      */
     email: string;
     /**
+     * Name
+     */
+    name?: string | null;
+    /**
      * Language
      */
     language?: string;
@@ -24494,6 +24596,145 @@ export type RevokeInviteApiV1SuperuserInvitesInviteIdRevokePostResponses = {
 };
 
 export type RevokeInviteApiV1SuperuserInvitesInviteIdRevokePostResponse = RevokeInviteApiV1SuperuserInvitesInviteIdRevokePostResponses[keyof RevokeInviteApiV1SuperuserInvitesInviteIdRevokePostResponses];
+
+export type ListInviteRequestsApiV1SuperuserInviteRequestsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/superuser/invite-requests';
+};
+
+export type ListInviteRequestsApiV1SuperuserInviteRequestsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListInviteRequestsApiV1SuperuserInviteRequestsGetError = ListInviteRequestsApiV1SuperuserInviteRequestsGetErrors[keyof ListInviteRequestsApiV1SuperuserInviteRequestsGetErrors];
+
+export type ListInviteRequestsApiV1SuperuserInviteRequestsGetResponses = {
+    /**
+     * Response List Invite Requests Api V1 Superuser Invite Requests Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ListInviteRequestsApiV1SuperuserInviteRequestsGetResponse = ListInviteRequestsApiV1SuperuserInviteRequestsGetResponses[keyof ListInviteRequestsApiV1SuperuserInviteRequestsGetResponses];
+
+export type ApproveInviteRequestApiV1SuperuserInviteRequestsRequestIdApprovePostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Request Id
+         */
+        request_id: number;
+    };
+    query?: never;
+    url: '/api/v1/superuser/invite-requests/{request_id}/approve';
+};
+
+export type ApproveInviteRequestApiV1SuperuserInviteRequestsRequestIdApprovePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ApproveInviteRequestApiV1SuperuserInviteRequestsRequestIdApprovePostError = ApproveInviteRequestApiV1SuperuserInviteRequestsRequestIdApprovePostErrors[keyof ApproveInviteRequestApiV1SuperuserInviteRequestsRequestIdApprovePostErrors];
+
+export type ApproveInviteRequestApiV1SuperuserInviteRequestsRequestIdApprovePostResponses = {
+    /**
+     * Response Approve Invite Request Api V1 Superuser Invite Requests  Request Id  Approve Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ApproveInviteRequestApiV1SuperuserInviteRequestsRequestIdApprovePostResponse = ApproveInviteRequestApiV1SuperuserInviteRequestsRequestIdApprovePostResponses[keyof ApproveInviteRequestApiV1SuperuserInviteRequestsRequestIdApprovePostResponses];
+
+export type RejectInviteRequestApiV1SuperuserInviteRequestsRequestIdRejectPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Request Id
+         */
+        request_id: number;
+    };
+    query?: never;
+    url: '/api/v1/superuser/invite-requests/{request_id}/reject';
+};
+
+export type RejectInviteRequestApiV1SuperuserInviteRequestsRequestIdRejectPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RejectInviteRequestApiV1SuperuserInviteRequestsRequestIdRejectPostError = RejectInviteRequestApiV1SuperuserInviteRequestsRequestIdRejectPostErrors[keyof RejectInviteRequestApiV1SuperuserInviteRequestsRequestIdRejectPostErrors];
+
+export type RejectInviteRequestApiV1SuperuserInviteRequestsRequestIdRejectPostResponses = {
+    /**
+     * Response Reject Invite Request Api V1 Superuser Invite Requests  Request Id  Reject Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type RejectInviteRequestApiV1SuperuserInviteRequestsRequestIdRejectPostResponse = RejectInviteRequestApiV1SuperuserInviteRequestsRequestIdRejectPostResponses[keyof RejectInviteRequestApiV1SuperuserInviteRequestsRequestIdRejectPostResponses];
 
 export type SetTrialEndApiV1SuperuserOrganizationsOrganizationIdTrialPostData = {
     body: TrialOverrideRequest;
@@ -54077,6 +54318,69 @@ export type InviteStatusApiV1PublicEarlyAccessInvitesCodeGetResponses = {
 };
 
 export type InviteStatusApiV1PublicEarlyAccessInvitesCodeGetResponse = InviteStatusApiV1PublicEarlyAccessInvitesCodeGetResponses[keyof InviteStatusApiV1PublicEarlyAccessInvitesCodeGetResponses];
+
+export type PreviewInviteDecisionApiV1PublicInviteRequestsDecideGetData = {
+    body?: never;
+    path?: never;
+    query: {
+        /**
+         * Token
+         */
+        token: string;
+    };
+    url: '/api/v1/public/invite-requests/decide';
+};
+
+export type PreviewInviteDecisionApiV1PublicInviteRequestsDecideGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type PreviewInviteDecisionApiV1PublicInviteRequestsDecideGetError = PreviewInviteDecisionApiV1PublicInviteRequestsDecideGetErrors[keyof PreviewInviteDecisionApiV1PublicInviteRequestsDecideGetErrors];
+
+export type PreviewInviteDecisionApiV1PublicInviteRequestsDecideGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: InviteDecisionPreview;
+};
+
+export type PreviewInviteDecisionApiV1PublicInviteRequestsDecideGetResponse = PreviewInviteDecisionApiV1PublicInviteRequestsDecideGetResponses[keyof PreviewInviteDecisionApiV1PublicInviteRequestsDecideGetResponses];
+
+export type ConfirmInviteDecisionApiV1PublicInviteRequestsDecidePostData = {
+    body: InviteDecisionBody;
+    path?: never;
+    query?: never;
+    url: '/api/v1/public/invite-requests/decide';
+};
+
+export type ConfirmInviteDecisionApiV1PublicInviteRequestsDecidePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ConfirmInviteDecisionApiV1PublicInviteRequestsDecidePostError = ConfirmInviteDecisionApiV1PublicInviteRequestsDecidePostErrors[keyof ConfirmInviteDecisionApiV1PublicInviteRequestsDecidePostErrors];
+
+export type ConfirmInviteDecisionApiV1PublicInviteRequestsDecidePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: InviteDecisionResult;
+};
+
+export type ConfirmInviteDecisionApiV1PublicInviteRequestsDecidePostResponse = ConfirmInviteDecisionApiV1PublicInviteRequestsDecidePostResponses[keyof ConfirmInviteDecisionApiV1PublicInviteRequestsDecidePostResponses];
 
 export type LandingApiV1ShellLandingGetData = {
     body?: never;

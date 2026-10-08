@@ -444,6 +444,60 @@ async def revoke_invite(
     return {"revoked": invite_id}
 
 
+@router.get("/invite-requests")
+async def list_invite_requests(user: UserModel = Depends(get_superuser)) -> dict:
+    """Everyone who asked for an invite, newest first, with its state."""
+    from api.services.auth import invite_requests
+
+    return {"requests": await invite_requests.list_requests()}
+
+
+async def _decide_invite_request(request_id: int, user: UserModel, action: str) -> dict:
+    from api.services.auth import invite_requests
+
+    decide = (
+        invite_requests.approve
+        if action == invite_requests.APPROVE
+        else invite_requests.reject
+    )
+    try:
+        result = await decide(
+            request_id, decided_by_email=user.email, decided_by_user_id=user.id
+        )
+    except invite_requests.NotFound as exc:
+        raise HTTPException(status_code=404, detail="No such request") from exc
+    if result["outcome"] != "already_decided":
+        try:
+            async with db_client.async_session() as audit_session:
+                audit_session.add(
+                    AdminActionLogModel(
+                        actor_user_id=user.id,
+                        action=f"invite_request_{result['outcome']}",
+                        note=f"invite request {request_id}",
+                    )
+                )
+                await audit_session.commit()
+        except Exception:
+            logger.exception("Could not write the audit row for an invite request")
+    return result
+
+
+@router.post("/invite-requests/{request_id}/approve")
+async def approve_invite_request(
+    request_id: int, user: UserModel = Depends(get_superuser)
+) -> dict:
+    """Mint the code for this address and mail the welcome."""
+    return await _decide_invite_request(request_id, user, "approve")
+
+
+@router.post("/invite-requests/{request_id}/reject")
+async def reject_invite_request(
+    request_id: int, user: UserModel = Depends(get_superuser)
+) -> dict:
+    """Mark the request rejected; mails nobody unless INVITE_REJECT_NOTIFY."""
+    return await _decide_invite_request(request_id, user, "reject")
+
+
 # ---------------------------------------------------------------------------
 # Trial window (PLAN-1, KAN-255)
 # ---------------------------------------------------------------------------
