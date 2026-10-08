@@ -1619,12 +1619,24 @@ async def revise(
         action=audit_log.CARD_REVISED,
         subject_kind="card",
         subject_id=event.id,
-        subject=str(payload.get("label") or action or "")[:255],
+        subject=_audit_subject(payload),
         actor_user_id=user_id,
         before={"state": state, "version": before},
         after={"state": PROPOSED, "version": after},
     )
     return payload
+
+
+def _audit_subject(payload: dict[str, Any]) -> str:
+    """What the workspace audit says a card was. A private card's label is
+    its owner's words (a name, an amount), and a meeting follow-up's is the
+    words of a meeting only its owner can open: the audit every admin reads
+    keeps who pressed what and when, not what the card said (admins do not
+    inherit private things, handoff 25)."""
+    action = payload.get("action")
+    if payload.get("private_to") or action == MEETING_FOLLOW_UP:
+        return f"Private card ({action})"[:255]
+    return str(payload.get("label") or action or "")[:255]
 
 
 async def _audit(
@@ -1636,15 +1648,7 @@ async def _audit(
         action=action,
         subject_kind="card",
         subject_id=event.id,
-        # A private card's label is its owner's words (a name, an amount):
-        # the workspace audit every admin reads keeps who pressed what and
-        # when, not what the card said (admins do not inherit private
-        # things, handoff 25).
-        subject=(
-            f"Private card ({payload.get('action')})"
-            if payload.get("private_to")
-            else str(payload.get("label") or payload.get("action") or "")
-        )[:255],
+        subject=_audit_subject(payload),
         actor_user_id=user_id,
         before={"state": was},
         after={"state": payload.get("state"), "action": payload.get("action")},
