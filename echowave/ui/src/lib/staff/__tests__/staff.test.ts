@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { orderAttention } from "../attention";
 import { commandOf, count, DASH, money, percent, words } from "../format";
-import { canOpen, classify, destinationHref, DESTINATIONS, firstAllowed, linkNeedsSetup, type Me } from "../nav";
+import { activeDestination, canOpen, classify, destinationHref, DESTINATIONS, firstAllowed, linkNeedsSetup, type Me } from "../nav";
 
 function me(roles: string[], allowed: string[]): Me {
     return {
@@ -17,6 +17,17 @@ function me(roles: string[], allowed: string[]): Me {
         features: {},
     };
 }
+
+describe("the rail's active destination", () => {
+    it("is one destination, the most specific, and never Overview by accident", () => {
+        expect(activeDestination("/superadmin/users/2")).toBe("users");
+        expect(activeDestination("/superadmin/billing/calls/1")).toBe("operations");
+        expect(activeDestination("/superadmin/billing/payments")).toBe("revenue");
+        expect(activeDestination("/superadmin/controls/routing")).toBe("controls");
+        expect(activeDestination("/superadmin")).toBe("overview");
+        expect(activeDestination("/superadmin/support/2")).toBe("support");
+    });
+});
 
 describe("the eight destinations", () => {
     it("are the handoff's eight, in order", () => {

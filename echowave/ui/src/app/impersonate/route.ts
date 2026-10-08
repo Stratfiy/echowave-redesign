@@ -4,7 +4,9 @@ import { getStackConfig } from "@/lib/auth/config";
 
 import {
     IMPERSONATION_MAX_AGE,
+    localSessionHeaders,
     markerHeader,
+    markerValue,
     requestIsSecure,
     serializeSetCookie,
     sessionClearingHeaders,
@@ -53,11 +55,21 @@ export async function POST(request: NextRequest) {
         typeof form?.get("refresh_token") === "string"
             ? (form.get("refresh_token") as string)
             : null;
+    const localToken =
+        typeof form?.get("local_token") === "string"
+            ? (form.get("local_token") as string)
+            : null;
     const redirectPath =
         (typeof form?.get("redirect_path") === "string"
             ? (form.get("redirect_path") as string)
             : null) ?? "/start";
+    const who =
+        typeof form?.get("who") === "string" ? (form.get("who") as string) : "";
+    const readOnly = form?.get("mode") === "read_only";
 
+    if (localToken) {
+        return localSession(request, localToken, redirectPath, who, readOnly);
+    }
     if (!refreshToken) {
         return new Response("Missing refresh_token", { status: 400 });
     }
@@ -104,13 +116,44 @@ export async function POST(request: NextRequest) {
     );
     // And the marker the shell reads to show the banner and the way out
     // (/impersonate/stop). The "who" is a display hint only.
-    const who =
-        typeof form?.get("who") === "string" ? (form.get("who") as string) : "";
-    setCookieHeaders.push(markerHeader(request, who.slice(0, 120) || "1"));
+    setCookieHeaders.push(markerHeader(request, markerValue(who, readOnly)));
 
     for (const header of setCookieHeaders) {
         response.headers.append("set-cookie", header);
     }
 
+    return response;
+}
+
+/** Safe same-origin redirect target, or /start. */
+function sameOrigin(request: NextRequest, redirectPath: string): string {
+    const fallback = new URL("/start", request.url).toString();
+    try {
+        const url = new URL(redirectPath, request.url);
+        return url.origin === request.nextUrl.origin ? url.toString() : fallback;
+    } catch {
+        return fallback;
+    }
+}
+
+/**
+ * Local sign-in (phase 3): the borrowed session is one access token minted by
+ * the API (`services/auth/impersonation_tokens.py`), with the mode and the
+ * audit row inside it. It replaces the staffer's own token cookie for one
+ * hour -- the same trade the Stack path makes -- and the API, not this
+ * route, enforces read-only and refuses it once ended.
+ */
+function localSession(
+    request: NextRequest,
+    token: string,
+    redirectPath: string,
+    who: string,
+    readOnly: boolean,
+): Response {
+    const response = NextResponse.redirect(sameOrigin(request, redirectPath), 303);
+    for (const header of localSessionHeaders(request, token, who)) {
+        response.headers.append("set-cookie", header);
+    }
+    response.headers.append("set-cookie", markerHeader(request, markerValue(who, readOnly)));
     return response;
 }

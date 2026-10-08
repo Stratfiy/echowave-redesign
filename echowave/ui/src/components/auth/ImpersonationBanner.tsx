@@ -65,6 +65,9 @@ export function ImpersonationBanner() {
     setWho(readMarker());
   }, []);
   if (who === null) return null;
+  // `ro:` marks a read-only view (app/impersonate/session-cookies.ts).
+  const readOnly = who.startsWith("ro:");
+  const name = readOnly ? who.slice(3) : who;
 
   // Record the stop first, then let the form do what it always did: the
   // /impersonate/stop route clears the borrowed session and sends the
@@ -89,14 +92,25 @@ export function ImpersonationBanner() {
       className="flex flex-wrap items-center gap-3 border-b border-border bg-[var(--tint-amber)] px-6 py-2 text-sm"
     >
       <UserCog className="h-4 w-4 shrink-0 text-foreground/70" aria-hidden />
-      <span className="min-w-0">
-        Acting as{" "}
-        <strong className="font-medium">
-          {who === "1" ? "a customer" : who}
-        </strong>{" "}
-        — everything you do here is theirs and is logged. Ends by itself in an
-        hour.
-      </span>
+      {readOnly ? (
+        <span className="min-w-0">
+          Viewing as{" "}
+          <strong className="font-medium">
+            {name === "1" ? "a customer" : name}
+          </strong>
+          , read-only — nothing can be changed from here, and this view is
+          logged. Ends by itself in an hour.
+        </span>
+      ) : (
+        <span className="min-w-0">
+          Acting as{" "}
+          <strong className="font-medium">
+            {name === "1" ? "a customer" : name}
+          </strong>{" "}
+          — everything you do here is theirs and is logged. Ends by itself in an
+          hour.
+        </span>
+      )}
       <Button
         type="submit"
         size="sm"
@@ -104,7 +118,7 @@ export function ImpersonationBanner() {
         className="ml-auto bg-card"
         disabled={stopping}
       >
-        {stopping ? "Stopping…" : "Stop impersonating"}
+        {stopping ? "Stopping…" : readOnly ? "End view" : "Stop impersonating"}
       </Button>
     </form>
   );

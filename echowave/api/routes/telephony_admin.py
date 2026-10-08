@@ -18,12 +18,19 @@ Cross-account by definition, so the superuser gate is declared at router level
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from loguru import logger
 from pydantic import BaseModel
+from sqlalchemy import or_, select
 
 from api.db import db_client
-from api.db.models import UserModel
+from api.db.models import (
+    AdminActionLogModel,
+    OrganizationModel,
+    TelephonyConfigurationModel,
+    TelephonyPhoneNumberModel,
+    UserModel,
+)
 from api.enums import PhoneNumberStatus
 from api.services.auth.depends import get_superuser
 from api.services.billing import carrier_rates
@@ -37,6 +44,24 @@ router = APIRouter(
 
 class PlatformManagedRequest(BaseModel):
     managed: bool = True
+
+
+async def _audit(
+    user: UserModel, action: str, organization_id: int | None, note: str
+) -> None:
+    """Every telephony write leaves an audit row (phase 3). These used to log
+    a warning only, so "who lent this number to every account" had no
+    answer in the console's audit view."""
+    async with db_client.async_session() as session:
+        session.add(
+            AdminActionLogModel(
+                actor_user_id=user.id,
+                action=action,
+                target_organization_id=organization_id,
+                note=note[:500],
+            )
+        )
+        await session.commit()
 
 
 def _configuration_summary(row) -> dict[str, Any]:
@@ -160,7 +185,79 @@ async def set_platform_managed(
         request.managed,
         user.id,
     )
+    await _audit(
+        user,
+        "telephony_platform_managed",
+        updated.organization_id,
+        f"configuration #{config_id} ({updated.provider}) managed={request.managed}",
+    )
     return _configuration_summary(updated)
+
+
+@router.get("/phone-numbers")
+async def list_phone_numbers(
+    q: str | None = Query(default=None, max_length=40),
+    organization_id: int | None = None,
+    shared: bool | None = None,
+    limit: int = Query(default=100, ge=1, le=500),
+) -> dict[str, Any]:
+    """Every number on the platform, across workspaces: which workspace and
+    configuration it is on, whether it answers inbound, whether it is lent
+    as a shared outbound caller ID, and its state. The operator's one list
+    for "whose number is this" and "what does it ring"."""
+    n = TelephonyPhoneNumberModel
+    stmt = (
+        select(
+            n,
+            TelephonyConfigurationModel.provider,
+            TelephonyConfigurationModel.name,
+            TelephonyConfigurationModel.is_platform_managed,
+            OrganizationModel.name.label("organization_name"),
+        )
+        .join(
+            TelephonyConfigurationModel,
+            TelephonyConfigurationModel.id == n.telephony_configuration_id,
+            isouter=True,
+        )
+        .join(OrganizationModel, OrganizationModel.id == n.organization_id, isouter=True)
+        .order_by(n.id.desc())
+        .limit(limit)
+    )
+    if q:
+        digits = "".join(ch for ch in q if ch.isdigit())
+        like = f"%{digits or q.strip()}%"
+        stmt = stmt.where(or_(n.address.ilike(like), n.address_normalized.ilike(like)))
+    if organization_id is not None:
+        stmt = stmt.where(n.organization_id == organization_id)
+    if shared is not None:
+        stmt = stmt.where(n.is_shared_outbound.is_(shared))
+    async with db_client.async_session() as session:
+        rows = (await session.execute(stmt)).all()
+    return {
+        "numbers": [
+            {
+                "id": row[0].id,
+                "address": row[0].address,
+                "label": row[0].label,
+                "country_code": row[0].country_code,
+                "organization_id": row[0].organization_id,
+                "organization_name": row.organization_name
+                or (f"Organization {row[0].organization_id}" if row[0].organization_id else None),
+                "telephony_configuration_id": row[0].telephony_configuration_id,
+                "configuration_name": row.name,
+                "provider": row.provider,
+                "is_platform_managed": bool(row.is_platform_managed),
+                "inbound_workflow_id": row[0].inbound_workflow_id,
+                "is_shared_outbound": bool(row[0].is_shared_outbound),
+                "is_active": bool(row[0].is_active),
+                "status": row[0].status,
+                "provisioned_at": row[0].provisioned_at.isoformat()
+                if row[0].provisioned_at
+                else None,
+            }
+            for row in rows
+        ]
+    }
 
 
 class SharedOutboundRequest(BaseModel):
@@ -237,6 +334,12 @@ async def set_shared_outbound(
         request.shared,
         user.id,
     )
+    await _audit(
+        user,
+        "telephony_shared_outbound",
+        updated.organization_id,
+        f"number #{phone_number_id} shared_outbound={request.shared}",
+    )
     return {
         "id": updated.id,
         "address": updated.address,
@@ -300,6 +403,12 @@ async def set_demo_agent(
         updated.name,
         request.demo,
         user.id,
+    )
+    await _audit(
+        user,
+        "telephony_demo_agent",
+        updated.organization_id,
+        f"agent #{workflow_id} is_demo={request.demo}",
     )
     contact = await db_client.demo_contact()
     return {

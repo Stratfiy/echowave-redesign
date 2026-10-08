@@ -25,6 +25,7 @@ import {
 } from '@/client/sdk.gen';
 import { MediaPreviewButton, MediaPreviewDialog } from '@/components/MediaPreviewDialog';
 import { OnboardingTooltip } from '@/components/onboarding/OnboardingTooltip';
+import { StaffAccessCard } from '@/components/privacy/StaffAccessCard';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -922,6 +923,8 @@ export default function WorkflowRunPage() {
                             logs={workflowRun?.logs ?? null}
                             gatheredContext={workflowRun?.gathered_context ?? null}
                         />
+
+                        <StaffAccessCard runId={Number(params.runId)} />
 
                         {!isTextChatRun && hasSplitTracks && (
                             <SplitTracksSection

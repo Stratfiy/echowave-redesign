@@ -138,6 +138,10 @@ class OrganizationModel(Base):
     # until an admin types one; readers fall back to "Organization {id}".
     # Distinct from billing_name, which is the legal name on the invoice.
     name = Column(String(120), nullable=True)
+    # Phase 3 (`staff`): set by the approved ``workspace.suspend`` command.
+    # While set (and ``staff_console`` is on) the workspace's members are
+    # refused and no new run starts in it. Migration 20261009phase3staff.
+    staff_suspended_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
     #: Staff override of the trial's end (PLAN-1, KAN-255): an extension, or
     #: a pilot's longer window. NULL means the computed window in trial.py.

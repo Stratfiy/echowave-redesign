@@ -366,3 +366,94 @@ async def voice_latency(
         },
         "definition": "perceived: user stopped speaking to first audio out, one pipeline clock; turns missing either mark are excluded, not zero.",
     }
+
+
+#: A call connected for longer than this is shown as possibly stuck.
+LONG_CALL_MINUTES = 30
+#: A run created but never connected after this long did not start.
+NOT_CONNECTED_MINUTES = 5
+
+
+async def active_calls(session: AsyncSession, *, now: datetime | None = None) -> dict:
+    """Calls live right now (screen 39, "active-call health"): how many,
+    on which channel, how long the longest has run, and the ones that look
+    stuck -- connected far longer than a call should be, or created and
+    never connected. Ids, workspaces, states and times only.
+
+    Voice runs (every mode but ``NON_VOICE_RUN_MODES``, so a new carrier is
+    counted, not dropped) are calls; chat runs are excluded so a busy chat
+    day does not read as a phone outage."""
+    from api.enums import NON_VOICE_RUN_MODES
+
+    now = now or datetime.now(UTC)
+    r = WorkflowRunModel
+    text_modes = tuple(NON_VOICE_RUN_MODES)
+    rows = (
+        await session.execute(
+            select(
+                r.id,
+                r.mode,
+                r.call_type,
+                r.state,
+                r.created_at,
+                r.answered_at,
+                r.campaign_id,
+                WorkflowModel.organization_id,
+            )
+            .join(WorkflowModel, WorkflowModel.id == r.workflow_id)
+            .where(
+                r.state.in_(("initialized", "running")),
+                r.is_completed.is_not(True),
+                r.created_at >= now - timedelta(hours=12),
+                r.mode.not_in(text_modes),
+            )
+            .order_by(r.created_at)
+            .limit(500)
+        )
+    ).all()
+
+    def _age_minutes(at: datetime | None) -> float | None:
+        if at is None:
+            return None
+        if at.tzinfo is None:
+            at = at.replace(tzinfo=UTC)
+        return round((now - at).total_seconds() / 60, 1)
+
+    running = [row for row in rows if row.state == "running"]
+    by_mode: dict[str, int] = {}
+    for row in running:
+        by_mode[row.mode or "unknown"] = by_mode.get(row.mode or "unknown", 0) + 1
+    stuck = []
+    for row in rows:
+        age = _age_minutes(row.created_at)
+        if row.state == "running" and age is not None and age > LONG_CALL_MINUTES:
+            reason = "long_running"
+        elif row.state == "initialized" and age is not None and age > NOT_CONNECTED_MINUTES:
+            reason = "never_connected"
+        else:
+            continue
+        stuck.append(
+            {
+                "workflow_run_id": row.id,
+                "organization_id": row.organization_id,
+                "campaign_id": row.campaign_id,
+                "mode": row.mode,
+                "direction": row.call_type,
+                "state": row.state,
+                "age_minutes": age,
+                "reason": reason,
+            }
+        )
+    longest = max((_age_minutes(row.created_at) or 0 for row in running), default=None)
+    return {
+        "observed_at": now.isoformat(),
+        "live": len(running),
+        "connecting": sum(1 for row in rows if row.state == "initialized"),
+        "by_channel": [{"mode": k, "live": v} for k, v in sorted(by_mode.items())],
+        "longest_minutes": longest,
+        "possibly_stuck": stuck[:50],
+        "thresholds": {
+            "long_call_minutes": LONG_CALL_MINUTES,
+            "not_connected_minutes": NOT_CONNECTED_MINUTES,
+        },
+    }

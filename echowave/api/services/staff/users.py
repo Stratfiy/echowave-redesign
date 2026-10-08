@@ -226,6 +226,9 @@ async def detail(session: AsyncSession, user_id: int) -> dict[str, Any] | None:
         if memberships
         else {}
     )
+    from api.services.staff import workspaces as staff_workspaces
+
+    summaries = await staff_workspaces.summaries(session, [o.id for _, o in memberships])
     workspaces = [
         {
             "id": org.id,
@@ -234,6 +237,7 @@ async def detail(session: AsyncSession, user_id: int) -> dict[str, Any] | None:
             "kind": org.kind or "workspace",
             "selected": org.id == user.selected_organization_id,
             "kyc_status": kyc_rows.get(org.id),
+            "summary": summaries.get(org.id),
         }
         for m, org in memberships
     ]
@@ -270,10 +274,49 @@ async def detail(session: AsyncSession, user_id: int) -> dict[str, Any] | None:
         }
         if invite
         else None,
-        # Assisted access is the existing impersonation flow, superadmin only
-        # and audited there; nothing here turns it on.
-        "assisted_access": "off",
+        # Assisted access is the impersonation flow (superadmin only, with a
+        # reason, audited). This is whether one is open on this person now,
+        # read from the audit rows, so staff can see it and end it.
+        "assisted_access": await _assisted_access(session, user_id),
     }
+
+
+async def _assisted_access(session: AsyncSession, user_id: int) -> dict:
+    from api.services.auth import impersonation_tokens
+
+    open_now = await impersonation_tokens.open_for(session, user_id)
+    if open_now is None:
+        return {"state": "off"}
+    return {"state": open_now["mode"], **open_now}
+
+
+async def end_assisted_access(
+    session: AsyncSession, user_id: int, *, actor_user_id: int, actor_ip: str | None
+) -> dict:
+    """Staff end an open borrowed session from the console. The stop row is
+    what revokes a local borrowed token on the server
+    (``impersonation_tokens.ended``); this one names who ended it."""
+    from api.db.models import AdminActionLogModel
+    from api.services.auth import impersonation_tokens
+    from api.services.auth.impersonation_audit import STOPPED
+
+    open_now = await impersonation_tokens.open_for(session, user_id)
+    if open_now is None:
+        return {"ended": False, "reason": "no_open_impersonation"}
+    session.add(
+        AdminActionLogModel(
+            actor_user_id=actor_user_id,
+            action=STOPPED,
+            target_user_id=user_id,
+            actor_ip=actor_ip,
+            note=(
+                f"ended from the staff console by #{actor_user_id} "
+                f"(start #{open_now['start_id']}, started by #{open_now['by']})"
+            )[:500],
+        )
+    )
+    await session.commit()
+    return {"ended": True, "start_id": open_now["start_id"]}
 
 
 async def tasks(
