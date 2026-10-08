@@ -193,6 +193,53 @@ class TestWhatIsShared:
             "Decibyl's reply": "Sorry, that did not work.",
         }
 
+    async def test_a_plain_member_cannot_share_the_workspace_s_unowned_chat(
+        self, desk, help_on, monkeypatch
+    ):
+        """The conversation from before threads carries no author. The
+        timeline shows it only to the workspace's admins, so Help must not
+        hand its words -- a colleague's message among them -- to a plain
+        member either, in the preview or on a ticket."""
+        monkeypatch.setattr(constants, "DECIBYL_PRIVATE_THREADS_ENABLED", True)
+        async with db_client.async_session() as session:
+            await session.execute(
+                text(
+                    "UPDATE organization_memberships SET role = 'member' "
+                    "WHERE user_id = :u AND organization_id = :o"
+                ),
+                {"u": desk.colleague, "o": desk.org_a},
+            )
+            await session.commit()
+        await db_client.record_agent_event(
+            organization_id=desk.org_a,
+            kind=AgentEventKind.MESSAGE.value,
+            actor=AgentEventActor.HUMAN.value,
+            summary="My salary slip is attached",
+            payload={"body": "My salary slip is attached"},
+        )
+        reply = await db_client.record_agent_event(
+            organization_id=desk.org_a,
+            kind=AgentEventKind.MESSAGE.value,
+            actor=AgentEventActor.AGENT.value,
+            summary="I could not read it.",
+            payload={"body": "I could not read it.", "failed": True},
+        )
+        share = {
+            "affected_kind": "reply",
+            "affected_id": reply,
+            "share": ["task_metadata", "content"],
+        }
+        async with client_as(person(desk.colleague, desk.org_a)) as client:
+            preview = await client.post("/api/v1/help/share-preview", json=share)
+            created = await client.post("/api/v1/help/tickets", json=_new(**share))
+        assert preview.status_code == 404
+        assert created.status_code == 404
+        assert "salary" not in preview.text + created.text
+        # The workspace's owner, who can read that conversation, still can.
+        async with client_as(person(desk.customer, desk.org_a)) as client:
+            preview = await client.post("/api/v1/help/share-preview", json=share)
+        assert preview.status_code == 200
+
     async def test_a_task_from_another_workspace_cannot_be_attached(
         self, desk, help_on
     ):
