@@ -510,6 +510,11 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
           onCountChange={onCountChange}
           waitingFor={waitingFor}
           onLoadState={setLoadState}
+          // With private threads on, the original conversation is an
+          // Admin's: a plain member starts a new one of their own, as New
+          // chat would, rather than meeting "Could not load". A named thread
+          // that is not theirs still says so.
+          onThreadNotFound={threadId === null ? newThread : undefined}
           chatShell={chatShell}
           onWaitingChange={chatShell ? setReplying : undefined}
           onTurnStatus={chatShell ? onTurnStatus : undefined}
