@@ -112,7 +112,13 @@ export async function signIn(page: Page, who: Who = "A") {
     await page.getByTestId("login-submit-btn").click();
     // Past the sign-in screens, including the hop that decides where to land,
     // before looking for the first-task screen.
-    await page.waitForURL((url) => !url.pathname.startsWith("/auth/") && url.pathname !== "/after-sign-in", { timeout: 45_000 });
+    // An address not yet verified is offered the six-digit code first; the
+    // suite's accounts take "Do this later", the way a person in a hurry would.
+    await page.waitForURL((url) => url.pathname === "/auth/verify" || (!url.pathname.startsWith("/auth/") && url.pathname !== "/after-sign-in"), { timeout: 45_000 });
+    if (new URL(page.url()).pathname === "/auth/verify") {
+        await page.getByText("Do this later", { exact: true }).click();
+        await page.waitForURL((url) => !url.pathname.startsWith("/auth/") && url.pathname !== "/after-sign-in", { timeout: 45_000 });
+    }
     if (new URL(page.url()).pathname.startsWith("/welcome")) {
         await page.getByRole("button", { name: "Skip for now" }).click();
         await page.waitForURL((url) => !url.pathname.startsWith("/welcome"));
