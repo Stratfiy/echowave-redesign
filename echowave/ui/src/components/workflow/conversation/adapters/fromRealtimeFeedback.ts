@@ -1,3 +1,5 @@
+import { duration, takeoverText } from "@/components/live/transcript";
+
 import type {
     ConversationItem,
     RealtimeFeedbackEvent,
@@ -115,6 +117,35 @@ export function whisperItem(event: RealtimeFeedbackEvent, id: string): Conversat
         icon: "lock",
         title: `Whisper from ${by}${event.payload.urgent ? " (urgent)" : ""} · not spoken to the caller`,
         text: feedbackEventText(event),
+    };
+}
+
+/** A supervisor joining, switching, handing back -- or dropping off and the
+ *  agent taking the call back -- on the call's record (live_takeover). */
+export function takeoverItem(event: RealtimeFeedbackEvent, id: string): ConversationItem {
+    return {
+        kind: "notice",
+        id,
+        timestamp: event.timestamp,
+        tone: "info",
+        icon: "user",
+        title: "Supervisor",
+        text: takeoverText(event.payload),
+    };
+}
+
+/** One stretch of a supervisor speaking to the caller. Their words are not
+ *  transcribed; the span says who, and for how long. */
+export function supervisorSpeechItem(event: RealtimeFeedbackEvent, id: string): ConversationItem {
+    const by = event.payload.by || "A supervisor";
+    return {
+        kind: "notice",
+        id,
+        timestamp: event.timestamp,
+        tone: "info",
+        icon: "user",
+        title: `${by} (supervisor)`,
+        text: `Spoke to the caller · ${duration(event.payload.seconds ?? 0)} · not transcribed`,
     };
 }
 
@@ -288,6 +319,16 @@ export function conversationItemsFromRealtimeFeedbackEvents(events: RealtimeFeed
 
         if (event.type === "rtf-supervisor-whisper") {
             items.push(whisperItem(event, `whisper-${event.turn}-${index}`));
+            return;
+        }
+
+        if (event.type === "rtf-supervisor-takeover") {
+            items.push(takeoverItem(event, `takeover-${event.turn}-${index}`));
+            return;
+        }
+
+        if (event.type === "rtf-supervisor-speech") {
+            items.push(supervisorSpeechItem(event, `supervisor-${event.turn}-${index}`));
             return;
         }
 

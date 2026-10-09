@@ -21,12 +21,21 @@ export function listenUrl(runId: number, audio: boolean): string {
     return `${base}/api/v1/ws/live-calls/${runId}${audio ? '?audio=1' : ''}`;
 }
 
-export function useLiveListen(runId: number, { audio, initial }: { audio: boolean; initial?: LiveEvent[] }) {
+export function useLiveListen(
+    runId: number,
+    { audio, initial, speaking = false }: { audio: boolean; initial?: LiveEvent[]; speaking?: boolean },
+) {
     const { user, loading: authLoading, getAccessToken } = useAuth();
     const [state, setState] = useState<TranscriptState>(() => applyAll(EMPTY, initial ?? []));
     const [status, setStatus] = useState<ListenStatus>('connecting');
     const [error, setError] = useState<string | null>(null);
     const player = useRef<LivePlayer | null>(null);
+    // The person speaking on the call does not hear themselves back.
+    const speakingRef = useRef(speaking);
+    useEffect(() => {
+        speakingRef.current = speaking;
+        if (player.current) player.current.skipSupervisor = speaking;
+    }, [speaking]);
 
     const onEvent = useCallback((event: LiveEvent) => {
         if (event.type === 'hello') {
@@ -52,6 +61,7 @@ export function useLiveListen(runId: number, { audio, initial }: { audio: boolea
         if (audio) {
             try {
                 player.current = new LivePlayer();
+                player.current.skipSupervisor = speakingRef.current;
                 void player.current.resume();
             } catch {
                 player.current = null;
