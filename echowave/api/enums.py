@@ -950,6 +950,10 @@ class AgentEventKind(str, Enum):
     #: uuids, never URLs: a signed URL expires, so the card asks for one when
     #: it draws. See services/images/service.py.
     IMAGES_MADE = "images_made"
+    #: A person talked with this agent as a teammate (services/huddle/):
+    #: one row per huddle, carrying who said what, rewritten as it goes.
+    #: The edit cards it proposed are their own rows beside it.
+    HUDDLE = "huddle"
 
 
 class AgentEventActor(str, Enum):

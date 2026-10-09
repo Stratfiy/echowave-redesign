@@ -11,6 +11,8 @@ import type { Avatar } from '@/components/avatar/avatar';
 import { BlobFace } from '@/components/brand/BlobFace';
 import { ChannelComposer } from '@/components/channel/ChannelComposer';
 import { ChannelStream } from '@/components/channel/ChannelStream';
+import { HuddlePanel, HuddleStrip } from '@/components/huddle/HuddlePanel';
+import { useHuddle } from '@/components/huddle/useHuddle';
 import { AuxiliaryPanel } from '@/components/layout/AuxiliaryPanel';
 import { colleagueState, RAIL_COPY } from '@/components/layout/v2/homes';
 import { LiveNowStrip } from '@/components/live/LiveNowStrip';
@@ -23,6 +25,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useTeamStatus } from '@/components/workflow/useTeamStatus';
 import { useAuth } from '@/lib/auth';
+import { useFeature } from '@/lib/features';
 
 /**
  * The bot's chat -- where it opens.
@@ -38,6 +41,13 @@ import { useAuth } from '@/lib/auth';
  * (AboutPanel), open from the start on a wide screen. No tab strip: **Test**
  * rings it, and the menu holds sharing, its activity and the advanced setup
  * (instructions, models, triggers, quality) for whoever needs them.
+ *
+ * With `huddle` on, the call button opens a huddle instead (components/
+ * huddle): a voice conversation with the agent as a teammate, docked beside
+ * the thread -- the whole screen on a phone -- with its customer test one
+ * switch away. Its proposed changes arrive as cards in this thread. It works
+ * for chat and scheduled agents too: the agent talks about its work,
+ * whatever channel the work is on.
  */
 export default function BotChatPage({
     params,
@@ -61,6 +71,20 @@ export default function BotChatPage({
         if (typeof window !== 'undefined' && window.matchMedia?.('(min-width: 1024px)').matches) setAboutOpen(true);
     }, []);
     const [waitingFor, setWaitingFor] = useState<{ since: string; bots: number[] } | null>(null);
+    const huddleOn = useFeature('huddle');
+    const [huddleOpen, setHuddleOpen] = useState(false);
+    const [notesVersion, setNotesVersion] = useState(0);
+    const huddle = useHuddle({
+        workflowId: id,
+        // The card is on the thread now: show it without waiting for the poll.
+        onCard: () => refreshStream.current(),
+        onNote: () => setNotesVersion((v) => v + 1),
+    });
+    const huddlePhase = huddle.state.phase;
+    useEffect(() => {
+        // The huddle's transcript row is final once it ends.
+        if (huddlePhase === 'ended') refreshStream.current();
+    }, [huddlePhase]);
 
     useEffect(() => {
         if (authLoading || !user || started.current) return;
@@ -96,13 +120,32 @@ export default function BotChatPage({
                             size="sm"
                             variant={aboutOpen ? 'secondary' : 'outline'}
                             aria-pressed={aboutOpen}
-                            onClick={() => setAboutOpen((open) => !open)}
+                            onClick={() => {
+                                setAboutOpen((open) => !open);
+                                setHuddleOpen(false);
+                            }}
                             className="rounded-full"
                         >
                             <Info className="mr-1.5 h-3.5 w-3.5" aria-hidden />
                             About
                         </Button>
-                        {!chatOnly && (
+                        {huddleOn ? (
+                            <Button
+                                size="sm"
+                                variant={huddleOpen ? 'secondary' : 'outline'}
+                                aria-pressed={huddleOpen}
+                                aria-label={`Huddle with ${botName}`}
+                                data-testid="huddle-button"
+                                onClick={() => {
+                                    setHuddleOpen(true);
+                                    setAboutOpen(false);
+                                }}
+                                className="rounded-full"
+                            >
+                                <Phone className="h-3.5 w-3.5 sm:mr-1.5" aria-hidden />
+                                <span className="hidden sm:inline">Huddle</span>
+                            </Button>
+                        ) : !chatOnly && (
                             <Button asChild size="sm" variant="outline" className="rounded-full">
                                 <Link href={`/workflow/${id}?onboarding=web_call`}>
                                     <Phone className="mr-1.5 h-3.5 w-3.5" aria-hidden />
@@ -141,6 +184,9 @@ export default function BotChatPage({
                         onRegisterRefresh={registerRefresh}
                         waitingFor={waitingFor}
                     />
+                    {huddleOn && !huddleOpen && (
+                        <HuddleStrip agentName={botName} huddle={huddle} onOpen={() => setHuddleOpen(true)} />
+                    )}
                     <ChannelComposer
                         workflowId={id}
                         bots={[]}
@@ -151,7 +197,18 @@ export default function BotChatPage({
                         }}
                     />
                 </div>
-                {aboutOpen && (
+                {huddleOn && huddleOpen && (
+                    <AuxiliaryPanel label={`Huddle with ${botName}`} onClose={() => setHuddleOpen(false)}>
+                        <HuddlePanel
+                            workflowId={id}
+                            agentName={botName}
+                            chatOnly={chatOnly}
+                            huddle={huddle}
+                            notesVersion={notesVersion}
+                        />
+                    </AuxiliaryPanel>
+                )}
+                {aboutOpen && !huddleOpen && (
                     <AuxiliaryPanel
                         label="About this agent"
                         onClose={() => setAboutOpen(false)}

@@ -1592,6 +1592,16 @@ async def complete_transfer_function_call(transfer_id: str, request: Request):
         f"Transfer result(call status) webhook: {transfer_id} status={call_status}"
     )
 
+    # Escalation v2: the person's leg ending after the bridge completes the
+    # escalation record. A transfer with no escalation row (every transfer
+    # made with the flag off) is untouched.
+    try:
+        from api.services.escalation import actions as escalation_actions
+
+        await escalation_actions.on_transfer_status(transfer_id, call_status)
+    except Exception as e:
+        logger.warning(f"Escalation status not recorded for {transfer_id}: {e}")
+
     # Get transfer context from Redis for additional information
     call_transfer_manager = await get_call_transfer_manager()
     transfer_context = await call_transfer_manager.get_transfer_context(transfer_id)

@@ -588,6 +588,39 @@
    "dialer_import"
   ]
  },
+ "/api/v1/escalations/open": {
+  "GET": [
+   "escalation_v2"
+  ]
+ },
+ "/api/v1/escalations/policy/{workflow_id}": {
+  "GET": [
+   "escalation_v2"
+  ],
+  "PUT": [
+   "escalation_v2"
+  ]
+ },
+ "/api/v1/escalations/{escalation_uuid}": {
+  "GET": [
+   "escalation_v2"
+  ]
+ },
+ "/api/v1/escalations/{escalation_uuid}/accept": {
+  "POST": [
+   "escalation_v2"
+  ]
+ },
+ "/api/v1/escalations/{escalation_uuid}/decline": {
+  "POST": [
+   "escalation_v2"
+  ]
+ },
+ "/api/v1/escalations/{escalation_uuid}/hand-back": {
+  "POST": [
+   "escalation_v2"
+  ]
+ },
  "/api/v1/events/client": {
   "POST": [
    "event_catalogue"
@@ -730,6 +763,39 @@
  "/api/v1/helpers/{key}/workspace": {
   "PUT": [
    "launch_helpers"
+  ]
+ },
+ "/api/v1/huddle/sessions/{session_id}": {
+  "GET": [
+   "huddle"
+  ]
+ },
+ "/api/v1/huddle/sessions/{session_id}/end": {
+  "POST": [
+   "huddle"
+  ]
+ },
+ "/api/v1/huddle/sessions/{session_id}/heartbeat": {
+  "POST": [
+   "huddle"
+  ]
+ },
+ "/api/v1/huddle/sessions/{session_id}/move": {
+  "POST": [
+   "huddle"
+  ]
+ },
+ "/api/v1/huddle/{workflow_id}/notes": {
+  "DELETE": [
+   "huddle"
+  ],
+  "GET": [
+   "huddle"
+  ]
+ },
+ "/api/v1/huddle/{workflow_id}/sessions": {
+  "POST": [
+   "huddle"
   ]
  },
  "/api/v1/images/provider": {

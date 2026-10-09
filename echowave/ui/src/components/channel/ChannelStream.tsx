@@ -46,7 +46,9 @@ import { CallWhenDoneNotice,callWhenDoneOf } from '@/components/channel/CallWhen
 import { tagTokens } from '@/components/channel/ChannelComposer';
 import { emphasisTokens } from '@/components/channel/emphasis';
 import { isJudgeableReply, ReplyFeedback, useMyFeedback } from '@/components/channel/ReplyFeedback';
+import { HandoffCard, type HandoffCardData } from '@/components/escalation/HandoffCard';
 import { SaveReportButton } from '@/components/helpers/SaveReportButton';
+import { HuddleEvent } from '@/components/huddle/HuddleEvent';
 import { ImageProviderCard } from '@/components/images/ImageProviderCard';
 import { ImagesCard } from '@/components/images/ImagesCard';
 import { ComparisonCard } from '@/components/reach/ComparisonCard';
@@ -89,6 +91,15 @@ const TONE: Record<string, { icon: typeof FileText; className: string }> = {
     could_not: { icon: CircleSlash, className: 'text-amber-600' },
     needs_attention: { icon: AlertTriangle, className: 'text-amber-600' },
 };
+
+/** The handoff card an ``escalated`` row carries (escalation v2), if any. */
+export function handoffOf(
+    event: TimelineEvent,
+): { uuid: string; card: HandoffCardData; state?: string } | null {
+    const payload = (event.payload ?? {}) as { escalation_uuid?: string; handoff?: HandoffCardData; state?: string };
+    if (!payload.escalation_uuid) return null;
+    return { uuid: payload.escalation_uuid, card: payload.handoff ?? {}, state: payload.state };
+}
 
 function when(at: string): string {
     const date = new Date(at);
@@ -150,6 +161,8 @@ const CARDS = new Set([
     // Image generation: the provider card and the grid of options.
     'image_provider_offered',
     'images_made',
+    // A huddle with the agent: its transcript, compact.
+    'huddle',
 ]);
 
 /** How long a pause can be and still read as one person still talking. */
@@ -542,6 +555,9 @@ export function ChannelStream({
     // Posters and ad creatives (services/images/). Off, the rows fall
     // through to the plain summary rather than vanish.
     const imagesOn = useFeature('image_generation');
+    // Escalation v2: a caller handed to a person, as a card with Accept,
+    // Decline and Hand back to AI.
+    const handoffOn = useFeature('escalation_v2');
     // Screen 28: a failed reply offers Help about that one reply.
     const helpOn = useFeature('support_help');
     // Keep a reply in saved items (settings stream, screen 15).
@@ -1198,6 +1214,18 @@ export function ChannelStream({
                             </React.Fragment>
                         );
                     }
+                    if (event.kind === 'huddle') {
+                        return (
+                            <React.Fragment key={event.id}>
+                                {divider}
+                                <HuddleEvent
+                                    event={event}
+                                    agentName={(event.workflow_id != null && botNames[event.workflow_id]) || fallbackName}
+                                    when={when(event.at)}
+                                />
+                            </React.Fragment>
+                        );
+                    }
                     if (event.kind === 'edit_proposed') {
                         // The bot's proposed change to itself, as a diff with
                         // Publish and Discard. Same frame as the question card.
@@ -1265,6 +1293,34 @@ export function ChannelStream({
                                         </Link>
                                     )}
                                 </ActivityRow>
+                            </li>
+                            </React.Fragment>
+                        );
+                    }
+                    if (event.kind === 'escalated' && handoffOn && handoffOf(event)) {
+                        // A caller handed to a person: the handoff card, with
+                        // Accept, Decline and Hand back to AI answered here.
+                        const handoff = handoffOf(event)!;
+                        const agent =
+                            (event.workflow_id != null && botNames[event.workflow_id]) || fallbackName;
+                        return (
+                            <React.Fragment key={event.id}>
+                            {divider}
+                            <li className="flex gap-3">
+                                {face(event)}
+                                <div className="min-w-0 flex-1">
+                                    <p className="mb-1 text-sm">
+                                        <span className="font-medium">{agent}</span>
+                                        <span className="ml-2 text-xs text-muted-foreground">
+                                            <time dateTime={event.at}>{when(event.at)}</time>
+                                        </span>
+                                    </p>
+                                    <HandoffCard
+                                        escalationUuid={handoff.uuid}
+                                        initialCard={handoff.card}
+                                        initialState={handoff.state}
+                                    />
+                                </div>
                             </li>
                             </React.Fragment>
                         );

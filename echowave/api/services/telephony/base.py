@@ -562,3 +562,45 @@ class TelephonyProvider(ABC):
             True if provider supports call transfers, False otherwise
         """
         pass
+
+    # ------------------------------------------------------------------
+    # Escalation v2 (services/escalation). Every hook defaults to "this
+    # carrier cannot", so a provider that never heard of escalation keeps
+    # working and the escalation code says what it could not do rather than
+    # failing on a missing method.
+    # ------------------------------------------------------------------
+
+    def escalation_dial_options(
+        self, *, transfer_id: str, backend_endpoint: str
+    ) -> Dict[str, Any]:
+        """Extra parameters for the human's leg of an escalation, passed to
+        ``transfer_call`` as keyword arguments: answering-machine detection,
+        chiefly, so a caller is never bridged into a voicemail greeting."""
+        return {}
+
+    def detects_machines_on_transfer(self) -> bool:
+        """Whether the human's leg reports a machine before it is bridged."""
+        return False
+
+    async def hangup_transfer_leg(self, call_id: str) -> bool:
+        """Hang up (or stop ringing) a leg dialled by ``transfer_call``."""
+        return False
+
+    def supports_escalation_hand_back(self) -> bool:
+        """Whether a bridged caller can be handed back to the agent."""
+        return False
+
+    async def hand_back_to_ai(
+        self,
+        *,
+        caller_call_id: str,
+        human_call_id: Optional[str],
+        resume_url: str,
+    ) -> bool:
+        """Move a bridged caller back to the agent at ``resume_url``."""
+        return False
+
+    async def speak_into_conference(self, conference_name: str, text: str) -> bool:
+        """Say ``text`` to everyone in a transfer conference (the three-way
+        introduction). False where the carrier cannot."""
+        return False
