@@ -40,6 +40,7 @@ class TestStarting:
             scope="channel",
             folder_id=9,
             workflow_id=None,
+            file_folder_id=3,
         )
         created = AsyncMock(return_value=SimpleNamespace(id=6))
         with (
@@ -60,6 +61,8 @@ class TestStarting:
         kwargs = created.await_args.kwargs
         assert kwargs["filename"] == "rates (English).txt"
         assert kwargs["scope"] == "channel" and kwargs["folder_id"] == 9
+        # Beside the original on the Files page.
+        assert kwargs["file_folder_id"] == 3
         assert kwargs["custom_metadata"]["translated_from"] == "src"
         assert kwargs["custom_metadata"]["s3_key"].startswith("knowledge_base/7/")
         assert enqueue.await_args.args[1:] == (6, 5, 7, "p", "en-IN")
@@ -186,6 +189,7 @@ class TestTheRoute:
             scope="org",
             folder_id=None,
             workflow_id=None,
+            file_folder_id=None,
             created_at=now,
             updated_at=now,
         )

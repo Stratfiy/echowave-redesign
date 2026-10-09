@@ -30,6 +30,9 @@ ACTIVE = "active"
 PAUSED = "paused"
 #: The person said no to the card; nothing ever rang.
 DECLINED = "declined"
+#: Taken off the person's list. Kept rather than deleted: past doses and
+#: their family alerts point at it.
+REMOVED = "removed"
 
 #: How a reminder reaches the person. ``call`` rings their phone through a
 #: workspace phone line; ``app`` shows it in Decibyl and sends it on their own
@@ -199,6 +202,7 @@ async def list_mine(
                 .where(
                     CareMedicineModel.organization_id == organization_id,
                     CareMedicineModel.person_user_id == user_id,
+                    CareMedicineModel.state != REMOVED,
                 )
                 .order_by(CareMedicineModel.id)
             )
@@ -359,6 +363,88 @@ async def resume(
         await session.commit()
         await session.refresh(row)
         return {"medicine": medicine_dict(row), "event_id": event_id}
+
+
+async def edit(
+    organization_id: int,
+    user_id: int,
+    medicine_id: int,
+    *,
+    label: str | None = None,
+    times: list[str] | None = None,
+    language: str | None = None,
+) -> dict[str, Any]:
+    """Change the medicine's name, its times or its language.
+
+    The card the person confirmed approved the old details, so a reminder
+    that was running (or waiting on a card) stops and a fresh card with the
+    new details goes in front of them: it never quietly starts ringing at
+    times nobody confirmed. A paused or declined one just saves, and starting
+    it again shows the card. The number is not editable here -- a different
+    phone is a new reminder, with its own consent."""
+    from api.services.care import NeedsSetup, calls
+
+    new_label = clean_label(label) if label is not None else None
+    new_times = clean_times(times) if times is not None else None
+    new_language = language.strip() if language else None
+    if new_language is not None and new_language not in LANGUAGE_NAMES:
+        raise CareError("That language is not offered for calls yet.")
+
+    async with db_client.async_session() as session:
+        row = await _own(session, organization_id, user_id, medicine_id)
+        if row.state == REMOVED:
+            raise NotFound("That medicine reminder is not here.")
+        changed = (
+            (new_label is not None and new_label != row.label)
+            or (new_times is not None and new_times != list(row.times or []))
+            or (new_language is not None and new_language != row.language)
+        )
+        if not changed:
+            return {"medicine": medicine_dict(row), "event_id": None}
+        needs_card = row.state in (ACTIVE, AWAITING)
+        channel = row.channel or CALL
+    if needs_card and channel == CALL:
+        readiness = await calls.readiness(organization_id)
+        if readiness["state"] == "needs_setup":
+            raise NeedsSetup(f"{readiness['reason']} {calls.APP_INSTEAD}")
+
+    async with db_client.async_session() as session:
+        row = await _own(session, organization_id, user_id, medicine_id)
+        if new_label is not None:
+            row.label = new_label
+        if new_times is not None:
+            row.times = new_times
+        if new_language is not None:
+            row.language = new_language
+        if row.state in (ACTIVE, DECLINED):
+            # Running on details nobody confirmed is what this prevents; a
+            # declined one becomes paused so it can be started again.
+            row.state = PAUSED
+        row.card_event_id = None
+        row.updated_at = _now()
+        await session.commit()
+
+    event_id = None
+    if needs_card:
+        event_id = await _propose_card(organization_id, user_id, medicine_id)
+    async with db_client.async_session() as session:
+        row = await _own(session, organization_id, user_id, medicine_id)
+        row.card_event_id = event_id
+        await session.commit()
+        await session.refresh(row)
+        return {"medicine": medicine_dict(row), "event_id": event_id}
+
+
+async def remove(organization_id: int, user_id: int, medicine_id: int) -> None:
+    """Take a reminder off the list. It stops at once and is not shown again."""
+    async with db_client.async_session() as session:
+        row = await _own(session, organization_id, user_id, medicine_id)
+        if row.state == REMOVED:
+            return
+        row.state = REMOVED
+        row.card_event_id = None
+        row.updated_at = _now()
+        await session.commit()
 
 
 async def mark_taken(

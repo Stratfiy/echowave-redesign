@@ -15,7 +15,9 @@ describe("The Settings shell's sections (screen 17)", () => {
     for (const group of SHELL_GROUPS) expect(groups.has(group)).toBe(true);
     // Workspace-only sections sit under the workspace's own heading.
     const workspace = SHELL_SECTIONS.filter((s) => s.group === "Workspace").map((s) => s.id);
-    expect(workspace).toEqual(expect.arrayContaining(["workspace", "team", "company", "knowledge", "compliance"]));
+    expect(workspace).toEqual(expect.arrayContaining(["workspace", "team", "company", "compliance"]));
+    // Files is one page, reached from the rail; Settings does not list it.
+    expect(SHELL_SECTIONS.map((s) => s.title)).not.toContain("Files");
   });
 
   it.each(SHELL_SECTIONS.map((s) => [s.title, s.mobileHref ?? s.href]))("%s is a page (%s)", (_, href) => {

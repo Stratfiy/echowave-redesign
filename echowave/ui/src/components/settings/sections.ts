@@ -33,7 +33,6 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   { id: "daily-brief", title: "Daily brief", href: "/settings/daily-brief", group: "You", flags: ["daily_brief"] },
   { id: "notifications", title: "Notifications", href: "/settings/notifications", group: "You", flags: ["identity_notifications"] },
   { id: "models", title: "Models", href: "/settings/models", group: "Assistant", activePaths: ["/integrations"] },
-  { id: "knowledge", title: "Knowledge", href: "/settings/knowledge", group: "Assistant" },
   { id: "apps", title: "Apps and tools", href: "/settings/apps", group: "Assistant", activePaths: ["/tools", "/marketplace"] },
   { id: "channels", title: "Channels", href: "/settings/channels", group: "Assistant", activePaths: ["/channels"] },
   {
@@ -123,7 +122,6 @@ export const SHELL_SECTIONS: readonly ShellSection[] = [
   { id: "workspace", title: "Workspace defaults", href: "/settings/workspace", mobileHref: "/settings/workspace", activePaths: ["/settings/general"], group: "Workspace", blurb: "The team's timezone, test number, approvals and apps." },
   { id: "team", title: "Team", href: "/settings/team", group: "Workspace", blurb: "Who is in the workspace, and their roles." },
   { id: "company", title: "Company", href: "/settings/company", group: "Workspace", blurb: "Business details, GST and invoices." },
-  { id: "knowledge", title: "Knowledge", href: "/settings/knowledge", group: "Workspace", blurb: "Documents your agents answer from." },
   { id: "compliance", title: "Compliance", href: "/settings/compliance", group: "Workspace", blurb: "Do-not-call, retention, consent and the workspace's data.", activePaths: ["/do-not-call"] },
 ];
 
@@ -164,7 +162,6 @@ export const SETTINGS_SEARCH: readonly { label: string; section: string; href: s
   { label: "Tool credentials and tracing", section: "advanced", href: "/settings/advanced", words: ["credentials", "mcp", "langfuse", "tracing", "secrets"] },
   { label: "Team members", section: "team", href: "/settings/team", words: ["team", "invite", "members", "colleagues", "roles", "admin"] },
   { label: "Company details", section: "company", href: "/settings/company", words: ["company", "business", "gst", "gstin", "invoice", "address", "pan"] },
-  { label: "Documents", section: "knowledge", href: "/settings/knowledge", words: ["documents", "files", "pdf", "knowledge", "upload", "faq"] },
   { label: "Do not call", section: "compliance", href: "/settings/compliance", words: ["dnd", "do not call", "consent", "trai", "dpdp", "compliance"] },
   { label: "Workspace timezone and test number", section: "workspace", href: "/settings/workspace", words: ["workspace timezone", "test number", "team timezone", "approvals", "who approves"] },
 ];

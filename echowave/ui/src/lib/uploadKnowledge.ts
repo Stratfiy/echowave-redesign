@@ -10,12 +10,28 @@ import {
     getUploadUrlApiV1KnowledgeBaseUploadUrlPost,
     processDocumentApiV1KnowledgeBaseProcessDocumentPost,
 } from '@/client/sdk.gen';
+import { detailFromError } from '@/lib/apiError';
 
 export const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 // Kept in step with api/services/knowledge_base/extraction.py. Legacy .doc is
 // deliberately absent: no pure-Python reader handles it, so offering it here
 // only produces an upload that fails after the customer has waited for it.
-export const ACCEPTED_FILE_TYPES = ['.pdf', '.docx', '.txt', '.md', '.json', '.csv', '.xlsx', '.html'];
+// Pictures are read by the workspace's own model (what they show, and every
+// word in them; api/services/knowledge_base/vision.py).
+export const ACCEPTED_FILE_TYPES = [
+    '.pdf',
+    '.docx',
+    '.txt',
+    '.md',
+    '.json',
+    '.csv',
+    '.xlsx',
+    '.html',
+    '.png',
+    '.jpg',
+    '.jpeg',
+    '.webp',
+];
 
 /** Who a document is knowledge for. Mirrors api.enums.KnowledgeScope. */
 export type KnowledgeScope = 'library' | 'org' | 'channel' | 'bot';
@@ -26,7 +42,14 @@ export type KnowledgeTarget =
     | { scope: 'channel'; folderId: number }
     | { scope: 'bot'; workflowId: number };
 
-export type Uploaded = { document_uuid: string; filename: string; size_bytes: number };
+export type Uploaded = {
+    document_uuid: string;
+    filename: string;
+    size_bytes: number;
+    /** 1 for a new file; more when it was the same name uploaded again into
+     *  the same place, which makes it the next version of that file. */
+    version?: number;
+};
 
 /** Why a file cannot be uploaded, or null when it can. */
 export function rejectFile(file: File): string | null {
@@ -41,7 +64,12 @@ export function rejectFile(file: File): string | null {
 export async function uploadKnowledge(
     file: File,
     target: KnowledgeTarget,
-    options: { retrievalMode?: string; onProgress?: (percent: number) => void } = {},
+    options: {
+        retrievalMode?: string;
+        onProgress?: (percent: number) => void;
+        /** The Files-page folder to put it in (not a channel). Organises only. */
+        fileFolderId?: number | null;
+    } = {},
 ): Promise<Uploaded> {
     const progress = options.onProgress ?? (() => {});
     const minted = await getUploadUrlApiV1KnowledgeBaseUploadUrlPost({
@@ -54,7 +82,9 @@ export async function uploadKnowledge(
             },
         },
     });
-    if (minted.error || !minted.data) throw new Error('Failed to get upload URL');
+    // The reason matters here: a full allowance, a plan without Files or a
+    // file too large are each something the person can act on.
+    if (minted.error || !minted.data) throw new Error(detailFromError(minted.error, 'Could not start the upload'));
     progress(25);
 
     const put = await fetch(minted.data.upload_url, {
@@ -73,9 +103,18 @@ export async function uploadKnowledge(
             scope: target.scope,
             folder_id: target.scope === 'channel' ? target.folderId : null,
             workflow_id: target.scope === 'bot' ? target.workflowId : null,
+            file_folder_id: options.fileFolderId ?? null,
         },
     });
-    if (processed.error) throw new Error('Failed to trigger processing');
+    if (processed.error) throw new Error(detailFromError(processed.error, 'The file was sent but could not be read'));
     progress(100);
-    return { document_uuid: minted.data.document_uuid, filename: file.name, size_bytes: file.size };
+    // The file it was filed as: the same name uploaded again into the same
+    // place is that file's next version, under the file's own id, not the
+    // fresh one minted for the upload.
+    return {
+        document_uuid: processed.data?.document_uuid ?? minted.data.document_uuid,
+        filename: processed.data?.filename ?? file.name,
+        size_bytes: file.size,
+        version: processed.data?.version ?? 1,
+    };
 }

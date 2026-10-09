@@ -17,7 +17,7 @@ const seen = vi.hoisted(() => ({
     rows: 0,
     load: "ready" as "ready" | "error",
 }));
-const flags = vi.hoisted(() => ({ chat_shell: true, learning: false }));
+const flags = vi.hoisted(() => ({ chat_shell: true, learning: false, launch_helpers: false }));
 // The router's view of the address. On a client-side navigation (Today's
 // review link, a course card) it can carry ?learn= before window.location
 // does.
@@ -103,6 +103,7 @@ beforeEach(() => {
     seen.load = "ready";
     flags.chat_shell = true;
     flags.learning = false;
+    flags.launch_helpers = false;
     router.params = new URLSearchParams();
     window.history.replaceState(null, "", "/overview");
 });
@@ -201,6 +202,85 @@ describe("Chat start", () => {
         fireEvent.keyDown(document, { key: "Escape" });
         await waitFor(() => expect(screen.queryByRole("complementary", { name: "Sources" })).toBeNull());
         await waitFor(() => expect(document.activeElement).toBe(trigger));
+    });
+
+    it("a life-stage starter fills the box and chooses the helper that does its job", async () => {
+        flags.launch_helpers = true;
+        api.home.mockResolvedValue({
+            data: {
+                headline: { ...headline, agents: 0 },
+                suggestions: [],
+                openers: [
+                    {
+                        kind: "life_stage",
+                        text: "Plan my revision back from my exam date",
+                        helper: "learning_guide",
+                        helper_name: "Learning Guide",
+                        template: "exam_planner",
+                    },
+                    { kind: "life_stage", text: "Give me a mock interview", template: "interview_coach" },
+                ],
+            },
+        });
+        render(<HomeAboveTheFold />);
+        fireEvent.click(await screen.findByText("Plan my revision back from my exam date"));
+        await waitFor(() => {
+            const last = seen.composer[seen.composer.length - 1] as {
+                draftRequest?: { text: string; helper?: { key: string; name: string } | null };
+            };
+            expect(last.draftRequest?.text).toBe("Plan my revision back from my exam date");
+            expect(last.draftRequest?.helper).toEqual({ key: "learning_guide", name: "Learning Guide" });
+        });
+        // A starter with no helper goes to Automatic.
+        fireEvent.click(screen.getByText("Give me a mock interview"));
+        await waitFor(() => {
+            const last = seen.composer[seen.composer.length - 1] as {
+                draftRequest?: { text: string; helper?: unknown };
+            };
+            expect(last.draftRequest?.text).toBe("Give me a mock interview");
+            expect(last.draftRequest?.helper).toBeNull();
+        });
+        expect(api.post).not.toHaveBeenCalled();
+    });
+
+    it("off the chat shell, a life-stage starter is sent to its helper while helpers are on", async () => {
+        flags.chat_shell = false;
+        flags.launch_helpers = true;
+        api.home.mockResolvedValue({
+            data: {
+                headline,
+                suggestions: [],
+                openers: [{ kind: "life_stage", text: "Who owes me money?", helper: "follow_up", helper_name: "Follow-up" }],
+            },
+        });
+        render(<HomeAboveTheFold />);
+        fireEvent.click(await screen.findByText("Who owes me money?"));
+        await waitFor(() => expect(api.post).toHaveBeenCalled());
+        expect(api.post.mock.calls[0][0].body).toEqual({
+            assistant: true,
+            thread_id: null,
+            text: "Who owes me money?",
+            helper: "follow_up",
+        });
+    });
+
+    it("with helpers off, the same starter goes to Automatic", async () => {
+        flags.chat_shell = false;
+        api.home.mockResolvedValue({
+            data: {
+                headline,
+                suggestions: [],
+                openers: [{ kind: "life_stage", text: "Who owes me money?", helper: "follow_up" }],
+            },
+        });
+        render(<HomeAboveTheFold />);
+        fireEvent.click(await screen.findByText("Who owes me money?"));
+        await waitFor(() => expect(api.post).toHaveBeenCalled());
+        expect(api.post.mock.calls[0][0].body).toEqual({
+            assistant: true,
+            thread_id: null,
+            text: "Who owes me money?",
+        });
     });
 
     it("keeps the old behaviour with the flag off: every opener sends", async () => {

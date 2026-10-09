@@ -503,7 +503,7 @@ class TestThePickerAndTheReaderAgree:
         offered = set(re.findall(r"'(\.[a-z0-9]+)'", declaration.group(1)))
         assert offered, "the upload screen offers no file types at all"
 
-        unreadable = offered - extraction.SUPPORTED_EXTENSIONS
+        unreadable = offered - extraction.READABLE_EXTENSIONS
         assert not unreadable, (
             f"the upload screen accepts {sorted(unreadable)}, which ingestion "
             "refuses — the customer finds out after the upload finishes"

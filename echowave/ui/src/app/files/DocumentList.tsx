@@ -1,6 +1,6 @@
 'use client';
 
-import { AlertTriangle, FileText, Languages, RefreshCw, Search, SearchX, Trash2 } from 'lucide-react';
+import { AlertTriangle, FileText, FolderInput, Languages, Pencil, RefreshCw, Search, SearchX, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -8,6 +8,7 @@ import {
   deleteDocumentApiV1KnowledgeBaseDocumentsDocumentUuidDelete,
   listDocumentsApiV1KnowledgeBaseDocumentsGet,
   translateDocumentRouteApiV1KnowledgeBaseDocumentsDocumentUuidTranslatePost,
+  updateDocumentApiV1KnowledgeBaseDocumentsDocumentUuidPatch,
 } from '@/client/sdk.gen';
 import { getUsageApiV1KnowledgeBaseUsageGet } from "@/client/sdk.gen";
 import type { DocumentResponseSchema } from '@/client/types.gen';
@@ -15,6 +16,14 @@ import { useConfirm } from "@/components/ConfirmDialog";
 import { EmptyState } from '@/components/EmptyState';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,6 +35,9 @@ import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { detailFromError } from '@/lib/apiError';
 import logger from '@/lib/logger';
+
+import { FILE_DRAG_TYPE, type FileFolder } from './fileFolders';
+import { FolderPicker } from './FolderBrowser';
 
 /** The languages a copy can be made in. Mirrors LANGUAGE_NAMES in
  *  api/services/knowledge_base/translate_document.py. */
@@ -43,11 +55,28 @@ export const TRANSLATION_LANGUAGES: { code: string; name: string }[] = [
   { code: 'od-IN', name: 'Odia' },
 ];
 
-interface DocumentListProps {
-  refreshTrigger: number;
+/** Reading, Ready or Couldn't read. The server says which; a response
+ *  without it (an older API) is worked out from the processing status, so a
+ *  file is never shown in no state at all. */
+export function fileState(doc: Pick<DocumentResponseSchema, 'state' | 'processing_status'>): 'reading' | 'ready' | 'failed' {
+  if (doc.state === 'reading' || doc.state === 'ready' || doc.state === 'failed') return doc.state;
+  if (doc.processing_status === 'completed') return 'ready';
+  if (doc.processing_status === 'failed') return 'failed';
+  return 'reading';
 }
 
-export default function DocumentList({ refreshTrigger }: DocumentListProps) {
+interface DocumentListProps {
+  refreshTrigger: number;
+  /** The Files-page folder being shown; null is the top level. Left out,
+   *  every file is listed (the list's behaviour before folders). */
+  fileFolderId?: number | null;
+  /** Every folder, for "Move to…". */
+  folders?: readonly FileFolder[];
+  /** A file was renamed, moved or deleted: folder counts may have changed. */
+  onChanged?: () => void;
+}
+
+export default function DocumentList({ refreshTrigger, fileFolderId, folders = [], onChanged }: DocumentListProps) {
   const [documents, setDocuments] = useState<DocumentResponseSchema[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { confirm, dialog: confirmDialog } = useConfirm();
@@ -61,6 +90,10 @@ export default function DocumentList({ refreshTrigger }: DocumentListProps) {
   } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [renaming, setRenaming] = useState<DocumentResponseSchema | null>(null);
+  const [newName, setNewName] = useState('');
+  const [renameError, setRenameError] = useState<string | null>(null);
+  const [moving, setMoving] = useState<DocumentResponseSchema | null>(null);
 
   const fetchDocuments = useCallback(async () => {
     try {
@@ -71,11 +104,16 @@ export default function DocumentList({ refreshTrigger }: DocumentListProps) {
         query: {
           limit: 100,
           offset: 0,
+          ...(fileFolderId === undefined
+            ? {}
+            : fileFolderId === null
+              ? { top_level: true }
+              : { file_folder_id: fileFolderId }),
         },
       });
 
       if (response.error || !response.data) {
-        throw new Error('Failed to fetch documents');
+        throw new Error(detailFromError(response.error, 'Could not load the files'));
       }
 
       setDocuments(response.data.documents);
@@ -85,7 +123,7 @@ export default function DocumentList({ refreshTrigger }: DocumentListProps) {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [fileFolderId]);
 
   // Fetch documents on mount and when refreshTrigger changes
   useEffect(() => {
@@ -102,11 +140,10 @@ export default function DocumentList({ refreshTrigger }: DocumentListProps) {
     fetchDocuments();
   }, [fetchDocuments, refreshTrigger]);
 
-  // Poll for documents that are processing
+  // Poll while anything is being read, so Reading turns into Ready or
+  // Couldn't read on its own.
   useEffect(() => {
-    const processingDocs = documents.filter(
-      (doc) => doc.processing_status === 'processing' || doc.processing_status === 'pending'
-    );
+    const processingDocs = documents.filter((doc) => fileState(doc) === 'reading');
 
     if (processingDocs.length === 0) return;
 
@@ -136,15 +173,47 @@ export default function DocumentList({ refreshTrigger }: DocumentListProps) {
       });
 
       if (response.error) {
-        throw new Error('Failed to delete document');
+        throw new Error(detailFromError(response.error, 'Could not delete the file'));
       }
 
       toast.success(`Deleted "${filename}"`);
       fetchDocuments();
+      onChanged?.();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to delete document');
       logger.error('Error deleting document:', err);
     }
+  };
+
+  const saveRename = async () => {
+    if (!renaming) return;
+    const response = await updateDocumentApiV1KnowledgeBaseDocumentsDocumentUuidPatch({
+      path: { document_uuid: renaming.document_uuid },
+      body: { filename: newName },
+    });
+    if (response.error) {
+      setRenameError(detailFromError(response.error, 'Could not rename the file'));
+      return;
+    }
+    setRenaming(null);
+    toast.success(`Renamed to "${response.data?.filename ?? newName}"`);
+    fetchDocuments();
+  };
+
+  const moveTo = async (doc: DocumentResponseSchema, target: number | null) => {
+    const response = await updateDocumentApiV1KnowledgeBaseDocumentsDocumentUuidPatch({
+      path: { document_uuid: doc.document_uuid },
+      body: { file_folder_id: target },
+    });
+    if (response.error) {
+      toast.error(detailFromError(response.error, 'Could not move the file'));
+      return;
+    }
+    setMoving(null);
+    const where = target == null ? 'All files' : folders.find((f) => f.id === target)?.path ?? 'the folder';
+    toast.success(`Moved "${doc.filename}" to ${where}`);
+    fetchDocuments();
+    onChanged?.();
   };
 
   // A copy in another language, as a document of its own in the same scope.
@@ -163,22 +232,18 @@ export default function DocumentList({ refreshTrigger }: DocumentListProps) {
     fetchDocuments();
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return <Badge className="bg-green-500">Completed</Badge>;
-      case 'processing':
+  const getStatusBadge = (doc: DocumentResponseSchema) => {
+    switch (fileState(doc)) {
+      case 'ready':
+        return <Badge className="bg-green-600">Ready</Badge>;
+      case 'reading':
         return (
           <Badge variant="secondary" className="animate-pulse">
-            Processing
+            Reading
           </Badge>
         );
-      case 'pending':
-        return <Badge variant="outline">Pending</Badge>;
-      case 'failed':
-        return <Badge variant="destructive">Failed</Badge>;
       default:
-        return <Badge variant="outline">{status}</Badge>;
+        return <Badge variant="destructive">Couldn&apos;t read</Badge>;
     }
   };
 
@@ -304,7 +369,7 @@ export default function DocumentList({ refreshTrigger }: DocumentListProps) {
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search documents..."
+            placeholder={fileFolderId === undefined ? 'Search documents...' : 'Search this folder...'}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-10"
@@ -332,8 +397,12 @@ export default function DocumentList({ refreshTrigger }: DocumentListProps) {
           <EmptyState
             icon={FileText}
             art="folder"
-            title="No documents yet"
-            description="Upload your price list, policy or FAQ and the agent can answer from it during a call, in its own words."
+            title={fileFolderId ? 'This folder is empty' : 'No documents yet'}
+            description={
+              fileFolderId
+                ? 'Drop files here, or drag a file from another folder onto this one.'
+                : 'Upload your price list, policy or FAQ and the agent can answer from it during a call, in its own words.'
+            }
           />
         )
       ) : (
@@ -341,7 +410,14 @@ export default function DocumentList({ refreshTrigger }: DocumentListProps) {
           {filteredDocuments.map((doc) => (
             <div
               key={doc.document_uuid}
-              className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
+              draggable
+              onDragStart={(event) => {
+                event.dataTransfer.setData(FILE_DRAG_TYPE, doc.document_uuid);
+                event.dataTransfer.setData('text/plain', doc.filename);
+                event.dataTransfer.effectAllowed = 'move';
+              }}
+              data-testid={`file-${doc.document_uuid}`}
+              className="flex cursor-grab items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors active:cursor-grabbing"
             >
               <div className="flex items-center gap-4 flex-1">
                 <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
@@ -350,7 +426,12 @@ export default function DocumentList({ refreshTrigger }: DocumentListProps) {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="font-medium truncate">{doc.filename}</span>
-                    {getStatusBadge(doc.processing_status)}
+                    {getStatusBadge(doc)}
+                    {(doc.version ?? 1) > 1 && (
+                      <Badge variant="outline" className="text-xs" title="Uploaded again under the same name">
+                        Version {doc.version}
+                      </Badge>
+                    )}
                     {doc.needs_reingest && (
                       <Badge
                         variant="outline"
@@ -374,10 +455,31 @@ export default function DocumentList({ refreshTrigger }: DocumentListProps) {
                     )}
                     <span>{formatDate(doc.created_at)}</span>
                   </div>
-                  {doc.processing_error && (
-                    <p className="text-xs text-destructive mt-1">
-                      Error: {doc.processing_error}
+                  {fileState(doc) === 'failed' ? (
+                    <p className="text-xs text-destructive mt-1" role="status">
+                      {doc.state_detail || doc.processing_error || "We could not read this file."}
                     </p>
+                  ) : doc.state_detail ? (
+                    <p className="text-xs text-muted-foreground mt-1">{doc.state_detail}</p>
+                  ) : null}
+                  {(doc.versions?.length ?? 0) > 1 && (
+                    <details className="mt-1 text-xs text-muted-foreground">
+                      <summary className="cursor-pointer select-none">
+                        Earlier versions ({(doc.versions?.length ?? 1) - 1})
+                      </summary>
+                      <ul className="mt-1 space-y-0.5 pl-4">
+                        {[...(doc.versions ?? [])]
+                          .filter((v) => !v.current)
+                          .reverse()
+                          .map((v) => (
+                            <li key={v.version}>
+                              Version {v.version}
+                              {v.uploaded_at ? `, uploaded ${formatDate(v.uploaded_at)}` : ''}
+                              {v.file_size_bytes ? `, ${formatFileSize(v.file_size_bytes)}` : ''}
+                            </li>
+                          ))}
+                      </ul>
+                    </details>
                   )}
                   {typeof doc.custom_metadata?.translated_from === 'string' && (
                     <p className="text-xs text-muted-foreground mt-1">
@@ -394,6 +496,28 @@ export default function DocumentList({ refreshTrigger }: DocumentListProps) {
                 </div>
               </div>
               <div className="flex shrink-0 items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  aria-label={`Rename ${doc.filename}`}
+                  title="Rename"
+                  onClick={() => {
+                    setRenaming(doc);
+                    setNewName(doc.filename);
+                    setRenameError(null);
+                  }}
+                >
+                  <Pencil className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  aria-label={`Move ${doc.filename}`}
+                  title="Move to…"
+                  onClick={() => setMoving(doc)}
+                >
+                  <FolderInput className="h-4 w-4" />
+                </Button>
                 {doc.processing_status === 'completed' && (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -419,6 +543,7 @@ export default function DocumentList({ refreshTrigger }: DocumentListProps) {
                 <Button
                   variant="ghost"
                   size="sm"
+                  aria-label={`Delete ${doc.filename}`}
                   onClick={() => handleDelete(doc.document_uuid, doc.filename)}
                   className="text-destructive hover:text-destructive/90"
                 >
@@ -429,6 +554,49 @@ export default function DocumentList({ refreshTrigger }: DocumentListProps) {
           ))}
         </div>
       )}
+
+      <Dialog open={renaming != null} onOpenChange={(open) => !open && setRenaming(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rename file</DialogTitle>
+            <DialogDescription>Agents cite it by its new name straight away.</DialogDescription>
+          </DialogHeader>
+          <form
+            className="space-y-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void saveRename();
+            }}
+          >
+            <Input autoFocus aria-label="File name" value={newName} onChange={(event) => setNewName(event.target.value)} />
+            {renameError && <p className="text-sm text-destructive">{renameError}</p>}
+            <DialogFooter>
+              <Button type="button" variant="ghost" onClick={() => setRenaming(null)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={!newName.trim()}>
+                Rename
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={moving != null} onOpenChange={(open) => !open && setMoving(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Move {moving?.filename}</DialogTitle>
+            <DialogDescription>Folders only organise: every agent that reads it now still will.</DialogDescription>
+          </DialogHeader>
+          {moving && (
+            <FolderPicker
+              folders={folders}
+              current={moving.file_folder_id ?? null}
+              onPick={(target) => void moveTo(moving, target)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

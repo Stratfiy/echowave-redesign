@@ -23,6 +23,7 @@ import {
 } from "@/client/sdk.gen";
 import type { NotificationsView } from "@/client/types.gen";
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
+import { CallWhenDoneSetting } from "@/components/settings/CallWhenDoneSetting";
 import { EmptyState, ErrorState, SaveBar, type SaveState, SettingsSection } from "@/components/shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -360,6 +361,7 @@ export default function NotificationsPage() {
         <>
             <PageHeader title="Notifications" description="Where and when Decibyl tells you things." />
             <PageBody className="max-w-[640px] px-4 md:px-6">
+                <CallWhenDoneSetting />
                 {on ? <NotificationsScreen /> : <EmptyState title="Not switched on yet" description="This will appear when it is turned on for your workspace." />}
             </PageBody>
         </>

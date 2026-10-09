@@ -240,12 +240,12 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
         // "Files", not "Knowledge base". The row names what is in it -- the
         // documents and clips a bot reads -- rather than the category the
         // industry files them under.
-        title: "Knowledge",
-        url: "/settings/knowledge",
+        title: "Files",
+        url: "/files",
         activePaths: ["/recordings"],
         icon: Database,
         keywords: [
-          "files",
+          "knowledge",
           "knowledge base",
           "upload",
           "document",

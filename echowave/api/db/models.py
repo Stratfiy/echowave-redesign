@@ -2017,6 +2017,12 @@ class KnowledgeBaseDocumentModel(Base):
     workflow_id = Column(
         Integer, ForeignKey("workflows.id", ondelete="SET NULL"), nullable=True
     )
+    # Where the file sits on the Files page (FileFolderModel). Not to be
+    # confused with ``folder_id`` above, which is a *channel*. A file folder
+    # only organises: it changes nothing about who reads the file.
+    file_folder_id = Column(
+        Integer, ForeignKey("file_folders.id", ondelete="SET NULL"), nullable=True
+    )
     total_chunks = Column(Integer, nullable=False, default=0)
     # Pages, once processed (KAN-57): the plan's knowledge cap is in pages and
     # pages past it are priced, scanned ones dearer. Written by the worker.
@@ -2072,6 +2078,55 @@ class KnowledgeBaseDocumentModel(Base):
         Index("ix_kb_documents_uuid", "document_uuid"),
         Index("ix_kb_documents_status", "processing_status"),
         Index("ix_kb_documents_created_at", "created_at"),
+        Index("ix_kb_documents_file_folder_id", "file_folder_id"),
+        # The "changed since" listing other clients sync from.
+        Index("ix_kb_documents_org_updated_at", "organization_id", "updated_at"),
+    )
+
+
+class FileFolderModel(Base):
+    """A folder on the Files page, nestable, owned by one organisation.
+
+    Named ``file_folders`` because "folder" already means a *channel* in this
+    codebase (``folders``, ``folder_id``). These organise files and nothing
+    else: every agent still reads every organisation-wide file, wherever it
+    sits.
+
+    Deleting one is soft (``deleted_at``), so a client syncing from the
+    "changed since" listing sees the deletion rather than a folder that
+    quietly stopped appearing.
+    """
+
+    __tablename__ = "file_folders"
+
+    id = Column(Integer, primary_key=True, index=True)
+    folder_uuid = Column(
+        String(36),
+        unique=True,
+        nullable=False,
+        default=lambda: str(uuid.uuid4()),
+    )
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    parent_id = Column(
+        Integer, ForeignKey("file_folders.id", ondelete="CASCADE"), nullable=True
+    )
+    name = Column(String(255), nullable=False)
+    created_by = Column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        Index("ix_file_folders_org_parent", "organization_id", "parent_id"),
+        Index("ix_file_folders_org_updated_at", "organization_id", "updated_at"),
     )
 
 
@@ -6860,6 +6915,11 @@ from api.db.browser_models import (  # noqa: E402,F401
     BrowserSessionModel,
     BrowserSiteLoginModel,
     BrowserSiteRuleModel,
+)
+from api.db.call_when_done_models import (  # noqa: E402,F401
+    DoneCallbackModel,
+    DoneCallModel,
+    DoneCallNumberModel,
 )
 from api.db.care_models import (  # noqa: E402,F401
     CareAlertModel,

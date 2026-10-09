@@ -982,6 +982,19 @@ VOICE_LATENCY_ENABLED = _flag("VOICE_LATENCY_ENABLED")
 # "Call it for me": Decibyl places one phone call on a person's behalf after
 # they approve the exact card, and announces itself at the start of the call.
 CALL_FOR_ME_ENABLED = _flag("CALL_FOR_ME_ENABLED")
+# "Call me when it's done": Decibyl rings the person when a task they handed
+# over finishes (services/call_when_done). Calling hours and the do-not-call
+# list always hold; where no call can be placed it tells them in the app.
+CALL_WHEN_DONE_ENABLED = _flag("CALL_WHEN_DONE_ENABLED")
+# How long a finished task waits before its call is placed, so tasks that
+# finish together are said in one call rather than one call each.
+CALL_WHEN_DONE_GATHER_SECONDS = int(os.getenv("CALL_WHEN_DONE_GATHER_SECONDS", "60"))
+# How long a placed call may go without an outcome before it counts as not
+# answered.
+CALL_WHEN_DONE_ANSWER_MINUTES = int(os.getenv("CALL_WHEN_DONE_ANSWER_MINUTES", "20"))
+# The most of these calls one person is rung with in one of their days (the
+# free beta's limit). Past it, finishes still reach them in the app.
+CALL_WHEN_DONE_DAILY_CAP = int(os.getenv("CALL_WHEN_DONE_DAILY_CAP", "5"))
 # The Call and Appointment runtime (handoff 6): booking policy, open slots,
 # booking within policy, caller verification and escalation on calls.
 CALL_APPOINTMENT_ENABLED = _flag("CALL_APPOINTMENT_ENABLED")

@@ -783,7 +783,12 @@ class PipecatEngine:
                         summary=line,
                         workflow_id=await self._get_workflow_id(),
                         workflow_run_id=self._workflow_run_id,
-                        payload={"tool": "retrieve_from_knowledge_base"},
+                        # Which files, cited, so the thread's Sources says
+                        # what the reply was read from.
+                        payload={
+                            "tool": "retrieve_from_knowledge_base",
+                            "sources": agent_timeline.passages_sources(result),
+                        },
                     )
 
             except Exception as e:

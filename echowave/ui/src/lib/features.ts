@@ -131,6 +131,8 @@ export type Feature =
     | "voice_latency"
     | "call_for_me"
     | "call_appointment"
+    // "Call me when it's done": a phone call when a task finishes.
+    | "call_when_done"
     // People: synced contacts with context (PEOPLE.md).
     | "people"
     // Voice isolation: background voices on calls (VOICE.md).

@@ -10,14 +10,14 @@ keeps its values (``waitlisted`` / ``invited``) and gains ``rejected``.
 Downgrade drops the columns; rejected rows go back to ``waitlisted``.
 
 Revision ID: 20261010invitedecisions
-Revises: 20261009phase3staff
+Revises: 20261010filefolders
 """
 
 import sqlalchemy as sa
 from alembic import op
 
 revision = "20261010invitedecisions"
-down_revision = "20261009phase3staff"
+down_revision = "20261010filefolders"
 branch_labels = None
 depends_on = None
 

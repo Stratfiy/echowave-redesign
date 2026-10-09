@@ -23,11 +23,14 @@ interface DocumentUploadProps {
   /** Who the document is knowledge for. The page uploads to the knowledge base,
    *  which every bot reads; the library is what a node has to name. */
   target?: KnowledgeTarget;
+  /** The Files-page folder it goes in (null: the top level). Organises only. */
+  fileFolderId?: number | null;
 }
 
 export default function DocumentUpload({
   onUploadSuccess,
   target = { scope: 'org' },
+  fileFolderId = null,
 }: DocumentUploadProps) {
   const { config } = useAppConfig();
   const isOSS = config?.deploymentMode === 'oss';
@@ -129,6 +132,7 @@ export default function DocumentUpload({
       await uploadKnowledge(selectedFile, target, {
         retrievalMode,
         onProgress: setUploadProgress,
+        fileFolderId,
       });
       setUploadProgress(100);
       toast.success(`File uploaded: ${selectedFile.name}. Processing started.`);

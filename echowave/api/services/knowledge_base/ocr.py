@@ -63,6 +63,11 @@ def available() -> bool:
 
 
 def pages_from_pdf(file_path: str) -> list[str]:
+    """Text recognised from each page that produced some, in page order."""
+    return [text for _, text in numbered_pages_from_pdf(file_path)]
+
+
+def numbered_pages_from_pdf(file_path: str) -> list[tuple[int, str]]:
     """Text recognised from each page of a scanned PDF.
 
     Returns one string per page that produced something, in page order, and an
@@ -95,7 +100,7 @@ def pages_from_pdf(file_path: str) -> list[str]:
             page_count,
         )
 
-    pages: list[str] = []
+    pages: list[tuple[int, str]] = []
     with tempfile.TemporaryDirectory(prefix="decibyl-ocr-") as workspace:
         for page_number in range(1, limit + 1):
             if page_count and page_number > page_count:
@@ -127,7 +132,9 @@ def pages_from_pdf(file_path: str) -> list[str]:
                     image.close()
 
                 if len(text.strip()) >= MIN_CHARS_PER_PAGE:
-                    pages.append(text.strip())
+                    # With its own number: a blank page skipped here must not
+                    # shift every later page's citation down by one.
+                    pages.append((page_number, text.strip()))
 
     if pages:
         logger.info(

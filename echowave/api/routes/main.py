@@ -21,6 +21,7 @@ from api.routes.bot_triggers import router as bot_triggers_router
 from api.routes.browser import admin_router as browser_admin_router
 from api.routes.browser import router as browser_router
 from api.routes.budgets import router as budgets_router
+from api.routes.call_when_done import router as call_when_done_router
 from api.routes.campaign import router as campaign_router
 from api.routes.care import router as care_router
 from api.routes.channel_links import router as channel_links_router
@@ -185,6 +186,7 @@ router.include_router(tasks_router)
 router.include_router(controls_router)
 router.include_router(helpers_router)
 router.include_router(care_router)
+router.include_router(call_when_done_router)
 router.include_router(controls_admin_router)
 router.include_router(today_router)
 router.include_router(staff_console_router)

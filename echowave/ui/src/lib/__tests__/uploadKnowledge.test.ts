@@ -13,6 +13,12 @@ describe('the paperclip takes a lead list in Excel', () => {
         expect(rejectFile(file)).toBeNull();
     });
 
+    it('accepts pictures, which are read for what they show and say', () => {
+        for (const name of ['board.png', 'Receipt.JPG', 'scan.jpeg', 'screenshot.webp']) {
+            expect(rejectFile(new File(['x'], name))).toBeNull();
+        }
+    });
+
     it('still refuses what cannot be read', () => {
         expect(rejectFile(new File(['x'], 'old.doc'))).not.toBeNull();
         expect(rejectFile(new File(['x'], 'macro.xlsm'))).not.toBeNull();

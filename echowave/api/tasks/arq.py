@@ -28,6 +28,7 @@ from api.tasks.auto_topup import sweep_auto_topups
 from api.tasks.backup import run_database_backup, run_ledger_snapshot
 from api.tasks.billing_rollup import refresh_billing_rollups
 from api.tasks.browser import run_browser_session_job, sweep_browser_sessions
+from api.tasks.call_when_done import call_when_done_sweep, call_when_done_tick
 from api.tasks.campaign_tasks import (
     process_campaign_batch,
     sync_campaign_source,
@@ -156,6 +157,8 @@ class WorkerSettings:
         sweep_ops,
         care_medicine_tick,
         care_call_sweep,
+        call_when_done_tick,
+        call_when_done_sweep,
         transcribe_meeting_segment,
         finish_meeting,
         run_staff_command,
@@ -187,6 +190,16 @@ class WorkerSettings:
             care_call_sweep,
             minute=set(range(3, 60, 5)),
             second=50,
+            run_at_startup=False,
+        ),
+        # "Call me when it's done": due calls placed on the minute (calling
+        # hours and DND checked right before each dial), and calls that never
+        # reported back marked not answered. No-ops while off.
+        cron(call_when_done_tick, second=20, run_at_startup=False),
+        cron(
+            call_when_done_sweep,
+            minute=set(range(4, 60, 5)),
+            second=40,
             run_at_startup=False,
         ),
         # Launch stream controls: catalogue events to analytics, and cards
