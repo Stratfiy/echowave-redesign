@@ -51,7 +51,7 @@ describe("the shell on a phone", () => {
     });
 
     it("draws no rail on the door's pages", () => {
-        for (const path of ["/early-access", "/invite/ABCD-2345", "/welcome"]) {
+        for (const path of ["/early-access", "/invite/ABCD-2345", "/invite-requests/decide", "/welcome"]) {
             state.pathname = path;
             render(<AppLayout>page</AppLayout>);
             expect(screen.queryByRole("navigation", { name: "v2 rail" }), path).toBeNull();

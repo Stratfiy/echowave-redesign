@@ -66,12 +66,18 @@ def _send_sync(
     attachment_filename: str | None,
     from_address: str,
     attachment_mime_type: str | None = None,
+    body_html: str | None = None,
 ) -> None:
     message = EmailMessage()
     message["Subject"] = subject
     message["From"] = f"{EMAIL_FROM_NAME} <{from_address}>"
     message["To"] = to
     message.set_content(body_text)
+    if body_html:
+        # multipart/alternative: the plain text stays the first part, so a
+        # client that cannot render HTML (or a person who turned it off)
+        # still reads the whole message.
+        message.add_alternative(body_html, subtype="html")
 
     if attachment_bytes is not None:
         # Typed by what it is: a photo of a policy arrives as a photo, not as
@@ -109,6 +115,7 @@ async def send_email(
     attachment_filename: str | None = None,
     sender: str = "notifications",
     attachment_mime_type: str | None = None,
+    body_html: str | None = None,
 ) -> SendResult:
     """Send one email, best-effort.
 
@@ -116,6 +123,10 @@ async def send_email(
     ``notifications`` for everything else. Both fall back to
     ``EMAIL_FROM_ADDRESS`` when unset, so a deployment that configures only
     that keeps behaving exactly as it did.
+
+    ``body_html`` is optional and sent as an alternative to ``body_text``,
+    never instead of it. Anything a person typed must be escaped by the
+    caller before it goes in.
 
     Never raises: a failed send is a fact to log and report, not an exception
     that should unwind whatever triggered it -- the underlying event (a
@@ -138,6 +149,7 @@ async def send_email(
             attachment_filename=attachment_filename,
             attachment_mime_type=attachment_mime_type,
             from_address=sender_address(sender),
+            body_html=body_html,
         )
     except Exception as exc:  # noqa: BLE001 -- reported, not propagated; see docstring
         logger.error("Failed to send email to {}: {}", to, exc)

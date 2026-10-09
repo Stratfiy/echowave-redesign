@@ -8,6 +8,7 @@ export const EARLY_ACCESS_COPY = {
     lead: "An agent for every job nobody has time for. Decibyl is invite-only for now; leave your email and we will review it.",
     email: "Email",
     emailHint: "We send your invitation here.",
+    name: "Your name (optional)",
     language: "Language",
     firstTask: "What would you ask Decibyl first? (optional)",
     firstTaskPlaceholder: "For example: remind my customers about payments due this week",

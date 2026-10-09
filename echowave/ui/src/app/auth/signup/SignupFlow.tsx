@@ -47,7 +47,8 @@ export function SignupFlow() {
   const searchParams = useSearchParams();
   const referralCode = searchParams.get("ref");
   // Invite-only (INVITE-1, KAN-273). The invite email links here with
-  // `?invite=` (older links: `?code=`) so the step arrives filled.
+  // `?invite=` or `?code=`, and the approved-request welcome adds `?email=`
+  // (the address the code is pinned to), so both steps arrive filled.
   const inviteOnly = useFeature("invite_only_signup");
   // Set when the server refuses an invite the flag had not asked for yet —
   // the flag answers after first paint, the server is the authority.
@@ -57,7 +58,7 @@ export function SignupFlow() {
   const google = useGoogleSignIn();
 
   const [values, setValues] = useState<SignupValues>(() => ({
-    email: "",
+    email: searchParams.get("email")?.trim() ?? "",
     inviteCode: searchParams.get("invite") ?? searchParams.get("code") ?? "",
     name: "",
     password: "",

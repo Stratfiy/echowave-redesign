@@ -30,6 +30,11 @@ export const PUBLIC_PATHS = [
   // off, and the invitation page never grants access by itself.
   "/early-access",
   "/invite",
+  // The Approve / Reject links mailed to whoever approves invite requests.
+  // The signed token in the link is the authority, not a session (the
+  // approver may have no account), and opening it only shows a confirm
+  // button: deciding is a POST the page makes when that is pressed.
+  "/invite-requests",
 ] as const;
 
 export function isPublicPath(pathname: string): boolean {
