@@ -33,15 +33,18 @@ from api.services import call_when_done as cwd
 from api.services.call_when_done import calls, optin
 from api.services.compliance import dnd
 from api.tests import care_support as cs
-from api.tests.test_call_when_done import (  # noqa: F401
+from api.tests import test_call_when_done as base
+from api.tests.test_call_when_done import (
     _confirm_number,
     _finish,
     _ist,
     _notices,
     _rows,
     _task,
-    home,
 )
+
+#: The suite's workspace: Asha, a stand-in line, and ``_dial`` replaced.
+home = base.home
 
 pytestmark = pytest.mark.asyncio
 
@@ -120,9 +123,7 @@ class TestQuietHours:
 
 
 class TestRecipient:
-    async def test_a_person_removed_after_the_call_was_queued_is_not_rung(
-        self, home
-    ):
+    async def test_a_person_removed_after_the_call_was_queued_is_not_rung(self, home):
         await _confirm_number(home)
         await _queued(home)
         await db_client.remove_user_from_organization(home.asha.id, home.org)
@@ -193,7 +194,7 @@ class TestUnknownOutcomes:
         "them. The contract records 'unknown' and reconciles first.",
     )
     async def test_a_provider_timeout_is_unknown_not_failed(self, home):
-        home.dial.side_effect = asyncio.TimeoutError()
+        home.dial.side_effect = TimeoutError()
         await _confirm_number(home)
         await _queued(home)
         await calls.tick(home.clock["now"] + timedelta(minutes=2))
@@ -208,9 +209,7 @@ class TestUnknownOutcomes:
         "as 'you did not pick up', though nothing rang. The contract reserves a "
         "dispatch record; only a dispatched call can be unanswered.",
     )
-    async def test_a_claim_that_never_dialled_is_not_reported_as_unanswered(
-        self, home
-    ):
+    async def test_a_claim_that_never_dialled_is_not_reported_as_unanswered(self, home):
         await _confirm_number(home)
         await _queued(home)
         call_id = (await _rows("done_calls", home.org))[0]["id"]

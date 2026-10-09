@@ -82,7 +82,8 @@ class TestTheRememberedFactsCap:
     @pytest.mark.asyncio
     async def test_a_bots_own_facts_survive_an_organisation_past_the_cap(self):
         org_rows = [
-            _row(f"house rule {i}", f"value {i}") for i in range(memory.MAX_REMEMBERED + 5)
+            _row(f"house rule {i}", f"value {i}")
+            for i in range(memory.MAX_REMEMBERED + 5)
         ]
         bot_rows = [
             _row("answer in", "Tamil", workflow_id=7),

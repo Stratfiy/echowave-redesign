@@ -32,7 +32,11 @@ from api import constants
 from api.db import db_client
 from api.db.care_models import CareMedicineModel
 from api.services.care import calls, circle, medicines
-from api.tests.test_care_medicine_calls import _active, _at, _doses, home  # noqa: F401
+from api.tests import test_care_medicine_calls as base
+from api.tests.test_care_medicine_calls import _active, _at, _doses
+
+#: The care suite's household (Amma, Priya told of missed doses, Ravi not).
+home = base.home
 
 pytestmark = pytest.mark.asyncio
 
@@ -210,9 +214,7 @@ class TestUnknownOutcomes:
         "retrying.",
     )
     async def test_a_provider_timeout_is_unknown_not_failed(self, home, monkeypatch):
-        monkeypatch.setattr(
-            calls, "_dial", AsyncMock(side_effect=asyncio.TimeoutError())
-        )
+        monkeypatch.setattr(calls, "_dial", AsyncMock(side_effect=TimeoutError()))
         await _live(home, monkeypatch)
         await calls.tick(_at(8, 1))
         rows = await _doses(home.org)
