@@ -4,8 +4,10 @@ The founder decided on 9 Oct 2026 that no pricing is shown to users
 (AGENTS.md, "Product decisions that are already settled";
 ``constants.PRICES_SHOWN``). The UI has its own guard
 (ui/src/__tests__/pricingGuard.test.ts); this one covers the prompts:
-Decibyl's persona, the agent builder's system prompt, and every tool
-description the builder (and Studio, which reuses them) hands the model.
+Decibyl's persona, the agent builder's system prompt, every tool
+description the builder (and Studio, which reuses them) hands the model, and
+the developer tool server (MCP): its instructions and every registered
+tool's description.
 A model told "four credits a run" or "Lite, Normal or Smart with its price a
 minute" says it, so the words fail here.
 """
@@ -18,6 +20,8 @@ import re
 import pytest
 
 from api import constants
+from api.mcp_server.instructions import DECIBYL_MCP_INSTRUCTIONS
+from api.mcp_server.server import mcp
 from api.services.agent_builder import session as builder_session
 from api.services.agent_builder import tools as builder_tools
 from api.services.studio import tools as studio_tools
@@ -72,6 +76,26 @@ def test_the_switch_is_off():
 @pytest.mark.parametrize("name", list(_prompts()))
 def test_no_prompt_tells_the_model_a_price(name):
     assert _hits(name, _prompts()[name]) == []
+
+
+def test_the_mcp_instructions_tell_no_price():
+    assert _hits("mcp.instructions", DECIBYL_MCP_INSTRUCTIONS) == []
+
+
+@pytest.mark.asyncio
+async def test_no_mcp_tool_description_tells_a_price():
+    found = []
+    for tool in await mcp.list_tools():
+        found += _hits(f"mcp.{tool.name}", tool.description or "")
+    assert found == []
+
+
+@pytest.mark.asyncio
+async def test_the_mcp_server_offers_no_priced_tool():
+    names = {tool.name for tool in await mcp.list_tools()}
+    assert "estimate_agent_cost" not in names
+    assert "get_billing_summary" not in names
+    assert "estimate_agent_cost" not in DECIBYL_MCP_INSTRUCTIONS
 
 
 def test_the_guard_catches_what_it_is_meant_to():
