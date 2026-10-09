@@ -43,13 +43,13 @@ export function AuthShell({
       {/* Headline. 400 weight, tight leading, one accented phrase. */}
       <div className="relative z-10 mt-8 max-w-xl text-center">
         <h1 className="text-balance text-[28px] font-normal leading-[1.1] tracking-[-0.01em] text-brand-heading sm:text-[34px]">
-          An agent for every job nobody has time for.
+          Personal intelligence that grows and evolves with you.
         </h1>
         <p className="mx-auto mt-3 max-w-md text-[15px] leading-relaxed text-brand-body">
-          Decibyl&rsquo;s agents answer the phone, reply on WhatsApp and email,
-          look things up in the tools you already run, and hand back what they
-          finished. In Hindi, Tamil, Telugu and eight more. Set one up yourself
-          in ten minutes.
+          One assistant for home, work and business. Decibyl answers the phone,
+          replies on WhatsApp and email, and works in the tools you already run
+          &mdash; in Hindi, Tamil, Telugu and eight more. It learns as you go,
+          and always asks before it acts.
         </p>
       </div>
 

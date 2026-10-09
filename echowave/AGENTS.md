@@ -1,9 +1,14 @@
 # Decibyl - Project Overview
 
-Decibyl is an **agent platform for Indian businesses**. A business hires a bot
-for a job — answering the phone, confirming orders, chasing payments, answering
-staff questions from its own documents, filing a reminder every morning — and
-the bot does that job on whatever channel the job needs.
+Decibyl is **personal intelligence that grows and evolves with you** — one
+assistant for a person's whole life: home, work and business. It acts on the
+phone and WhatsApp in their language, teaches them at their own pace, remembers
+what matters, and always asks before it acts (`LAUNCH-PLAN.md`).
+
+A person and their business are one account. For the business half, they hire
+an agent for a job — answering the phone, confirming orders, chasing payments,
+answering staff questions from its own documents, filing a reminder every
+morning — and the agent does that job on whatever channel the job needs.
 
 **Voice is one channel, not the product.** It was the first one and it is still
 the hardest, which is why so much of this codebase is telephony and pipelines.
