@@ -1,9 +1,25 @@
 # Decibyl - Project Overview
 
-Decibyl is an **agent platform for Indian businesses**. A business hires a bot
-for a job — answering the phone, confirming orders, chasing payments, answering
-staff questions from its own documents, filing a reminder every morning — and
-the bot does that job on whatever channel the job needs.
+Decibyl's agreed product direction is **agents that talk, remember, act, and
+learn from outcomes**, for individuals as well as businesses.
+
+The intended hierarchy is an account with separate personal and business
+vaults. Each vault has a main Decibyl assistant, specialist agents, memory,
+tasks, files and connected apps; business vaults also have human teammates.
+Memory is visible and editable, important context is saved automatically,
+and actions are logged. Cross-vault sharing is explicit.
+
+The code already has organization-based workspaces, a main assistant,
+specialists, memory, tasks, routines and marketplace surfaces. Do not describe
+the complete vault model or granular teammate access as shipped without
+verification. Existing Indian-business and voice workflows remain valid use
+cases; they do not define the whole audience.
+
+The agreed action default is automatic research, organization and drafting;
+sending messages, spending money and deletion need approval. Recurring grants
+must have limits and be revocable. New specialists need a review of role,
+tools, memory access and permissions before activation. These are requirements
+to reconcile across current paths, not a claim of universal enforcement today.
 
 **Voice is one channel, not the product.** It was the first one and it is still
 the hardest, which is why so much of this codebase is telephony and pipelines.

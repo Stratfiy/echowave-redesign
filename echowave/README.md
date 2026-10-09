@@ -1,8 +1,43 @@
 # Decibyl
 
-Build production voice agents with a visual workflow builder — a real-time
-speech pipeline with telephony and WebRTC, a drag-and-drop builder, and an MCP
-surface so coding assistants can design and edit agents directly.
+**Agents talk, remember, act, and learn from outcomes.**
+
+Decibyl is being shaped for personal use and business teams. A main Decibyl
+assistant helps people use relevant memory, coordinate specialist agents and
+complete tasks through conversation and connected tools.
+
+## What is here today
+
+The codebase includes the main workspace assistant, voice and text agents,
+agent creation and marketplace shelves, task assignment and delegation,
+scheduled routines, connected apps, action confirmation cards and activity
+timelines. Memory includes organization and agent facts, a knowledge graph,
+correction paths and export as linked notes for Obsidian.
+
+The voice runtime remains part of this foundation: telephony, WebRTC, a visual
+workflow builder and an MCP surface for designing and editing agents.
+The current application still carries business-oriented terminology and
+organization-based tenancy. Source presence alone does not establish that
+every feature is configured or verified on a particular deployment.
+
+## Direction being shaped
+
+The intended top-level space is a **vault**: personal or business, each with
+its own Decibyl assistant, specialists, visible editable memory, tasks, files
+and apps. Business vaults also include human teammates. Sharing across vaults
+is explicit, and access within a vault follows the requesting person's
+permissions.
+
+The agreed default permits research, organization and drafting automatically;
+sends, spending and deletion require approval. A user can authorize a bounded
+recurring action, pause or revoke it, and review a new agent's role, tools,
+memory access and permissions before activation.
+
+The complete vault model, granular access, linked-note editor and consistent
+authorization across all execution paths are not yet established by the
+current implementation. Learning from outcomes remains a direction to
+validate with repeated-task evidence. This README does not change pricing
+or imply that every proposed capability is available.
 
 **This repository is private. Decibyl is a commercial product, not open source.**
 
@@ -26,7 +61,7 @@ Contributor setup — virtualenv, `.env` templates, running the test suite — i
 [`docs/contribution/setup.mdx`](docs/contribution/setup.mdx). Common problems
 are in [`docs/getting-started/troubleshooting.mdx`](docs/getting-started/troubleshooting.mdx).
 
-## Your first agent
+## Existing voice-agent test path
 
 1. Open <http://localhost:3010>.
 2. Pick **Inbound** or **Outbound**, name the agent, and describe the use case
@@ -82,7 +117,10 @@ Each subtree has an `AGENTS.md` with the conventions that apply inside it.
 - **[`CONTRIBUTING.md`](CONTRIBUTING.md)** — branching, tests, and where to
   report things.
 
-## Pricing model
+## Existing billing implementation
+
+This describes the existing billing implementation, not a finalized pricing
+proposal for the personal and business vault experience.
 
 A platform fee plus provider costs passed through **at cost, with no markup** —
 enforced by the schema rather than by convention: provider cost and platform fee
