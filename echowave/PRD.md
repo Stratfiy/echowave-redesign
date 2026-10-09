@@ -21,11 +21,11 @@ matters, and always asks before it acts. Positioning and copy live in
 A person and their business are one account, so the product earns in three
 places:
 
-| Part of life | What Decibyl does | Plans (`subscription_plans.py`) |
+| Part of life | What Decibyl does | Plans (the 21 Sept ladder in `subscription_plans.py`) |
 |---|---|---|
-| **Home** | Today brief, reminders, learning at your own pace, care for older people, ordering, private browsing | Free, Everyday |
-| **Work** | Inbox, research, follow-up and meeting help; its own email and number; the tools you already use | Everyday, Business |
-| **Business** | Agents hired for a job — phone, WhatsApp, orders, payments — shared with the team | Business, Growth, Scale |
+| **Home** | Today brief, reminders, learning at your own pace, care for older people, ordering, private browsing | Free, Go, Personal |
+| **Work** | Inbox, research, follow-up and meeting help; its own email and number; the tools you already use | Personal, Business |
+| **Business** | Agents hired for a job — phone, WhatsApp, orders, payments — shared with the team | Business, Pro, Scale |
 
 The rest of this document is mostly about the **business** half, and within it
 the voice channel: it is the costliest part to run and the one whose price a
