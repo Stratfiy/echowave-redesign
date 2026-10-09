@@ -28,13 +28,14 @@ reads it; the model gets a sentence written for a caller's ears.
 
 import json
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from loguru import logger
 from opentelemetry import trace
 
 from api.db import db_client
 from api.services.gen_ai import build_embedding_service
+from api.services.knowledge_base import citations
 from api.services.pipecat.tracing_config import ensure_tracing
 
 #: The search ran and found something.
@@ -105,7 +106,7 @@ UNAVAILABLE_INSTRUCTION = (
 )
 
 
-def retrieval_unavailable(query: str, exception: BaseException) -> Dict[str, Any]:
+def retrieval_unavailable(query: str, exception: BaseException) -> dict[str, Any]:
     """The payload for a lookup that could not be performed.
 
     The exception is logged and recorded on the current span — the payload
@@ -132,18 +133,19 @@ def retrieval_unavailable(query: str, exception: BaseException) -> Dict[str, Any
 async def retrieve_from_knowledge_base(
     query: str,
     organization_id: int,
-    document_uuids: Optional[List[str]] = None,
+    document_uuids: list[str] | None = None,
     limit: int = 3,
-    embeddings_api_key: Optional[str] = None,
-    embeddings_model: Optional[str] = None,
-    embeddings_base_url: Optional[str] = None,
-    embeddings_provider: Optional[str] = None,
-    embeddings_endpoint: Optional[str] = None,
-    embeddings_api_version: Optional[str] = None,
-    correlation_id: Optional[str] = None,
+    embeddings_api_key: str | None = None,
+    embeddings_model: str | None = None,
+    embeddings_base_url: str | None = None,
+    embeddings_provider: str | None = None,
+    embeddings_endpoint: str | None = None,
+    embeddings_api_version: str | None = None,
+    correlation_id: str | None = None,
     tracing_context=None,
-    billing_sink: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
+    billing_sink: dict[str, Any] | None = None,
+    full_documents: bool = True,
+) -> dict[str, Any]:
     """Retrieve relevant information from the knowledge base using vector similarity search.
 
     Uses OpenAI text-embedding-3-small for embeddings by default. This provides
@@ -203,6 +205,7 @@ async def retrieve_from_knowledge_base(
                 embeddings_api_version,
                 correlation_id,
                 billing_sink=billing_sink,
+                full_documents=full_documents,
             )
 
         # Create span with parent context
@@ -245,6 +248,7 @@ async def retrieve_from_knowledge_base(
                         embeddings_api_version,
                         correlation_id,
                         billing_sink=billing_sink,
+                        full_documents=full_documents,
                     )
 
                     # Add result metadata to span
@@ -324,6 +328,7 @@ async def retrieve_from_knowledge_base(
                 embeddings_api_version,
                 correlation_id,
                 billing_sink=billing_sink,
+                full_documents=full_documents,
             )
     else:
         # Tracing is disabled - perform retrieval without tracing
@@ -340,45 +345,66 @@ async def retrieve_from_knowledge_base(
             embeddings_api_version,
             correlation_id,
             billing_sink=billing_sink,
+            full_documents=full_documents,
         )
 
 
 async def _perform_retrieval(
     query: str,
     organization_id: int,
-    document_uuids: Optional[List[str]],
+    document_uuids: list[str] | None,
     limit: int,
-    embeddings_api_key: Optional[str] = None,
-    embeddings_model: Optional[str] = None,
-    embeddings_base_url: Optional[str] = None,
-    embeddings_provider: Optional[str] = None,
-    embeddings_endpoint: Optional[str] = None,
-    embeddings_api_version: Optional[str] = None,
-    correlation_id: Optional[str] = None,
-    billing_sink: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
+    embeddings_api_key: str | None = None,
+    embeddings_model: str | None = None,
+    embeddings_base_url: str | None = None,
+    embeddings_provider: str | None = None,
+    embeddings_endpoint: str | None = None,
+    embeddings_api_version: str | None = None,
+    correlation_id: str | None = None,
+    billing_sink: dict[str, Any] | None = None,
+    full_documents: bool = True,
+) -> dict[str, Any]:
     """Internal function to perform the actual retrieval operation.
 
     Separated from tracing logic for cleaner code organization.
     Handles both chunked (vector search) and full_document (full text) modes.
+
+    Passages are found two ways and merged: by meaning (the vector search,
+    when the account has embeddings) and by their words (always). Words
+    catch what a vector misses -- a SKU, an invoice number, a value under
+    its column header -- and are the only way into a file read without
+    embeddings. Every passage says where it came from (``citation``): the
+    file's name and folder as they are now, and the page or the sheet and
+    rows.
+
+    ``full_documents=False`` treats a full-document file like any other:
+    its passages, cited, rather than its whole text (Decibyl, which reads
+    many files for one question).
     """
     try:
         chunks = []
+        paths = await _folder_paths(organization_id)
 
         # Check for full_document mode documents and return their full text
-        if document_uuids:
+        if document_uuids and full_documents:
             full_text_docs = await db_client.get_full_text_documents(
                 organization_id=organization_id,
                 document_uuids=document_uuids,
             )
             for doc in full_text_docs:
                 if doc.full_text:
+                    folder = _folder_of(doc, paths)
                     chunks.append(
                         {
                             "text": doc.full_text,
-                            "filename": doc.filename,
                             "similarity": 1.0,
                             "chunk_index": 0,
+                            **citations.fields(
+                                filename=doc.filename,
+                                folder_path=folder,
+                                document_uuid=doc.document_uuid,
+                                chunk_metadata=None,
+                            ),
                         }
                     )
 
@@ -390,57 +416,60 @@ async def _perform_retrieval(
 
         # Perform vector similarity search on chunked documents
         if chunked_uuids is None or len(chunked_uuids) > 0:
-            if not embeddings_api_key:
+            terms = _search_terms(query)
+            words = await _word_hits(
+                organization_id, terms, limit, chunked_uuids if chunked_uuids else None
+            )
+            results: list[dict[str, Any]] = []
+            if embeddings_api_key:
+                # Search runs inside a workflow run: reuse the run's MPS
+                # correlation id. The Decibyl-managed path forwards it via
+                # request metadata.
+                embedding_service = await build_embedding_service(
+                    db_client=db_client,
+                    provider=embeddings_provider,
+                    api_key=embeddings_api_key,
+                    model=embeddings_model,
+                    base_url=embeddings_base_url,
+                    endpoint=embeddings_endpoint,
+                    api_version=embeddings_api_version,
+                    correlation_id=correlation_id,
+                )
+
+                results = await embedding_service.search_similar_chunks(
+                    query=query,
+                    organization_id=organization_id,
+                    limit=limit,
+                    document_uuids=chunked_uuids if chunked_uuids else None,
+                )
+
+                # The query embedding above is real vendor usage, paid for on
+                # whichever key `embeddings_api_key` resolved to. Handed back
+                # through the out-parameter rather than the returned dict --
+                # see this function's own docstring on `billing_sink` for why
+                # it must not become a key the LLM reads. `embeddings_provider`
+                # is the configured provider name ("openai", "decibyl", ...),
+                # which is what the rate card is keyed on;
+                # `search_similar_chunks` has already run by this point, so
+                # `last_usage_tokens` reflects the call that just happened.
+                if billing_sink is not None:
+                    billing_sink["provider"] = embeddings_provider or "openai"
+                    billing_sink["model"] = embedding_service.get_model_id()
+                    billing_sink["tokens"] = getattr(
+                        embedding_service, "last_usage_tokens", None
+                    )
+            elif not _usable(words, terms, by_meaning=False):
+                # No embeddings and no passage holding the question's words:
+                # a search that could not look properly is not a "no".
                 raise ValueError(
                     "Embeddings API key not configured. Please set your API key in "
                     "Model Configurations > Embedding."
                 )
 
-            # Search runs inside a workflow run: reuse the run's MPS correlation
-            # id. The Decibyl-managed path forwards it via request metadata.
-            embedding_service = await build_embedding_service(
-                db_client=db_client,
-                provider=embeddings_provider,
-                api_key=embeddings_api_key,
-                model=embeddings_model,
-                base_url=embeddings_base_url,
-                endpoint=embeddings_endpoint,
-                api_version=embeddings_api_version,
-                correlation_id=correlation_id,
-            )
-
-            results = await embedding_service.search_similar_chunks(
-                query=query,
-                organization_id=organization_id,
-                limit=limit,
-                document_uuids=chunked_uuids if chunked_uuids else None,
-            )
-
-            # The query embedding above is real vendor usage, paid for on
-            # whichever key `embeddings_api_key` resolved to. Handed back
-            # through the out-parameter rather than the returned dict — see
-            # this function's own docstring on `billing_sink` for why it must
-            # not become a key the LLM reads. `embeddings_provider` is the
-            # configured provider name ("openai", "decibyl", ...), which is
-            # what the rate card is keyed on; `search_similar_chunks` has
-            # already run by this point, so `last_usage_tokens` reflects the
-            # call that just happened, not a stale value from construction.
-            if billing_sink is not None:
-                billing_sink["provider"] = embeddings_provider or "openai"
-                billing_sink["model"] = embedding_service.get_model_id()
-                billing_sink["tokens"] = getattr(
-                    embedding_service, "last_usage_tokens", None
-                )
-
-            for result in results:
-                chunk_info = {
-                    "text": result.get("contextualized_text")
-                    or result.get("chunk_text"),
-                    "filename": result.get("filename"),
-                    "similarity": round(result.get("similarity", 0), 4),
-                    "chunk_index": result.get("chunk_index"),
-                }
-                chunks.append(chunk_info)
+            meaning = [
+                _passage(result, paths, round(float(result.get("similarity") or 0), 4))
+                for result in results
+            ]
 
             # Drop what is too far away to be an answer. Full-document matches
             # carry similarity 1.0 and are unaffected; this is only about
@@ -448,11 +477,18 @@ async def _perform_retrieval(
             # anything near exists.
             near_enough = [
                 chunk
-                for chunk in chunks
+                for chunk in meaning
                 if float(chunk.get("similarity") or 0) >= WEAK_MATCH_BELOW
             ]
-            if chunks and not near_enough:
-                best = max(float(c.get("similarity") or 0) for c in chunks)
+            merged = _merge(
+                near_enough,
+                _usable(words, terms, by_meaning=bool(embeddings_api_key)),
+                terms,
+                paths,
+                limit,
+            )
+            if meaning and not near_enough and not merged:
+                best = max(float(c.get("similarity") or 0) for c in meaning)
                 logger.info(
                     "Knowledge base weak match: query='{}', best={:.4f} < {:.2f}",
                     query,
@@ -470,7 +506,7 @@ async def _perform_retrieval(
                     # that tells you whether the floor is set right.
                     "best_similarity": round(best, 4),
                 }
-            chunks = near_enough
+            chunks.extend(merged)
 
         logger.info(
             f"Knowledge base retrieval: query='{query}', "
@@ -501,9 +537,154 @@ async def _perform_retrieval(
         return retrieval_unavailable(query, e)
 
 
+#: Words too common to say what a question is about.
+_STOPWORD_TEXT = (
+    "a an and are as at be by can do does for from has have how i in is it "
+    "its me my no not of on or our please tell than that the their them "
+    "then there this to us was we what when where which who why will with "
+    "you your about any much many"
+)
+_STOPWORDS = frozenset(_STOPWORD_TEXT.split())
+
+
+def _search_terms(query: str) -> list[str]:
+    """The words of a question worth searching for, in order, once each."""
+    import re
+
+    out: list[str] = []
+    for word in re.findall(r"[^\W_]+(?:[-'][^\W_]+)*", (query or "").lower()):
+        for part in re.split(r"[-']", word):
+            worth = (len(part) > 1 or part.isdigit()) and part not in _STOPWORDS
+            if worth and part not in out:
+                out.append(part)
+    return out[:12]
+
+
+async def _word_hits(
+    organization_id: int,
+    terms: list[str],
+    limit: int,
+    document_uuids: list[str] | None,
+) -> list[dict[str, Any]]:
+    """Passages holding the question's words. Never raises: a word search
+    that fails leaves the meaning search to answer alone."""
+    if not terms:
+        return []
+    try:
+        return await db_client.keyword_search_chunks(
+            organization_id=organization_id,
+            terms=terms,
+            limit=max(limit, 3) * 2,
+            document_uuids=document_uuids,
+        )
+    except Exception as exc:  # noqa: BLE001 - see docstring
+        logger.warning("Word search over Files failed: {}", exc)
+        return []
+
+
+async def _folder_paths(organization_id: int) -> dict[int, str]:
+    """Folder paths as they are now, for citations. Empty when unreadable:
+    a citation without its folder still names the file."""
+    try:
+        from api.services.knowledge_base import folders
+
+        return await folders.folder_paths(organization_id)
+    except Exception as exc:  # noqa: BLE001 - see docstring
+        logger.warning("Could not read file folders for citations: {}", exc)
+        return {}
+
+
+def _folder_of(row: Any, paths: dict[int, str]) -> str:
+    folder_id = (
+        row.get("file_folder_id") if isinstance(row, dict) else row.file_folder_id
+    )
+    return paths.get(folder_id, "") if folder_id is not None else ""
+
+
+def _passage(
+    row: dict[str, Any], paths: dict[int, str], similarity: float
+) -> dict[str, Any]:
+    metadata = row.get("chunk_metadata") or {}
+    if isinstance(metadata, str):
+        try:
+            metadata = json.loads(metadata)
+        except (TypeError, ValueError):
+            metadata = {}
+    return {
+        "text": row.get("contextualized_text") or row.get("chunk_text"),
+        "similarity": similarity,
+        "chunk_index": row.get("chunk_index"),
+        "_chunk_id": row.get("id"),
+        **citations.fields(
+            filename=row.get("filename") or "",
+            folder_path=_folder_of(row, paths),
+            document_uuid=row.get("document_uuid"),
+            chunk_metadata=metadata,
+        ),
+    }
+
+
+def _usable(
+    words: list[dict[str, Any]], terms: list[str], *, by_meaning: bool
+) -> list[dict[str, Any]]:
+    """The word hits worth handing over.
+
+    Beside a search by meaning, a passage sharing a single word with a
+    longer question is noise next to better matches, so it needs two. With
+    words alone -- no embeddings on this account -- one of the question's
+    words is the evidence there is, and the passages holding the most of
+    them still come first.
+    """
+    need = 2 if by_meaning and len(terms) > 1 else 1
+    return [row for row in words if int(row.get("matched") or 0) >= need]
+
+
+def _merge(
+    meaning: list[dict[str, Any]],
+    words: list[dict[str, Any]],
+    terms: list[str],
+    paths: dict[int, str],
+    limit: int,
+) -> list[dict[str, Any]]:
+    """Meaning and word hits as one list, best first, each passage once.
+
+    A passage holding every word of the question leads (it is about exactly
+    that); then the meaning matches; then the other word hits, which
+    :func:`_usable` has already thinned.
+    """
+    strong: list[dict[str, Any]] = []
+    partial: list[dict[str, Any]] = []
+    for row in words:
+        matched = int(row.get("matched") or 0)
+        # Shown on the passage like a vector score, so a reader can compare:
+        # the share of the question's words it holds.
+        passage = _passage(row, paths, round(matched / max(len(terms), 1), 4))
+        (strong if matched >= len(terms) and len(terms) > 1 else partial).append(
+            passage
+        )
+    out: list[dict[str, Any]] = []
+    seen: set = set()
+    for passage in [*strong, *meaning, *partial]:
+        # The same passage found both ways is one passage. Without its row id
+        # (never the case for a stored chunk) nothing is assumed to repeat.
+        if passage.get("_chunk_id") is not None:
+            key: Any = ("chunk", passage["_chunk_id"])
+        elif passage.get("document_uuid"):
+            key = (passage["document_uuid"], passage.get("chunk_index"))
+        else:
+            key = ("object", id(passage))
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(passage)
+    for passage in out:
+        passage.pop("_chunk_id", None)
+    return out[: max(limit, 1)]
+
+
 def get_knowledge_base_tool(
-    document_uuids: Optional[List[str]] = None,
-) -> Dict[str, Any]:
+    document_uuids: list[str] | None = None,
+) -> dict[str, Any]:
     """Get knowledge base retrieval tool definition for LLM function calling.
 
     Args:
@@ -526,6 +707,12 @@ def get_knowledge_base_tool(
             "Use this tool when you need to look up facts, policies, procedures, or any information "
             "that might be stored in the knowledge base documents."
         )
+    # Every passage comes back with where it came from; an answer that says
+    # so can be checked, and one that does not cannot.
+    description += (
+        " Each passage carries a citation (the file, its folder, and the page "
+        "or sheet); when you answer from one, say which file it came from."
+    )
 
     return {
         "type": "function",

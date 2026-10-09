@@ -12,6 +12,7 @@ from api.db.contact_client import ContactClient
 from api.db.do_not_call_client import DoNotCallClient
 from api.db.email_verification_client import EmailVerificationClient
 from api.db.embed_token_client import EmbedTokenClient
+from api.db.file_folder_client import FileFolderClient
 from api.db.folder_client import FolderClient
 from api.db.integration_client import IntegrationClient
 from api.db.knowledge_base_client import KnowledgeBaseClient
@@ -83,6 +84,7 @@ class DBClient(
     BotEventWebhookClient,
     ToolClient,
     KnowledgeBaseClient,
+    FileFolderClient,
     WorkflowRecordingClient,
     TelephonyConfigurationClient,
     TelephonyPhoneNumberClient,

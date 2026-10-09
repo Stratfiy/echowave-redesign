@@ -1,8 +1,8 @@
 """Database client for managing knowledge base documents and chunks."""
 
 import hashlib
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import List, Optional
 
 from loguru import logger
 from sqlalchemy import delete, func, select
@@ -23,14 +23,15 @@ class KnowledgeBaseClient(BaseDBClient):
         file_size_bytes: int,
         file_hash: str,
         mime_type: str,
-        source_url: Optional[str] = None,
-        custom_metadata: Optional[dict] = None,
-        docling_metadata: Optional[dict] = None,
-        document_uuid: Optional[str] = None,
+        source_url: str | None = None,
+        custom_metadata: dict | None = None,
+        docling_metadata: dict | None = None,
+        document_uuid: str | None = None,
         retrieval_mode: str = "chunked",
         scope: str = "library",
-        folder_id: Optional[int] = None,
-        workflow_id: Optional[int] = None,
+        folder_id: int | None = None,
+        workflow_id: int | None = None,
+        file_folder_id: int | None = None,
     ) -> KnowledgeBaseDocumentModel:
         """Create a new knowledge base document record.
 
@@ -56,6 +57,7 @@ class KnowledgeBaseClient(BaseDBClient):
                 scope=scope,
                 folder_id=folder_id,
                 workflow_id=workflow_id,
+                file_folder_id=file_folder_id,
                 filename=filename,
                 file_size_bytes=file_size_bytes,
                 file_hash=file_hash,
@@ -86,8 +88,8 @@ class KnowledgeBaseClient(BaseDBClient):
         self,
         organization_id: int,
         *,
-        workflow_id: Optional[int],
-        folder_id: Optional[int],
+        workflow_id: int | None,
+        folder_id: int | None,
     ) -> list[str]:
         """The documents a run reads without a node naming them.
 
@@ -114,18 +116,52 @@ class KnowledgeBaseClient(BaseDBClient):
                 select(KnowledgeBaseDocumentModel.document_uuid)
                 .where(
                     KnowledgeBaseDocumentModel.organization_id == organization_id,
-                    KnowledgeBaseDocumentModel.is_active == True,  # noqa: E712
-                    KnowledgeBaseDocumentModel.processing_status == "completed",
+                    KnowledgeBaseDocumentModel.is_active == True,
+                    # Read, or still holding what an earlier version said:
+                    # a file being re-read (or whose new version could not
+                    # be read) answers from its previous version meanwhile.
+                    or_(
+                        KnowledgeBaseDocumentModel.processing_status == "completed",
+                        KnowledgeBaseDocumentModel.total_chunks > 0,
+                        KnowledgeBaseDocumentModel.full_text.is_not(None),
+                    ),
                     or_(*scopes),
                 )
                 .order_by(KnowledgeBaseDocumentModel.created_at.desc())
             )
             return [str(u) for (u,) in rows.all()]
 
+    async def readable_document_uuids(
+        self, organization_id: int, *, exclude_scopes: tuple[str, ...] = ()
+    ) -> list[str]:
+        """Every file of the organisation there is something to read from,
+        but those in ``exclude_scopes``. A blocklist on purpose: a scope
+        added later is readable until someone decides otherwise."""
+        from sqlalchemy import or_
+
+        async with self.async_session() as session:
+            query = select(KnowledgeBaseDocumentModel.document_uuid).where(
+                KnowledgeBaseDocumentModel.organization_id == organization_id,
+                KnowledgeBaseDocumentModel.is_active == True,
+                or_(
+                    KnowledgeBaseDocumentModel.processing_status == "completed",
+                    KnowledgeBaseDocumentModel.total_chunks > 0,
+                    KnowledgeBaseDocumentModel.full_text.is_not(None),
+                ),
+            )
+            if exclude_scopes:
+                query = query.where(
+                    KnowledgeBaseDocumentModel.scope.not_in(list(exclude_scopes))
+                )
+            rows = await session.execute(
+                query.order_by(KnowledgeBaseDocumentModel.created_at.desc())
+            )
+            return [str(u) for (u,) in rows.all()]
+
     async def get_document_by_id(
         self,
         document_id: int,
-    ) -> Optional[KnowledgeBaseDocumentModel]:
+    ) -> KnowledgeBaseDocumentModel | None:
         """Get a document by its database ID.
 
         Args:
@@ -146,7 +182,7 @@ class KnowledgeBaseClient(BaseDBClient):
         self,
         document_uuid: str,
         organization_id: int,
-    ) -> Optional[KnowledgeBaseDocumentModel]:
+    ) -> KnowledgeBaseDocumentModel | None:
         """Get a document by its UUID, scoped to organization.
 
         Args:
@@ -172,7 +208,7 @@ class KnowledgeBaseClient(BaseDBClient):
 
     async def find_document_by_uuid_prefix(
         self, prefix: str, *, organization_id: int
-    ) -> Optional[KnowledgeBaseDocumentModel]:
+    ) -> KnowledgeBaseDocumentModel | None:
         """The one document of this organisation whose uuid starts with
         ``prefix`` (at least 8 characters), or None when none or several."""
         prefix = (prefix or "").strip().lower()
@@ -194,7 +230,7 @@ class KnowledgeBaseClient(BaseDBClient):
         self,
         file_hash: str,
         organization_id: int,
-    ) -> Optional[KnowledgeBaseDocumentModel]:
+    ) -> KnowledgeBaseDocumentModel | None:
         """Check if a document with the same hash already exists.
 
         Returns the first matching document if multiple exist (can happen with duplicates).
@@ -246,7 +282,7 @@ class KnowledgeBaseClient(BaseDBClient):
                     )
                 ).where(
                     KnowledgeBaseDocumentModel.organization_id == organization_id,
-                    KnowledgeBaseDocumentModel.is_active == True,  # noqa: E712
+                    KnowledgeBaseDocumentModel.is_active == True,
                 )
             )
             return int(total or 0)
@@ -254,14 +290,20 @@ class KnowledgeBaseClient(BaseDBClient):
     async def get_documents_for_organization(
         self,
         organization_id: int,
-        processing_status: Optional[str] = None,
-        scope: Optional[str] = None,
-        folder_id: Optional[int] = None,
-        workflow_id: Optional[int] = None,
+        processing_status: str | None = None,
+        scope: str | None = None,
+        folder_id: int | None = None,
+        workflow_id: int | None = None,
         limit: int = 100,
         offset: int = 0,
-    ) -> List[KnowledgeBaseDocumentModel]:
+        file_folder_id: int | None = None,
+        top_level_only: bool = False,
+    ) -> list[KnowledgeBaseDocumentModel]:
         """Get all documents for an organization.
+
+        ``file_folder_id`` narrows to the files in one Files-page folder, and
+        ``top_level_only`` to the ones in none. Neither is a channel filter:
+        that is ``folder_id``.
 
         Args:
             organization_id: ID of the organization
@@ -290,6 +332,12 @@ class KnowledgeBaseClient(BaseDBClient):
                 query = query.where(
                     KnowledgeBaseDocumentModel.processing_status == processing_status
                 )
+            if file_folder_id is not None:
+                query = query.where(
+                    KnowledgeBaseDocumentModel.file_folder_id == file_folder_id
+                )
+            elif top_level_only:
+                query = query.where(KnowledgeBaseDocumentModel.file_folder_id.is_(None))
 
             query = (
                 query.order_by(KnowledgeBaseDocumentModel.created_at.desc())
@@ -302,7 +350,7 @@ class KnowledgeBaseClient(BaseDBClient):
 
     async def merge_document_custom_metadata(
         self, document_id: int, *, organization_id: int, patch: dict
-    ) -> Optional[KnowledgeBaseDocumentModel]:
+    ) -> KnowledgeBaseDocumentModel | None:
         """Add keys to a document's custom_metadata, keeping what is there.
         Org-scoped: a document id from another tenant updates nothing."""
         async with self.async_session() as session:
@@ -325,10 +373,10 @@ class KnowledgeBaseClient(BaseDBClient):
     async def update_document_metadata(
         self,
         document_id: int,
-        file_size_bytes: Optional[int] = None,
-        file_hash: Optional[str] = None,
-        mime_type: Optional[str] = None,
-    ) -> Optional[KnowledgeBaseDocumentModel]:
+        file_size_bytes: int | None = None,
+        file_hash: str | None = None,
+        mime_type: str | None = None,
+    ) -> KnowledgeBaseDocumentModel | None:
         """Update document file metadata.
 
         Args:
@@ -367,12 +415,12 @@ class KnowledgeBaseClient(BaseDBClient):
         self,
         document_id: int,
         status: str,
-        error_message: Optional[str] = None,
-        total_chunks: Optional[int] = None,
-        docling_metadata: Optional[dict] = None,
-        page_count: Optional[int] = None,
-        scanned_page_count: Optional[int] = None,
-    ) -> Optional[KnowledgeBaseDocumentModel]:
+        error_message: str | None = None,
+        total_chunks: int | None = None,
+        docling_metadata: dict | None = None,
+        page_count: int | None = None,
+        scanned_page_count: int | None = None,
+    ) -> KnowledgeBaseDocumentModel | None:
         """Update document processing status.
 
         Args:
@@ -398,6 +446,10 @@ class KnowledgeBaseClient(BaseDBClient):
             document.processing_status = status
             if error_message:
                 document.processing_error = error_message
+            elif status == "completed":
+                # Read at last: an error from an earlier attempt or version
+                # no longer describes the file.
+                document.processing_error = None
             if total_chunks is not None:
                 document.total_chunks = total_chunks
             if docling_metadata:
@@ -415,8 +467,8 @@ class KnowledgeBaseClient(BaseDBClient):
 
     async def create_chunks_batch(
         self,
-        chunks: List[KnowledgeBaseChunkModel],
-    ) -> List[KnowledgeBaseChunkModel]:
+        chunks: list[KnowledgeBaseChunkModel],
+    ) -> list[KnowledgeBaseChunkModel]:
         """Create multiple chunks in a batch.
 
         Args:
@@ -439,8 +491,8 @@ class KnowledgeBaseClient(BaseDBClient):
         self,
         document_id: int,
         organization_id: int,
-        chunks: List[KnowledgeBaseChunkModel],
-    ) -> List[KnowledgeBaseChunkModel]:
+        chunks: list[KnowledgeBaseChunkModel],
+    ) -> list[KnowledgeBaseChunkModel]:
         """Replace all chunks for a document with a new precomputed batch."""
         async with self.async_session() as session:
             await session.execute(
@@ -464,7 +516,7 @@ class KnowledgeBaseClient(BaseDBClient):
         self,
         document_id: int,
         organization_id: int,
-    ) -> List[KnowledgeBaseChunkModel]:
+    ) -> list[KnowledgeBaseChunkModel]:
         """Get all chunks for a document.
 
         Args:
@@ -489,13 +541,14 @@ class KnowledgeBaseClient(BaseDBClient):
 
     async def search_similar_chunks(
         self,
-        query_embedding: List[float],
+        query_embedding: list[float],
         organization_id: int,
         limit: int = 5,
-        document_ids: Optional[List[int]] = None,
-        document_uuids: Optional[List[str]] = None,
-        embedding_model: Optional[str] = None,
-    ) -> List[dict]:
+        document_ids: list[int] | None = None,
+        document_uuids: list[str] | None = None,
+        embedding_model: str | None = None,
+        exclude_scopes: list[str] | None = None,
+    ) -> list[dict]:
         """Search for similar chunks using vector similarity.
 
         Returns top-k most similar chunks without any similarity threshold filtering.
@@ -522,6 +575,9 @@ class KnowledgeBaseClient(BaseDBClient):
             where_conditions = [
                 "c.organization_id = $2",
                 "d.is_active = true",
+                # A passage kept without a vector (a full-document file's)
+                # has no distance to anything; word search finds it.
+                "c.embedding IS NOT NULL",
             ]
             params = [
                 None,
@@ -548,6 +604,16 @@ class KnowledgeBaseClient(BaseDBClient):
                 params.extend(document_uuids)
                 param_index += len(document_uuids)
 
+            # Scopes this reader may not see (a channel's or an agent's files,
+            # for a reader that is neither).
+            if exclude_scopes:
+                placeholders = ", ".join(
+                    f"${param_index + i}" for i in range(len(exclude_scopes))
+                )
+                where_conditions.append(f"d.scope NOT IN ({placeholders})")
+                params.extend(exclude_scopes)
+                param_index += len(exclude_scopes)
+
             # Add embedding_model filter if provided (for dimension compatibility)
             if embedding_model:
                 where_conditions.append(f"c.embedding_model = ${param_index}")
@@ -566,6 +632,8 @@ class KnowledgeBaseClient(BaseDBClient):
                     c.chunk_index,
                     d.filename,
                     d.document_uuid,
+                    d.file_folder_id,
+                    d.scope,
                     1 - (c.embedding <=> $1::vector) as similarity
                 FROM knowledge_base_chunks c
                 JOIN knowledge_base_documents d ON c.document_id = d.id
@@ -585,6 +653,93 @@ class KnowledgeBaseClient(BaseDBClient):
             )
 
             # Convert asyncpg records to dictionaries
+            return [dict(row) for row in rows]
+
+    async def keyword_search_chunks(
+        self,
+        *,
+        organization_id: int,
+        terms: list[str],
+        limit: int = 5,
+        document_uuids: list[str] | None = None,
+        exclude_scopes: list[str] | None = None,
+    ) -> list[dict]:
+        """Passages containing the words of a question, best first.
+
+        What a vector misses -- a SKU, an invoice number, a value under its
+        column header -- and the only search a file read without embeddings
+        has. ``terms`` are matched as prefixes, so "refund" finds "refunds".
+        Each row says how many of the terms it holds (``matched``) so the
+        caller can tell a passage about the question from one that shares a
+        word with it.
+
+        The expression searched is the one ``ix_kb_chunks_fts`` indexes.
+        """
+        import re
+
+        cleaned = []
+        for term in terms:
+            word = re.sub(r"[^\w]", "", term.lower())
+            if word and word not in cleaned:
+                cleaned.append(word)
+        if not cleaned:
+            return []
+        tsquery = " | ".join(f"'{word}':*" for word in cleaned)
+        matched = " + ".join(
+            f"(CASE WHEN tsv @@ to_tsquery('simple', $${i + 4}) THEN 1 ELSE 0 END)"
+            for i in range(len(cleaned))
+        )
+        params: list = [organization_id, tsquery, limit, *[f"'{w}':*" for w in cleaned]]
+        next_index = len(params) + 1
+        conditions = ["c.organization_id = $1", "d.is_active = true"]
+        if document_uuids:
+            placeholders = ", ".join(
+                f"${next_index + i}" for i in range(len(document_uuids))
+            )
+            conditions.append(f"d.document_uuid IN ({placeholders})")
+            params.extend(document_uuids)
+            next_index += len(document_uuids)
+        if exclude_scopes:
+            placeholders = ", ".join(
+                f"${next_index + i}" for i in range(len(exclude_scopes))
+            )
+            conditions.append(f"d.scope NOT IN ({placeholders})")
+            params.extend(exclude_scopes)
+            next_index += len(exclude_scopes)
+
+        query_sql = f"""
+            SELECT * FROM (
+                SELECT
+                    c.id,
+                    c.document_id,
+                    c.chunk_text,
+                    c.contextualized_text,
+                    c.chunk_metadata,
+                    c.chunk_index,
+                    d.filename,
+                    d.document_uuid,
+                    d.file_folder_id,
+                    d.scope,
+                    ts_rank_cd(tsv, to_tsquery('simple', $2)) AS rank,
+                    {matched} AS matched
+                FROM knowledge_base_chunks c
+                JOIN knowledge_base_documents d ON c.document_id = d.id,
+                LATERAL (
+                    SELECT to_tsvector(
+                        'simple', coalesce(c.contextualized_text, c.chunk_text)
+                    ) AS tsv
+                ) v
+                WHERE {" AND ".join(conditions)}
+                  AND to_tsvector('simple', coalesce(c.contextualized_text, c.chunk_text))
+                      @@ to_tsquery('simple', $2)
+            ) hits
+            ORDER BY matched DESC, rank DESC, id
+            LIMIT $3
+        """.replace("$$", "$")
+        async with self.async_session() as session:
+            connection = await session.connection()
+            raw_connection = await connection.get_raw_connection()
+            rows = await raw_connection.driver_connection.fetch(query_sql, *params)
             return [dict(row) for row in rows]
 
     async def update_document_full_text(
@@ -614,8 +769,8 @@ class KnowledgeBaseClient(BaseDBClient):
     async def get_full_text_documents(
         self,
         organization_id: int,
-        document_uuids: List[str],
-    ) -> List[KnowledgeBaseDocumentModel]:
+        document_uuids: list[str],
+    ) -> list[KnowledgeBaseDocumentModel]:
         """Get full_document mode documents by their UUIDs.
 
         Args:
@@ -631,7 +786,9 @@ class KnowledgeBaseClient(BaseDBClient):
                 KnowledgeBaseDocumentModel.document_uuid.in_(document_uuids),
                 KnowledgeBaseDocumentModel.retrieval_mode == "full_document",
                 KnowledgeBaseDocumentModel.is_active == True,
-                KnowledgeBaseDocumentModel.processing_status == "completed",
+                # The text there is, including a previous version's while the
+                # next one is being read.
+                KnowledgeBaseDocumentModel.full_text.is_not(None),
             )
             result = await session.execute(query)
             return list(result.scalars().all())
@@ -665,12 +822,180 @@ class KnowledgeBaseClient(BaseDBClient):
                 return False
 
             document.is_active = False
+            document.archived_at = datetime.now(UTC)
             await session.commit()
 
             logger.info(
                 f"Deleted document {document_uuid} for organization {organization_id}"
             )
             return True
+
+    async def update_document_placement(
+        self,
+        document_uuid: str,
+        *,
+        organization_id: int,
+        filename: str | None = None,
+        file_folder_id: int | None = None,
+        move: bool = False,
+    ) -> KnowledgeBaseDocumentModel | None:
+        """Rename a file, and/or move it to ``file_folder_id`` when ``move``
+        (None then means the top level). Org-scoped; None when not found.
+
+        Nothing is re-read: a citation names the file by joining this row at
+        the moment it is read, so a rename or a move shows everywhere at once.
+        """
+        async with self.async_session() as session:
+            document = (
+                await session.execute(
+                    select(KnowledgeBaseDocumentModel).where(
+                        KnowledgeBaseDocumentModel.document_uuid == document_uuid,
+                        KnowledgeBaseDocumentModel.organization_id == organization_id,
+                        KnowledgeBaseDocumentModel.is_active == True,
+                    )
+                )
+            ).scalar_one_or_none()
+            if document is None:
+                return None
+            if filename is not None:
+                document.filename = filename
+            if move:
+                document.file_folder_id = file_folder_id
+            document.updated_at = datetime.now(UTC)
+            await session.commit()
+            await session.refresh(document)
+            return document
+
+    async def find_document_by_name_in_file_folder(
+        self,
+        *,
+        organization_id: int,
+        filename: str,
+        file_folder_id: int | None,
+        scope: str,
+        folder_id: int | None = None,
+        workflow_id: int | None = None,
+        exclude_uuid: str | None = None,
+    ) -> KnowledgeBaseDocumentModel | None:
+        """The live file of this name in this folder and scope, newest first.
+
+        What a re-upload is matched against: the same name in the same place
+        is the same file, so it becomes a new version of it rather than a
+        second copy. Case-insensitive, because "Price List.pdf" and
+        "price list.pdf" are one file to the person who uploaded both. A
+        channel's or an agent's file matches only within that channel or
+        agent (``folder_id`` / ``workflow_id``): the same name given to two
+        agents is two files.
+        """
+
+        def same(column, value):
+            return column.is_(None) if value is None else column == value
+
+        async with self.async_session() as session:
+            query = select(KnowledgeBaseDocumentModel).where(
+                KnowledgeBaseDocumentModel.organization_id == organization_id,
+                KnowledgeBaseDocumentModel.is_active == True,
+                KnowledgeBaseDocumentModel.scope == scope,
+                func.lower(KnowledgeBaseDocumentModel.filename) == filename.lower(),
+                same(KnowledgeBaseDocumentModel.folder_id, folder_id),
+                same(KnowledgeBaseDocumentModel.workflow_id, workflow_id),
+            )
+            if file_folder_id is None:
+                query = query.where(KnowledgeBaseDocumentModel.file_folder_id.is_(None))
+            else:
+                query = query.where(
+                    KnowledgeBaseDocumentModel.file_folder_id == file_folder_id
+                )
+            if exclude_uuid:
+                query = query.where(
+                    KnowledgeBaseDocumentModel.document_uuid != exclude_uuid
+                )
+            rows = await session.execute(
+                query.order_by(KnowledgeBaseDocumentModel.created_at.desc()).limit(1)
+            )
+            return rows.scalars().first()
+
+    async def documents_changed_since(
+        self,
+        organization_id: int,
+        since: datetime | None,
+        *,
+        after_id: int = 0,
+        until: datetime | None = None,
+        limit: int = 500,
+    ) -> list[KnowledgeBaseDocumentModel]:
+        """Files added, re-read, renamed, moved or deleted after the position
+        ``(since, after_id)`` and no later than ``until``, deleted ones
+        included, oldest change first.
+
+        The position is a pair rather than a time because one folder deleted
+        with its contents stamps hundreds of rows with the same instant, and a
+        page boundary inside them must neither repeat the page forever nor
+        skip the rest.
+        """
+        from sqlalchemy import and_, or_
+
+        async with self.async_session() as session:
+            query = select(KnowledgeBaseDocumentModel).where(
+                KnowledgeBaseDocumentModel.organization_id == organization_id
+            )
+            if since is not None:
+                query = query.where(
+                    or_(
+                        KnowledgeBaseDocumentModel.updated_at > since,
+                        and_(
+                            KnowledgeBaseDocumentModel.updated_at == since,
+                            KnowledgeBaseDocumentModel.id > after_id,
+                        ),
+                    )
+                )
+            if until is not None:
+                query = query.where(KnowledgeBaseDocumentModel.updated_at <= until)
+            rows = await session.execute(
+                query.order_by(
+                    KnowledgeBaseDocumentModel.updated_at,
+                    KnowledgeBaseDocumentModel.id,
+                ).limit(limit)
+            )
+            return list(rows.scalars().all())
+
+    async def begin_document_version(
+        self,
+        document_id: int,
+        *,
+        organization_id: int,
+        s3_key: str,
+        versions: list[dict],
+        retrieval_mode: str,
+    ) -> KnowledgeBaseDocumentModel | None:
+        """Point a file at a newly uploaded version and mark it to be read.
+
+        The previous version's passages and text stay in place until the new
+        one has been read, so an agent answering meanwhile still has the
+        file; the ingestion task replaces them when it succeeds.
+        """
+        async with self.async_session() as session:
+            document = (
+                await session.execute(
+                    select(KnowledgeBaseDocumentModel).where(
+                        KnowledgeBaseDocumentModel.id == document_id,
+                        KnowledgeBaseDocumentModel.organization_id == organization_id,
+                    )
+                )
+            ).scalar_one_or_none()
+            if document is None:
+                return None
+            metadata = dict(document.custom_metadata or {})
+            metadata["s3_key"] = s3_key
+            metadata["versions"] = versions
+            document.custom_metadata = metadata
+            document.retrieval_mode = retrieval_mode
+            document.processing_status = "pending"
+            document.processing_error = None
+            document.updated_at = datetime.now(UTC)
+            await session.commit()
+            await session.refresh(document)
+            return document
 
     @staticmethod
     def compute_file_hash(file_path: str) -> str:
@@ -707,5 +1032,11 @@ class KnowledgeBaseClient(BaseDBClient):
             ".json": "application/json",
             ".html": "text/html",
             ".md": "text/markdown",
+            ".csv": "text/csv",
+            ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            ".png": "image/png",
+            ".jpg": "image/jpeg",
+            ".jpeg": "image/jpeg",
+            ".webp": "image/webp",
         }
         return mime_types.get(extension, "application/octet-stream")

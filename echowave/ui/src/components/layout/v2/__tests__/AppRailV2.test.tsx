@@ -62,13 +62,13 @@ beforeEach(() => {
 });
 
 describe("v2 rail", () => {
-  it("renders the two homes, Chat then Today", () => {
+  it("renders the homes, Chat, Today, then Files", () => {
     mount();
     const nav = screen.getByRole("navigation", { name: "Homes" });
     const labels = within(nav)
       .getAllByRole("link")
       .map((link) => link.textContent);
-    expect(labels).toEqual(["Chat", "Today"]);
+    expect(labels).toEqual(["Chat", "Today", "Files"]);
     expect(screen.getByRole("link", { name: "Chat" }).getAttribute("aria-current")).toBe("page");
   });
 
@@ -78,7 +78,7 @@ describe("v2 rail", () => {
     const hrefs = within(nav)
       .getAllByRole("link")
       .map((link) => link.getAttribute("href"));
-    expect(hrefs).toEqual(["/overview", "/tasks"]);
+    expect(hrefs).toEqual(["/overview", "/tasks", "/files"]);
   });
 
   it("lights Today on a campaigns page, where Activity now lives", () => {
@@ -178,7 +178,7 @@ describe("v2 rail", () => {
     mount();
     const nav = screen.getByRole("navigation", { name: "Homes" });
     const labels = within(nav).getAllByRole("link").map((link) => link.textContent);
-    expect(labels).toEqual(["Chat", "Today", "Studio"]);
+    expect(labels).toEqual(["Chat", "Today", "Files", "Studio"]);
   });
 
   it("keeps channels and agents off the rail; a conversation with an agent lights Chat", () => {

@@ -37,6 +37,10 @@ from api.services.storage import storage_fs
 #: A plan's own limit is resolved per document — see :func:`_max_file_bytes`.
 MAX_FILE_SIZE_BYTES = KNOWLEDGE_BASE_MAX_FILE_SIZE_BYTES
 EMBEDDING_BATCH_SIZE = 64
+#: The embedding model recorded on a passage stored without a vector (a
+#: full-document file's). Empty, so the staleness check, which ignores an
+#: empty model, never reports such a file as needing re-ingesting.
+UNEMBEDDED = ""
 
 
 async def _max_file_bytes(organization_id: int) -> int:
@@ -375,10 +379,34 @@ async def process_knowledge_base_document(
                     ),
                 )
             await db_client.update_document_full_text(document_id, full_text)
+            # The passages it is cited from, kept without embeddings: no
+            # vendor is called and nothing is charged for them, and they let
+            # the file be searched by its words and cited by page or sheet.
+            passages = [
+                KnowledgeBaseChunkModel(
+                    document_id=document_id,
+                    organization_id=organization_id,
+                    chunk_text=passage["chunk_text"],
+                    contextualized_text=passage.get("contextualized_text")
+                    or passage["chunk_text"],
+                    chunk_index=passage["chunk_index"],
+                    chunk_metadata=passage.get("chunk_metadata") or {},
+                    embedding_model=UNEMBEDDED,
+                    embedding_dimension=0,
+                    embedding=None,
+                    token_count=passage.get("token_count", 0),
+                )
+                for passage in processed.get("passages") or []
+            ]
+            await db_client.replace_chunks_for_document(
+                document_id=document_id,
+                organization_id=organization_id,
+                chunks=passages,
+            )
             await db_client.update_document_status(
                 document_id,
                 "completed",
-                total_chunks=0,
+                total_chunks=len(passages),
                 docling_metadata=docling_metadata,
                 page_count=pages.total,
                 scanned_page_count=pages.scanned,

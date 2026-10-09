@@ -567,11 +567,35 @@ class TestWhatTheAgentIsToldWhenRetrievalBreaks:
         ingestion.write()
         await _ingest(async_session, org, user)
 
+        # Nothing holds these words, and with no key nothing can look by
+        # meaning: that is "could not look", never "we have no information".
+        result = await kb_tool.retrieve_from_knowledge_base(
+            query="what about the zebra quota",
+            organization_id=org.id,
+            embeddings_api_key=None,
+        )
+
+        assert result["status"] == kb_tool.STATUS_UNAVAILABLE
+        assert "Model Configurations" not in json.dumps(result)
+
+    async def test_without_a_key_the_words_of_the_question_still_find_it(
+        self, db_session, async_session, ingestion
+    ):
+        """No embeddings configured is the free tier's normal state. The
+        passage that holds the question's words is still found, by words,
+        and the key message still reaches nobody."""
+        from api.services.workflow.tools import knowledge_base as kb_tool
+
+        org, user = await _organization(async_session, "e2e-no-key-words")
+        ingestion.write()
+        await _ingest(async_session, org, user)
+
         result = await kb_tool.retrieve_from_knowledge_base(
             query="how long do I have to ask for a refund",
             organization_id=org.id,
             embeddings_api_key=None,
         )
 
-        assert result["status"] == kb_tool.STATUS_UNAVAILABLE
+        assert result["status"] == kb_tool.STATUS_OK
+        assert "fourteen days" in json.dumps(result)
         assert "Model Configurations" not in json.dumps(result)

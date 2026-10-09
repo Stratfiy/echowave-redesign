@@ -28,13 +28,15 @@ export const WEB_SCREENS: readonly WebScreen[] = [
     { path: '/settings/phone-number', title: 'Phone number', group: 'connections' },
     { path: '/settings/models', title: 'Models', group: 'advanced' },
     { path: '/settings/skills', title: 'Skills', group: 'advanced' },
-    { path: '/settings/knowledge', title: 'Knowledge', group: 'advanced' },
     { path: '/settings/developer', title: 'Developer', group: 'advanced' },
     { path: '/settings/advanced', title: 'Advanced', group: 'advanced' },
     { path: '/settings/general', title: 'Workspace', group: 'workspace' },
     { path: '/settings/team', title: 'Team', group: 'workspace' },
     { path: '/settings/company', title: 'Company', group: 'workspace' },
     { path: '/settings/compliance', title: 'Compliance', group: 'workspace' },
+    // Files is one page on the web, reached from the main sidebar rather
+    // than from Settings; /settings/knowledge only redirects there.
+    { path: '/files', title: 'Files', group: 'more' },
     { path: '/agents', title: 'Agents', group: 'more' },
     { path: '/activity', title: 'Activity', group: 'more' },
     { path: '/care', title: 'Care', group: 'more' },

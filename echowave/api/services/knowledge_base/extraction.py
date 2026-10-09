@@ -52,6 +52,11 @@ XLSX_EXTENSIONS = {".xlsx"}
 #: Accepted by the upload picker, unreadable without a converter binary.
 LEGACY_WORD_EXTENSIONS = {".doc"}
 
+#: Pictures. Read by a model that can look at them, not by this module:
+#: see ``vision.read_image``, which ``processor.process_document`` calls for
+#: these before anything here is reached.
+IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
+
 SUPPORTED_EXTENSIONS = (
     TEXT_EXTENSIONS
     | MARKDOWN_EXTENSIONS
@@ -62,6 +67,10 @@ SUPPORTED_EXTENSIONS = (
     | DOCX_EXTENSIONS
     | XLSX_EXTENSIONS
 )
+
+#: Everything ingestion reads, one way or the other: what the upload picker
+#: may offer (test_knowledge_base_local_processing holds the two together).
+READABLE_EXTENSIONS = SUPPORTED_EXTENSIONS | IMAGE_EXTENSIONS
 
 #: A page or paragraph shorter than this after stripping is whitespace noise —
 #: a page number, a header rule — not content. Kept low deliberately: "Yes." is
@@ -82,6 +91,10 @@ class TextBlock:
     heading_path: tuple[str, ...] = ()
     page_number: int | None = None
     is_heading: bool = False
+    #: The worksheet a spreadsheet row came from, and its row number there,
+    #: so a passage can be cited as "sheet Rates, row 14".
+    sheet: str | None = None
+    row: int | None = None
 
 
 @dataclass
@@ -310,35 +323,72 @@ def _blocks_from_json(text: str) -> list[TextBlock]:
     return [TextBlock(text=line) for line in lines]
 
 
-def _blocks_from_csv(text: str, *, delimiter: str) -> list[TextBlock]:
+def _filled(cells: list[str]) -> int:
+    return sum(1 for cell in cells if str(cell).strip())
+
+
+def _blocks_from_rows(
+    rows: list[tuple[int, list[str]]], *, sheet: str | None = None
+) -> list[TextBlock]:
     """One block per row, with the header repeated as ``column: value``.
 
     A bare row of values loses its meaning the moment it leaves the table.
     Repeating the header costs tokens and buys a chunk that answers "what is
-    the refund window for plan B" instead of retrieving the digit 14.
+    the refund window for plan B" instead of retrieving the digit 14. The
+    sheet's name heads every row of it (``Sheet: Rates``), so it is in front
+    of every passage the sheet is cut into, and each row keeps its number.
+
+    A title line above the table ("Price list, October 2026") is not the
+    header: a first row with one filled cell, followed by a fuller one, is
+    taken as a title and kept as context instead.
     """
+    rows = [(number, cells) for number, cells in rows if _filled(cells)]
+    if not rows:
+        return []
+    heading: tuple[str, ...] = (f"Sheet: {sheet}",) if sheet else ()
+    titles: list[str] = []
+    while len(rows) > 1 and _filled(rows[0][1]) == 1 and _filled(rows[1][1]) > 1:
+        titles.append(next(str(c).strip() for c in rows[0][1] if str(c).strip()))
+        rows.pop(0)
+    if titles:
+        heading = (*heading, " · ".join(titles))
+
+    (header_number, header), *body = rows
+    if not body:
+        return [
+            TextBlock(
+                text=", ".join(
+                    str(cell).strip() for cell in header if str(cell).strip()
+                ),
+                heading_path=heading,
+                sheet=sheet,
+                row=header_number,
+            )
+        ]
+
+    blocks = []
+    for number, row in body:
+        pairs = [
+            f"{(str(header[i]) if i < len(header) and str(header[i]).strip() else f'column {i + 1}').strip()}: {str(cell).strip()}"
+            for i, cell in enumerate(row)
+            if str(cell).strip()
+        ]
+        if pairs:
+            blocks.append(
+                TextBlock(
+                    text="; ".join(pairs), heading_path=heading, sheet=sheet, row=number
+                )
+            )
+    return blocks
+
+
+def _blocks_from_csv(text: str, *, delimiter: str) -> list[TextBlock]:
+    """A CSV or TSV as rows (see :func:`_blocks_from_rows`)."""
     import csv
     import io
 
     reader = csv.reader(io.StringIO(text), delimiter=delimiter)
-    rows = [row for row in reader if any(cell.strip() for cell in row)]
-    if not rows:
-        return []
-
-    header, *body = rows
-    if not body:
-        return [TextBlock(text=", ".join(cell.strip() for cell in header))]
-
-    blocks = []
-    for row in body:
-        pairs = [
-            f"{(header[i] if i < len(header) else f'column {i + 1}').strip()}: {cell.strip()}"
-            for i, cell in enumerate(row)
-            if cell.strip()
-        ]
-        if pairs:
-            blocks.append(TextBlock(text="; ".join(pairs)))
-    return blocks
+    return _blocks_from_rows(list(enumerate(reader, start=1)))
 
 
 def xlsx_sheets_as_csv(data: bytes) -> list[tuple[str, str]]:
@@ -352,7 +402,7 @@ def xlsx_sheets_as_csv(data: bytes) -> list[tuple[str, str]]:
 
     try:
         book = load_workbook(io.BytesIO(data), data_only=True, read_only=True)
-    except Exception as exc:  # noqa: BLE001 - a corrupt or encrypted file
+    except Exception as exc:
         raise DocumentExtractionError(
             f"Could not open workbook: {exc}",
             user_message=(
@@ -388,16 +438,34 @@ def _cell_text(value: Any) -> str:
 
 
 def _blocks_from_xlsx(path: str) -> list[TextBlock]:
+    """Every sheet with anything in it, each row under its sheet's name,
+    numbered as the sheet numbers it. Values, not formulas."""
+    import io
+
+    from openpyxl import load_workbook
+
     with open(path, "rb") as fh:
-        sheets = xlsx_sheets_as_csv(fh.read())
+        data = fh.read()
+    try:
+        book = load_workbook(io.BytesIO(data), data_only=True, read_only=True)
+    except Exception as exc:
+        raise DocumentExtractionError(
+            f"Could not open workbook: {exc}",
+            user_message=(
+                "This Excel file could not be opened. If it has a password, "
+                "remove it; otherwise save it again as .xlsx and upload it."
+            ),
+        ) from exc
     blocks: list[TextBlock] = []
-    for title, text in sheets:
-        for block in _blocks_from_csv(text, delimiter=","):
-            # The sheet's name leads a row only when there is more than one:
-            # one sheet named "Sheet1" is noise on every row.
-            if len(sheets) > 1:
-                block = TextBlock(text=f"{title}: {block.text}")
-            blocks.append(block)
+    try:
+        for sheet in book.worksheets:
+            rows = [
+                (number, ["" if v is None else _cell_text(v) for v in values])
+                for number, values in enumerate(sheet.iter_rows(values_only=True), 1)
+            ]
+            blocks.extend(_blocks_from_rows(rows, sheet=sheet.title))
+    finally:
+        book.close()
     return blocks
 
 
@@ -490,13 +558,16 @@ def _blocks_from_docx(path: str, metadata: dict[str, Any]) -> list[TextBlock]:
             ),
         ) from exc
 
+    from docx.table import Table
+    from docx.text.paragraph import Paragraph
+
     blocks: list[TextBlock] = []
     heading_path: list[str] = []
 
-    for paragraph in document.paragraphs:
+    def paragraph_block(paragraph) -> None:
         text = " ".join(paragraph.text.split())
         if len(text) < MIN_MEANINGFUL_CHARS:
-            continue
+            return
 
         style_name = (paragraph.style.name if paragraph.style else "") or ""
         heading_match = re.match(r"Heading (\d)", style_name)
@@ -512,13 +583,13 @@ def _blocks_from_docx(path: str, metadata: dict[str, Any]) -> list[TextBlock]:
         else:
             blocks.append(TextBlock(text=text, heading_path=tuple(heading_path)))
 
-    for table_index, table in enumerate(document.tables, start=1):
+    def table_blocks(table, table_index: int) -> None:
         rows = [
             [" ".join(cell.text.split()) for cell in row.cells] for row in table.rows
         ]
         rows = [row for row in rows if any(cell for cell in rows[0]) and any(row)]
         if not rows:
-            continue
+            return
         header, *body = rows
         if not body:
             blocks.append(
@@ -527,7 +598,7 @@ def _blocks_from_docx(path: str, metadata: dict[str, Any]) -> list[TextBlock]:
                     heading_path=tuple(heading_path),
                 )
             )
-            continue
+            return
         for row in body:
             pairs = [
                 f"{(header[i] if i < len(header) else f'column {i + 1}')}: {cell}"
@@ -538,6 +609,19 @@ def _blocks_from_docx(path: str, metadata: dict[str, Any]) -> list[TextBlock]:
                 blocks.append(
                     TextBlock(text="; ".join(pairs), heading_path=tuple(heading_path))
                 )
+
+    # In the order they appear, so a table sits under the heading it is under
+    # in the document -- not under whichever heading happened to come last,
+    # which is where reading every paragraph first and every table after put
+    # it.
+    table_index = 0
+    for child in document.element.body.iterchildren():
+        tag = child.tag.rsplit("}", 1)[-1]
+        if tag == "p":
+            paragraph_block(Paragraph(child, document))
+        elif tag == "tbl":
+            table_index += 1
+            table_blocks(Table(child, document), table_index)
 
     metadata["paragraph_count"] = len(document.paragraphs)
     metadata["table_count"] = len(document.tables)
@@ -593,16 +677,15 @@ def _blocks_from_ocr(path: str, metadata: dict[str, Any]) -> list[TextBlock]:
     """
     from api.services.knowledge_base import ocr
 
-    pages = ocr.pages_from_pdf(path)
+    pages = ocr.numbered_pages_from_pdf(path)
     if not pages:
         return []
 
     metadata["extractor"] = "tesseract"
     metadata["ocr_pages"] = len(pages)
-    return [
-        TextBlock(text=text, page_number=number)
-        for number, text in enumerate(pages, start=1)
-    ]
+    # The page's own number, not its position among the pages that had text:
+    # a blank page 2 must not make page 3 cite as page 2.
+    return [TextBlock(text=text, page_number=number) for number, text in pages]
 
 
 def extract_document(
@@ -638,8 +721,19 @@ def extract_document(
             ),
         )
 
+    if extension in IMAGE_EXTENSIONS:
+        # Reached only by a caller that skipped processor.process_document,
+        # which reads pictures with a model before this function is called.
+        raise UnsupportedDocumentTypeError(
+            f"Pictures are read by vision.read_image, not here: {filename}",
+            user_message=(
+                "This picture could not be read here. Upload it to Files, "
+                "where pictures are read."
+            ),
+        )
+
     if extension not in SUPPORTED_EXTENSIONS:
-        supported = ", ".join(sorted(SUPPORTED_EXTENSIONS))
+        supported = ", ".join(sorted(READABLE_EXTENSIONS))
         raise UnsupportedDocumentTypeError(
             f"Unsupported extension {extension!r} for {filename}",
             user_message=(

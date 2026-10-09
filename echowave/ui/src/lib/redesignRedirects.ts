@@ -32,7 +32,6 @@ export const REDESIGN_REDIRECTS: RedesignRedirect[] = [
     // each of these is a section of it now. Detail pages (/tools/:id,
     // /channels/:id) stay where they were.
     { source: "/tools", destination: "/settings/apps" },
-    { source: "/files", destination: "/settings/knowledge" },
     { source: "/channels", destination: "/settings/channels" },
     { source: "/company", destination: "/settings/company" },
     { source: "/api-keys", destination: "/settings/developer" },
@@ -41,6 +40,9 @@ export const REDESIGN_REDIRECTS: RedesignRedirect[] = [
     // Own keys are added where they are used: Settings -> Models.
     { source: "/settings/api-keys", destination: "/settings/models" },
     { source: "/telephony-configurations", destination: "/settings/phone-number" },
+
+    // Files is one page, reached from the rail, not a section of Settings.
+    { source: "/settings/knowledge", destination: "/files" },
 
     // Launch shell (handoff sections 19-20): the logical destinations, Chat,
     // Today and profile Settings, under the names people and the handoff use

@@ -1,0 +1,207 @@
+/**
+ * A copy of a document in another language, from the list: a Translate
+ * menu on a document that has been read, none on one still being read.
+ */
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import React from 'react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const list = vi.hoisted(() => vi.fn());
+const usage = vi.hoisted(() => vi.fn());
+const translate = vi.hoisted(() => vi.fn());
+const update = vi.hoisted(() => vi.fn());
+vi.mock('@/client/sdk.gen', () => ({
+    listDocumentsApiV1KnowledgeBaseDocumentsGet: list,
+    getUsageApiV1KnowledgeBaseUsageGet: usage,
+    deleteDocumentApiV1KnowledgeBaseDocumentsDocumentUuidDelete: vi.fn(),
+    translateDocumentRouteApiV1KnowledgeBaseDocumentsDocumentUuidTranslatePost: translate,
+    updateDocumentApiV1KnowledgeBaseDocumentsDocumentUuidPatch: update,
+}));
+vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+
+import DocumentList, { fileState } from '../DocumentList';
+
+const doc = (over: Record<string, unknown>) => ({
+    id: 1,
+    document_uuid: 'd1',
+    filename: 'rates.pdf',
+    file_size_bytes: 1024,
+    file_hash: '',
+    mime_type: 'application/pdf',
+    processing_status: 'completed',
+    processing_error: null,
+    needs_reingest: false,
+    total_chunks: 3,
+    retrieval_mode: 'chunked',
+    custom_metadata: {},
+    docling_metadata: {},
+    source_url: null,
+    scope: 'org',
+    folder_id: null,
+    workflow_id: null,
+    created_at: '2026-09-14T00:00:00Z',
+    updated_at: '2026-09-14T00:00:00Z',
+    organization_id: 7,
+    created_by: 1,
+    is_active: true,
+    ...over,
+});
+
+beforeEach(() => {
+    list.mockReset();
+    translate.mockReset();
+    usage.mockResolvedValue({ data: { bytes_used: 0, bytes_limit: 0 } });
+});
+
+describe('translating a document from the list', () => {
+    it('offers the languages on a read document and starts the copy', async () => {
+        list.mockResolvedValue({ data: { documents: [doc({})], total: 1, limit: 100, offset: 0 } });
+        translate.mockResolvedValue({ data: doc({ id: 2, document_uuid: 'd2', filename: 'rates (Hindi).txt', processing_status: 'pending' }) });
+        render(<DocumentList refreshTrigger={0} />);
+        const menu = await screen.findByRole('button', { name: 'Translate rates.pdf' });
+        fireEvent.keyDown(menu, { key: 'Enter' });
+        fireEvent.click(await screen.findByText('Hindi'));
+        await waitFor(() =>
+            expect(translate).toHaveBeenCalledWith({ path: { document_uuid: 'd1' }, body: { target_language_code: 'hi-IN' } }),
+        );
+    });
+
+    it('offers nothing on a document still being read', async () => {
+        list.mockResolvedValue({ data: { documents: [doc({ processing_status: 'processing' })], total: 1, limit: 100, offset: 0 } });
+        render(<DocumentList refreshTrigger={0} />);
+        await screen.findByText('rates.pdf');
+        expect(screen.queryByRole('button', { name: /Translate/ })).toBeNull();
+    });
+
+    it('says when a document is a translation of another', async () => {
+        list.mockResolvedValue({
+            data: { documents: [doc({ filename: 'rates (English).txt', custom_metadata: { translated_from: 'src' } })], total: 1, limit: 100, offset: 0 },
+        });
+        render(<DocumentList refreshTrigger={0} />);
+        expect(await screen.findByText('A translation of another document here')).toBeTruthy();
+    });
+});
+
+describe('files in folders', () => {
+    const FOLDERS = [
+        { id: 4, folder_uuid: 'x', name: 'Policies', parent_id: null, path: 'Policies', file_count: 0, folder_count: 0 },
+    ];
+
+    it('lists only the open folder, and the top level as its own place', async () => {
+        list.mockResolvedValue({ data: { documents: [], total: 0, limit: 100, offset: 0 } });
+        const { rerender } = render(<DocumentList refreshTrigger={0} fileFolderId={null} folders={FOLDERS} />);
+        await waitFor(() => expect(list).toHaveBeenLastCalledWith({ query: { limit: 100, offset: 0, top_level: true } }));
+        rerender(<DocumentList refreshTrigger={0} fileFolderId={4} folders={FOLDERS} />);
+        await waitFor(() => expect(list).toHaveBeenLastCalledWith({ query: { limit: 100, offset: 0, file_folder_id: 4 } }));
+    });
+
+    it('moves a file to a folder picked from the list', async () => {
+        list.mockResolvedValue({ data: { documents: [doc({})], total: 1, limit: 100, offset: 0 } });
+        update.mockResolvedValue({ data: doc({ file_folder_id: 4 }) });
+        const changed = vi.fn();
+        render(<DocumentList refreshTrigger={0} fileFolderId={null} folders={FOLDERS} onChanged={changed} />);
+        fireEvent.click(await screen.findByRole('button', { name: 'Move rates.pdf' }));
+        fireEvent.click(await screen.findByRole('button', { name: /Policies/ }));
+        await waitFor(() =>
+            expect(update).toHaveBeenCalledWith({ path: { document_uuid: 'd1' }, body: { file_folder_id: 4 } }),
+        );
+        await waitFor(() => expect(changed).toHaveBeenCalled());
+    });
+
+    it('renames a file and says why when the name is refused', async () => {
+        list.mockResolvedValue({ data: { documents: [doc({})], total: 1, limit: 100, offset: 0 } });
+        update.mockResolvedValue({ error: { detail: 'Keep the .pdf ending: the file is read as that type.' } });
+        render(<DocumentList refreshTrigger={0} fileFolderId={null} folders={FOLDERS} />);
+        fireEvent.click(await screen.findByRole('button', { name: 'Rename rates.pdf' }));
+        fireEvent.change(await screen.findByLabelText('File name'), { target: { value: 'rates.txt' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Rename' }));
+        expect(await screen.findByText('Keep the .pdf ending: the file is read as that type.')).toBeTruthy();
+    });
+
+    it('can be dragged onto a folder', async () => {
+        list.mockResolvedValue({ data: { documents: [doc({})], total: 1, limit: 100, offset: 0 } });
+        render(<DocumentList refreshTrigger={0} fileFolderId={null} folders={FOLDERS} />);
+        const row = await screen.findByTestId('file-d1');
+        const data: Record<string, string> = {};
+        fireEvent.dragStart(row, { dataTransfer: { setData: (k: string, v: string) => (data[k] = v), effectAllowed: '' } });
+        expect(data['application/x-decibyl-file']).toBe('d1');
+    });
+});
+
+describe('what each file says about itself', () => {
+    it("says Reading, Ready, or Couldn't read with the reason", async () => {
+        list.mockResolvedValue({
+            data: {
+                documents: [
+                    doc({ document_uuid: 'a', filename: 'new.pdf', processing_status: 'processing', state: 'reading' }),
+                    doc({ document_uuid: 'b', filename: 'done.pdf', state: 'ready' }),
+                    doc({
+                        document_uuid: 'c',
+                        filename: 'locked.pdf',
+                        processing_status: 'failed',
+                        state: 'failed',
+                        processing_error: 'This PDF is password protected.',
+                        state_detail: 'This PDF is password protected. Agents still answer from version 1.',
+                    }),
+                ],
+                total: 3,
+                limit: 100,
+                offset: 0,
+            },
+        });
+        render(<DocumentList refreshTrigger={0} />);
+        expect(await screen.findByText('Reading')).toBeTruthy();
+        expect(screen.getByText('Ready')).toBeTruthy();
+        expect(screen.getByText("Couldn't read")).toBeTruthy();
+        expect(screen.getByText('This PDF is password protected. Agents still answer from version 1.')).toBeTruthy();
+    });
+
+    it('works the state out from an older response, and never shows none', () => {
+        expect(fileState({ processing_status: 'pending' } as never)).toBe('reading');
+        expect(fileState({ processing_status: 'completed' } as never)).toBe('ready');
+        expect(fileState({ processing_status: 'failed' } as never)).toBe('failed');
+    });
+
+    it('lists the earlier versions of a file uploaded again', async () => {
+        list.mockResolvedValue({
+            data: {
+                documents: [
+                    doc({
+                        version: 2,
+                        state: 'ready',
+                        versions: [
+                            { version: 1, uploaded_at: '2026-09-01T00:00:00Z', file_size_bytes: 2048, current: false },
+                            { version: 2, uploaded_at: '2026-09-14T00:00:00Z', file_size_bytes: 1024, current: true },
+                        ],
+                    }),
+                ],
+                total: 1,
+                limit: 100,
+                offset: 0,
+            },
+        });
+        render(<DocumentList refreshTrigger={0} />);
+        expect(await screen.findByText('Version 2')).toBeTruthy();
+        expect(screen.getByText('Earlier versions (1)')).toBeTruthy();
+        expect(screen.getByText(/^Version 1, uploaded/)).toBeTruthy();
+    });
+
+    it('asks again while anything is Reading, and stops once nothing is', async () => {
+        vi.useFakeTimers({ shouldAdvanceTime: true });
+        try {
+            list.mockResolvedValueOnce({
+                data: { documents: [doc({ processing_status: 'processing', state: 'reading' })], total: 1, limit: 100, offset: 0 },
+            });
+            list.mockResolvedValue({ data: { documents: [doc({ state: 'ready' })], total: 1, limit: 100, offset: 0 } });
+            render(<DocumentList refreshTrigger={0} />);
+            await screen.findByText('Reading');
+            await vi.advanceTimersByTimeAsync(5100);
+            expect(await screen.findByText('Ready')).toBeTruthy();
+            const calls = list.mock.calls.length;
+            await vi.advanceTimersByTimeAsync(15000);
+            expect(list.mock.calls.length).toBe(calls);
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+});
