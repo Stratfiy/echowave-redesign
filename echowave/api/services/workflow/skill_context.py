@@ -159,17 +159,28 @@ def block(
         lines.append(f"- {title}: {description[:MAX_LINE_CHARS]}")
     out = ["\n".join(lines)]
     left = budget
+    # Said, not just skipped: a model that sees a procedure named and none
+    # of its steps will improvise them unless it is told they were left out.
+    left_out: list[str] = []
     for skill in invoked:
         body = (getattr(getattr(skill, "skill", None), "body", "") or "").strip()
         if not body:
             continue
+        title = getattr(skill, "title", None) or getattr(skill, "slug", "a skill")
         room = min(left, MAX_BODY_CHARS)
         if room < MIN_BODY_CHARS:
-            break
-        title = getattr(skill, "title", None) or getattr(skill, "slug", "a skill")
+            left_out.append(str(title))
+            continue
         carried = body[:room]
         left -= len(carried)
         out.append(f"### {title}, in full\n{carried}")
+    if left_out:
+        out.append(
+            "Named above but its steps are left out here for length: "
+            + ", ".join(left_out)
+            + ". Do not make up its steps; if asked to follow one, say it is "
+            "too long to carry here and work from its description."
+        )
     return "\n\n".join(out)
 
 

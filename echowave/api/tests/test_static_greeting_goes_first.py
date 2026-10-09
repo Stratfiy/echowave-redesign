@@ -116,6 +116,7 @@ def _make_reads_slow(engine: PipecatEngine, started: list[float]) -> None:
     engine._get_today_line = slow("Today is Thursday.")
     engine._get_remembered_block = slow("")
     engine._get_skills_block = slow("")
+    engine._get_routines_block = slow("")
     engine._get_organization_id = AsyncMock(return_value=1)
     engine._get_workflow_id = AsyncMock(return_value=3)
 
@@ -188,7 +189,7 @@ class TestTheGreetingDoesNotWaitForTheStartNode:
     async def test_the_start_node_reads_run_side_by_side(
         self, simple_workflow, monkeypatch
     ):
-        """Four reads of SLOW each: one after another is 4 x SLOW; together,
+        """Five reads of SLOW each: one after another is 5 x SLOW; together,
         about one."""
         monkeypatch.setattr(event_handlers, "_capture_call_event", AsyncMock())
         engine, _task = _engine(simple_workflow)
@@ -199,7 +200,7 @@ class TestTheGreetingDoesNotWaitForTheStartNode:
         await engine.set_node(simple_workflow.start_node_id)
         took = time.monotonic() - before
 
-        assert len(reads) == 4
+        assert len(reads) == 5
         assert took < 2.5 * SLOW, f"start node took {took:.2f}s"
 
     async def test_without_early_opening_the_old_order_holds(

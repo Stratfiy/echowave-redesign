@@ -99,6 +99,52 @@ def compose_today_line(timezone: str | None = None) -> str:
     )
 
 
+#: Contact-list columns stated about a known caller, and each value's length.
+MAX_CALLER_FIELDS = 15
+MAX_CALLER_VALUE_CHARS = 200
+
+
+def caller_block(call_context_vars: Optional[dict]) -> Optional[str]:
+    """Who is calling, when the number's contact list recognised them.
+
+    Inbound settings promise the agent the caller's name "and every column
+    from your upload -- before the agent opens its mouth". The inbound guard
+    did put them in the run's context, but only as template variables: a
+    prompt that never wrote ``{{contact_name}}`` (no shipped template does)
+    never showed the model any of it. So it is stated here, once per call,
+    like the other blocks that are byte-identical for the call.
+
+    ``None`` for a caller nobody recognised -- including every outbound,
+    text and scheduled run.
+    """
+    if not isinstance(call_context_vars, dict):
+        return None
+    if call_context_vars.get("contact_is_known") is not True:
+        return None
+    lines = []
+    name = str(call_context_vars.get("contact_name") or "").strip()
+    if name:
+        lines.append(f"- Name: {name[:MAX_CALLER_VALUE_CHARS]}")
+    fields = call_context_vars.get("contact_fields") or []
+    shown = 0
+    for key in fields if isinstance(fields, list) else []:
+        value = call_context_vars.get(key)
+        if value is None or str(value).strip() == "":
+            continue
+        if shown >= MAX_CALLER_FIELDS:
+            lines.append(f"- and {len(fields) - shown} more columns not shown here")
+            break
+        lines.append(f"- {key}: {str(value).strip()[:MAX_CALLER_VALUE_CHARS]}")
+        shown += 1
+    header = (
+        "WHO IS CALLING.\n"
+        "This caller is in the business's contact list. What the list holds "
+        "about them is below: use it rather than asking for it again, and do "
+        "not read it out unless it helps them."
+    )
+    return header + ("\n" + "\n".join(lines) if lines else "")
+
+
 def compose_system_prompt_for_node(
     *,
     node: "Node",
@@ -112,6 +158,8 @@ def compose_system_prompt_for_node(
     known_values: dict | None = None,
     remembered: str | None = None,
     skills: str | None = None,
+    schedule: str | None = None,
+    caller: str | None = None,
     steps: str | None = None,
 ) -> str:
     """Compose the full system prompt text for a workflow node.
@@ -155,6 +203,10 @@ def compose_system_prompt_for_node(
             Read once per call by the engine, for the same caching reason as
             `today_line`, which is also why it sits above the known-values
             block rather than below it.
+        schedule: This bot's own routines (`standing_context.agent_routines`),
+            read once per call like `remembered`.
+        caller: Who is calling, when the contact list knew them
+            (`caller_block`). Fixed for the call.
 
     Returns:
         The composed system prompt text.
@@ -211,6 +263,10 @@ def compose_system_prompt_for_node(
         parts.append(skills)
     if remembered:
         parts.append(remembered)
+    if schedule:
+        parts.append(schedule)
+    if caller:
+        parts.append(caller)
     # The bot's own steps, on staff chats, so "change the booking step" names
     # something it can find. See services/workflow/self_edit.steps_block.
     if steps:

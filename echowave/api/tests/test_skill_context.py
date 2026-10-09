@@ -186,6 +186,19 @@ class TestTheBudget:
         block = skill_context.block(many, many, budget=6_000)
         assert block.count("in full") == 1
 
+    def test_a_procedure_left_out_is_said_to_be_left_out(self):
+        """A bot with three skills attached carried two procedures and named
+        the third with no steps and no word about why: the shape a model
+        fills in by improvising. The left-out ones are named as left out."""
+        many = [_skill(f"s{n}", f"Thing{n}", body="x" * 6_000) for n in range(3)]
+        block = skill_context.block(many, many, budget=8_000)
+        assert block.count("in full") == 2
+        assert "steps are left out here for length: Thing2." in block
+
+    def test_nothing_left_out_says_nothing(self):
+        one = _skill("s", "Thing", body="x" * 1_000)
+        assert "left out" not in skill_context.block([one], [one])
+
     def test_the_index_lines_are_never_dropped_for_budget(self):
         """A skill that lost its body is still a skill the model should
         know exists. The lines are the cheap half and are never the thing

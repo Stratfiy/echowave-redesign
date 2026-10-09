@@ -154,6 +154,10 @@ async def evaluate(
         attributes = getattr(contact, "attributes", None) or {}
         if isinstance(attributes, dict):
             contact_context.update(attributes)
+            # Which keys are the contact's own columns, so the prompt can
+            # state them (composer.caller_block) without guessing them back
+            # out of a context that also holds routing and runtime keys.
+            contact_context["contact_fields"] = [str(k) for k in attributes]
         # Set after the attributes so a column named "contact_name" in
         # somebody's CSV cannot overwrite the identity we resolved.
         contact_context["contact_id"] = getattr(contact, "id", None)
