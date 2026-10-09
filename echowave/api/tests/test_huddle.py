@@ -510,14 +510,18 @@ class TestTheTurn:
         state = _state(people)
         state.model = SimpleNamespace(provider="anthropic", model="m", api_key="k")
         said: list[str] = []
+        turn = Turn(index=0, text="How many calls today?", started_at=0.0)
 
         async def on_words(piece):
+            # What the voice brain does with each piece.
             said.append(piece)
+            turn.said += piece
 
-        turn = Turn(index=0, text="How many calls today?", started_at=0.0)
         body = await state.answer(None, turn, on_words)
         assert body == "Four calls today, one escalated."
         assert "".join(said) == body
+        # Each word reaches the voice once.
+        assert turn.said == body
         assert calls[0]["system"] == "You are Front desk."
         turn.heard = ["Four calls today,"]
         turn.interrupted = True

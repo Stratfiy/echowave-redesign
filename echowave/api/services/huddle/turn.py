@@ -138,7 +138,9 @@ class HuddleState:
                 )
         return self.model
 
-    async def _speak(self, conversation: Any, on_words, turn: Any, offer: bool) -> Any:
+    async def _speak(self, conversation: Any, on_words, offer: bool) -> Any:
+        """One model call, its words to the voice as they form. ``on_words``
+        is the brain's: it keeps the turn's ``said`` and pushes the frame."""
         from api.services.agent_builder import client
         from api.services.billing import model_usage
 
@@ -146,10 +148,11 @@ class HuddleState:
         seen = {"n": 0}
 
         async def on_text(text: str) -> None:
+            # The stream hands the whole text so far; the voice wants the
+            # new piece.
             piece = text[seen["n"] :]
             seen["n"] = len(text)
             if piece:
-                turn.said += piece
                 await on_words(piece)
 
         feature = (
@@ -184,7 +187,13 @@ class HuddleState:
         else:
             conversation.add_user(turn.text)
 
-        reply = await self._speak(conversation, on_words, turn, offer=True)
+        spoken = {"any": False}
+
+        async def speak(piece: str) -> None:
+            spoken["any"] = True
+            await on_words(piece)
+
+        reply = await self._speak(conversation, speak, offer=True)
         rounds = 0
         while reply.wants_tools and rounds < MAX_ROUNDS:
             rounds += 1
@@ -198,17 +207,14 @@ class HuddleState:
                     # Propose it, say so, stop: no second card this turn.
                     offer_again = False
             reply = await self._speak(
-                conversation,
-                on_words,
-                turn,
-                offer=offer_again and rounds < MAX_ROUNDS,
+                conversation, speak, offer=offer_again and rounds < MAX_ROUNDS
             )
         body = (reply.text or "").strip()
-        if not body and not turn.said.strip():
+        if not body and not spoken["any"]:
+            # Silence reads as a broken call; say so.
             body = "I have nothing to add on that."
-            turn.said += body
-            await on_words(body)
-        return turn.said or body
+            await speak(body)
+        return body
 
     async def run_tool(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         """One tool call. Never raises: the model is told what went wrong."""
