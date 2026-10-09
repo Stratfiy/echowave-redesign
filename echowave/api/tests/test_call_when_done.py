@@ -476,7 +476,21 @@ class TestTheCall:
         await _finish(home.org, task)
         await calls.tick(home.clock["now"] + timedelta(minutes=2))
         call_id = (await _rows("done_calls", home.org))[0]["id"]
-        assert await calls.sweep(home.clock["now"] + timedelta(hours=1)) == 1
+        # "Not answered" only on evidence: the carrier's no-answer callback,
+        # as status_processor writes it onto the call's run.
+        no_answer = SimpleNamespace(
+            is_completed=True,
+            answered_at=None,
+            billable_seconds=None,
+            gathered_context={
+                "call_tags": ["not_connected", "telephony_no-answer"],
+                "mapped_call_disposition": "no-answer",
+            },
+        )
+        with patch.object(
+            db_client, "get_workflow_run", new=AsyncMock(return_value=no_answer)
+        ):
+            assert await calls.sweep(home.clock["now"] + timedelta(hours=1)) == 1
         call = (await _rows("done_calls", home.org))[0]
         assert call["id"] == call_id and call["state"] == cwd.NOT_ANSWERED
         assert "you did not pick up" in (await _notices(home.org))[-1]
@@ -590,6 +604,8 @@ class TestFounderRules:
         rows = await _rows("done_calls", home.org)
         assert [r["state"] for r in rows] == [cwd.CALLING] * 5 + [cwd.NOTIFIED]
         assert rows[-1]["reason"] == "daily_cap"
+        # The five that rang hold the day's slots; the sixth holds none.
+        assert [r["allowance_day"] is not None for r in rows] == [True] * 5 + [False]
         home.told.assert_awaited()
         assert home.told.await_args.kwargs["title"] == "Done: Task 6"
         line = (await _notices(home.org))[-1]

@@ -173,7 +173,9 @@ class CareDoseCallModel(Base):
     Unique per (medicine, due time), so two ticks of the scheduler -- or two
     workers -- make one row and one call. ``state``: ``calling`` ->
     ``taken`` | ``not_taken`` | ``not_answered`` | ``unclear``, or
-    ``failed`` (with ``reason``) when the call could not be placed.
+    ``failed`` (with ``reason``) when the call could not be placed, or
+    ``unknown`` when it may have rung and nothing has proved what happened
+    (reconciled against the run; a late report corrects it).
     ``alerted_at`` marks the family alert, sent at most once.
     """
 
@@ -195,6 +197,9 @@ class CareDoseCallModel(Base):
     outcome_at = Column(DateTime(timezone=True), nullable=True)
     alerted_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), nullable=False, default=_now)
+    #: Every change of outcome after the dial, appended:
+    #: ``[{"at", "from", "to", "reason", "source"}]``.
+    outcome_history = Column(JSON, nullable=True)
 
     __table_args__ = (
         UniqueConstraint("medicine_id", "due_at", name="uq_care_dose_due"),
@@ -226,7 +231,8 @@ class CareAlertModel(Base):
         nullable=False,
     )
     #: ``dose_missed`` | ``call_not_answered`` | ``call_failed`` |
-    #: ``help_needed`` | ``scam_checked``.
+    #: ``call_unconfirmed`` | ``call_corrected`` | ``help_needed`` |
+    #: ``scam_checked``.
     kind = Column(String(32), nullable=False)
     #: The share that allowed it (services/care/circle.SHARES).
     share = Column(String(32), nullable=False)

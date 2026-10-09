@@ -14,7 +14,27 @@ row -- and says on the thread when the call will come:
 At most ``CALL_WHEN_DONE_DAILY_CAP`` calls are placed for one person in one
 of their days. Past it, the finish still reaches them -- in the thread and on
 their notification channels -- and the thread says the day's limit is
-reached. Checked when the call is queued and again right before the dial.
+reached. Read when the call is queued, and **reserved** right before the
+dial (``allowance.reserve``, atomic across workspaces).
+
+What came of a dial is decided on evidence, never on silence:
+
+* ``dial_workflow`` records the call's run (``_link_run``) before it asks
+  the provider. A call with no run recorded was never requested: a worker
+  that died, or a refusal, is a **verified non-dispatch** -- its slot is
+  released and it is queued again (at most ``MAX_ATTEMPTS`` claims).
+* A dial that raised after the run was recorded (a provider timeout after
+  the carrier accepted) is ``unknown``: never re-dialled, never "I couldn't
+  call you", reconciled against the run right away and by every sweep.
+* The sweep reconciles a call still ``calling`` after the answer window
+  (``reconcile``): the carrier's no-answer makes it ``not_answered``, an
+  answered run ``answered``, and anything else ``unknown``, said to the
+  person as exactly that, with the result.
+* The post-call report (``record_run_outcome``) is evidence too: it moves
+  ``calling`` or ``unknown`` to the truth, and an answer corrects an earlier
+  ``not_answered``. Each change is appended to ``outcome_history``; a
+  duplicate report changes nothing; a notice is sent once per call, plus a
+  correction only when an earlier one said something false.
 
 ``tick`` (every minute, from the ARQ worker) claims each due call by a
 compare-and-swap (queued -> calling), the way care's ``_claim`` does, and
@@ -37,7 +57,7 @@ from datetime import UTC, datetime, time, timedelta
 from typing import Any
 
 from loguru import logger
-from sqlalchemy import delete, func, select, text, update
+from sqlalchemy import delete, select, text, update
 from sqlalchemy.dialects.postgresql import insert
 
 from api import constants
@@ -46,8 +66,10 @@ from api.db.call_when_done_models import DoneCallbackModel, DoneCallModel
 from api.enums import AgentEventActor, AgentEventKind
 from api.services import call_when_done as cwd
 from api.services import features
+from api.services.call_when_done import allowance
 from api.services.call_when_done import number as numbers
 from api.services.compliance import dnd
+from api.services.telephony import call_evidence
 
 #: Why no call was placed, as the thread says it.
 WHY = {
@@ -59,7 +81,17 @@ WHY = {
     "call_error": "something went wrong on our side",
     "not_answered": "you did not pick up",
     "not_member": "you are no longer in this workspace",
+    "not_connected": "the call could not be connected",
+    "unknown": "I can't confirm the call reached you",
 }
+
+#: How many times one call is claimed and found not dialled (a worker that
+#: died before the provider was asked) before the person is told instead.
+MAX_ATTEMPTS = 3
+
+#: An unknown outcome is re-read against its run for this long after the
+#: dial; after that it stays unknown (the person was already told so).
+RECONCILE_HOURS = 24
 
 
 def why(reason: str) -> str:
@@ -98,26 +130,16 @@ async def person_timezone(organization_id: int, user_id: int) -> str | None:
 
 
 async def calls_today(user_id: int, timezone_name: str | None, now: datetime) -> int:
-    """Calls actually dialled for this person since their local midnight.
-    Counted per person (every workspace they are rung from), because the cap
-    protects the person, not a workspace's budget."""
-    zone = dnd.resolve_zone(timezone_name)
-    midnight = datetime.combine(now.astimezone(zone).date(), time(0), tzinfo=zone)
-    async with db_client.async_session() as session:
-        count = await session.scalar(
-            select(func.count(DoneCallModel.id)).where(
-                DoneCallModel.user_id == user_id,
-                DoneCallModel.workflow_run_id.is_not(None),
-                DoneCallModel.placed_at >= midnight.astimezone(UTC),
-            )
-        )
-    return int(count or 0)
+    """Calls reserved for this person on their local day, from every
+    workspace: dialled, being dialled, or with an unknown outcome
+    (``allowance``)."""
+    return await allowance.used(user_id, timezone_name, now)
 
 
 async def over_cap(user_id: int, timezone_name: str | None, now: datetime) -> bool:
-    return await calls_today(user_id, timezone_name, now) >= max(
-        0, constants.CALL_WHEN_DONE_DAILY_CAP
-    )
+    """A read, for saying so early (``queue``). The dial itself takes its
+    slot with ``allowance.reserve``, which is what actually holds the cap."""
+    return await allowance.remaining(user_id, timezone_name, now) <= 0
 
 
 def next_opening(timezone_name: str | None, now: datetime) -> datetime:
@@ -174,7 +196,13 @@ async def queue(
     now = now or _now()
     reason, _ = await readiness(organization_id, user_id)
     tz = await person_timezone(organization_id, user_id)
-    if reason is None and await over_cap(user_id, tz, now):
+    due = now + timedelta(seconds=max(0, constants.CALL_WHEN_DONE_GATHER_SECONDS))
+    outside = not dnd.within_calling_hours(timezone_name=tz, now=due)
+    if outside:
+        due = next_opening(tz, now)
+    # The allowance of the day the call will ring: a finish at 23:30 rings
+    # at 09:00 tomorrow, on tomorrow's five.
+    if reason is None and await over_cap(user_id, tz, due):
         reason = "daily_cap"
     if reason:
         async with db_client.async_session() as session:
@@ -195,10 +223,6 @@ async def queue(
         await tell_in_app(call_id, reason)
         return call_id
 
-    due = now + timedelta(seconds=max(0, constants.CALL_WHEN_DONE_GATHER_SECONDS))
-    outside = not dnd.within_calling_hours(timezone_name=tz, now=due)
-    if outside:
-        due = next_opening(tz, now)
     async with db_client.async_session() as session:
         made = (
             await session.execute(
@@ -409,6 +433,8 @@ async def tell_in_app(call_id: int, reason: str) -> None:
         said = why(reason)
         if reason == "not_answered":
             line = f"I called about {title}, but {said}. {summary} {where}"
+        elif reason == "unknown":
+            line = f"I tried to call you about {title}, but {said}. {summary} {where}"
         else:
             line = f"Done: {title}. I couldn't call you: {said}. {summary} {where}"
         await notice(
@@ -482,20 +508,15 @@ async def place(call_id: int, *, now: datetime | None = None) -> None:
     organization_id, user_id = call.organization_id, call.user_id
     reason, phone = await readiness(organization_id, user_id)
     if reason:
-        await settle(call_id, cwd.NOTIFIED, reason=reason)
-        await tell_in_app(call_id, reason)
+        await _not_placed(call_id, cwd.NOTIFIED, reason)
         return
     if await db_client.get_membership(user_id, organization_id) is None:
         # Removed from the workspace since the call was queued: this
         # workspace no longer rings them, and its thread is not theirs.
+        await allowance.release(call_id)
         await settle(call_id, cwd.FAILED, reason="not_member")
         return
     tz = await person_timezone(organization_id, user_id)
-    if await over_cap(user_id, tz, now):
-        # Re-checked here: calls placed since this one was queued count.
-        await settle(call_id, cwd.NOTIFIED, reason="daily_cap")
-        await tell_in_app(call_id, "daily_cap")
-        return
     if not dnd.within_calling_hours(timezone_name=tz, now=now):
         # Asked here as well as in the gate: the gate skips every check,
         # the window included, when do-not-call enforcement is switched off
@@ -512,30 +533,88 @@ async def place(call_id: int, *, now: datetime | None = None) -> None:
         await _requeue(call, next_opening(tz, now), tz)
         return
     except dnd.CallRefused:
-        await settle(call_id, cwd.FAILED, reason="do_not_call")
-        await tell_in_app(call_id, "do_not_call")
+        await _not_placed(call_id, cwd.FAILED, "do_not_call")
         return
+    # The person's daily allowance, taken atomically: two workspaces ringing
+    # the same person at once cannot both have the last slot. Last of the
+    # checks, so a call refused for any other reason never holds one.
+    if not await allowance.reserve(call_id, tz, now):
+        await _not_placed(call_id, cwd.NOTIFIED, "daily_cap")
+        return
+
+    async def link(run_id: int) -> None:
+        # Only while this worker still holds the claim. If the sweep has
+        # meanwhile judged it never dialled (and queued it again), raising
+        # here stops dial_workflow before the provider is asked: one call.
+        if not await _link_run(call_id, organization_id, run_id, claimed=True):
+            raise _Superseded()
+
     try:
-        run_id = await _dial(call, dialable)
+        run_id = await _dial(call, dialable, on_run_created=link)
+    except _Superseded:
+        logger.warning("call_when_done: call {} was re-queued mid-dial", call_id)
+        return
     except _Refused as exc:
-        await settle(call_id, cwd.FAILED, reason=exc.reason)
-        await tell_in_app(call_id, exc.reason)
+        # Refused before the provider was asked: nothing rang.
+        await _not_placed(call_id, cwd.FAILED, exc.reason)
         return
     except Exception as exc:  # noqa: BLE001 - the call must say something
-        logger.error("call_when_done: call {} failed: {}", call_id, exc)
-        await settle(call_id, cwd.FAILED, reason="call_error")
-        await tell_in_app(call_id, "call_error")
-        return
-    async with db_client.async_session() as session:
-        await session.execute(
-            update(DoneCallModel)
-            .where(
-                DoneCallModel.id == call_id,
-                DoneCallModel.organization_id == organization_id,
-            )
-            .values(workflow_run_id=run_id)
+        logger.error(
+            "call_when_done: call {} raised while dialling: {!r}", call_id, exc
         )
+        await _after_dial_error(call_id, now)
+        return
+    await _link_run(call_id, organization_id, run_id)
+
+
+async def _not_placed(call_id: int, state: str, reason: str) -> None:
+    """A verified non-dispatch: the slot (if any) goes back, the call takes
+    its final state, and the person is told why."""
+    await allowance.release(call_id)
+    if await settle(call_id, state, reason=reason):
+        await tell_in_app(call_id, reason)
+
+
+class _Superseded(Exception):
+    """The claim was taken back (re-queued) before the provider was asked."""
+
+
+async def _link_run(
+    call_id: int, organization_id: int, run_id: int, *, claimed: bool = False
+) -> bool:
+    """Record which run this call is. Written before the provider is asked
+    (``dial_workflow``'s ``on_run_created``), and again after, harmlessly.
+    With ``claimed``, only while the call is still ``calling``. Returns
+    whether a row was written."""
+    query = update(DoneCallModel).where(
+        DoneCallModel.id == call_id,
+        DoneCallModel.organization_id == organization_id,
+    )
+    if claimed:
+        query = query.where(DoneCallModel.state == cwd.CALLING)
+    async with db_client.async_session() as session:
+        written = (
+            await session.execute(
+                query.values(workflow_run_id=run_id).returning(DoneCallModel.id)
+            )
+        ).first()
         await session.commit()
+    return written is not None
+
+
+async def _after_dial_error(call_id: int, now: datetime) -> None:
+    """The dial raised for a reason that is not a refusal. With no run
+    recorded, the provider was never asked: queued again (bounded). With a
+    run recorded, it may have rung: ``unknown``, reconciled, never dialled
+    again and never "I couldn't call you"."""
+    async with db_client.async_session() as session:
+        call = await session.get(DoneCallModel, call_id)
+    if call is None or call.state != cwd.CALLING:
+        return
+    if call.workflow_run_id is None:
+        await _retry_undialled(call, now, source="dial_error")
+        return
+    await reconcile(call_id, now=now, unknown_reason="dial_unconfirmed")
 
 
 class _Refused(Exception):
@@ -544,8 +623,11 @@ class _Refused(Exception):
         self.reason = reason
 
 
-async def _dial(call: Any, dialable: str) -> int:
-    """The platform's outbound path: the same one care's reminder calls use."""
+async def _dial(call: Any, dialable: str, *, on_run_created=None) -> int:
+    """The platform's outbound path: the same one care's reminder calls use.
+
+    ``on_run_created`` is handed to ``dial_workflow``, which awaits it with
+    the run id before asking the provider to dial."""
     from api.services import member_preferences
     from api.services.call_when_done import agent
     from api.services.telephony.factory import get_telephony_provider_by_id
@@ -579,16 +661,24 @@ async def _dial(call: Any, dialable: str) -> int:
                     person=prefs.get("preferred_name") or "",
                 ),
             },
+            on_run_created=on_run_created,
         )
     except QuotaExhausted as exc:
         raise _Refused("quota") from exc
     except OutboundRefused as exc:
         raise _Refused("line_busy") from exc
+    except dnd.CallRefused as exc:
+        # The calling number is not declared (predeclaration): refused
+        # before a run or a slot exists.
+        raise _Refused("call_error") from exc
 
 
-async def _requeue(call: Any, due: datetime, tz: str | None) -> None:
-    """Back to the queue for the next opening. If another finish queued a
-    call meanwhile, its tasks join this one: one call, never two."""
+async def _requeue(
+    call: Any, due: datetime, tz: str | None, *, say: bool = True
+) -> bool:
+    """Back to the queue (from ``calling``) for ``due``. If another finish
+    queued a call meanwhile, its tasks join this one: one call, never two.
+    Only for a call that was never dialled. Returns whether it moved."""
     async with db_client.async_session() as session:
         other = await session.scalar(
             select(DoneCallModel.id).where(
@@ -610,44 +700,261 @@ async def _requeue(call: Any, due: datetime, tz: str | None) -> None:
             await session.execute(
                 delete(DoneCallModel).where(DoneCallModel.id == other)
             )
-        await session.execute(
-            update(DoneCallModel)
-            .where(DoneCallModel.id == call.id, DoneCallModel.state == cwd.CALLING)
-            .values(state=cwd.QUEUED, due_at=due, placed_at=None)
-        )
+        moved = (
+            await session.execute(
+                update(DoneCallModel)
+                .where(
+                    DoneCallModel.id == call.id,
+                    DoneCallModel.state == cwd.CALLING,
+                    DoneCallModel.workflow_run_id.is_(None),
+                )
+                .values(state=cwd.QUEUED, due_at=due, placed_at=None)
+                .returning(DoneCallModel.id)
+            )
+        ).first()
+        if moved is None:
+            await session.rollback()
+            return False
         await session.commit()
-    await notice(
-        call.organization_id,
-        call.user_id,
-        call.thread_id,
-        f"It's outside calling hours now, so I'll call you at {when_line(due, tz)}.",
-        call_id=call.id,
-        state=cwd.QUEUED,
-        due_at=due,
+    if say:
+        await notice(
+            call.organization_id,
+            call.user_id,
+            call.thread_id,
+            f"It's outside calling hours now, so I'll call you at {when_line(due, tz)}.",
+            call_id=call.id,
+            state=cwd.QUEUED,
+            due_at=due,
+        )
+    return True
+
+
+async def _retry_undialled(call: Any, now: datetime, *, source: str) -> None:
+    """A claimed call the provider was never asked to place (no run is
+    recorded, and ``dial_workflow`` records it before asking): its slot goes
+    back and it is queued again, quietly -- nothing rang, so nothing is
+    "not answered". After ``MAX_ATTEMPTS`` claims, the person is told."""
+    await allowance.release(call.id)
+    if (call.attempts or 0) >= MAX_ATTEMPTS:
+        if await settle(call.id, cwd.NOTIFIED, reason="call_error"):
+            await tell_in_app(call.id, "call_error")
+        return
+    tz = await person_timezone(call.organization_id, call.user_id)
+    due = (
+        now
+        if dnd.within_calling_hours(timezone_name=tz, now=now)
+        else next_opening(tz, now)
     )
+    if await _requeue(call, due, tz, say=False):
+        await _append_history(call.id, cwd.CALLING, cwd.QUEUED, "not_dialled", source)
 
 
 # --- what came of it --------------------------------------------------------
 
 
+def _entry(prior: str, to: str, reason: str | None, source: str) -> dict[str, Any]:
+    return {
+        "at": _now().isoformat(),
+        "from": prior,
+        "to": to,
+        "reason": reason,
+        "source": source,
+    }
+
+
+async def _append_history(
+    call_id: int, prior: str, to: str, reason: str | None, source: str
+) -> None:
+    async with db_client.async_session() as session:
+        call = (
+            await session.execute(
+                select(DoneCallModel)
+                .where(DoneCallModel.id == call_id)
+                .with_for_update()
+            )
+        ).scalar_one_or_none()
+        if call is None:
+            return
+        call.outcome_history = [
+            *(call.outcome_history or []),
+            _entry(prior, to, reason, source),
+        ]
+        await session.commit()
+
+
+async def _move(
+    call_id: int,
+    state: str,
+    *,
+    reason: str | None,
+    allowed_from: tuple[str, ...],
+    source: str,
+) -> str | None:
+    """Compare-and-swap a call's state, appending to its history. Returns
+    the state it moved from, or None when it did not move (not in
+    ``allowed_from``, or already there: a duplicate report is a no-op)."""
+    async with db_client.async_session() as session:
+        call = (
+            await session.execute(
+                select(DoneCallModel)
+                .where(DoneCallModel.id == call_id)
+                .with_for_update()
+            )
+        ).scalar_one_or_none()
+        if call is None or call.state not in allowed_from or call.state == state:
+            await session.rollback()
+            return None
+        prior = call.state
+        call.state = state
+        call.reason = reason
+        call.outcome_at = _now()
+        call.outcome_history = [
+            *(call.outcome_history or []),
+            _entry(prior, state, reason, source),
+        ]
+        await session.commit()
+    return prior
+
+
 async def settle(call_id: int, state: str, *, reason: str | None = None) -> bool:
     """Move a call from calling to its outcome, once."""
+    return (
+        await _move(
+            call_id, state, reason=reason, allowed_from=(cwd.CALLING,), source="settle"
+        )
+        is not None
+    )
+
+
+#: Where each kind of evidence may move a call from. An answer corrects an
+#: earlier "not answered"; nothing moves a call out of ``answered``.
+_FROM = {
+    cwd.ANSWERED: (cwd.CALLING, cwd.UNKNOWN, cwd.NOT_ANSWERED),
+    cwd.NOT_ANSWERED: (cwd.CALLING, cwd.UNKNOWN),
+    cwd.FAILED: (cwd.CALLING, cwd.UNKNOWN),
+}
+
+
+async def _apply(call_id: int, state: str, reason: str | None, source: str) -> bool:
+    """Move a call on evidence, and say what needs saying -- once:
+
+    * ``calling`` -> not answered / could not connect: the person is told,
+      with the result.
+    * ``unknown`` -> anything: they were already told it was unknown, with
+      the result; nothing more is said.
+    * ``not_answered`` -> answered: if the person was told "you did not pick
+      up" (it went straight from ``calling``), that was wrong, so a
+      one-line correction goes on the thread. If they were told "unknown",
+      nothing they read was false, and nothing is added.
+    """
+    told_missed = state == cwd.ANSWERED and await _told_not_answered(call_id)
+    prior = await _move(
+        call_id, state, reason=reason, allowed_from=_FROM[state], source=source
+    )
+    if prior is None:
+        return False
+    if prior == cwd.CALLING and state in (cwd.NOT_ANSWERED, cwd.FAILED):
+        await tell_in_app(call_id, reason or "call_error")
+    elif prior == cwd.NOT_ANSWERED and told_missed:
+        await _correct(call_id)
+    return True
+
+
+async def _told_not_answered(call_id: int) -> bool:
+    """Whether "you did not pick up" was said: the call went from
+    ``calling`` straight to ``not_answered`` (``_apply`` tells then)."""
     async with db_client.async_session() as session:
-        moved = (
-            await session.execute(
-                update(DoneCallModel)
-                .where(DoneCallModel.id == call_id, DoneCallModel.state == cwd.CALLING)
-                .values(state=state, reason=reason, outcome_at=_now())
-                .returning(DoneCallModel.id)
-            )
-        ).first()
-        await session.commit()
-    return bool(moved)
+        history = await session.scalar(
+            select(DoneCallModel.outcome_history).where(DoneCallModel.id == call_id)
+        )
+    return any(
+        e.get("from") == cwd.CALLING and e.get("to") == cwd.NOT_ANSWERED
+        for e in history or []
+    )
+
+
+async def _correct(call_id: int) -> None:
+    async with db_client.async_session() as session:
+        call = await session.get(DoneCallModel, call_id)
+    if call is None:
+        return
+    items = await items_of_call(call.organization_id, call_id)
+    title = "; ".join(i["title"] for i in items) or "your task"
+    await notice(
+        call.organization_id,
+        call.user_id,
+        call.thread_id,
+        f"Correction: my call about {title} did reach you, so please ignore my "
+        "note that you did not pick up.",
+        call_id=call_id,
+        state=cwd.ANSWERED,
+        reason="corrected",
+    )
+
+
+def _evidence_state(evidence: str) -> tuple[str, str | None] | None:
+    if evidence == call_evidence.ANSWERED:
+        return cwd.ANSWERED, None
+    if evidence == call_evidence.NOT_CONNECTED:
+        return cwd.NOT_ANSWERED, "not_answered"
+    if evidence == call_evidence.CARRIER_FAILED:
+        return cwd.FAILED, "not_connected"
+    return None
+
+
+async def reconcile(
+    call_id: int, *, now: datetime | None = None, unknown_reason: str = "no_outcome"
+) -> str | None:
+    """Read the call's run and settle it on what the run proves.
+
+    * No run recorded: never requested -- released and queued again.
+    * Final evidence (answered, carrier no-answer, carrier failure): moved
+      there (and, from ``calling``, the person told).
+    * Anything else: ``unknown`` (from ``calling``), said to the person once,
+      with the result.
+
+    Returns the call's state afterwards. Never dials."""
+    now = now or _now()
+    async with db_client.async_session() as session:
+        call = await session.get(DoneCallModel, call_id)
+    if call is None or call.state not in (cwd.CALLING, cwd.UNKNOWN):
+        return call.state if call else None
+    if call.workflow_run_id is None:
+        if call.state == cwd.CALLING:
+            await _retry_undialled(call, now, source="sweep")
+        return await _state(call_id)
+    evidence, _run = await call_evidence.read(
+        call.workflow_run_id, call.organization_id
+    )
+    final = _evidence_state(evidence)
+    if final is not None:
+        await _apply(call_id, final[0], final[1], source=f"reconcile:{evidence}")
+    elif call.state == cwd.CALLING:
+        moved = await _move(
+            call_id,
+            cwd.UNKNOWN,
+            reason=unknown_reason,
+            allowed_from=(cwd.CALLING,),
+            source=f"reconcile:{evidence}",
+        )
+        if moved is not None:
+            # Once: only the reading that moved it out of ``calling`` says so.
+            await tell_in_app(call_id, "unknown")
+    return await _state(call_id)
+
+
+async def _state(call_id: int) -> str | None:
+    async with db_client.async_session() as session:
+        return await session.scalar(
+            select(DoneCallModel.state).where(DoneCallModel.id == call_id)
+        )
 
 
 async def record_run_outcome(workflow_run_id: int) -> None:
-    """Post-call: if this run was an "it's done" call, settle it. Never
-    raises; any other run is left alone."""
+    """Post-call: if this run was an "it's done" call, settle it on what the
+    run shows. Late evidence repairs a provisional state (``unknown``) or a
+    wrong one (``not_answered`` -> ``answered``); a duplicate is a no-op.
+    Never raises; any other run is left alone."""
     try:
         run = await db_client.get_workflow_run(workflow_run_id)
         context = getattr(run, "initial_context", None) or {}
@@ -659,20 +966,30 @@ async def record_run_outcome(workflow_run_id: int) -> None:
         )
         async with db_client.async_session() as session:
             call = await session.get(DoneCallModel, int(call_id))
-        # The run's workspace must be the call's: an id in a context is not
-        # proof of ownership.
+        # The run's workspace must be the call's, and the run must be the
+        # call's own (when one is recorded): an id in a context is not proof
+        # of ownership.
         if call is None or call.organization_id != organization_id:
             logger.warning(
                 "call_when_done: run {} names a call it does not own", workflow_run_id
             )
             return
+        if call.workflow_run_id not in (None, workflow_run_id):
+            logger.warning(
+                "call_when_done: run {} is not call {}'s run ({})",
+                workflow_run_id,
+                call.id,
+                call.workflow_run_id,
+            )
+            return
+        if call.workflow_run_id is None:
+            await _link_run(call.id, organization_id, workflow_run_id)
         from api.services.workflow import answered
 
         if answered.was_answered(run):
-            await settle(call.id, cwd.ANSWERED)
+            await _apply(call.id, cwd.ANSWERED, None, source="post_call")
             return
-        if await settle(call.id, cwd.NOT_ANSWERED, reason="not_answered"):
-            await tell_in_app(call.id, "not_answered")
+        await _apply(call.id, cwd.NOT_ANSWERED, "not_answered", source="post_call")
     except Exception as exc:  # noqa: BLE001 - post-call work must not fail a call
         logger.error(
             "call_when_done: could not record run {}: {}", workflow_run_id, exc
@@ -680,25 +997,37 @@ async def record_run_outcome(workflow_run_id: int) -> None:
 
 
 async def sweep(now: datetime | None = None) -> int:
-    """Calls with no outcome after ``CALL_WHEN_DONE_ANSWER_MINUTES`` were not
-    answered; the person is told in the app."""
+    """Calls with no outcome after ``CALL_WHEN_DONE_ANSWER_MINUTES`` are
+    reconciled against their runs (``reconcile``): settled on evidence, or
+    ``unknown`` and said so -- never "not answered" for want of a report.
+    Calls already ``unknown`` are re-read for ``RECONCILE_HOURS``, so late
+    evidence lands. Returns how many changed state."""
     if not features.on_anywhere(cwd.FLAG):
         return 0
     now = now or _now()
     cutoff = now - timedelta(minutes=constants.CALL_WHEN_DONE_ANSWER_MINUTES)
+    horizon = now - timedelta(hours=RECONCILE_HOURS)
     async with db_client.async_session() as session:
-        ids = (
-            await session.scalars(
-                select(DoneCallModel.id)
+        rows = (
+            await session.execute(
+                select(DoneCallModel.id, DoneCallModel.state)
                 .where(
-                    DoneCallModel.state == cwd.CALLING, DoneCallModel.placed_at < cutoff
+                    (
+                        (DoneCallModel.state == cwd.CALLING)
+                        & (DoneCallModel.placed_at < cutoff)
+                    )
+                    | (
+                        (DoneCallModel.state == cwd.UNKNOWN)
+                        & (DoneCallModel.placed_at >= horizon)
+                    )
                 )
+                .order_by(DoneCallModel.id)
                 .limit(500)
             )
         ).all()
-    settled = 0
-    for call_id in ids:
-        if await settle(call_id, cwd.NOT_ANSWERED, reason="not_answered"):
-            await tell_in_app(call_id, "not_answered")
-            settled += 1
-    return settled
+    changed = 0
+    for call_id, before in rows:
+        after = await reconcile(call_id, now=now)
+        if after != before:
+            changed += 1
+    return changed

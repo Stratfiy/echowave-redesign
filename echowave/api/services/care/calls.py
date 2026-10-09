@@ -14,12 +14,28 @@ What happened comes back in three ways:
 
 * the call finished (``record_run_outcome``, from post-call processing):
   taken, not taken, not answered, or unclear;
-* nothing came back within ``CARE_CALL_ANSWER_MINUTES`` (``sweep``): not
-  answered;
+* nothing came back within ``CARE_CALL_ANSWER_MINUTES`` (``sweep``): the
+  call is reconciled against its run (``reconcile``) -- the carrier's
+  no-answer is "not answered"; silence is ``unknown``, not "not answered";
+  a dose whose run was never recorded was never dialled, and the family is
+  told Decibyl could not call;
 * the person tapped "I took it" in the app (``medicines.mark_taken``).
 
 Anything but taken tells the family members named on the reminder, if they
-still share medicine alerts -- at most once per dose.
+still share medicine alerts -- at most once per dose. Late evidence repairs
+an ``unknown`` or a "not answered" (``outcome_history`` keeps both); the
+only second alert is a correction when the family was told "did not answer"
+and the person in fact answered and took it.
+
+The run is recorded on the dose before the provider is asked
+(``dial_workflow``'s ``on_run_created``), so a dial that raises afterwards
+is ``unknown`` (it may have rung), and one that raises before is a
+verified "could not call".
+
+These calls are **not** counted against the person's daily call allowance
+(``call_when_done.allowance``): the person chose these exact times on the
+card. Whether they should share the 5-a-day cap is open (D3 in
+docs/plans/reminder-calls.md).
 
 ``CARE_CALLS_FAKE`` replaces the dial with a simulated outcome for local
 runs and tests; it is ignored in every other environment, and where it
@@ -61,6 +77,11 @@ FAILED = "failed"
 #: Claimed by a tick, then paused or removed before the dial: nothing rang,
 #: and nobody is told about a dose the person stopped.
 CANCELLED = "cancelled"
+#: The call may have rung and nothing has proved what happened (a timeout
+#: after the provider accepted it; no report by the answer window). Never
+#: re-dialled; reconciled against the run; the family is not told "did not
+#: answer" on silence (``reconcile``).
+UNKNOWN = "unknown"
 #: The outcomes the family is told about.
 TELL_FAMILY = (NOT_TAKEN, NOT_ANSWERED, UNCLEAR, FAILED)
 
@@ -214,25 +235,70 @@ async def place(dose_id: int) -> None:
         logger.info("Care call for dose {} simulated ({})", dose_id, fake)
         await settle(dose_id, FAKE_OUTCOMES[fake], reason="test_mode")
         return
+
+    async def link(run_id: int) -> None:
+        # Only while the dose is still waiting on this call. If it was
+        # settled meanwhile ("I took it", or a sweep that found it never
+        # dialled), raising here stops dial_workflow before the provider is
+        # asked.
+        if not await _link_run(dose_id, med.organization_id, run_id, claimed=True):
+            raise _Superseded()
+
     try:
-        run_id = await _dial(med, dose)
+        run_id = await _dial(med, dose, on_run_created=link)
+    except _Superseded:
+        logger.info("Care call for dose {} settled before the dial", dose_id)
+        return
     except CallRefused as exc:
+        # Refused before the provider was asked: nothing rang, and that is
+        # what the family is told.
         await settle(dose_id, FAILED, reason=exc.reason)
         return
     except Exception as exc:  # noqa: BLE001 - the dose must say something
-        logger.error("Care call for dose {} failed: {}", dose_id, exc)
-        await settle(dose_id, FAILED, reason="call_error")
-        return
-    async with db_client.async_session() as session:
-        await session.execute(
-            update(CareDoseCallModel)
-            .where(
-                CareDoseCallModel.id == dose_id,
-                CareDoseCallModel.organization_id == med.organization_id,
+        logger.error("Care call for dose {} raised while dialling: {!r}", dose_id, exc)
+        async with db_client.async_session() as session:
+            linked = await session.scalar(
+                select(CareDoseCallModel.workflow_run_id).where(
+                    CareDoseCallModel.id == dose_id
+                )
             )
-            .values(workflow_run_id=run_id)
-        )
+        if linked is None:
+            # No run recorded: the provider was never asked (dial_workflow
+            # records the run first). Verified: Decibyl could not call.
+            await settle(dose_id, FAILED, reason="call_error")
+        else:
+            # The provider may have rung (a timeout after it accepted, say):
+            # unknown, reconciled, and the family not told "could not call".
+            await reconcile(dose_id, unknown_reason="dial_unconfirmed")
+        return
+    await _link_run(dose_id, med.organization_id, run_id)
+
+
+class _Superseded(Exception):
+    """The dose was settled before the provider was asked."""
+
+
+async def _link_run(
+    dose_id: int, organization_id: int, run_id: int, *, claimed: bool = False
+) -> bool:
+    """Record the dose's run: before the provider is asked
+    (``dial_workflow``'s ``on_run_created``), and again after, harmlessly.
+    With ``claimed``, only while the dose is still ``calling``. Returns
+    whether a row was written."""
+    query = update(CareDoseCallModel).where(
+        CareDoseCallModel.id == dose_id,
+        CareDoseCallModel.organization_id == organization_id,
+    )
+    if claimed:
+        query = query.where(CareDoseCallModel.state == CALLING)
+    async with db_client.async_session() as session:
+        written = (
+            await session.execute(
+                query.values(workflow_run_id=run_id).returning(CareDoseCallModel.id)
+            )
+        ).first()
         await session.commit()
+    return written is not None
 
 
 async def _remind_in_app(med: Any, dose: Any) -> None:
@@ -273,8 +339,10 @@ def app_readiness(organization_id: int) -> dict[str, str]:
     }
 
 
-async def _dial(med: Any, dose: Any) -> int:
-    """The platform's outbound path, with the do-not-call list honoured."""
+async def _dial(med: Any, dose: Any, *, on_run_created=None) -> int:
+    """The platform's outbound path, with the do-not-call list honoured.
+    ``on_run_created`` goes to ``dial_workflow``, which awaits it with the
+    run id before asking the provider."""
     from api.services.care import reminder_call
     from api.services.compliance import dnd
     from api.services.telephony.factory import get_telephony_provider_by_id
@@ -316,6 +384,7 @@ async def _dial(med: Any, dose: Any) -> int:
                     medicine=med.label, language=med.language, person=name
                 ),
             },
+            on_run_created=on_run_created,
         )
     except OutboundRefused as exc:
         raise CallRefused(str(exc), "line_busy") from exc
@@ -333,25 +402,129 @@ async def _person_name(med: Any) -> str:
 # --- what came of it -------------------------------------------------------
 
 
+def _entry(prior: str, to: str, reason: str | None, source: str) -> dict[str, Any]:
+    return {
+        "at": _now().isoformat(),
+        "from": prior,
+        "to": to,
+        "reason": reason,
+        "source": source,
+    }
+
+
+async def _move(
+    dose_id: int,
+    state: str,
+    *,
+    reason: str | None,
+    allowed_from: tuple[str, ...],
+    source: str,
+) -> str | None:
+    """Compare-and-swap a dose's state, appending to its history. Returns
+    the state it moved from, or None when it did not move (not in
+    ``allowed_from``, or already there: a duplicate report is a no-op)."""
+    async with db_client.async_session() as session:
+        dose = (
+            await session.execute(
+                select(CareDoseCallModel)
+                .where(CareDoseCallModel.id == dose_id)
+                .with_for_update()
+            )
+        ).scalar_one_or_none()
+        if dose is None or dose.state not in allowed_from or dose.state == state:
+            await session.rollback()
+            return None
+        prior = dose.state
+        dose.state = state
+        dose.reason = reason
+        dose.outcome_at = _now()
+        dose.outcome_history = [
+            *(dose.outcome_history or []),
+            _entry(prior, state, reason, source),
+        ]
+        await session.commit()
+    return prior
+
+
 async def settle(dose_id: int, state: str, *, reason: str | None = None) -> bool:
     """Move a dose from calling to its outcome, once. Tells the family when
     it was not taken. Returns whether this call moved it."""
-    async with db_client.async_session() as session:
-        moved = (
-            await session.execute(
-                update(CareDoseCallModel)
-                .where(
-                    CareDoseCallModel.id == dose_id,
-                    CareDoseCallModel.state.in_(WAITING),
-                )
-                .values(state=state, reason=reason, outcome_at=_now())
-                .returning(CareDoseCallModel.id)
-            )
-        ).first()
-        await session.commit()
-    if moved and state in TELL_FAMILY:
+    moved = await _move(
+        dose_id, state, reason=reason, allowed_from=WAITING, source="settle"
+    )
+    if moved is not None and state in TELL_FAMILY:
         await tell_family(dose_id)
-    return bool(moved)
+    return moved is not None
+
+
+#: Outcomes an answered call reports (the person was on the line).
+_ANSWERED_OUTCOMES = (TAKEN, NOT_TAKEN, UNCLEAR)
+
+
+def _allowed_from(state: str) -> tuple[str, ...]:
+    """Where evidence may move a dose from. A report that the person was on
+    the line corrects an earlier "not answered"; nothing moves a dose out
+    of an answered outcome, and "I took it" in the app is never overwritten."""
+    if state in _ANSWERED_OUTCOMES:
+        return (*WAITING, UNKNOWN, NOT_ANSWERED)
+    return (*WAITING, UNKNOWN)
+
+
+async def _apply(dose_id: int, state: str, reason: str | None, source: str) -> bool:
+    """Move a dose on evidence, and tell the family what needs telling --
+    once. ``tell_family`` sends at most one alert per dose; the only second
+    one is a correction, when the first said "did not answer" and the
+    person in fact answered and took it."""
+    told_missed = state in _ANSWERED_OUTCOMES and await _told_not_answered(dose_id)
+    prior = await _move(
+        dose_id, state, reason=reason, allowed_from=_allowed_from(state), source=source
+    )
+    if prior is None:
+        return False
+    if state in TELL_FAMILY:
+        await tell_family(dose_id)
+    if prior == NOT_ANSWERED and told_missed and state == TAKEN:
+        await _correct_family(dose_id)
+    return True
+
+
+async def _told_not_answered(dose_id: int) -> bool:
+    """Whether the family was told "did not answer": the dose went straight
+    from waiting to ``not_answered`` and an alert went out."""
+    async with db_client.async_session() as session:
+        dose = await session.get(CareDoseCallModel, dose_id)
+    if dose is None or dose.alerted_at is None:
+        return False
+    return any(
+        e.get("from") in WAITING and e.get("to") == NOT_ANSWERED
+        for e in dose.outcome_history or []
+    )
+
+
+async def _correct_family(dose_id: int) -> int:
+    from zoneinfo import ZoneInfo
+
+    from api.services.care import circle
+
+    async with db_client.async_session() as session:
+        dose = await session.get(CareDoseCallModel, dose_id)
+        med = await session.get(CareMedicineModel, dose.medicine_id) if dose else None
+    if dose is None or med is None or not med.alert_member_ids:
+        return 0
+    person = await circle.person_name(med.organization_id, med.person_user_id)
+    due_local = dose.due_at.astimezone(ZoneInfo(med.timezone)).strftime("%H:%M")
+    return await circle.alert(
+        med.organization_id,
+        med.person_user_id,
+        kind="call_corrected",
+        share="medicine_alerts",
+        title=(
+            f"Update: {person} did answer the {due_local} reminder call and said "
+            f"{med.label} was taken."
+        ),
+        subject_id=dose.id,
+        only_member_ids=[int(m) for m in med.alert_member_ids],
+    )
 
 
 async def _withdraw(dose_id: int) -> bool:
@@ -405,10 +578,19 @@ def _alert_line(
                 "say it was taken."
             ),
         )
+    if state == UNKNOWN:
+        return (
+            "call_unconfirmed",
+            (
+                f"Decibyl could not confirm whether the {due_local} reminder call "
+                f"for {label} reached {person}."
+            ),
+        )
     why = {
         "needs_setup": "reminder calls need a phone line",
         "do_not_call": "the number is on the workspace's do-not-call list",
         "line_busy": "every line was busy",
+        "not_connected": "the call could not be connected",
     }.get(reason or "", "something went wrong on our side")
     return (
         "call_failed",
@@ -506,32 +688,145 @@ async def record_run_outcome(workflow_run_id: int) -> None:
                 "Care outcome for run {} names a dose it does not own", workflow_run_id
             )
             return
-        await settle(int(dose_id), outcome_of(run), reason="call_finished")
+        # The run must be the dose's own, when one is recorded.
+        if dose.workflow_run_id not in (None, workflow_run_id):
+            logger.warning(
+                "Care outcome for run {} is not dose {}'s run", workflow_run_id, dose.id
+            )
+            return
+        if dose.workflow_run_id is None:
+            await _link_run(dose.id, organization_id, workflow_run_id)
+        await _apply(dose.id, outcome_of(run), "call_finished", source="post_call")
     except Exception as exc:  # noqa: BLE001 - post-call work must not fail a call
         logger.error(
             "Could not record the care outcome of run {}: {}", workflow_run_id, exc
         )
 
 
+#: How long an unknown dose waits for evidence before the family is told
+#: "could not confirm" (once). Evidence that comes later still lands.
+UNKNOWN_ALERT_MINUTES = 120
+#: How long an unknown dose is re-read against its run.
+RECONCILE_HOURS = 24
+
+
+def _evidence_state(evidence: str) -> tuple[str, str] | None:
+    from api.services.telephony import call_evidence
+
+    if evidence == call_evidence.NOT_CONNECTED:
+        return NOT_ANSWERED, "no_answer"
+    if evidence == call_evidence.CARRIER_FAILED:
+        return FAILED, "not_connected"
+    return None
+
+
+async def reconcile(
+    dose_id: int,
+    *,
+    now: datetime | None = None,
+    unknown_reason: str = "no_outcome",
+) -> str | None:
+    """Read the dose's run and settle the call on what the run proves.
+
+    * No run recorded: the provider was never asked (a worker that died
+      between the claim and the dial) -- ``failed``, and the family is told
+      Decibyl could not call, never that the person did not answer.
+    * The carrier's no-answer / busy: ``not_answered`` (alerted). Its
+      failure: ``failed`` (alerted).
+    * Anything else -- in flight, no callback yet, or answered with the
+      post-call report still to come: ``unknown``, nobody told yet. After
+      ``UNKNOWN_ALERT_MINUTES`` an answered run is ``unclear`` (the person
+      answered; nothing says the dose was taken) and anything else tells
+      the family, once, that the call could not be confirmed.
+
+    Returns the dose's state afterwards. Never dials."""
+    from api.services.telephony import call_evidence
+
+    now = now or _now()
+    async with db_client.async_session() as session:
+        dose = await session.get(CareDoseCallModel, dose_id)
+    if dose is None or dose.state not in (CALLING, UNKNOWN):
+        return dose.state if dose else None
+    if dose.workflow_run_id is None:
+        if dose.state == CALLING:
+            await settle(dose_id, FAILED, reason="not_dialled")
+        return await _state(dose_id)
+    evidence, _run = await call_evidence.read(
+        dose.workflow_run_id, dose.organization_id
+    )
+    final = _evidence_state(evidence)
+    if final is not None:
+        await _apply(dose_id, final[0], final[1], source=f"reconcile:{evidence}")
+        return await _state(dose_id)
+    if dose.state == CALLING:
+        await _move(
+            dose_id,
+            UNKNOWN,
+            reason=(
+                "answered_no_report"
+                if evidence == call_evidence.ANSWERED
+                else unknown_reason
+            ),
+            allowed_from=(CALLING,),
+            source=f"reconcile:{evidence}",
+        )
+    elif dose.created_at < now - timedelta(minutes=UNKNOWN_ALERT_MINUTES):
+        if evidence == call_evidence.ANSWERED:
+            await _apply(
+                dose_id, UNCLEAR, "answered_no_report", source="reconcile:late"
+            )
+        elif dose.alerted_at is None:
+            await tell_family(dose_id)
+    return await _state(dose_id)
+
+
+async def _state(dose_id: int) -> str | None:
+    async with db_client.async_session() as session:
+        return await session.scalar(
+            select(CareDoseCallModel.state).where(CareDoseCallModel.id == dose_id)
+        )
+
+
 async def sweep(now: datetime | None = None) -> int:
-    """Calls with no outcome after ``CARE_CALL_ANSWER_MINUTES`` were not
-    answered. Returns how many it settled."""
+    """Doses still waiting after ``CARE_CALL_ANSWER_MINUTES``:
+
+    * an app reminder nobody confirmed is ``not_answered`` ("did not
+      confirm") -- the app is the whole channel, so silence is the answer;
+    * a call is reconciled against its run (``reconcile``): settled on
+      evidence, or ``unknown`` -- never "did not answer" for want of a
+      report, and never re-dialled.
+
+    Unknown doses are re-read for ``RECONCILE_HOURS``. Returns how many
+    changed state."""
     if not features.on_anywhere(MEDICINE_CALLS):
         return 0
     now = now or _now()
     cutoff = now - timedelta(minutes=constants.CARE_CALL_ANSWER_MINUTES)
+    horizon = now - timedelta(hours=RECONCILE_HOURS)
     async with db_client.async_session() as session:
         rows = (
             await session.execute(
                 text(
-                    "SELECT id FROM care_dose_calls WHERE state IN (:s, :r) "
-                    "AND created_at < :cutoff ORDER BY id LIMIT 500"
+                    "SELECT id, state FROM care_dose_calls "
+                    "WHERE (state IN (:s, :r) AND created_at < :cutoff) "
+                    "OR (state = :u AND created_at >= :horizon) "
+                    "ORDER BY id LIMIT 500"
                 ),
-                {"s": CALLING, "r": REMINDED, "cutoff": cutoff},
+                {
+                    "s": CALLING,
+                    "r": REMINDED,
+                    "u": UNKNOWN,
+                    "cutoff": cutoff,
+                    "horizon": horizon,
+                },
             )
         ).all()
-    settled = 0
-    for (dose_id,) in rows:
-        if await settle(dose_id, NOT_ANSWERED, reason="no_outcome"):
-            settled += 1
-    return settled
+    changed = 0
+    for dose_id, before in rows:
+        if before == REMINDED:
+            if await settle(dose_id, NOT_ANSWERED, reason="no_outcome"):
+                changed += 1
+            continue
+        if await reconcile(dose_id, now=now) != before:
+            changed += 1
+    return changed

@@ -82,7 +82,8 @@ async def _doses(org):
         return (
             await session.execute(
                 text(
-                    "SELECT id, state, reason, alerted_at FROM care_dose_calls "
+                    "SELECT id, state, reason, alerted_at, workflow_run_id, "
+                    "outcome_history FROM care_dose_calls "
                     "WHERE organization_id = :o ORDER BY id"
                 ),
                 {"o": org},
@@ -256,8 +257,22 @@ class TestCalls:
             await calls.tick(_at(8, 1))
         rows = await _doses(home.org)
         assert rows[0].state == calls.CALLING
-        assert await calls.sweep(datetime.now(UTC) + timedelta(minutes=5)) == 0
-        assert await calls.sweep(datetime.now(UTC) + timedelta(hours=1)) == 1
+        # "Did not answer" only on evidence: the carrier's no-answer, as the
+        # status webhook writes it onto the call's run.
+        no_answer = SimpleNamespace(
+            is_completed=True,
+            answered_at=None,
+            billable_seconds=None,
+            gathered_context={
+                "call_tags": ["not_connected", "telephony_no-answer"],
+                "mapped_call_disposition": "no-answer",
+            },
+        )
+        with patch.object(
+            db_client, "get_workflow_run", new=AsyncMock(return_value=no_answer)
+        ):
+            assert await calls.sweep(datetime.now(UTC) + timedelta(minutes=5)) == 0
+            assert await calls.sweep(datetime.now(UTC) + timedelta(hours=1)) == 1
         rows = await _doses(home.org)
         assert rows[0].state == calls.NOT_ANSWERED
         titles = [

@@ -160,3 +160,39 @@ async def test_webhook_url_carries_the_ids_providers_need(
     assert "workflow_id=1" in url
     assert "workflow_run_id=99" in url
     assert "organization_id=7" in url
+
+
+@pytest.mark.asyncio
+async def test_the_run_is_handed_over_before_the_provider_is_asked(
+    workflow, provider, concurrency, db, quota, endpoints
+):
+    """A caller that records the run in ``on_run_created`` knows which run
+    to reconcile even when the provider request then times out -- and
+    knows that a call with no run recorded was never requested."""
+    order: list[str] = []
+
+    async def linked(run_id: int) -> None:
+        order.append(f"linked:{run_id}")
+
+    async def initiate(**_kw):
+        order.append("provider")
+        raise TimeoutError()
+
+    provider.initiate_call.side_effect = initiate
+    with pytest.raises(TimeoutError):
+        await dial(workflow, provider, on_run_created=linked)
+    assert order == ["linked:99", "provider"]
+    concurrency.release_workflow_run_slot.assert_awaited_once_with(99)
+
+
+@pytest.mark.asyncio
+async def test_a_hook_that_fails_means_nothing_is_dialled(
+    workflow, provider, concurrency, db, quota, endpoints
+):
+    async def broken(_run_id: int) -> None:
+        raise RuntimeError("db down")
+
+    with pytest.raises(RuntimeError):
+        await dial(workflow, provider, on_run_created=broken)
+    provider.initiate_call.assert_not_awaited()
+    concurrency.release_workflow_run_slot.assert_awaited_once_with(99)

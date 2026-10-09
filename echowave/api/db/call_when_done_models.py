@@ -22,6 +22,7 @@ from sqlalchemy import (
     JSON,
     Boolean,
     Column,
+    Date,
     DateTime,
     ForeignKey,
     Index,
@@ -99,10 +100,16 @@ class DoneCallModel(Base):
     """One call to one person, saying everything that finished for them.
 
     ``state``: ``queued`` -> ``calling`` -> ``answered`` | ``not_answered``
-    | ``failed``; or ``notified`` when no call could be placed and the
-    person was told in the app instead. ``due_at`` is when it may be placed:
-    a short gather after the first finish, or 09:00 local when that falls
-    outside calling hours. ``reason`` is a code for anything but answered.
+    | ``failed`` | ``unknown``; or ``notified`` when no call could be placed
+    and the person was told in the app instead. ``calling`` means claimed
+    and being dialled; ``unknown`` means a dial may have reached the carrier
+    but nothing has proved what happened -- never re-dialled, reconciled
+    against the run, and corrected by late evidence (``outcome_history``
+    keeps every reading). ``not_answered`` only on evidence: a carrier
+    no-answer, or a finished run nobody answered. ``due_at`` is when it may
+    be placed: a short gather after the first finish, or 09:00 local when
+    that falls outside calling hours. ``reason`` is a code for anything but
+    answered.
     """
 
     __tablename__ = "done_calls"
@@ -126,6 +133,12 @@ class DoneCallModel(Base):
     created_at = Column(DateTime(timezone=True), nullable=False, default=_now)
     placed_at = Column(DateTime(timezone=True), nullable=True)
     outcome_at = Column(DateTime(timezone=True), nullable=True)
+    #: The person's local day whose daily-cap slot this call holds
+    #: (``person_call_allowances``); NULL when it holds none.
+    allowance_day = Column(Date, nullable=True)
+    #: Every change of state after the dial, appended:
+    #: ``[{"at", "from", "to", "reason", "source"}]``.
+    outcome_history = Column(JSON, nullable=True)
 
     __table_args__ = (
         Index("ix_done_calls_due", "state", "due_at"),
@@ -163,3 +176,22 @@ class DoneCallNumberModel(Base):
             "organization_id", "user_id", name="uq_done_call_number_person"
         ),
     )
+
+
+class PersonCallAllowanceModel(Base):
+    """How many "call me when it's done" calls one person has reserved on
+    one of their local days, across every workspace they are rung from.
+
+    Grown only by a conditional upsert that refuses past the cap, so the
+    count is a reservation made before the dial, not a tally taken after
+    it. Care's medicine reminder calls do not use it (see allowance.py).
+    """
+
+    __tablename__ = "person_call_allowances"
+
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    local_day = Column(Date, primary_key=True)
+    used = Column(Integer, nullable=False, default=0, server_default=text("0"))
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=_now)
