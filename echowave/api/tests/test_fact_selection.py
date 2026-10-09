@@ -352,9 +352,9 @@ class TestTheAgentReadsChosenFacts:
         from unittest.mock import AsyncMock, patch
 
         from pipecat.processors.aggregators.llm_context import LLMContext
-        from pipecat.tests import MockLLMService
 
         from api.services.workflow.pipecat_engine import PipecatEngine
+        from pipecat.tests import MockLLMService
 
         org, _, _, bot = await _org(async_session, "engine")
         async_session.add_all(
