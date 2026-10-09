@@ -208,6 +208,7 @@ class OrganizationConfigurationKey(Enum):
     ORGANIZATION_PREFERENCES = "ORGANIZATION_PREFERENCES"  # Org-level defaults such as timezone/test call number
     MODEL_CONFIGURATION_PREFERENCES = "MODEL_CONFIGURATION_PREFERENCES"  # Deprecated; read fallback for old org preferences
     IMAGE_GENERATION = "IMAGE_GENERATION"  # Which image provider the workspace chose (services/images/)
+    LIVE_SUPERVISION = "LIVE_SUPERVISION"  # "Allow live listening" for the workspace (services/live_supervision/)
 
 
 class UserConfigurationKey(Enum):
