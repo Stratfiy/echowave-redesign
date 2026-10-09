@@ -296,7 +296,9 @@ def merge_for_prompt(
 MAX_REMEMBERED = 40
 
 
-def remembered_block(remembered: Mapping[str, str] | None) -> Optional[str]:
+def remembered_block(
+    remembered: Mapping[str, str] | None, *, left_out: int = 0
+) -> Optional[str]:
     """Confirmed memory, stated to the model as fact.
 
     The counterpart to :func:`known_values_block`, and the same argument: a
@@ -320,6 +322,10 @@ def remembered_block(remembered: Mapping[str, str] | None) -> Optional[str]:
 
     Returns ``None`` for an empty memory, so a business that has confirmed
     nothing gets no heading announcing that it knows nothing.
+
+    ``left_out`` is how many confirmed facts were chosen against
+    (``fact_selection``, context v2), said in a last line so the agent knows
+    the list is not everything the business has confirmed.
     """
     if not remembered:
         return None
@@ -339,6 +345,11 @@ def remembered_block(remembered: Mapping[str, str] | None) -> Optional[str]:
 
     if not lines:
         return None
+    if left_out > 0:
+        lines.append(
+            f"- and {left_out} more confirmed fact{'s' if left_out != 1 else ''} "
+            "on record, not shown here"
+        )
 
     return (
         "WHAT THIS BUSINESS HAS CONFIRMED.\n"

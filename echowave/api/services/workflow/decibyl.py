@@ -61,6 +61,7 @@ from api.services.workflow import (
     document_fields,
     documents,
     draft_requests,
+    fact_selection,
     files_search,
     filing,
     office,
@@ -348,6 +349,7 @@ def system_prompt(organization_id: int | None = None) -> str:
         + (_done_calls().RULES if _done_calls_on(organization_id) else "")
         + (_outreach().RULES if _outreach().enabled(organization_id) else "")
         + (_booking().RULES if _booking().enabled(organization_id) else "")
+        + (fact_selection.RULES if fact_selection.enabled(organization_id) else "")
     )
 
 
@@ -838,21 +840,31 @@ async def build_context(organization_id: int, question: str) -> str:
     }
     bot_names = {m["workflow_id"]: m["name"] for m in members if m.get("workflow_id")}
 
-    try:
-        memory_rows = await db_client.organisation_memory(
-            organization_id=organization_id,
-            # Confirmed facts only, as on every agent's prompt
-            # (recall_for_bot): unfiltered, this block -- headed "what the
-            # business has confirmed" -- carried facts still waiting for a
-            # yes and facts a person had rejected, stated as settled.
-            kind=organisation_learning.KIND_FACT,
-            status=organisation_learning.STATUS_CONFIRMED,
-            # The workspace's memory, plus the asker's own (MEM-1).
-            user_id=personal_memory.viewer(),
+    if fact_selection.enabled(organization_id):
+        # Context v2: the confirmed facts this question needs, with where
+        # each came from, rather than the most-seen forty (fact_selection).
+        # Same scopes: the workspace's plus the asker's own.
+        memory_rows, memory_text = await fact_selection.for_question(
+            organization_id, question, user_id=personal_memory.viewer()
         )
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("Decibyl could not read memory: {}", exc)
-        memory_rows = []
+    else:
+        try:
+            memory_rows = await db_client.organisation_memory(
+                organization_id=organization_id,
+                # Confirmed facts only, as on every agent's prompt
+                # (recall_for_bot): unfiltered, this block -- headed "what
+                # the business has confirmed" -- carried facts still waiting
+                # for a yes and facts a person had rejected, stated as
+                # settled.
+                kind=organisation_learning.KIND_FACT,
+                status=organisation_learning.STATUS_CONFIRMED,
+                # The workspace's memory, plus the asker's own (MEM-1).
+                user_id=personal_memory.viewer(),
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Decibyl could not read memory: {}", exc)
+            memory_rows = []
+        memory_text = memory_block(memory_rows)
 
     try:
         recent = await db_client.agent_events(
@@ -973,7 +985,7 @@ async def build_context(organization_id: int, question: str) -> str:
         f"## Now\n{now}\n\n"
         f"## Team\n{team_block(headline, members, window.label)}\n\n"
         f"## Who you are talking to\n{door_block(door)}\n\n"
-        f"## What the business has confirmed\n{memory_block(memory_rows)}\n\n"
+        f"## What the business has confirmed\n{memory_text}\n\n"
         f"## Lately\n{recent_block(recent, bot_names)}\n\n"
         f"## Missed calls not returned\n{missed_block(missed)}\n\n"
         f"## Schedules\n{schedules or 'Nothing scheduled.'}\n\n"
@@ -1788,6 +1800,11 @@ def office_tools(organization_id: int | None = None) -> list[dict[str, Any]]:
             else ()
         ),
         *((_done_calls().tool_schema(),) if _done_calls_on(organization_id) else ()),
+        *(
+            (fact_selection.tool_schema(),)
+            if fact_selection.enabled(organization_id)
+            else ()
+        ),
     ]
 
 
@@ -1932,6 +1949,7 @@ def _was_a_read(call: Any, result: Any) -> bool:
                 documents.FIND_TOOL_NAME,
                 files_search.TOOL_NAME,
                 recall.TOOL_NAME,
+                fact_selection.TOOL_NAME,
                 connected_tools.LOAD_TOOL_NAME,
                 web_tools.SEARCH_TOOL_NAME,
                 web_tools.FETCH_TOOL_NAME,
@@ -2107,6 +2125,14 @@ async def _tool(
         return await document_fields.confirm_for_thread(organization_id, arguments)
     if call.name == filing.TOOL_NAME:
         return await filing.file_for_thread(organization_id, arguments)
+    if call.name == fact_selection.TOOL_NAME and fact_selection.enabled(
+        organization_id
+    ):
+        return await fact_selection.for_thread(
+            organization_id,
+            dict(call.arguments or {}),
+            user_id=personal_memory.viewer(),
+        )
     if call.name == recall.TOOL_NAME:
         return await recall.for_thread(
             organization_id,
