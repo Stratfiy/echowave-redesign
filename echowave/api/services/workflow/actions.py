@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from datetime import UTC, datetime, timedelta
 from typing import Any, Optional
 
@@ -865,6 +866,19 @@ async def resolve(
             )
         if not name:
             raise ActionError("Say what to call the agent.")
+        stand_ins = [k for k, v in variables.items() if _is_a_stand_in(v)]
+        if stand_ins:
+            asks = ", ".join(
+                f"{key} ({template.template_variables.get(key, key)})"
+                for key in stand_ins
+            )
+            # "[client's name], Netoyed" reached a card on 8 October: a
+            # template's example pasted back as the answer. It would have
+            # signed every email with the brackets in.
+            raise ActionError(
+                f"These look like placeholders, not answers: {asks}. Ask the "
+                "person for the real ones, then propose again."
+            )
         try:
             built = assemble(template, name=name, variables=variables)
         except AssemblyError as exc:
@@ -1094,6 +1108,18 @@ async def _already_proposed(
         if _is_same_proposal(row, payload):
             return row
     return None
+
+
+#: Text that stands in for an answer rather than being one: "[your name]",
+#: "<company>", "{{sender_name}}", "XXX", "TBD".
+_STAND_IN = re.compile(
+    r"\[[^\]]{1,60}\]|<[^>]{1,60}>|\{\{[^}]*\}\}|\bX{3,}\b|^\s*(tbd|todo|n/?a)\s*$",
+    re.IGNORECASE,
+)
+
+
+def _is_a_stand_in(value: str) -> bool:
+    return bool(_STAND_IN.search(value or ""))
 
 
 async def propose(
@@ -2149,6 +2175,13 @@ async def _execute(
             return (
                 f"Created {result.get('name', 'the bot')} ({who}). Hear it or try "
                 "it from this card; it needs a number before it can take real calls."
+            )
+        schedule = result.get("schedule")
+        if schedule:
+            return (
+                f"Created {result.get('name', 'the bot')} ({who}), scheduled to run "
+                f"{schedule}. Try it from this card, then in Setup, Triggers press "
+                "Run once and Switch on."
             )
         return (
             f"Created {result.get('name', 'the bot')} ({who}). Try it from this "
