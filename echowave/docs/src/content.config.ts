@@ -45,6 +45,9 @@ export const collections = {
         "!audits/**",
         // Design documents, not pages (KAN-129).
         "!product/**",
+        // Engineering plans and contracts (e.g. reminder calls), written for
+        // the team; no nav entry and no `title`, like audits.
+        "!plans/**",
         "!CLAUDE.md",
         "!README.md",
         "!DEPLOY-GITHUB-ACTIONS.md",
