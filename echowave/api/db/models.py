@@ -6998,6 +6998,12 @@ from api.db.reach_models import (  # noqa: E402,F401
     ReachConnectionModel,
     ReachOrderDraftModel,
 )
+from api.db.reminder_call_models import (  # noqa: E402,F401
+    ReminderCallDispatchModel,
+    ReminderCallNumberModel,
+    ReminderCallOccurrenceModel,
+    ReminderCallScheduleModel,
+)
 from api.db.settings_models import (  # noqa: E402,F401
     MemoryFactRevisionModel,
     PersonalDataRequestModel,

@@ -68,6 +68,10 @@ export type ActionPayload = {
     /** The exact payload version Confirm approves (task ledger). Sent back
      *  with Confirm; an edited card has a new one. */
     version?: string;
+    /** A statement the person must tick before Confirm, e.g. "I am 18 or
+     *  over" on a reminder-call number card. The server refuses a Confirm
+     *  that does not say it was ticked. */
+    attestation?: string;
     /** What a build produced (KAN-140): where Hear it and Try it go. An
      *  order placed (stream `reach`): its number and the app's payment link. */
     result?: {
@@ -111,6 +115,7 @@ export function ActionCard({
     const [saving, setSaving] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [now, setNow] = useState(() => Date.now());
+    const [attested, setAttested] = useState(false);
 
     // The countdown, while armed. Ticks once a second and, when it reaches
     // zero, asks the list to refetch so the card moves to done on its own.
@@ -136,6 +141,7 @@ export function ActionCard({
                 event_id: event.id,
                 verb,
                 ...(verb === 'confirm' && action.version ? { version: action.version } : {}),
+                ...(verb === 'confirm' && action.attestation ? { attested } : {}),
             },
         });
         setSaving(null);
@@ -204,9 +210,28 @@ export function ActionCard({
                 </dl>
             )}
 
+            {/* A statement Confirm needs: ticked here, by the person, and
+                checked again by the server. */}
+            {action.attestation && state === 'proposed' && (
+                <label className="mt-2 flex items-center gap-2 pl-6 text-sm">
+                    <input
+                        type="checkbox"
+                        className="h-4 w-4"
+                        checked={attested}
+                        disabled={saving !== null}
+                        onChange={(e) => setAttested(e.target.checked)}
+                    />
+                    <span>{action.attestation}</span>
+                </label>
+            )}
+
             {state === 'proposed' && (
                 <div className="mt-3 flex items-center gap-2 pl-6">
-                    <Button size="sm" disabled={saving !== null} onClick={() => void settle('confirm')}>
+                    <Button
+                        size="sm"
+                        disabled={saving !== null || (Boolean(action.attestation) && !attested)}
+                        onClick={() => void settle('confirm')}
+                    >
                         {saving === 'confirm' ? 'Confirming…' : 'Confirm'}
                     </Button>
                     <Button

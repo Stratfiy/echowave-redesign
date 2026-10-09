@@ -17284,6 +17284,116 @@ export type ReleaseRequest = {
 };
 
 /**
+ * ReminderCall
+ */
+export type ReminderCall = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Language
+     */
+    language: string;
+    /**
+     * Number
+     */
+    number: string;
+    /**
+     * Timezone
+     */
+    timezone: string;
+    /**
+     * Local Time
+     */
+    local_time: string;
+    /**
+     * Recurrence
+     */
+    recurrence: string;
+    /**
+     * Weekday
+     */
+    weekday?: number | null;
+    /**
+     * State
+     */
+    state: string;
+    /**
+     * Next Due At
+     */
+    next_due_at?: string | null;
+    /**
+     * Recent
+     */
+    recent: Array<ReminderCallOccurrence>;
+};
+
+/**
+ * ReminderCallChanged
+ */
+export type ReminderCallChanged = {
+    /**
+     * Changed
+     */
+    changed: boolean;
+};
+
+/**
+ * ReminderCallList
+ */
+export type ReminderCallList = {
+    /**
+     * Reminders
+     */
+    reminders: Array<ReminderCall>;
+};
+
+/**
+ * ReminderCallOccurrence
+ */
+export type ReminderCallOccurrence = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Due At
+     */
+    due_at: string;
+    /**
+     * Task State
+     */
+    task_state: string;
+    /**
+     * Calls
+     */
+    calls: Array<ReminderCallRing>;
+};
+
+/**
+ * ReminderCallRing
+ */
+export type ReminderCallRing = {
+    /**
+     * Attempt
+     */
+    attempt: number;
+    /**
+     * State
+     */
+    state: string;
+    /**
+     * Reason
+     */
+    reason?: string | null;
+};
+
+/**
  * ReminderDraft
  */
 export type ReminderDraft = {
@@ -18797,6 +18907,10 @@ export type SettleActionRequest = {
      * Version
      */
     version?: string | null;
+    /**
+     * Attested
+     */
+    attested?: boolean;
 };
 
 /**
@@ -44645,6 +44759,133 @@ export type StopWaitingApiV1CallWhenDoneCallbackIdDeleteResponses = {
 };
 
 export type StopWaitingApiV1CallWhenDoneCallbackIdDeleteResponse = StopWaitingApiV1CallWhenDoneCallbackIdDeleteResponses[keyof StopWaitingApiV1CallWhenDoneCallbackIdDeleteResponses];
+
+export type ListReminderCallsApiV1ReminderCallsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/reminder-calls';
+};
+
+export type ListReminderCallsApiV1ReminderCallsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListReminderCallsApiV1ReminderCallsGetError = ListReminderCallsApiV1ReminderCallsGetErrors[keyof ListReminderCallsApiV1ReminderCallsGetErrors];
+
+export type ListReminderCallsApiV1ReminderCallsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: ReminderCallList;
+};
+
+export type ListReminderCallsApiV1ReminderCallsGetResponse = ListReminderCallsApiV1ReminderCallsGetResponses[keyof ListReminderCallsApiV1ReminderCallsGetResponses];
+
+export type CancelReminderCallApiV1ReminderCallsScheduleIdCancelPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Schedule Id
+         */
+        schedule_id: number;
+    };
+    query?: never;
+    url: '/api/v1/reminder-calls/{schedule_id}/cancel';
+};
+
+export type CancelReminderCallApiV1ReminderCallsScheduleIdCancelPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CancelReminderCallApiV1ReminderCallsScheduleIdCancelPostError = CancelReminderCallApiV1ReminderCallsScheduleIdCancelPostErrors[keyof CancelReminderCallApiV1ReminderCallsScheduleIdCancelPostErrors];
+
+export type CancelReminderCallApiV1ReminderCallsScheduleIdCancelPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: ReminderCallChanged;
+};
+
+export type CancelReminderCallApiV1ReminderCallsScheduleIdCancelPostResponse = CancelReminderCallApiV1ReminderCallsScheduleIdCancelPostResponses[keyof CancelReminderCallApiV1ReminderCallsScheduleIdCancelPostResponses];
+
+export type MarkReminderDoneApiV1ReminderCallsOccurrencesOccurrenceIdDonePostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Occurrence Id
+         */
+        occurrence_id: number;
+    };
+    query?: never;
+    url: '/api/v1/reminder-calls/occurrences/{occurrence_id}/done';
+};
+
+export type MarkReminderDoneApiV1ReminderCallsOccurrencesOccurrenceIdDonePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MarkReminderDoneApiV1ReminderCallsOccurrencesOccurrenceIdDonePostError = MarkReminderDoneApiV1ReminderCallsOccurrencesOccurrenceIdDonePostErrors[keyof MarkReminderDoneApiV1ReminderCallsOccurrencesOccurrenceIdDonePostErrors];
+
+export type MarkReminderDoneApiV1ReminderCallsOccurrencesOccurrenceIdDonePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: ReminderCallChanged;
+};
+
+export type MarkReminderDoneApiV1ReminderCallsOccurrencesOccurrenceIdDonePostResponse = MarkReminderDoneApiV1ReminderCallsOccurrencesOccurrenceIdDonePostResponses[keyof MarkReminderDoneApiV1ReminderCallsOccurrencesOccurrenceIdDonePostResponses];
 
 export type CapabilityChecklistApiV1AdminControlsCapabilitiesGetData = {
     body?: never;

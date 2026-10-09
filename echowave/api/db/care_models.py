@@ -20,6 +20,7 @@ from datetime import UTC, datetime
 from sqlalchemy import (
     JSON,
     Column,
+    Date,
     DateTime,
     ForeignKey,
     Index,
@@ -200,6 +201,10 @@ class CareDoseCallModel(Base):
     #: Every change of outcome after the dial, appended:
     #: ``[{"at", "from", "to", "reason", "source"}]``.
     outcome_history = Column(JSON, nullable=True)
+    #: The person's local day whose daily-cap slot this call holds, where
+    #: reminder calls share the cap with care (decision D3); NULL when it
+    #: holds none, which is always the case while ``reminder_calls`` is off.
+    allowance_day = Column(Date, nullable=True)
 
     __table_args__ = (
         UniqueConstraint("medicine_id", "due_at", name="uq_care_dose_due"),

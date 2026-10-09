@@ -58,6 +58,7 @@ from api.tasks.ops import run_ops_command, sweep_ops
 from api.tasks.people import resync_people, sync_people, write_due_briefs
 from api.tasks.plan_expiry import expire_lapsed_plan_balance
 from api.tasks.provider_balances import check_provider_balances
+from api.tasks.reminder_calls import reminder_calls_sweep, reminder_calls_tick
 from api.tasks.rental_billing import (
     charge_recurring_rentals,
     reconcile_carrier_numbers,
@@ -159,6 +160,8 @@ class WorkerSettings:
         care_call_sweep,
         call_when_done_tick,
         call_when_done_sweep,
+        reminder_calls_tick,
+        reminder_calls_sweep,
         transcribe_meeting_segment,
         finish_meeting,
         run_staff_command,
@@ -196,6 +199,16 @@ class WorkerSettings:
         # hours and DND checked right before each dial), and calls that never
         # reported back marked not answered. No-ops while off.
         cron(call_when_done_tick, second=20, run_at_startup=False),
+        # Reminder calls: occurrences made and due attempts rung on the
+        # minute (every check right before each dial), and attempts with no
+        # outcome reconciled against their runs. No-ops while off.
+        cron(reminder_calls_tick, second=25, run_at_startup=False),
+        cron(
+            reminder_calls_sweep,
+            minute=set(range(2, 60, 5)),
+            second=45,
+            run_at_startup=False,
+        ),
         cron(
             call_when_done_sweep,
             minute=set(range(4, 60, 5)),

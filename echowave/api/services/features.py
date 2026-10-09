@@ -184,6 +184,9 @@ FLAGS: dict[str, str] = {
     # The huddle: talk to an agent as a teammate, in its thread
     # (services/huddle/).
     "huddle": "HUDDLE_ENABLED",
+    # Reminder calls: Decibyl rings a person at a time they confirmed on a
+    # card (services/reminder_calls/).
+    "reminder_calls": "REMINDER_CALLS_ENABLED",
     # Outreach: leads from a lead-data provider, drafts as send cards.
     "outreach": "OUTREACH_ENABLED",
     # The native app for iOS and Android (MOBILE.md).
@@ -312,6 +315,7 @@ DESCRIPTIONS: dict[str, str] = {
     "call_for_me": "Call it for me: Decibyl places one approved phone call for a person and announces itself first.",
     "call_appointment": "Call and Appointment: booking policy, open slots, booking within policy, verification and escalation on calls.",
     "call_when_done": "Call me when it's done: Decibyl phones the person when a task they handed over finishes, within calling hours; an app notice where it cannot call.",
+    "reminder_calls": "Reminder calls: Decibyl rings a person at a time they confirmed on a card, within calling hours, to read out their own reminder; one retry, then a notification.",
     "huddle": "Huddle: the call button on an agent's thread opens a voice conversation with the agent as a teammate; it answers about its own work and proposes changes as cards, never applying them by voice.",
     "outreach": "Outreach: find leads from a lead-data provider (Apollo), draft one email card per lead on the person's own mailbox, Confirm all.",
     "mobile_push": "Push to the iOS and Android app through Expo: replies, approvals, reminders and calls, on the person's notification settings.",

@@ -346,6 +346,7 @@ def system_prompt(organization_id: int | None = None) -> str:
         + settings_profile.turn_block()
         + (call_for_me.RULES if call_for_me.enabled(organization_id) else "")
         + (_done_calls().RULES if _done_calls_on(organization_id) else "")
+        + (_reminder_calls().RULES if _reminder_calls_on(organization_id) else "")
         + (_outreach().RULES if _outreach().enabled(organization_id) else "")
         + (_booking().RULES if _booking().enabled(organization_id) else "")
     )
@@ -1788,6 +1789,11 @@ def office_tools(organization_id: int | None = None) -> list[dict[str, Any]]:
             else ()
         ),
         *((_done_calls().tool_schema(),) if _done_calls_on(organization_id) else ()),
+        *(
+            (_reminder_calls().tool_schema(),)
+            if _reminder_calls_on(organization_id)
+            else ()
+        ),
     ]
 
 
@@ -1814,6 +1820,19 @@ def _done_calls_on(organization_id: int | None) -> bool:
     from api.services import call_when_done
 
     return call_when_done.enabled(organization_id)
+
+
+def _reminder_calls():
+    """Reminder calls (services/reminder_calls/tools.py)."""
+    from api.services.reminder_calls import tools
+
+    return tools
+
+
+def _reminder_calls_on(organization_id: int | None) -> bool:
+    from api.services import reminder_calls
+
+    return reminder_calls.enabled(organization_id)
 
 
 #: The old name, kept for anything that imported it.
@@ -2227,6 +2246,10 @@ async def _tool(
         )
     if call.name == _done_calls().TOOL_NAME and _done_calls_on(organization_id):
         return await _done_calls().run_tool(
+            organization_id, arguments, user_id=author_id, thread_id=thread_id
+        )
+    if call.name == _reminder_calls().TOOL_NAME and _reminder_calls_on(organization_id):
+        return await _reminder_calls().run_tool(
             organization_id, arguments, user_id=author_id, thread_id=thread_id
         )
     if call.name == documents.SEND_TOOL_NAME:

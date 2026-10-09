@@ -11,6 +11,23 @@ disagrees with the contract called out, and tests that pin the disagreement
 (`xfail` with a reason) so that Stage 2 turns them green rather than
 rediscovering them.
 
+**Stage 2 is built, behind `reminder_calls` (off by default)**:
+`services/reminder_calls/` (draft, number card, reminder card, schedule,
+gate, calls, agent, tools), the tables of section 7 (migration
+`20261011remindercalls`), the `remind_me_by_call` tool, and
+`/api/v1/reminder-calls`. D1-D7 are not yet decided; each has a
+conservative default in one constant (`services/reminder_calls/policy.py`,
+and `dnd.WINDOW_HOLDS_WITHOUT_DND_ENFORCEMENT` for D5): one retry after 15
+minutes counted against the cap, then a notification (D1); no quiet-hours
+exceptions for general reminders (D2); the person's local day and one cap of
+5 shared by call-when-done, reminder calls and care (D3); "I am 18 or over"
+on the number card (D4); the window holds with do-not-call enforcement off
+(D5); an unknown answerer and a voicemail hear only the content-free line
+(D6, D7). Not done: storing the provider's call id and asking
+`provider.get_call_status` (reconcile reads the run, as in 5.2); the four
+xfails left in section 4 are on the care, call-when-done and today paths,
+which this stage does not change.
+
 Settled by the founder and not re-opened here: calls only between **09:00 and
 21:00** in the person's time, at most **5 calls a day per person**, voice
 approvals are **read-out only** (a call never moves a card), and **no

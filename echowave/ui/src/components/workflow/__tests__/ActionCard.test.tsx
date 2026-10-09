@@ -338,3 +338,43 @@ describe('a card nobody undid', () => {
         expect(screen.getByText(/Undone before it ran/)).toBeTruthy();
     });
 });
+
+describe("a card that needs a statement ticked (reminder-call number card)", () => {
+    const numberCard = () =>
+        event({
+            action: "reminder_call_number",
+            label: "Ring me on +91 98••••3210 for reminder calls I ask for",
+            attestation: "I am 18 or over",
+            version: "a1b2c3d4e5f60718",
+        });
+
+    it("keeps Confirm off until the box is ticked, then sends that it was", async () => {
+        settle.mockResolvedValue({ data: event({ state: "armed" }) });
+        render(<ActionCard event={numberCard()} />);
+        const confirm = screen.getByRole("button", { name: "Confirm" }) as HTMLButtonElement;
+        expect(confirm.disabled).toBe(true);
+        fireEvent.click(screen.getByRole("checkbox", { name: "I am 18 or over" }));
+        expect(confirm.disabled).toBe(false);
+        fireEvent.click(confirm);
+        await waitFor(() => expect(settle).toHaveBeenCalled());
+        expect(settle.mock.calls[0][0].body).toEqual({
+            event_id: 99,
+            verb: "confirm",
+            version: "a1b2c3d4e5f60718",
+            attested: true,
+        });
+    });
+
+    it("still lets the person say Not now without ticking anything", async () => {
+        settle.mockResolvedValue({ data: event({ state: "declined" }) });
+        render(<ActionCard event={numberCard()} />);
+        fireEvent.click(screen.getByRole("button", { name: "Not now" }));
+        await waitFor(() => expect(settle).toHaveBeenCalled());
+        expect(settle.mock.calls[0][0].body).toEqual({ event_id: 99, verb: "decline" });
+    });
+
+    it("shows no box on a card without one", () => {
+        render(<ActionCard event={event({})} />);
+        expect(screen.queryByRole("checkbox")).toBeNull();
+    });
+});

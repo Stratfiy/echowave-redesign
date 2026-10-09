@@ -990,6 +990,10 @@ CALL_WHEN_DONE_ENABLED = _flag("CALL_WHEN_DONE_ENABLED")
 # voice conversation with that agent as a teammate. Changes it proposes are
 # cards in the thread; nothing is published by voice.
 HUDDLE_ENABLED = _flag("HUDDLE_ENABLED")
+# Reminder calls (services/reminder_calls): "call me tomorrow at 8:30 to
+# remind me to send the proposal". A card the person confirms; calling
+# hours, the do-not-call list and the shared daily cap always hold.
+REMINDER_CALLS_ENABLED = _flag("REMINDER_CALLS_ENABLED")
 # How long a finished task waits before its call is placed, so tasks that
 # finish together are said in one call rather than one call each.
 CALL_WHEN_DONE_GATHER_SECONDS = int(os.getenv("CALL_WHEN_DONE_GATHER_SECONDS", "60"))

@@ -135,6 +135,8 @@ export type Feature =
     | "call_when_done"
     // The huddle: talk to an agent as a teammate, in its thread.
     | "huddle"
+    // Reminder calls: Decibyl rings a person at a time they confirmed.
+    | "reminder_calls"
     // People: synced contacts with context (PEOPLE.md).
     | "people"
     // Voice isolation: background voices on calls (VOICE.md).
