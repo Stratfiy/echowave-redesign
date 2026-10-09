@@ -93,6 +93,9 @@ TAG_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             # Live voice with Decibyl, voice settings, and the Call and
             # Appointment runtime's policy (launch stream `voice`).
             "voice",
+            # Calls in progress: listen in and whisper to the agent
+            # (services/live_supervision/).
+            "live-calls",
         ),
     ),
     (
