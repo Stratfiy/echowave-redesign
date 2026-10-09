@@ -22,6 +22,7 @@ import { MemoryList } from '@/components/memory/MemoryList';
 import { useAuth } from '@/lib/auth';
 
 import { AgentStanding } from './AgentStanding';
+import { EscalationSettingsCard } from './EscalationSettingsCard';
 import { SpendCard } from './SpendCard';
 
 /** Every tool a step of this bot names, once each. */
@@ -235,6 +236,12 @@ export function AgentProfilePanel({
             {/* What a run costs and what it may not exceed (OP-5): the cap is
                 the one thing here a person sets. */}
             <SpendCard workflowId={workflowId} />
+
+            {/* Who takes over a call and when (escalation_v2): numbers, hours,
+                always-to-a-person topics and tries, on the agent's own page
+                rather than only in the advanced editor. Renders nothing while
+                the switch is off. */}
+            <EscalationSettingsCard workflowId={workflowId} />
 
             {/* Two lists, the way the reference splits them: skills are what
                 the bot itself can do, integrations are the outside software it
