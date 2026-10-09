@@ -13,10 +13,14 @@
  * first thing a caller hears, and a card that changed it without showing it
  * asked somebody to approve a change they could not see. When Publish is
  * refused -- the draft fails validation, or the acceptable-use screen names
- * a clause -- the card keeps the reasons and stays open.
+ * a clause -- the card keeps the reasons and stays open. A card acts on its
+ * own change only; when that step was edited elsewhere since, Publish is
+ * refused (``conflict``) and the card points at the editor rather than
+ * guessing which version is meant.
  */
 
 import { Check, GitBranch } from 'lucide-react';
+import Link from 'next/link';
 import { useState } from 'react';
 
 import { settleEditApiV1TimelineEditsSettlePost } from '@/client/sdk.gen';
@@ -28,6 +32,7 @@ import { cn } from '@/lib/utils';
 export type GreetingChange = { step?: string; node_id?: string; old?: string; new?: string };
 
 export type EditPayload = {
+    workflow_id?: number;
     step?: string;
     why?: string;
     old?: string;
@@ -35,7 +40,7 @@ export type EditPayload = {
     diff?: string;
     greetings?: GreetingChange[];
     decided?: { action?: 'publish' | 'discard'; by?: number; at?: string };
-    refused?: { kind?: 'invalid' | 'acceptable_use'; reasons?: string[]; at?: string };
+    refused?: { kind?: 'invalid' | 'acceptable_use' | 'conflict'; reasons?: string[]; at?: string };
 };
 
 export function editOf(event: TimelineEvent): EditPayload {
@@ -83,6 +88,12 @@ export function EditCard({
     };
 
     const decided = edit.decided;
+    const workflowId = event.workflow_id ?? edit.workflow_id;
+    const editorLink = workflowId ? (
+        <Link href={`/workflow/${workflowId}`} className="ml-1 underline underline-offset-4" data-testid="open-editor">
+            Open the editor
+        </Link>
+    ) : null;
 
     return (
         <div className="max-w-2xl rounded-lg border border-border bg-card p-3" data-testid="edit-card">
@@ -129,7 +140,17 @@ export function EditCard({
                     </div>
                 </div>
             ))}
-            {!decided && !error && edit.refused?.reasons && edit.refused.reasons.length > 0 && (
+            {!decided && !error && edit.refused?.kind === 'conflict' && (
+                <p className="mt-2 text-sm text-destructive" role="alert" data-testid="edit-refused">
+                    Not published: this change was edited elsewhere since.
+                    {editorLink}
+                </p>
+            )}
+            {!decided &&
+                !error &&
+                edit.refused?.kind !== 'conflict' &&
+                edit.refused?.reasons &&
+                edit.refused.reasons.length > 0 && (
                 <div className="mt-2 text-sm text-destructive" role="alert" data-testid="edit-refused">
                     <p>
                         {edit.refused.kind === 'acceptable_use'
@@ -146,6 +167,7 @@ export function EditCard({
             {error && (
                 <p className="mt-2 text-sm text-destructive" role="alert">
                     {error}
+                    {/open the editor/i.test(error) && editorLink}
                 </p>
             )}
             {decided ? (

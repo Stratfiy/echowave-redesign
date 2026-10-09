@@ -7,7 +7,9 @@ the audit log. The editor's Publish button and the Publish button on a card
 a bot proposed in a thread both come through ``publish_draft`` -- a second
 path that called ``db_client.publish_workflow_draft`` directly skipped all
 three, which is how a chat-proposed change could go live unchecked and
-unrecorded.
+unrecorded. A card publishes only its own change, through
+``publish_definition``: the same three checks on the graph that goes live,
+with the rest of the draft left a draft.
 
 Routes stay thin: they map the exceptions below onto HTTP; the card maps
 them onto a line in the thread.
@@ -229,6 +231,11 @@ class NoDraft(PublishError):
     pass
 
 
+class LiveMoved(PublishError):
+    """Another publish landed between reading the live version and writing
+    the new one; nothing was published."""
+
+
 class DraftInvalid(PublishError):
     """The draft fails validation; nothing was published."""
 
@@ -292,6 +299,47 @@ class Published:
     findings: list[acceptable_use.Finding] = field(default_factory=list)
 
 
+async def _check(
+    definition: dict | None,
+    *,
+    workflow_id: int,
+    organization_id: int,
+    via: str,
+    refuse_on_findings: bool,
+) -> list[acceptable_use.Finding]:
+    """Validation, then the acceptable-use screen, on what is about to go
+    live. Raises ``DraftInvalid`` or ``PolicyFindings``; returns the
+    findings it only warns about."""
+    errors = await validate_definition(
+        definition,
+        exclude_workflow_id=workflow_id,
+        organization_id=organization_id,
+    )
+    if errors:
+        raise DraftInvalid(errors)
+
+    # Here rather than on every save: a draft is work in progress and a
+    # warning on each keystroke is a warning nobody reads, while publishing
+    # is the moment this becomes the thing that answers the phone. `screen`
+    # cannot raise.
+    async with db_client.async_session() as session:
+        findings = await acceptable_use.screen(
+            session,
+            instructions=acceptable_use.instructions_in(definition),
+        )
+    if findings:
+        logger.warning(
+            "Acceptable-use findings on workflow {} for org {} (via {}): {}",
+            workflow_id,
+            organization_id,
+            via,
+            [f.clause for f in findings],
+        )
+        if refuse_on_findings:
+            raise PolicyFindings(findings)
+    return findings
+
+
 async def publish_draft(
     *,
     workflow_id: int,
@@ -321,33 +369,13 @@ async def publish_draft(
     if draft is None:
         raise NoDraft("No draft to publish")
 
-    errors = await validate_definition(
+    findings = await _check(
         draft.workflow_json,
-        exclude_workflow_id=workflow_id,
+        workflow_id=workflow_id,
         organization_id=organization_id,
+        via=via,
+        refuse_on_findings=refuse_on_findings,
     )
-    if errors:
-        raise DraftInvalid(errors)
-
-    # Here rather than on every save: a draft is work in progress and a
-    # warning on each keystroke is a warning nobody reads, while publishing
-    # is the moment this becomes the thing that answers the phone. `screen`
-    # cannot raise.
-    async with db_client.async_session() as session:
-        findings = await acceptable_use.screen(
-            session,
-            instructions=acceptable_use.instructions_in(draft.workflow_json),
-        )
-    if findings:
-        logger.warning(
-            "Acceptable-use findings on workflow {} for org {} (via {}): {}",
-            workflow_id,
-            organization_id,
-            via,
-            [f.clause for f in findings],
-        )
-        if refuse_on_findings:
-            raise PolicyFindings(findings)
 
     try:
         published = await db_client.publish_workflow_draft(workflow_id)
@@ -355,6 +383,62 @@ async def publish_draft(
         # The draft went between the read above and now: somebody published
         # or discarded it from another tab.
         raise NoDraft(str(exc)) from exc
+
+    await audit_log.record(
+        organization_id,
+        action=audit_log.AGENT_PUBLISHED,
+        subject_kind="agent",
+        subject_id=workflow_id,
+        subject=getattr(workflow, "name", None),
+        actor_user_id=user_id,
+        after={"version_number": published.version_number, "via": via},
+    )
+    return Published(definition=published, workflow=workflow, findings=findings)
+
+
+async def publish_definition(
+    *,
+    workflow_id: int,
+    organization_id: int,
+    user_id: int | None,
+    workflow_json: dict,
+    based_on_definition_id: int,
+    via: str = VIA_EDIT_CARD,
+    refuse_on_findings: bool = True,
+) -> Published:
+    """Validate, screen, publish and record one graph, leaving the draft a draft.
+
+    For a change that is not the whole draft: an edit card publishes its own
+    change on top of the live version, and whatever else is waiting in the
+    draft stays there (``db_client.publish_workflow_json``). The same three
+    checks as ``publish_draft`` -- the graph checked and screened is the one
+    that goes live, not the draft. Org-scoped like ``publish_draft``.
+
+    ``based_on_definition_id`` is the live version ``workflow_json`` was
+    built from; a publish that got in first raises ``LiveMoved``.
+    """
+    workflow = await db_client.get_workflow(
+        workflow_id, organization_id=organization_id
+    )
+    if workflow is None:
+        raise WorkflowNotFound(f"Workflow with id {workflow_id} not found")
+
+    findings = await _check(
+        workflow_json,
+        workflow_id=workflow_id,
+        organization_id=organization_id,
+        via=via,
+        refuse_on_findings=refuse_on_findings,
+    )
+
+    try:
+        published = await db_client.publish_workflow_json(
+            workflow_id,
+            workflow_json=workflow_json,
+            based_on_definition_id=based_on_definition_id,
+        )
+    except ValueError as exc:
+        raise LiveMoved(str(exc)) from exc
 
     await audit_log.record(
         organization_id,

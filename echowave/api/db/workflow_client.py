@@ -354,6 +354,162 @@ class WorkflowClient(BaseDBClient):
             await session.refresh(published)
         return published
 
+    @staticmethod
+    def _draft_matches(draft: WorkflowDefinitionModel, live: WorkflowDefinitionModel):
+        """True when a draft holds nothing the live version does not: the
+        same graph, configurations and variables. Such a draft is waiting
+        to publish nothing, and is dropped rather than left looking like
+        unpublished work."""
+        return (
+            (draft.workflow_json or {}) == (live.workflow_json or {})
+            and (draft.workflow_configurations or {})
+            == (live.workflow_configurations or {})
+            and (draft.template_context_variables or {})
+            == (live.template_context_variables or {})
+        )
+
+    async def publish_workflow_json(
+        self,
+        workflow_id: int,
+        *,
+        workflow_json: dict,
+        based_on_definition_id: int,
+    ) -> WorkflowDefinitionModel:
+        """Publish a graph on its own, leaving the draft a draft.
+
+        The graph counterpart of ``publish_configurations``: a new published
+        version is the live one with only its graph replaced, and the live
+        one is archived. A waiting draft is not published. It is renumbered
+        to stay the newest version, or dropped when it now holds nothing the
+        new live version does not.
+
+        ``based_on_definition_id`` is the live version the caller built
+        ``workflow_json`` from; if another publish got in first, this raises
+        ``ValueError`` rather than overwrite it.
+        """
+        async with self.async_session() as session:
+            workflow = (
+                await session.execute(
+                    select(WorkflowModel)
+                    .where(WorkflowModel.id == workflow_id)
+                    .with_for_update()
+                )
+            ).scalar_one_or_none()
+            if workflow is None:
+                raise ValueError(f"Workflow {workflow_id} not found")
+            if workflow.released_definition_id != based_on_definition_id:
+                raise ValueError("The live version changed while this was published")
+            live = await session.get(WorkflowDefinitionModel, based_on_definition_id)
+            if live is None:
+                raise ValueError("The live version changed while this was published")
+
+            next_version = await self._next_version_number(session, workflow_id)
+            await session.execute(
+                update(WorkflowDefinitionModel)
+                .where(
+                    WorkflowDefinitionModel.workflow_id == workflow_id,
+                    WorkflowDefinitionModel.status == "published",
+                )
+                .values(status="archived", is_current=False)
+            )
+            published = WorkflowDefinitionModel(
+                workflow_id=workflow_id,
+                workflow_json=workflow_json,
+                workflow_configurations=live.workflow_configurations or {},
+                template_context_variables=live.template_context_variables or {},
+                call_disposition_codes=live.call_disposition_codes or {},
+                status="published",
+                version_number=next_version,
+                published_at=datetime.now(UTC),
+                is_current=True,
+            )
+            session.add(published)
+            await session.flush()
+            workflow.released_definition_id = published.id
+
+            draft = (
+                await session.execute(
+                    select(WorkflowDefinitionModel).where(
+                        WorkflowDefinitionModel.workflow_id == workflow_id,
+                        WorkflowDefinitionModel.status == "draft",
+                    )
+                )
+            ).scalar_one_or_none()
+            source = published
+            if draft is not None:
+                if self._draft_matches(draft, published):
+                    await session.delete(draft)
+                else:
+                    draft.version_number = next_version + 1
+                    # The legacy columns track the draft while there is one.
+                    source = draft
+            workflow.workflow_definition = source.workflow_json
+            workflow.workflow_configurations = source.workflow_configurations
+            workflow.template_context_variables = source.template_context_variables
+
+            try:
+                await session.commit()
+            except Exception as e:
+                await session.rollback()
+                raise e
+            await session.refresh(published)
+        return published
+
+    async def rewrite_draft_json(
+        self,
+        workflow_id: int,
+        rewrite,
+    ) -> bool:
+        """Change the draft's graph in place with ``rewrite`` -- a plain
+        function from the graph to the new graph -- under a row lock, so an
+        editor save landing at the same moment is not overwritten with a
+        stale copy. A draft left holding nothing the live version does not
+        is dropped.
+
+        Returns False when there is no draft to rewrite.
+        """
+        async with self.async_session() as session:
+            workflow = (
+                await session.execute(
+                    select(WorkflowModel)
+                    .where(WorkflowModel.id == workflow_id)
+                    .with_for_update()
+                )
+            ).scalar_one_or_none()
+            draft = (
+                await session.execute(
+                    select(WorkflowDefinitionModel)
+                    .where(
+                        WorkflowDefinitionModel.workflow_id == workflow_id,
+                        WorkflowDefinitionModel.status == "draft",
+                    )
+                    .with_for_update()
+                )
+            ).scalar_one_or_none()
+            if workflow is None or draft is None:
+                return False
+            draft.workflow_json = rewrite(draft.workflow_json or {})
+            live = (
+                await session.get(
+                    WorkflowDefinitionModel, workflow.released_definition_id
+                )
+                if workflow.released_definition_id
+                else None
+            )
+            source = draft
+            if live is not None and self._draft_matches(draft, live):
+                await session.delete(draft)
+                source = live
+            workflow.workflow_definition = source.workflow_json
+            workflow.workflow_configurations = source.workflow_configurations
+            workflow.template_context_variables = source.template_context_variables
+            try:
+                await session.commit()
+            except Exception as e:
+                await session.rollback()
+                raise e
+        return True
+
     async def discard_workflow_draft(
         self,
         workflow_id: int,

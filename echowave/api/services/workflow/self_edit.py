@@ -6,8 +6,10 @@ graph, open its prompt, and type it in. So the bot has a tool: name the step
 and give its new prompt, with a line on why. The platform does the rest,
 deterministically -- finds the step, computes the diff, writes it into the
 bot's draft -- and posts a card on the thread showing exactly what changed.
-Nothing reaches a live call until a person presses Publish on that card;
-Discard throws the draft away.
+Nothing reaches a live call until a person presses Publish on that card,
+which puts that change live and nothing else; Discard takes that change back
+out of the draft and leaves the rest. A draft is shared with the editor, so
+the card records the fields it changed (``changes``) and acts on those only.
 
 Two halves in one module, as ``decisions`` does, so they cannot drift:
 ``propose`` is what the bot calls, ``settle`` is what the person's click does.
@@ -65,6 +67,14 @@ STEP_PROMPT_CHARS = 1500
 STEPS_BLOCK_CHARS = 9000
 
 ACTIONS = ("publish", "discard")
+
+#: The fields a card changes, as ``changes`` names them.
+PROMPT = "prompt"
+GREETING = "greeting"
+FIELDS = (PROMPT, GREETING)
+
+#: What the card says when its change cannot be applied as it was proposed.
+CONFLICT = "This change was edited elsewhere since \u2014 open the editor."
 
 
 def tool_properties() -> dict[str, Any]:
@@ -209,6 +219,14 @@ def _greeting_change(node: dict[str, Any], old: str, new: str) -> dict[str, Any]
     return {"step": _label(node), "node_id": node.get("id"), "old": old, "new": new}
 
 
+def _change(node: dict[str, Any], field: str, old: str, new: str) -> dict[str, Any]:
+    """One field of one node, before and after: what the card's buttons act
+    on. The card's ``diff`` and ``greetings`` are what a person reads; this
+    is the same change in a shape Publish and Discard can apply to exactly
+    that field and no other (see ``settle``)."""
+    return {"node_id": node.get("id"), "field": field, "old": old, "new": new}
+
+
 async def propose(
     *,
     organization_id: int | None,
@@ -331,6 +349,10 @@ async def propose(
         if prompt_changes
         else "",
         "greetings": greetings,
+        "changes": (
+            [_change(node, PROMPT, old_prompt, new_prompt)] if prompt_changes else []
+        )
+        + [_change(node, GREETING, g["old"], g["new"]) for g in greetings],
         "draft_version": getattr(draft, "version_number", None),
     }
     what = "greeting" if greetings and not prompt_changes else None
@@ -383,6 +405,7 @@ async def _propose_replace(
     definition = copy.deepcopy(workflow.workflow_definition or {})
     changed: list[tuple[dict[str, Any], str, str]] = []
     greetings: list[dict[str, Any]] = []
+    changes: list[dict[str, Any]] = []
     touched: list[dict[str, Any]] = []
     for node in editable_nodes(definition):
         data = node.setdefault("data", {})
@@ -391,11 +414,13 @@ async def _propose_replace(
         if isinstance(old, str) and find in old:
             data["prompt"] = old.replace(find, replace_with)
             changed.append((node, old, data["prompt"]))
+            changes.append(_change(node, PROMPT, old, data["prompt"]))
             hit = True
         greeting = data.get("greeting")
         if _has_greeting(node) and isinstance(greeting, str) and find in greeting:
             data["greeting"] = greeting.replace(find, replace_with)
             greetings.append(_greeting_change(node, greeting, data["greeting"]))
+            changes.append(_change(node, GREETING, greeting, data["greeting"]))
             hit = True
         if hit:
             touched.append(node)
@@ -428,6 +453,7 @@ async def _propose_replace(
             unified_diff(old, new, name=_label(node)) for node, old, new in changed
         ),
         "greetings": greetings,
+        "changes": changes,
         "draft_version": getattr(draft, "version_number", None),
     }
     summary = (
@@ -459,12 +485,142 @@ class EditError(ValueError):
     """The click cannot be honoured; the message says why, for the screen."""
 
 
+def _changes_of(payload: dict[str, Any]) -> list[dict[str, Any]] | None:
+    """The card's change, field by field, or None when it cannot be known.
+
+    A card written before ``changes`` was recorded is rebuilt when it can be
+    exactly: a whole-step card names its node and carries the step's old and
+    new text in full. A find-and-replace card from then joined its steps'
+    text into one, and is not guessed at -- None, and Publish refuses.
+    """
+    raw = payload.get("changes")
+    if raw is None and not payload.get("find") and payload.get("node_id"):
+        raw = []
+        if payload.get("new"):
+            raw.append(
+                {
+                    "node_id": payload["node_id"],
+                    "field": PROMPT,
+                    "old": payload.get("old"),
+                    "new": payload.get("new"),
+                }
+            )
+        for greeting in payload.get("greetings") or []:
+            if isinstance(greeting, dict):
+                raw.append({**greeting, "field": GREETING})
+    if not isinstance(raw, list) or not raw:
+        return None
+    changes = []
+    for change in raw:
+        if (
+            not isinstance(change, dict)
+            or change.get("field") not in FIELDS
+            or change.get("node_id") is None
+        ):
+            return None
+        changes.append(
+            {
+                "node_id": str(change["node_id"]),
+                "field": change["field"],
+                "old": str(change.get("old") or ""),
+                "new": str(change.get("new") or ""),
+            }
+        )
+    return changes
+
+
+def _node_in(definition: dict[str, Any] | None, node_id: str) -> dict | None:
+    for node in (definition or {}).get("nodes") or []:
+        if isinstance(node, dict) and str(node.get("id")) == node_id:
+            return node
+    return None
+
+
+def _value(definition: dict[str, Any] | None, change: dict[str, Any]) -> str | None:
+    """The field's text in this graph; None when the node is not in it."""
+    node = _node_in(definition, change["node_id"])
+    if node is None:
+        return None
+    value = (node.get("data") or {}).get(change["field"])
+    return value if isinstance(value, str) else ""
+
+
+def _applied(definition: dict[str, Any], changes: list[dict[str, Any]]) -> dict:
+    """A copy of ``definition`` with these changes made and nothing else."""
+    out = copy.deepcopy(definition)
+    for change in changes:
+        data = _node_in(out, change["node_id"]).setdefault("data", {})
+        data[change["field"]] = change["new"]
+        if change["field"] == GREETING:
+            # As ``propose`` wrote it: a greeting typed in a chat is text.
+            data.setdefault("greeting_type", "text")
+    return out
+
+
+def _taken_out(
+    draft: dict[str, Any], live: dict[str, Any], changes: list[dict[str, Any]]
+) -> dict[str, Any]:
+    """A copy of the draft with the card's change taken back out.
+
+    Field by field, and only where the draft still holds exactly what the
+    card wrote: a field edited since belongs to whoever edited it. A change
+    that is already live is left alone -- taking it out of the draft would
+    put a revert nobody asked for in front of the next Publish.
+    """
+    out = copy.deepcopy(draft)
+    for change in changes:
+        if _value(live, change) == change["new"]:
+            continue
+        node = _node_in(out, change["node_id"])
+        if node is None:
+            continue
+        data = node.setdefault("data", {})
+        if data.get(change["field"]) != change["new"]:
+            continue
+        live_data = (_node_in(live, change["node_id"]) or {}).get("data") or {}
+        if change["old"] == "" and change["field"] not in live_data:
+            data.pop(change["field"], None)
+        else:
+            data[change["field"]] = change["old"]
+        if (
+            change["field"] == GREETING
+            and "greeting_type" not in live_data
+            and data.get("greeting_type") == "text"
+        ):
+            data.pop("greeting_type", None)
+    return out
+
+
+def _to_publish(
+    live: dict[str, Any], draft: dict[str, Any] | None, changes: list[dict[str, Any]]
+) -> list[dict[str, Any]] | None:
+    """The changes still to put live, or None when one cannot be.
+
+    Each field must read on the live version as the card's ``old`` -- what
+    the person saw it change from -- and in the draft as the card's ``new``.
+    Anything else means the field was edited somewhere since (or the draft
+    the card wrote is gone), and publishing would either overwrite that or
+    put live text the card never showed. A field already live as ``new``
+    is done.
+    """
+    pending = []
+    for change in changes:
+        live_value = _value(live, change)
+        if live_value == change["new"]:
+            continue
+        if live_value != change["old"] or _value(draft, change) != change["new"]:
+            return None
+        pending.append(change)
+    return pending
+
+
 async def _note_refusal(
     *,
     organization_id: int,
     event: Any,
     payload: dict[str, Any],
-    exc: publish_gate.PublishError,
+    kind: str,
+    reasons: list[str],
 ) -> None:
     """Say on the card, and in the thread, why Publish did not go through.
 
@@ -473,12 +629,6 @@ async def _note_refusal(
     thread next sees why it is waiting rather than a Publish button that
     looks like nobody pressed it.
     """
-    if isinstance(exc, publish_gate.DraftInvalid):
-        reasons = publish_gate.reasons_from_errors(exc.errors)
-        kind = "invalid"
-    else:
-        reasons = publish_gate.reasons_from_findings(exc.findings)
-        kind = "acceptable_use"
     stamped = dict(payload)
     stamped["refused"] = {
         "kind": kind,
@@ -509,6 +659,109 @@ async def _note_refusal(
         logger.warning("Could not note the refused edit on the thread: {}", exc_)
 
 
+async def _refuse_conflict(
+    *, organization_id: int, event: Any, payload: dict[str, Any]
+) -> EditError:
+    await _note_refusal(
+        organization_id=organization_id,
+        event=event,
+        payload=payload,
+        kind="conflict",
+        reasons=[CONFLICT],
+    )
+    return EditError(CONFLICT)
+
+
+async def _publish(
+    *,
+    organization_id: int,
+    workflow_id: int,
+    user_id: int,
+    event: Any,
+    payload: dict[str, Any],
+) -> bool:
+    """Put the card's change live, on top of the live version, and nothing
+    else. Returns False when it was already live and nothing was published.
+    """
+    changes = _changes_of(payload)
+    live = await db_client.get_published_definition(workflow_id, organization_id)
+    if changes is None or live is None:
+        raise await _refuse_conflict(
+            organization_id=organization_id, event=event, payload=payload
+        )
+    draft = await db_client.get_draft_version(workflow_id)
+    live_json = live.workflow_json or {}
+    pending = _to_publish(
+        live_json, None if draft is None else draft.workflow_json, changes
+    )
+    if pending is None:
+        raise await _refuse_conflict(
+            organization_id=organization_id, event=event, payload=payload
+        )
+    if not pending:
+        return False
+
+    # The same gate the editor's Publish goes through: validation, the
+    # acceptable-use screen and the audit row, run on exactly what goes
+    # live. A card is not a back door round them. Here a finding refuses
+    # rather than warns -- the text was written by the bot from a chat, not
+    # typed by the person clicking -- and the card says which clause.
+    try:
+        await publish_gate.publish_definition(
+            workflow_id=workflow_id,
+            organization_id=organization_id,
+            user_id=user_id,
+            workflow_json=_applied(live_json, pending),
+            based_on_definition_id=live.id,
+            via=publish_gate.VIA_EDIT_CARD,
+            refuse_on_findings=True,
+        )
+    except publish_gate.DraftInvalid as exc:
+        await _note_refusal(
+            organization_id=organization_id,
+            event=event,
+            payload=payload,
+            kind="invalid",
+            reasons=publish_gate.reasons_from_errors(exc.errors),
+        )
+        raise EditError(str(exc)) from exc
+    except publish_gate.PolicyFindings as exc:
+        await _note_refusal(
+            organization_id=organization_id,
+            event=event,
+            payload=payload,
+            kind="acceptable_use",
+            reasons=publish_gate.reasons_from_findings(exc.findings),
+        )
+        raise EditError(str(exc)) from exc
+    except publish_gate.LiveMoved as exc:
+        # Somebody published between the read above and the write.
+        raise await _refuse_conflict(
+            organization_id=organization_id, event=event, payload=payload
+        ) from exc
+    except publish_gate.PublishError as exc:
+        raise EditError(str(exc)) from exc
+    return True
+
+
+async def _discard(
+    *, organization_id: int, workflow_id: int, payload: dict[str, Any]
+) -> None:
+    """Take the card's change out of the draft, and nothing else.
+
+    A card whose change cannot be known, or whose fields have all moved on,
+    is only marked discarded: the draft is somebody's work.
+    """
+    changes = _changes_of(payload)
+    if changes is None:
+        return
+    live = await db_client.get_published_definition(workflow_id, organization_id)
+    live_json = (live.workflow_json if live is not None else None) or {}
+    await db_client.rewrite_draft_json(
+        workflow_id, lambda draft: _taken_out(draft, live_json, changes)
+    )
+
+
 async def settle(
     *,
     organization_id: int,
@@ -516,7 +769,15 @@ async def settle(
     action: str,
     user_id: int,
 ) -> dict[str, Any]:
-    """Publish or discard the draft the card proposed; stamp the card."""
+    """Publish or discard the change the card proposed -- that change only,
+    never the rest of the draft -- and stamp the card.
+
+    Seen on staging: Discard threw away the whole draft, and with it a
+    change the owner had saved in the editor; Publish would have put every
+    waiting edit live behind a card that showed one. A card now acts on the
+    fields it recorded in ``changes``. When one of them was edited since,
+    Publish is refused on the card (``CONFLICT``) rather than guessed at.
+    """
     if action not in ACTIONS:
         raise EditError("Publish or discard.")
     event = await db_client.get_agent_event(event_id, organization_id=organization_id)
@@ -526,44 +787,30 @@ async def settle(
     if payload.get("decided"):
         raise EditError("Already settled.")
     # A card on Decibyl's thread has no workflow on the row; the payload
-    # names the bot. Org-scoped either way: the event was fetched by org.
+    # names the bot. The event was fetched by org, but a payload id is not
+    # proof of ownership: the agent is fetched by org too, for either click.
     workflow_id = event.workflow_id or payload.get("workflow_id")
     if workflow_id is None:
         raise EditError("That change belongs to no agent.")
     workflow_id = int(workflow_id)
+    if (
+        await db_client.get_workflow(workflow_id, organization_id=organization_id)
+        is None
+    ):
+        raise EditError(f"Workflow with id {workflow_id} not found")
 
     if action == "publish":
-        # The same gate the editor's Publish goes through: validation, the
-        # acceptable-use screen and the audit row. A card is not a back door
-        # round them. Here a finding refuses rather than warns -- the text
-        # was written by the bot from a chat, not typed by the person
-        # clicking -- and the card says which clause.
-        try:
-            await publish_gate.publish_draft(
-                workflow_id=workflow_id,
-                organization_id=organization_id,
-                user_id=user_id,
-                via=publish_gate.VIA_EDIT_CARD,
-                refuse_on_findings=True,
-            )
-        except (publish_gate.DraftInvalid, publish_gate.PolicyFindings) as exc:
-            await _note_refusal(
-                organization_id=organization_id,
-                event=event,
-                payload=payload,
-                exc=exc,
-            )
-            raise EditError(str(exc)) from exc
-        except publish_gate.PublishError as exc:
-            # No draft any more (somebody published or discarded it from the
-            # editor), or the agent is not this account's. The card says so
-            # rather than pretending the click did it.
-            raise EditError(str(exc)) from exc
+        published = await _publish(
+            organization_id=organization_id,
+            workflow_id=workflow_id,
+            user_id=user_id,
+            event=event,
+            payload=payload,
+        )
     else:
-        try:
-            await db_client.discard_workflow_draft(workflow_id)
-        except ValueError as exc:
-            raise EditError(str(exc)) from exc
+        await _discard(
+            organization_id=organization_id, workflow_id=workflow_id, payload=payload
+        )
 
     payload.pop("refused", None)
     payload["decided"] = {
@@ -571,6 +818,8 @@ async def settle(
         "by": user_id,
         "at": datetime.now(UTC).isoformat(),
     }
+    if action == "publish" and not published:
+        payload["decided"]["already_live"] = True
     if not await db_client.set_agent_event_payload(
         event_id, organization_id=organization_id, payload=payload
     ):
