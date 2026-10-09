@@ -243,6 +243,9 @@ class AgentEventClient(BaseDBClient):
             # alone is exact here even though the rows sort by (at, id) -- the
             # predicate/sort mismatch the cursor note below warns about only
             # bites when the same value is used to page, and this never pages.
+            # The fold itself must not read through here: newest-first plus a
+            # limit is the newest rows, not the oldest. It has its own
+            # oldest-first read, ``channel_events_to_compact``.
             query = query.where(AgentEventModel.id > after_id)
 
         reading_one_call = workflow_run_id is not None
@@ -282,6 +285,54 @@ class AgentEventClient(BaseDBClient):
 
         async with self.async_session() as session:
             result = await session.execute(query.limit(max(1, min(limit, 500))))
+            return list(result.scalars().all())
+
+    async def channel_events_to_compact(
+        self,
+        *,
+        organization_id: int,
+        folder_id: int,
+        after_id: Optional[int],
+        limit: int,
+    ) -> list[AgentEventModel]:
+        """A channel's rows above a compaction watermark, oldest first by id.
+
+        The fold's own read, and deliberately not ``agent_events``. That one is
+        a feed: newest first by ``(at, id)``, then limited -- so on a backlog
+        larger than the limit it returns the *newest* rows, and a fold that
+        took the oldest of those and moved the id watermark past them skipped
+        everything older for good (100 pending rows: the read returned ids
+        100..41, the fold took 41..60, and 1..40 were hidden forever).
+
+        Ordered by ``id`` alone because ``id`` is what the watermark compares.
+        A read ordered by one key and fenced by another is the predicate/sort
+        mismatch the cursor note in ``agent_events`` describes. With both on
+        ``id``, the first N rows returned are exactly the next N rows the
+        watermark has not covered -- a contiguous prefix, whatever their
+        timestamps say.
+
+        Same population as the channel's context read (``agent_events`` with
+        a folder and no viewer): ``ALWAYS`` rows, nothing private to one
+        person. A row that read would never show is passed over here too,
+        which is right: the watermark covering it hides nothing that was
+        shown.
+        """
+        private_to = AgentEventModel.payload["private_to"].as_string()
+        query = (
+            select(AgentEventModel)
+            .where(
+                AgentEventModel.organization_id == organization_id,
+                AgentEventModel.folder_id == folder_id,
+                AgentEventModel.visibility == AgentEventVisibility.ALWAYS.value,
+                private_to.is_(None),
+            )
+            .order_by(AgentEventModel.id.asc())
+            .limit(max(1, min(limit, 500)))
+        )
+        if after_id is not None:
+            query = query.where(AgentEventModel.id > after_id)
+        async with self.async_session() as session:
+            result = await session.execute(query)
             return list(result.scalars().all())
 
     async def thread_author(
