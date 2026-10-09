@@ -29,6 +29,11 @@ The rules that hold whatever else changes:
   thread and on their own notification channels, and the thread says why.
 * **One row per call, one call per row.** ``done_calls`` moves queued ->
   calling by a compare-and-swap, so two ticks or two workers place it once.
+* **No report is not "no answer".** A call whose outcome nobody has proved
+  is ``unknown``, never re-dialled, and corrected when evidence arrives
+  (``calls.reconcile``).
+* **At most five a day per person, reserved before the dial**
+  (``allowance``), across every workspace.
 """
 
 from __future__ import annotations
@@ -50,7 +55,12 @@ NOT_ANSWERED = "not_answered"
 FAILED = "failed"
 #: No call could be placed; the person was told in the app instead.
 NOTIFIED = "notified"
-CALL_STATES = (QUEUED, CALLING, ANSWERED, NOT_ANSWERED, FAILED, NOTIFIED)
+#: A dial may have reached the carrier, and nothing has proved what came of
+#: it (a timeout after the carrier accepted, no report by the answer
+#: window). Never re-dialled; reconciled against the run, and moved by
+#: later evidence. Not "not answered": that needs evidence.
+UNKNOWN = "unknown"
+CALL_STATES = (QUEUED, CALLING, ANSWERED, NOT_ANSWERED, FAILED, NOTIFIED, UNKNOWN)
 
 
 class CallWhenDoneError(ValueError):
