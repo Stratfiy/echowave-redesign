@@ -1,0 +1,190 @@
+# Corrected and time-bound memory. A correction is confirmed and outranks
+# anything inferred on the same point; a fact with a start date holds from
+# that date and not before. "now" is Friday 9 October 2026.
+
+- id: mem-en-01
+  category: memory
+  language: en
+  target: current
+  context:
+    now: "2026-10-09T11:00:00+05:30"
+    setup:
+      - {store: facts, row: {subject: Arun, key: relationship, value: colleague, status: learned}}
+  turns:
+    - "No, Arun is from college, not work."
+  expect:
+    tools:
+      called: [correct_memory]
+    state:
+      - store: facts
+        fields: {subject: Arun, key: relationship, value: college, status: confirmed}
+      - store: facts
+        none: {subject: Arun, key: relationship, value: colleague, status: confirmed}
+
+- id: mem-en-02
+  category: memory
+  language: en
+  target: stage2
+  context:
+    now: "2026-10-09T11:00:00+05:30"
+    setup:
+      - {store: facts, row: {subject: business, key: opening time, value: "9:00", status: confirmed}}
+  turns:
+    - "From next Monday we open at 10 instead of 9."
+  expect:
+    state:
+      - store: facts
+        fields: {subject: business, key: opening time, value: "10:00", valid_from: "2026-10-12", status: confirmed}
+      - store: facts
+        fields: {subject: business, key: opening time, value: "9:00", valid_until: "2026-10-11"}
+    recall:
+      - {as_of: "2026-10-10", key: opening time, value: "9:00"}
+      - {as_of: "2026-10-12", key: opening time, value: "10:00"}
+  why: >
+    A future change must not rewrite today's answer. A caller on Saturday
+    still hears 9.
+
+- id: mem-en-03
+  category: memory
+  language: en
+  target: stage2
+  context:
+    now: "2026-10-09T11:00:00+05:30"
+    setup:
+      - {store: facts, row: {subject: business, key: address, value: "12 MG Road, Bengaluru", status: confirmed}}
+  turns:
+    - "We moved last month. The office is now at 4 Residency Road, Bengaluru."
+  expect:
+    state:
+      - store: facts
+        fields: {subject: business, key: address, value: "4 Residency Road, Bengaluru", status: confirmed}
+      - store: facts
+        none: {subject: business, key: address, value: "12 MG Road, Bengaluru", current: true}
+
+- id: mem-en-04
+  category: memory
+  language: en
+  target: current
+  context:
+    now: "2026-10-09T11:00:00+05:30"
+    members: [a, b]
+  turns:
+    - "Remember that my daughter's school is Vidya Mandir."
+  as: a
+  expect:
+    state:
+      - store: personal_facts
+        fields: {owner: a, key: daughter's school, value: Vidya Mandir}
+      - store: personal_facts
+        none: {owner: b, value: Vidya Mandir}
+      - store: facts
+        none: {value: Vidya Mandir, scope: organisation}
+  why: >
+    A member's personal memory is theirs: not the workspace's facts, and
+    never in a colleague's context.
+
+- id: mem-en-05
+  category: memory
+  language: en
+  target: current
+  context:
+    now: "2026-10-09T11:00:00+05:30"
+    setup:
+      - {store: facts, row: {subject: business, key: open on sunday, value: "yes", status: learned, source: call}}
+  turns:
+    - "What do you have saved about Sundays?"
+  expect:
+    state:
+      - store: facts
+        fields: {key: open on sunday, status: learned}
+      - store: remembered_block
+        none: {key: open on sunday}
+  why: >
+    Something a caller said on a call is "learned" and stays out of every
+    prompt until a person confirms it.
+
+- id: mem-ta-01
+  category: memory
+  language: ta
+  target: current
+  context:
+    now: "2026-10-09T11:00:00+05:30"
+    setup:
+      - {store: facts, row: {subject: Ravi, key: relationship, value: younger brother, status: learned}}
+  turns:
+    - "இல்லை, ரவி என் தம்பி இல்லை, என் மச்சான்."
+  expect:
+    tools:
+      called: [correct_memory]
+    state:
+      - store: facts
+        fields: {subject: Ravi, key: relationship, value_any: ["brother-in-law", "மச்சான்"], status: confirmed}
+
+- id: mem-ta-02
+  category: memory
+  language: ta
+  target: current
+  context:
+    now: "2026-10-09T11:00:00+05:30"
+    setup:
+      - {store: facts, row: {subject: plumber, key: phone, value: "+919876500000", status: confirmed}}
+  turns:
+    - "பிளம்பர் நம்பர் மாறிடுச்சு, புது நம்பர் 98765 01234."
+  expect:
+    state:
+      - store: facts
+        fields: {subject: plumber, key: phone, value: "+919876501234", status: confirmed}
+      - store: facts
+        none: {subject: plumber, key: phone, value: "+919876500000", current: true}
+
+- id: mem-hi-01
+  category: memory
+  language: hi
+  target: current
+  context:
+    now: "2026-10-09T11:00:00+05:30"
+    setup:
+      - {store: facts, row: {subject: printing, key: supplier, value: Patel, status: learned}}
+  turns:
+    - "नहीं, प्रिंटिंग के लिए हमने पटेल को नहीं, शर्मा को चुना है।"
+  expect:
+    tools:
+      called: [correct_memory]
+    state:
+      - store: facts
+        fields: {subject: printing, key: supplier, value_any: [Sharma, "शर्मा"], status: confirmed}
+
+- id: mem-hi-02
+  category: memory
+  language: hi
+  target: stage2
+  context:
+    now: "2026-10-09T11:00:00+05:30"
+  turns:
+    - "अगले महीने से दुकान का किराया 25,000 होगा, अभी 22,000 है।"
+  expect:
+    state:
+      - store: facts
+        fields: {key: rent, value: "22000", valid_until: "2026-10-31"}
+      - store: facts
+        fields: {key: rent, value: "25000", valid_from: "2026-11-01"}
+    recall:
+      - {as_of: "2026-10-20", key: rent, value: "22000"}
+      - {as_of: "2026-11-02", key: rent, value: "25000"}
+
+- id: mem-hi-en-01
+  category: memory
+  language: hi-en
+  target: current
+  context:
+    now: "2026-10-09T11:00:00+05:30"
+    setup:
+      - {store: facts, row: {subject: Meera, key: birthday, value: "4 November", status: learned}}
+  turns:
+    - "Meera ka birthday 14 Nov hai, 4 nahi. Galat save hua tha."
+  expect:
+    tools:
+      called: [correct_memory]
+    state:
+      - store: facts
+        fields: {subject: Meera, key: birthday, value_any: ["14 November", "11-14"], status: confirmed}

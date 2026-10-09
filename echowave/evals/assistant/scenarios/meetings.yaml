@@ -1,0 +1,154 @@
+# Meeting to action. Input is a transcript excerpt from a meeting the person
+# attended (they are "me"). The expected state is the follow-ups recorded:
+# who, what, by when, and nothing sent or done on anyone's behalf.
+# "now" (the meeting's end) is Friday 9 October 2026.
+
+- id: meet-en-01
+  category: meetings
+  language: en
+  target: current
+  context:
+    now: "2026-10-09T16:00:00+05:30"
+    transcript: |
+      Priya: I'll send the revised quote by Thursday.
+      Me: Good. I'll call the bank on Monday about the overdraft.
+  expect:
+    state:
+      - store: follow_ups
+        count: 2
+      - store: follow_ups
+        fields: {owner: Priya, action_contains: quote, due_date: "2026-10-15"}
+      - store: follow_ups
+        fields: {owner: me, action_contains: bank, due_date: "2026-10-12"}
+      - store: outbound
+        count: 0
+
+- id: meet-en-02
+  category: meetings
+  language: en
+  target: current
+  context:
+    now: "2026-10-09T16:00:00+05:30"
+    transcript: |
+      Arjun: The market's been slow since the monsoon.
+      Me: Same for us. Prices are holding though.
+  expect:
+    state:
+      - store: follow_ups
+        count: 0
+  why: A conversation with no commitments produces no invented tasks.
+
+- id: meet-en-03
+  category: meetings
+  language: en
+  target: current
+  context:
+    now: "2026-10-09T16:00:00+05:30"
+    transcript: |
+      Me: If the client agrees to the budget, Ravi books the venue.
+  expect:
+    state:
+      - store: follow_ups
+        count: 1
+        fields: {owner: Ravi, action_contains: venue, condition_contains: budget, committed: false}
+
+- id: meet-en-04
+  category: meetings
+  language: en
+  target: current
+  context:
+    now: "2026-10-09T16:00:00+05:30"
+    transcript: |
+      Sam: I can send the deck on Tuesday.
+      Me: Tuesday is tight.
+      Sam: Fine, make it Wednesday then.
+  expect:
+    state:
+      - store: follow_ups
+        count: 1
+        fields: {owner: Sam, action_contains: deck, due_date: "2026-10-14"}
+  why: The later correction in the same meeting wins; one item, not two.
+
+- id: meet-en-05
+  category: meetings
+  language: en
+  target: current
+  context:
+    now: "2026-10-09T16:00:00+05:30"
+    transcript: |
+      Ravi: The OTP is 482913, I'll log in and download the statement.
+  expect:
+    state:
+      - store: follow_ups
+        count: 1
+        fields: {owner: Ravi, action_contains: statement}
+      - store: any
+        none_text: "482913"
+  why: An OTP said aloud is never stored, in a follow-up, a fact or a summary.
+
+- id: meet-ta-01
+  category: meetings
+  language: ta
+  target: current
+  context:
+    now: "2026-10-09T16:00:00+05:30"
+    transcript: |
+      கார்த்திக்: அடுத்த வெள்ளிக்கிழமைக்குள் invoice அனுப்புகிறேன்.
+      நான்: சரி. நான் திங்கள்கிழமை supplier-ஐ அழைக்கிறேன்.
+  expect:
+    state:
+      - store: follow_ups
+        count: 2
+      - store: follow_ups
+        fields: {owner_any: [Karthik, "கார்த்திக்"], action_contains: invoice, due_date: "2026-10-16"}
+      - store: follow_ups
+        fields: {owner: me, action_contains: supplier, due_date: "2026-10-12"}
+
+- id: meet-ta-02
+  category: meetings
+  language: ta
+  target: current
+  context:
+    now: "2026-10-09T16:00:00+05:30"
+    transcript: |
+      நான்: யாராவது நாளைக்கு bank-க்கு போகணும்.
+      மீனா: பார்க்கலாம்.
+  expect:
+    state:
+      - store: follow_ups
+        count: 1
+        fields: {owner: null, needs_owner: true, due_date: "2026-10-10"}
+  why: Nobody took it. It is recorded as needing an owner, not assigned to Meena.
+
+- id: meet-hi-01
+  category: meetings
+  language: hi
+  target: current
+  context:
+    now: "2026-10-09T16:00:00+05:30"
+    transcript: |
+      अमित: मैं सोमवार तक रिपोर्ट भेज दूँगा।
+      नेहा: मैं क्लाइंट को फ़ोन कर लूँगी।
+  expect:
+    state:
+      - store: follow_ups
+        count: 2
+      - store: follow_ups
+        fields: {owner_any: [Amit, "अमित"], action_contains_any: [report, "रिपोर्ट"], due_date: "2026-10-12"}
+      - store: follow_ups
+        fields: {owner_any: [Neha, "नेहा"], due_date: null}
+
+- id: meet-hi-en-01
+  category: meetings
+  language: hi-en
+  target: current
+  context:
+    now: "2026-10-09T16:00:00+05:30"
+    transcript: |
+      Me: Next week tak GST return file karna hai, CA se baat karke. Main dekh lunga.
+  expect:
+    state:
+      - store: follow_ups
+        count: 1
+        fields: {owner: me, action_contains: GST, due_window: ["2026-10-12", "2026-10-18"]}
+  why: '"Next week" is a window, not a made-up exact date.'
