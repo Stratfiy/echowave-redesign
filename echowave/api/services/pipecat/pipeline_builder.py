@@ -46,6 +46,8 @@ def build_pipeline(
     backchannel=None,
     voice_watch=None,
     context_ready_gate=None,
+    takeover_llm_gate=None,
+    takeover_output_gate=None,
 ):
     """Build the main pipeline with all components.
 
@@ -77,6 +79,13 @@ def build_pipeline(
             inserted directly in front of the LLM so a caller's turn that
             lands before the start node has its prompt is held, not answered
             blind. See context_ready_gate.
+        takeover_llm_gate / takeover_output_gate: Optional gates from
+            services/live_takeover, present only when the feature is on for
+            the call's organisation. The first sits directly in front of the
+            LLM (no reply is asked for while a supervisor has the call), the
+            second directly in front of the output transport (nothing the
+            agent says reaches the caller then, and the supervisor's voice
+            enters there).
     """
     # Build processors list with optional voicemail detection
     processors = [
@@ -148,6 +157,9 @@ def build_pipeline(
     if context_ready_gate:
         processors.append(context_ready_gate)
 
+    if takeover_llm_gate:
+        processors.append(takeover_llm_gate)
+
     processors.extend(
         [
             llm,  # LLM
@@ -163,6 +175,7 @@ def build_pipeline(
             # Directly after the voice, so it sees what the voice emits:
             # synthesis starting, and whether any sound follows.
             *([voice_watch] if voice_watch else []),
+            *([takeover_output_gate] if takeover_output_gate else []),
             transport.output(),  # Transport bot output
             audio_buffer,  # AudioBufferProcessor - records both input and output audio
             assistant_context_aggregator,  # Assistant spoken responses
@@ -182,6 +195,7 @@ def build_realtime_pipeline(
     pipeline_engine_callback_processor,
     pipeline_metrics_aggregator,
     voicemail_detector=None,
+    takeover_output_gate=None,
 ):
     """Build a pipeline for realtime (speech-to-speech) LLM services.
 
@@ -207,6 +221,11 @@ def build_realtime_pipeline(
             detection we drop the call via end_call_with_reason; the detector's
             ConversationGate also blocks downstream audio output until the call
             ends.
+        takeover_output_gate: Optional, from services/live_takeover. In front
+            of the output transport, as in the cascade pipeline. There is no
+            LLM gate here, for the same reason as above: a realtime model
+            answers audio, so while a supervisor has the call it may still
+            compose replies; the output gate is what keeps them unheard.
     """
     processors = [
         transport.input(),
@@ -221,6 +240,7 @@ def build_realtime_pipeline(
     processors.extend(
         [
             pipeline_engine_callback_processor,
+            *([takeover_output_gate] if takeover_output_gate else []),
             transport.output(),
             audio_buffer,
             assistant_context_aggregator,

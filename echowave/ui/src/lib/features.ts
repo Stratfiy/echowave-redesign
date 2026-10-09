@@ -140,6 +140,8 @@ export type Feature =
     | "deepfilternet_filter"
     // Listen in on a live call and whisper to its agent.
     | "live_supervision"
+    // Join a live call from the listen panel: barge in or take over.
+    | "live_takeover"
     // Posters and ad creatives: images on a provider chosen in the thread.
     | "image_generation";
 

@@ -31,6 +31,7 @@ from collections.abc import Callable
 
 from loguru import logger
 
+from api.services.live_takeover.frames import SupervisorAudioFrame
 from pipecat.frames.frames import (
     BotStoppedSpeakingFrame,
     InputAudioRawFrame,
@@ -138,8 +139,11 @@ class LiveCallTap(BaseObserver):
                 isinstance(data.destination, BaseOutputTransport)
                 and self._audio_wanted()
             ):
+                # A supervisor who joined the call is their own side, so the
+                # one speaking can leave themselves out of what they hear.
+                side = "s" if isinstance(frame, SupervisorAudioFrame) else "a"
                 self._put_audio(
-                    (AUDIO, "a", frame.sample_rate, frame.num_channels, frame.audio)
+                    (AUDIO, side, frame.sample_rate, frame.num_channels, frame.audio)
                 )
             return
 

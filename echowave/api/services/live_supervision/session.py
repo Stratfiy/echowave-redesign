@@ -42,6 +42,17 @@ AUDIO_IDLE_SECONDS = 2.0
 MAX_FRAMES_PER_PACKET = 10
 #: Run modes that are not a call.
 NOT_A_CALL = frozenset({"textchat", "CHAT"})
+#: Events a late listener is handed from the backlog: every whisper and
+#: every change of who has the call (``live_takeover``)...
+KEEP_ALWAYS = frozenset({"whisper", "takeover"})
+#: ...and lines, and a supervisor's stretches of speech, once final.
+KEEP_FINAL = frozenset({"line", "supervisor"})
+#: The tap's side names, as the audio packet's first byte.
+_SIDES = {
+    "c": channels.SIDE_CALLER,
+    "a": channels.SIDE_AGENT,
+    "s": channels.SIDE_SUPERVISOR,
+}
 
 
 def _direction(workflow_run: Any) -> str:
@@ -245,7 +256,7 @@ class LiveSession:
 
     @staticmethod
     def _packet(current: list) -> bytes:
-        side = channels.SIDE_CALLER if current[0] == "c" else channels.SIDE_AGENT
+        side = _SIDES.get(current[0], channels.SIDE_AGENT)
         return channels.encode_audio(side, current[1], current[2], b"".join(current[3]))
 
     async def _event_loop(self) -> None:
@@ -270,12 +281,16 @@ class LiveSession:
                 except Exception as exc:  # noqa: BLE001
                     self._warn("events", exc)
 
+    async def publish_event(self, kind: str, **fields: Any) -> None:
+        """An event from outside the tap (a supervisor joining the call, say),
+        numbered in order with the words."""
+        await self._publish_event(self.lines.event(kind, **fields))
+
     async def _publish_event(self, event: dict) -> None:
         r = self.redis()
         body = json.dumps(event)
-        keep = (event.get("type") == "line" and event.get("final")) or event.get(
-            "type"
-        ) == "whisper"
+        kind = event.get("type")
+        keep = kind in KEEP_ALWAYS or (kind in KEEP_FINAL and event.get("final"))
         if keep:
             key = channels.backlog_key(self.run_id)
             await r.rpush(key, body)

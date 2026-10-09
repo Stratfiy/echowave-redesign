@@ -192,6 +192,8 @@ FLAGS: dict[str, str] = {
     "deepfilternet_filter": "DEEPFILTERNET_FILTER_ENABLED",
     # Listen in on a live call and whisper to the agent (services/live_supervision/).
     "live_supervision": "LIVE_SUPERVISION_ENABLED",
+    # Join a live call: barge in or take over from the agent (services/live_takeover/).
+    "live_takeover": "LIVE_TAKEOVER_ENABLED",
     # Posters and ad creatives (services/images/).
     "image_generation": "IMAGE_GENERATION_ENABLED",
 }
@@ -317,6 +319,7 @@ DESCRIPTIONS: dict[str, str] = {
     "caller_voice_lock": "Only the caller can interrupt a phone agent: speech that does not match the caller's voice, learnt in their first seconds, no longer stops the agent.",
     "deepfilternet_filter": "DeepFilterNet3 instead of RNNoise as the noise filter on calls with noise suppression on.",
     "live_supervision": "Live calls: listen in on a customer call (transcript and audio) and whisper instructions the caller never hears.",
+    "live_takeover": "Live calls: a supervisor joins a call from the listen panel and speaks to the caller, with the agent paused (barge) or replaced until handed back (take-over).",
     "image_generation": "Posters and ad creatives: images from Chat and two agents, on Gemini, OpenAI or Bedrock, chosen on a card in the thread.",
 }
 

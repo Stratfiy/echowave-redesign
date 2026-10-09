@@ -44,6 +44,8 @@ BACKLOG_TTL_SECONDS = 60 * 60
 #: Who an audio packet is from.
 SIDE_CALLER = b"c"
 SIDE_AGENT = b"a"
+#: A supervisor who has joined the call (``live_takeover``).
+SIDE_SUPERVISOR = b"s"
 _HEADER = struct.Struct("<cIB")  # side, sample rate, channels
 
 _client: aioredis.Redis | None = None
