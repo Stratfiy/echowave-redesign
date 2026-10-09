@@ -108,7 +108,7 @@ async def run(
     dialer: Dialer,
     caller: CallerLine,
     claim: Claim,
-    briefing: str,
+    briefing: str | Callable[[TransferTarget], str],
     start_count: int = 0,
     clock: Callable[[], float] = time.monotonic,
     on_attempt: Callable[[Attempt], Awaitable[Any]] | None = None,
@@ -118,6 +118,8 @@ async def run(
     ``claim(expected_count, transfer_id, masked_target)`` must return True
     before a number is dialled; ``start_count`` is how many attempts the
     record already holds (a resumed escalation starts after them).
+    ``briefing`` is one line for everybody, or a function of the person
+    (each is briefed in their own language).
     """
     result = LadderResult(bridged=False)
     started = clock()
@@ -155,7 +157,7 @@ async def run(
                     target,
                     transfer_id=transfer_id,
                     ring_timeout=ring,
-                    briefing=briefing,
+                    briefing=briefing(target) if callable(briefing) else briefing,
                 )
             except Exception as exc:  # noqa: BLE001 - next person, not a crash
                 logger.warning("Dialling {} failed: {}", label, exc)

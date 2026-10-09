@@ -540,7 +540,10 @@ async def test_the_card_carries_what_a_person_needs():
         ("issue_credit", False),
     ]
     assert built["reason_code"] == "explicit_request"
-    assert built["transcript_url"] == "/workflow/7/run/9"
+    # The live view of the call, following this escalation.
+    assert built["transcript_url"] == "/workflow/7/run/9?live=1&escalation=e-1"
+    assert built["live_transcript"][-1] == "Caller: I want to talk to a person."
+    assert built["team"] is None
     assert built["language"] == "en-IN" and built["consent"] == {"ai_disclosed": True}
     assert built["summary"]  # the fallback sentence, never empty
 

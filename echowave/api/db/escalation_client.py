@@ -276,10 +276,17 @@ class EscalationClient(BaseDBClient):
         fallback: str | None = None,
         time_to_human_ms: int | None = None,
         escalation_id: int | None = None,
+        caller_turn: int | None = None,
+        caller_turns: int | None = None,
+        shadow_escalations: list[dict[str, Any]] | None = None,
     ) -> None:
         """One row per call; a second write for the same call replaces it,
-        so the last word on the call is the one kept."""
+        so the last word on the call is the one kept. A reviewer's label is
+        never part of it, so a late write cannot wipe one."""
         values = {
+            "caller_turn": caller_turn,
+            "caller_turns": caller_turns,
+            "shadow_escalations": shadow_escalations,
             "organization_id": organization_id,
             "workflow_id": workflow_id,
             "workflow_run_id": workflow_run_id,
@@ -305,6 +312,55 @@ class EscalationClient(BaseDBClient):
             )
             await session.execute(statement)
             await session.commit()
+
+    async def label_call_escalation_outcome(
+        self,
+        workflow_run_id: int,
+        *,
+        organization_id: int,
+        label: str | None,
+        expected_turn: int | None,
+        user_id: int | None,
+    ) -> Optional[CallEscalationOutcomeModel]:
+        """A reviewer's verdict on one call. None when the call is not this
+        organization's (or ran without the policy)."""
+        async with self.async_session() as session:
+            row = await session.scalar(
+                select(CallEscalationOutcomeModel).where(
+                    CallEscalationOutcomeModel.workflow_run_id == workflow_run_id,
+                    CallEscalationOutcomeModel.organization_id == organization_id,
+                )
+            )
+            if row is None:
+                return None
+            row.qa_label = label
+            row.qa_expected_turn = expected_turn
+            row.qa_labelled_by = user_id if label is not None else None
+            row.qa_labelled_at = _now() if label is not None else None
+            await session.commit()
+            await session.refresh(row)
+            return row
+
+    async def list_call_escalation_outcomes(
+        self,
+        *,
+        organization_id: int,
+        since: datetime | None = None,
+        workflow_id: int | None = None,
+        limit: int = 5000,
+    ) -> list[CallEscalationOutcomeModel]:
+        query = select(CallEscalationOutcomeModel).where(
+            CallEscalationOutcomeModel.organization_id == organization_id
+        )
+        if since is not None:
+            query = query.where(CallEscalationOutcomeModel.recorded_at >= since)
+        if workflow_id is not None:
+            query = query.where(CallEscalationOutcomeModel.workflow_id == workflow_id)
+        query = query.order_by(CallEscalationOutcomeModel.recorded_at.desc()).limit(
+            limit
+        )
+        async with self.async_session() as session:
+            return list((await session.execute(query)).scalars())
 
     async def get_call_escalation_outcome(
         self, workflow_run_id: int, *, organization_id: int

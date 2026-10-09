@@ -74,6 +74,14 @@ class ProviderDialer:
         self._ready: dict[str, asyncio.Event] = {}
         self._legs: dict[str, str | None] = {}
 
+    def speaks(self, language: str) -> bool:
+        """Can this carrier speak a briefing in ``language``? English always;
+        others where the provider lists them (``BRIEFING_LANGUAGES``). A
+        language it cannot speak is briefed in English, not read out wrong."""
+        if language == "en":
+            return True
+        return language in getattr(self._provider, "BRIEFING_LANGUAGES", ())
+
     def watch(self, transfer_id: str, timeout: float) -> "asyncio.Task[str]":
         ready = asyncio.Event()
         self._ready[transfer_id] = ready
@@ -143,6 +151,8 @@ class ProviderDialer:
         options = self._provider.escalation_dial_options(
             transfer_id=transfer_id, backend_endpoint=backend_endpoint
         )
+        if target.language != "en" and self.speaks(target.language):
+            options = {**options, "briefing_language": target.language}
         try:
             result = await self._provider.transfer_call(
                 destination=target.number,

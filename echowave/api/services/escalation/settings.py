@@ -16,7 +16,10 @@ from pydantic import ValidationError
 
 from api.db import db_client
 from api.services.escalation.policy import (
+    ALWAYS_ON,
+    BRIEFING_LANGUAGES,
     CONFIG_KEY,
+    RULES,
     TOPIC_LABELS,
     TOPICS,
     EscalationPolicy,
@@ -39,6 +42,10 @@ def _message(exc: ValidationError) -> str:
         return "That policy is not valid."
     first = errors[0]
     where = ".".join(str(p) for p in first.get("loc", ()) if not isinstance(p, int))
+    if first.get("type") == "extra_forbidden":
+        # Refused by name, never dropped: a setting the person thinks they
+        # saved and the policy does not have is the silent-absence bug.
+        return f"{where} is not a setting this policy has."
     text = str(first.get("msg") or "is not valid").removeprefix("Value error, ")
     return f"{where}: {text}" if where else text
 
@@ -63,6 +70,33 @@ def topics() -> list[dict[str, str]]:
     return [{"key": key, "label": TOPIC_LABELS[key]} for key in TOPICS]
 
 
+#: The rules that are not topics, as the settings card names them.
+_RULE_LABELS = {
+    "custom": "Your own phrases",
+    "out_of_scope": "Not this agent's job",
+    "explicit_request": "Caller asks for a person",
+    "repair_loop": "Stuck on a step",
+    "low_confidence": "Not sure of key details",
+    "frustration": "Caller getting frustrated",
+}
+
+
+def rules() -> list[dict[str, Any]]:
+    """Every rule, and whether it may run in shadow."""
+    return [
+        {
+            "key": key,
+            "label": TOPIC_LABELS.get(key) or _RULE_LABELS.get(key) or key,
+            "can_shadow": key not in ALWAYS_ON,
+        }
+        for key in RULES
+    ]
+
+
+def briefing_languages() -> list[dict[str, str]]:
+    return [{"key": k, "label": v} for k, v in BRIEFING_LANGUAGES.items()]
+
+
 async def read(organization_id: int, workflow_id: int) -> dict[str, Any]:
     workflow, configurations = await _configurations(organization_id, workflow_id)
     released = await db_client.get_released_configurations(workflow)
@@ -72,6 +106,8 @@ async def read(organization_id: int, workflow_id: int) -> dict[str, Any]:
         "workflow_id": workflow_id,
         "policy": policy.model_dump(mode="json"),
         "topics": topics(),
+        "rules": rules(),
+        "briefing_languages": briefing_languages(),
         #: The draft holds a policy that live calls do not use yet.
         "unpublished": policy.model_dump(mode="json") != live.model_dump(mode="json"),
     }
@@ -93,19 +129,22 @@ async def save(
 
 
 def merged(current: EscalationPolicy, changes: Mapping[str, Any]) -> dict[str, Any]:
-    """A partial change (from the chat) applied over the current policy."""
+    """A partial change (from the chat) applied over the current policy.
+
+    Every key is carried over, known or not, so ``validate_changes`` refuses
+    an unknown one by name instead of it vanishing here."""
     out = current.model_dump(mode="json")
-    for key, value in changes.items():
-        if key in out:
-            out[key] = value
+    out.update(dict(changes))
     return out
 
 
 __all__ = [
     "AgentNotFound",
     "PolicyInvalid",
+    "briefing_languages",
     "merged",
     "read",
+    "rules",
     "save",
     "topics",
 ]

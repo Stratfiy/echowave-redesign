@@ -42,6 +42,7 @@ from api.services.escalation.evaluator import (
 )
 from api.services.escalation.policy import (
     EscalationPolicy,
+    Team,
     TransferTarget,
     from_configurations,
     humans_available,
@@ -233,6 +234,8 @@ class EscalationRuntime:
         self.outcome: dict[str, Any] = {"outcome": "resolved_by_ai"}
         self._started_at: float | None = None
         self._finalised = False
+        self._live_writes: set[asyncio.Task] = set()
+        self._decision: Decision | None = None
 
     # --- construction ------------------------------------------------------
 
@@ -351,9 +354,28 @@ class EscalationRuntime:
         asked for a person do not also start a model turn.
         """
         if self.row is not None and self.row.state in record.OPEN:
+            self._note_live(text)
             return []
         decision = self.evaluator.observe_text(text)
         return self._act_now(decision)
+
+    def _note_live(self, text: str) -> None:
+        """What the caller says while a person is being found reaches the
+        card's live transcript, so whoever opened the link sees it."""
+        if self.card is None or self.row is None or not (text or "").strip():
+            return
+        lines = list(self.card.get("live_transcript") or [])
+        lines.append(f"Caller: {' '.join(text.split())}")
+        self.card["live_transcript"] = lines[-handoff_card.MAX_LIVE_LINES :]
+        task = asyncio.create_task(
+            db_client.update_escalation(
+                self.row.id,
+                organization_id=self.organization_id,
+                handoff_card=dict(self.card),
+            )
+        )
+        self._live_writes.add(task)
+        task.add_done_callback(self._live_writes.discard)
 
     def on_idle(self) -> None:
         self.evaluator.observe_quiet("no_input")
@@ -430,8 +452,13 @@ class EscalationRuntime:
         if destination:
             try:
                 extra.append(TransferTarget(number=destination))
-            except Exception:  # noqa: BLE001 - a template, not a number
-                pass
+            except Exception as exc:  # noqa: BLE001 - a template, not a number
+                # Said, not swallowed: an overseas number lands here too.
+                logger.warning(
+                    "Transfer tool destination {} not rung: {}",
+                    last_four(destination),
+                    exc,
+                )
         if self.evaluator.decided is not None or (
             self.row is not None and self.row.state in record.OPEN
         ):
@@ -475,11 +502,16 @@ class EscalationRuntime:
 
     # --- the escalation ------------------------------------------------------
 
+    def _team(self, decision: Decision) -> Team | None:
+        return self.policy.team_for(decision.topic, decision.phrase)
+
     async def _targets(
-        self, extra: list[TransferTarget] | None
+        self, extra: list[TransferTarget] | None, team: Team | None = None
     ) -> list[TransferTarget]:
-        targets = list(self.policy.transfer_numbers)
-        for candidate in extra or []:
+        """The team routed to first, then the general numbers, then the
+        transfer tool's own; the workspace number when there is nobody."""
+        targets = list(team.numbers) if team is not None else []
+        for candidate in [*self.policy.transfer_numbers, *(extra or [])]:
             if candidate.number not in {t.number for t in targets}:
                 targets.append(candidate)
         if not targets and self.workspace_number:
@@ -503,6 +535,25 @@ class EscalationRuntime:
         context = LLMContext()
         context.set_messages(
             [{"role": "user", "content": handoff_card.summary_prompt(transcript)}]
+        )
+        return await llm.run_inference(
+            context,
+            system_instruction="You write two-sentence call summaries for colleagues.",
+        )
+
+    async def _summarise_in(self, transcript: str, language: str) -> str | None:
+        """The summary in the language a person is briefed in."""
+        llm = self.engine.inference_llm
+        if llm is None:
+            return None
+        context = LLMContext()
+        context.set_messages(
+            [
+                {
+                    "role": "user",
+                    "content": handoff_card.summary_prompt(transcript, language),
+                }
+            ]
         )
         return await llm.run_inference(
             context,
@@ -575,8 +626,15 @@ class EscalationRuntime:
         if fresh is not None:
             self.row = fresh
 
-    def _pre_dial_line(self, target: TransferTarget | None) -> str:
-        who = target.name if target and target.name else "someone from the team"
+    def _pre_dial_line(
+        self, target: TransferTarget | None, team: Team | None = None
+    ) -> str:
+        if target and target.name:
+            who = target.name
+        elif team is not None:
+            who = f"someone from our {team.name} team"
+        else:
+            who = "someone from the team"
         return (
             f"I'm going to bring in {who} who can help with this. It usually "
             "takes under a minute, and I'll stay with you while I connect you."
@@ -614,13 +672,16 @@ class EscalationRuntime:
         row = await self._open(decision, trigger)
         if row is None:
             return
+        self._decision = decision
         self._started_at = time.monotonic()
         self.outcome = {
             "outcome": "escalated",
             "reason_code": row.reason_code,
             "escalation_id": row.id,
+            "caller_turn": decision.turn,
         }
-        targets = await self._targets(extra)
+        team = self._team(decision)
+        targets = await self._targets(extra, team)
         card_task = asyncio.create_task(
             handoff_card.build(
                 escalation_uuid=row.escalation_uuid,
@@ -634,6 +695,9 @@ class EscalationRuntime:
                 language=self.language,
                 consent=self._consent(),
                 summarise=self._summarise,
+                team=team.name if team is not None else None,
+                briefing_languages=[t.language for t in targets],
+                summarise_in=self._summarise_in,
             )
         )
 
@@ -685,7 +749,7 @@ class EscalationRuntime:
             await self._come_back(reached_nobody=False, reason=decision.topic)
             return
 
-        await self.say(self._pre_dial_line(targets[0]), wait=True)
+        await self.say(self._pre_dial_line(targets[0], team), wait=True)
         self.card = await card_task
         await self._post_card(row, self.card)
 
@@ -715,13 +779,20 @@ class EscalationRuntime:
                 outcome=attempt.outcome,
             )
 
+        card = self.card
+
+        def briefing(target: TransferTarget) -> str:
+            # Their language when the carrier can speak it; else English.
+            spoken = target.language if dialer.speaks(target.language) else "en"
+            return handoff_card.spoken_briefing(card, spoken)
+
         result = await ladder.run(
             targets=targets,
             policy=self.policy,
             dialer=dialer,
             caller=EngineCallerLine(self),
             claim=claim,
-            briefing=handoff_card.spoken_briefing(self.card),
+            briefing=briefing,
             start_count=row.attempt_count or 0,
             on_attempt=on_attempt,
         )
@@ -755,7 +826,10 @@ class EscalationRuntime:
         await record.fail(row, reason, organization_id=self.organization_id)
         self.outcome.update(transfer_result="failed", failure_reason=reason)
         await self._refresh()
-        await self._come_back(reached_nobody=True, reason=None)
+        # The topic, so a caller in an emergency nobody answered for is told
+        # to ring 112.
+        topic = self._decision.topic if self._decision is not None else None
+        await self._come_back(reached_nobody=True, reason=topic)
 
     async def _come_back(
         self,
@@ -969,6 +1043,9 @@ class EscalationRuntime:
             return
         try:
             await db_client.record_call_escalation_outcome(
+                caller_turn=self.outcome.get("caller_turn"),
+                caller_turns=self.evaluator.caller_turns,
+                shadow_escalations=list(self.evaluator.shadow_hits) or None,
                 organization_id=self.organization_id,
                 workflow_run_id=self.workflow_run_id,
                 workflow_id=self.workflow_id,
@@ -989,6 +1066,8 @@ class EscalationRuntime:
         if self._finalised:
             return
         self._finalised = True
+        if self._live_writes:
+            await asyncio.gather(*list(self._live_writes), return_exceptions=True)
         if self._task is not None and not self._task.done():
             self._task.cancel()
             try:

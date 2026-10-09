@@ -123,6 +123,23 @@ class CallEscalationOutcomeModel(Base):
     escalation_id = Column(
         Integer, ForeignKey("escalations.id", ondelete="SET NULL"), nullable=True
     )
+    #: The caller turn (1-based) the escalation was decided on, and how many
+    #: caller turns the call had -- the inputs of the tolerance-window
+    #: measure (services/escalation/measure.py).
+    caller_turn = Column(Integer, nullable=True)
+    caller_turns = Column(Integer, nullable=True)
+    #: What rules in shadow mode would have done: [{rule, reason_code,
+    #: topic, detail, would, caller_turn}].
+    shadow_escalations = Column(JSON, nullable=True)
+    #: A reviewer's verdict, set later: resolved_by_ai | escalated_correctly
+    #: | escalated_unnecessarily | should_have_escalated.
+    qa_label = Column(String(32), nullable=True)
+    #: The turn the reviewer says it should have gone on, when it should.
+    qa_expected_turn = Column(Integer, nullable=True)
+    qa_labelled_by = Column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    qa_labelled_at = Column(DateTime(timezone=True), nullable=True)
     recorded_at = Column(DateTime(timezone=True), nullable=False, default=_now)
 
     __table_args__ = (

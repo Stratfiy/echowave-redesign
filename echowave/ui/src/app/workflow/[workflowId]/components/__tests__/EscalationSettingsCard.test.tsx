@@ -74,6 +74,79 @@ describe('EscalationSettingsCard', () => {
         expect(await screen.findByTestId('escalation-unpublished')).toBeTruthy();
     });
 
+    it('saves never-transfer phrases, briefing languages, teams, out-of-scope topics and watch-only rules', async () => {
+        flags.on.add('escalation_v2');
+        api.get.mockResolvedValue({
+            data: {
+                workflow_id: 7,
+                policy: POLICY,
+                topics: TOPICS,
+                rules: [
+                    { key: 'emergency', label: 'Emergencies and safety', can_shadow: false },
+                    { key: 'fraud', label: 'Fraud or a scam', can_shadow: true },
+                    { key: 'frustration', label: 'Caller getting frustrated', can_shadow: true },
+                ],
+                briefing_languages: [
+                    { key: 'en', label: 'English' },
+                    { key: 'hi', label: 'Hindi' },
+                ],
+                unpublished: false,
+            },
+        });
+        api.save.mockResolvedValue({ data: { workflow_id: 7, policy: POLICY, topics: TOPICS, unpublished: true } });
+        render(<EscalationSettingsCard workflowId={7} />);
+        fireEvent.click(await screen.findByRole('button', { name: 'Change' }));
+
+        fireEvent.change(screen.getByLabelText('Briefing language 1'), { target: { value: 'hi' } });
+        fireEvent.change(screen.getByLabelText('Never hand over for'), { target: { value: 'opening hours, price list' } });
+        fireEvent.click(screen.getByRole('button', { name: /Add a team/ }));
+        fireEvent.change(screen.getByLabelText('Team 1 name'), { target: { value: 'Fraud desk' } });
+        fireEvent.change(screen.getByLabelText('Team 1 numbers'), { target: { value: '+91 98000 00007, ' } });
+        fireEvent.change(screen.getByLabelText('Team for Fraud or a scam'), { target: { value: 'Fraud desk' } });
+        fireEvent.click(screen.getByRole('button', { name: /Add a topic/ }));
+        fireEvent.change(screen.getByLabelText('Out of scope 1'), { target: { value: 'home loans' } });
+        fireEvent.change(screen.getByLabelText('Team for out of scope 1'), { target: { value: 'Fraud desk' } });
+        // An emergency cannot be put on watch only, so it is not offered.
+        expect(screen.queryByLabelText('Watch only: Emergencies and safety')).toBeNull();
+        fireEvent.click(screen.getByLabelText('Watch only: Caller getting frustrated'));
+        fireEvent.click(screen.getByRole('button', { name: 'Save to draft' }));
+
+        await waitFor(() => expect(api.save).toHaveBeenCalled());
+        const body = api.save.mock.calls[0][0].body.policy;
+        expect(body.transfer_numbers).toEqual([{ number: '+919876543210', name: 'Priya', language: 'hi' }]);
+        expect(body.never_transfer_topics).toEqual(['opening hours', 'price list']);
+        expect(body.teams).toEqual([{ name: 'Fraud desk', numbers: [{ number: '+91 98000 00007' }] }]);
+        expect(body.topic_teams).toEqual({ fraud: 'Fraud desk' });
+        expect(body.out_of_scope_topics).toEqual([{ phrase: 'home loans', team: 'Fraud desk' }]);
+        expect(body.rule_modes).toEqual({ frustration: 'shadow' });
+    });
+
+    it('drops a topic mapping when its team is removed', async () => {
+        flags.on.add('escalation_v2');
+        api.get.mockResolvedValue({
+            data: {
+                workflow_id: 7,
+                policy: {
+                    ...POLICY,
+                    teams: [{ name: 'Billing', numbers: [{ number: '+919800000001' }] }],
+                    topic_teams: { fraud: 'Billing' },
+                },
+                topics: TOPICS,
+                unpublished: false,
+            },
+        });
+        api.save.mockResolvedValue({ data: { workflow_id: 7, policy: POLICY, topics: TOPICS, unpublished: true } });
+        render(<EscalationSettingsCard workflowId={7} />);
+        fireEvent.click(await screen.findByRole('button', { name: 'Change' }));
+        expect((screen.getByLabelText('Team 1 numbers') as HTMLInputElement).value).toBe('+919800000001');
+        fireEvent.click(screen.getByRole('button', { name: 'Remove team 1' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Save to draft' }));
+        await waitFor(() => expect(api.save).toHaveBeenCalled());
+        const body = api.save.mock.calls[0][0].body.policy;
+        expect(body.teams).toEqual([]);
+        expect(body.topic_teams).toEqual({});
+    });
+
     it('shows a refusal in words', async () => {
         flags.on.add('escalation_v2');
         api.save.mockResolvedValue({ error: { detail: 'transfer_numbers: not a phone number' } });

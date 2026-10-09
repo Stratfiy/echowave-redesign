@@ -16,7 +16,16 @@ sentences and, if the model is slow or fails, replaced by a sentence built
 from the fields. A card is never held up for its summary.
 
 **The transcript is a link, not a snapshot.** What the caller says while on
-hold matters, and a copy taken at transfer time cannot show it.
+hold matters, and a copy taken at transfer time cannot show it. The link opens
+the call's run page in live mode (``?live=1``), which refreshes the card's
+``live_transcript`` -- the last few lines, kept current by the runtime while
+the escalation is open -- until the call ends and the full transcript is
+there. (The live-supervision listen panel is not on main yet; when it is,
+this link can point at it instead.)
+
+**The person is briefed in their own language.** Each number on the policy
+carries a briefing language (English unless set); the card holds one
+briefing per language its people need, and each person hears theirs.
 
 Delivered twice: spoken as the private briefing on the person's leg (the
 existing path in ``telephony/escalation.py``) and posted on the agent's thread
@@ -55,11 +64,30 @@ MAX_FIELDS = 20
 MAX_VALUE_CHARS = 160
 MAX_ACTIONS = 10
 MAX_TRANSCRIPT_TURNS = 30
+#: Lines of the live transcript kept on the card for the live view.
+MAX_LIVE_LINES = 12
 SUMMARY_TIMEOUT_SECONDS = 3.0
+
+#: The briefing's fixed words, per language. A language listed in
+#: ``policy.BRIEFING_LANGUAGES`` must have an entry here (a test checks).
+_BRIEFING_WORDS: dict[str, dict[str, str]] = {
+    "en": {"caller": "A caller", "verified": "verified"},
+    "hi": {"caller": "एक कॉलर", "verified": "सत्यापित"},
+}
+_REASONS_HI: dict[str, str] = {
+    "explicit_request": "किसी व्यक्ति से बात करना चाहते हैं",
+    "policy": "यह विषय हमेशा किसी व्यक्ति के पास जाता है",
+    "repair_loop": "एजेंट एक चरण से आगे नहीं बढ़ पाया",
+    "low_confidence": "एजेंट को ज़रूरी जानकारी पर भरोसा नहीं था",
+    "frustration": "कॉलर परेशान हो रहे थे",
+}
+_LANGUAGE_NAMES = {"en": "English", "hi": "Hindi"}
 #: The model's own escalation tools are not "actions taken".
 OWN_TOOLS = frozenset({"report_escalation_signal", "escalation_fallback"})
 
 Summariser = Callable[[str], Awaitable[str | None]]
+#: (transcript, language code) -> two sentences in that language.
+LanguageSummariser = Callable[[str, str], Awaitable[str | None]]
 
 
 def _clip(value: Any, limit: int = MAX_VALUE_CHARS) -> str:
@@ -152,9 +180,36 @@ def two_sentences(text: str) -> str:
     return " ".join(sentences[:2]).strip()
 
 
-def fallback_summary(intent: str | None, reason: str | None, caller: str) -> str:
+def fallback_summary(
+    intent: str | None, reason: str | None, caller: str, language: str = "en"
+) -> str:
+    if language == "hi":
+        want = (
+            f"{caller} को {intent} में मदद चाहिए।"
+            if intent
+            else f"{caller} को मदद चाहिए।"
+        )
+        return f"{want} {_reason_in(reason, 'hi')}।"
     want = f"{caller} wants help with {intent}." if intent else f"{caller} needs help."
     return f"{want} {reason_label(reason)}."
+
+
+def _reason_in(reason: str | None, language: str) -> str:
+    if language == "hi" and reason in _REASONS_HI:
+        return _REASONS_HI[reason]
+    return reason_label(reason)
+
+
+def live_url(
+    workflow_id: int | None, workflow_run_id: int | None, escalation_uuid: str
+) -> str | None:
+    """The call's run page in live mode, following this escalation."""
+    if not (workflow_id and workflow_run_id):
+        return None
+    return (
+        f"/workflow/{workflow_id}/run/{workflow_run_id}"
+        f"?live=1&escalation={escalation_uuid}"
+    )
 
 
 def caller_identity(
@@ -212,26 +267,47 @@ async def build(
     consent: Mapping[str, Any] | None,
     summarise: Summariser | None = None,
     timeout: float = SUMMARY_TIMEOUT_SECONDS,
+    team: str | None = None,
+    briefing_languages: Iterable[str] = (),
+    summarise_in: LanguageSummariser | None = None,
 ) -> dict[str, Any]:
     messages = list(messages or [])
     transcript = transcript_lines(messages)
     caller = caller_identity(call_context, gathered)
     intent = intent_of(gathered, transcript)
-    summary = None
-    if summarise is not None and transcript:
+    others = [
+        code
+        for code in dict.fromkeys(briefing_languages)
+        if code != "en" and code in _BRIEFING_WORDS
+    ]
+    for code in briefing_languages:
+        if code not in _BRIEFING_WORDS:
+            logger.warning("No briefing words for {!r}; briefing in English", code)
+
+    async def _bounded(coroutine) -> str | None:
         try:
-            summary = await asyncio.wait_for(
-                summarise("\n".join(transcript)), timeout=timeout
-            )
+            return await asyncio.wait_for(coroutine, timeout=timeout)
         except Exception as exc:  # noqa: BLE001 - a card is never held up
             logger.info("Handoff summary not written in time: {}", exc)
-    summary = two_sentences(summary or "") or fallback_summary(
-        intent, reason_code, caller["name"] or "The caller"
+            return None
+
+    joined = "\n".join(transcript)
+    jobs: dict[str, Any] = {}
+    if summarise is not None and transcript:
+        jobs["en"] = _bounded(summarise(joined))
+    if summarise_in is not None and transcript:
+        for code in others:
+            jobs[code] = _bounded(summarise_in(joined, code))
+    written = dict(zip(jobs, await asyncio.gather(*jobs.values()))) if jobs else {}
+    name = caller["name"]
+    summary = two_sentences(written.get("en") or "") or fallback_summary(
+        intent, reason_code, name or "The caller"
     )
-    return {
+    card: dict[str, Any] = {
         "escalation_uuid": escalation_uuid,
         "caller": caller,
         "intent": intent,
+        "team": team,
         "fields": extracted_fields(gathered),
         "actions": actions_taken(messages),
         "reason_code": reason_code,
@@ -240,48 +316,84 @@ async def build(
         "summary": summary,
         "language": language,
         "consent": dict(consent or {}),
-        "transcript_url": f"/workflow/{workflow_id}/run/{workflow_run_id}"
-        if workflow_id and workflow_run_id
-        else None,
+        "transcript_url": live_url(workflow_id, workflow_run_id, escalation_uuid),
+        "live_transcript": transcript[-MAX_LIVE_LINES:],
         "workflow_id": workflow_id,
         "workflow_run_id": workflow_run_id,
         "created_at": datetime.now(UTC).isoformat(),
     }
+    summaries = {"en": summary}
+    for code in others:
+        summaries[code] = two_sentences(written.get(code) or "") or fallback_summary(
+            intent, reason_code, name or _BRIEFING_WORDS[code]["caller"], code
+        )
+    card["briefings"] = {
+        code: briefing_in(card, code, summary=text) for code, text in summaries.items()
+    }
+    return card
 
 
-def spoken_briefing(card: Mapping[str, Any]) -> str:
-    """The card as the person hears it before the caller is put through.
-
-    Who, whether verified, why, then the summary -- cut to the briefing cap
-    at a sentence. Spoken to the person only.
-    """
+def briefing_in(
+    card: Mapping[str, Any], language: str = "en", *, summary: str | None = None
+) -> str:
+    """The briefing in one language: team, who, whether verified, why, then
+    the summary -- cut to the briefing cap at a sentence."""
     from api.services.telephony.escalation import _truncate
 
+    words = _BRIEFING_WORDS.get(language) or _BRIEFING_WORDS["en"]
     caller = card.get("caller") or {}
-    who = caller.get("name") or "A caller"
-    verified = " (verified)" if caller.get("verified") else ""
-    reason = str(card.get("reason") or "").rstrip(".")
-    head = f"{who}{verified}. {reason}." if reason else f"{who}{verified}."
-    text = f"{head} {card.get('summary') or ''}".strip()
+    who = caller.get("name") or words["caller"]
+    verified = f" ({words['verified']})" if caller.get("verified") else ""
+    if language == "en":
+        reason = str(card.get("reason") or "").rstrip(".")
+    else:
+        reason = _reason_in(card.get("reason_code"), language)
+    stop = "।" if language == "hi" else "."
+    head = (
+        f"{who}{verified}{stop} {reason}{stop}" if reason else f"{who}{verified}{stop}"
+    )
+    team = card.get("team")
+    if team:
+        head = f"{team}: {head}"
+    text = f"{head} {summary if summary is not None else card.get('summary') or ''}"
     return _truncate(" ".join(text.split()))[:MAX_BRIEFING_CHARS]
 
 
-def summary_prompt(transcript: str) -> str:
+def spoken_briefing(card: Mapping[str, Any], language: str = "en") -> str:
+    """The card as the person hears it before the caller is put through.
+
+    In the person's language when the card holds a briefing in it, else in
+    English. Spoken to the person only.
+    """
+    briefings = card.get("briefings") or {}
+    if isinstance(briefings, Mapping) and briefings.get(language):
+        return str(briefings[language])
+    return briefing_in(card, "en")
+
+
+def summary_prompt(transcript: str, language: str | None = None) -> str:
+    written_in = (
+        f" Write it in {_LANGUAGE_NAMES.get(language, language)}."
+        if language and language != "en"
+        else ""
+    )
     return (
         "Summarise this phone call for the colleague about to take it over, "
         "in exactly two short sentences: what the caller wants, and where "
         "things stand. No greeting, no lists, no guesses beyond the "
-        "transcript.\n\n" + transcript
+        f"transcript.{written_in}\n\n" + transcript
     )
 
 
 __all__ = [
     "INTERNAL_KEYS",
     "actions_taken",
+    "briefing_in",
     "build",
     "caller_identity",
     "extracted_fields",
     "fallback_summary",
+    "live_url",
     "spoken_briefing",
     "summary_prompt",
     "transcript_lines",

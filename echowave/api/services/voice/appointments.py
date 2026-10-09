@@ -174,12 +174,29 @@ def validate_policy(changes: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
+def _india_only(organization_id: int, number: str) -> None:
+    """With escalation v2 on, the number callers are handed to must be
+    Indian: both legs of a call must be in India, and the carrier refuses
+    the transfer otherwise -- better said here than mid-call."""
+    from api.services import escalation
+    from api.services.escalation.policy import indian_number
+
+    if not escalation.enabled(organization_id):
+        return
+    try:
+        indian_number(number)
+    except ValueError as exc:
+        raise PolicyInvalid(str(exc)) from exc
+
+
 async def save_policy(
     organization_id: int, changes: dict[str, Any], *, revision: int, user_id: int
 ) -> dict[str, Any]:
     """Save if ``revision`` is current. The helper workflow must belong to
     this workspace (a foreign key proves it exists, not that it is yours)."""
     clean = validate_policy(changes)
+    if clean.get("escalate_to"):
+        _india_only(organization_id, clean["escalate_to"])
     if clean.get("call_workflow_id") is not None:
         workflow = await db_client.get_workflow(
             clean["call_workflow_id"], organization_id=organization_id
