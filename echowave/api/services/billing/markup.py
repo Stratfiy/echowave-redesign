@@ -580,6 +580,10 @@ COMPONENT_MARKUP_BPS: dict[str, int] = {
     # Bought data is passed through at cost; the revenue on a lookup is the
     # tool-call event it rides on (decided 21 Sept 2026, Prospecting Tooling).
     CostComponent.DATA.value: 10_000,
+    # A generated image sells at nothing while image generation is tried:
+    # the vendor's cost is recorded beside each image so a price can be set
+    # from real numbers later. Zero here is that decision, not a default.
+    CostComponent.IMAGE.value: 0,
 }
 
 #: Premium voices are dearer to buy, so the multiple is thinner: 1.4x rather

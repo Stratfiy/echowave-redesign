@@ -178,6 +178,9 @@ TAG_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "meetings",
             # A person's own contacts, synced and with context (PEOPLE.md).
             "people",
+            # Posters and ad creatives: the provider card, the images and
+            # the logo a person attaches (services/images/).
+            "images",
             # Help: a person's own support requests, what they share with
             # support and the replies (launch stream `support`).
             "support",

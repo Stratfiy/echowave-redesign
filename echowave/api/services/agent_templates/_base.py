@@ -69,6 +69,7 @@ CALLING_DIRECTIONS: frozenset[CallDirection] = frozenset(
 #: imported from ``services/documents/tools`` so reading a template never
 #: imports the document engine.
 DOCUMENTS_FEATURE = "procurement_docs"
+IMAGES_FEATURE = "image_generation"
 
 
 class TemplateNode(BaseModel):
@@ -223,6 +224,9 @@ BOT_FUNCTIONS: frozenset[str] = frozenset(
         # comparing them and placing the order is buying, not paperwork
         # after the fact.
         "Sourcing and purchasing",
+        # The poster designer and the ad creative maker (services/images/):
+        # making the images a business posts and advertises with.
+        "Make posters and ads",
     }
 )
 
@@ -288,6 +292,12 @@ class AgentTemplate(BaseModel):
     #: tool would ask every question and then have nowhere to put the
     #: answers.
     needs_documents: bool = False
+    #: Image generation (``services/images``): the template makes posters or
+    #: ad creatives. The hire marks the bot (``equip.configurations``) and
+    #: the engine offers it ``make_images`` on its text and channel runs
+    #: while ``image_generation`` is on; while it is off the template is off
+    #: the gallery and its pack off the shelf.
+    needs_images: bool = False
 
     model_config = ConfigDict(extra="forbid")
 
@@ -296,7 +306,11 @@ class AgentTemplate(BaseModel):
         """The switched-off feature this template's tools come from, if any
         (``services/features.FLAGS``). A pack wrapping it must wait on the
         same one."""
-        return DOCUMENTS_FEATURE if self.needs_documents else None
+        if self.needs_documents:
+            return DOCUMENTS_FEATURE
+        if self.needs_images:
+            return IMAGES_FEATURE
+        return None
 
     @property
     def available(self) -> bool:

@@ -43,6 +43,7 @@ from api.services.billing import model_usage
 from api.services.browser import tool as browser_tool
 from api.services.care import tools as care_tools
 from api.services.documents import tools as procurement
+from api.services.images import tools as image_tools
 from api.services.knowledge_graph import personal as personal_memory
 from api.services.knowledge_graph import quiet, recall, teach
 from api.services.organization_preferences import get_organization_preferences
@@ -307,6 +308,7 @@ def system_prompt(organization_id: int | None = None) -> str:
         + (browser_tool.RULE if browser_tool.enabled(organization_id) else "")
         + care_tools.rules(organization_id)
         + people_tools.rules(organization_id)
+        + image_tools.rules(organization_id)
         + _reach().rules(organization_id)
         # The person's own choices for this turn (settings stream); "" when
         # none were set or the switches are off.
@@ -360,6 +362,12 @@ def thread_filter(organization_id: int | None = None) -> dict[str, Any]:
             # written while ``decibyl_browser`` is on; listed always, since a
             # kind missing here is a panel nobody ever sees.
             AgentEventKind.BROWSER_SESSION.value,
+            # Image generation: the provider card and the grid of options.
+            # Listed always, like the browser panel: only written while
+            # ``image_generation`` is on, and a kind missing here is a card
+            # nobody ever sees.
+            AgentEventKind.IMAGE_PROVIDER_OFFERED.value,
+            AgentEventKind.IMAGES_MADE.value,
             # Stream `reach`: the connect chip and the comparison table.
             *(
                 (
@@ -1037,8 +1045,19 @@ async def _history(
             # The card, as the model sees it: what was proposed and where it
             # stands, so it does not propose the same thing twice.
             body = f"[Proposed: {row.summary} -- {payload.get('state', 'proposed')}]"
+        elif getattr(row, "kind", None) == AgentEventKind.IMAGES_MADE.value:
+            # The grid, with the ids an edit needs ("make option 2 bigger").
+            made = ", ".join(
+                f"option {int(i.get('option_index') or 0) + 1} {i.get('image_uuid')}"
+                for i in payload.get("images") or []
+                if isinstance(i, dict)
+            )
+            body = f"[Images made: {row.summary}: {made}]"
         else:
             body = payload.get("body") or row.summary
+            # Images the person attached, by id, so a later turn can still
+            # pass the logo they sent on.
+            body = f"{body}{image_tools.attachment_note(payload.get('attachments'))}"
         if body:
             newest_first.append((role, str(body)))
     kept, _ = chat_memory.window((body for _, body in newest_first), plan.tokens)
@@ -1542,6 +1561,16 @@ async def attached_block(
     for attachment in attachments[:10]:
         uuid = str(attachment.get("document_uuid") or "")
         name = str(attachment.get("filename") or "file")
+        image_uuid = str(attachment.get("image_uuid") or "")
+        if image_uuid:
+            # An image (services/images/): nothing to read, an id to pass on.
+            parts.append(
+                f"### {name}\n(an image the person attached, image id "
+                f"{image_uuid}. To put it on a poster as their logo or "
+                f"product photo, pass it in reference_image_ids to "
+                f"{image_tools.TOOL_NAME}.)"
+            )
+            continue
         if not uuid:
             continue
         text = ""
@@ -1576,11 +1605,16 @@ async def attached_block(
     # model is reading when it decides what to do with the file, and a
     # capability named three thousand tokens earlier is a capability that
     # gets forgotten.
+    only_images = all(a.get("image_uuid") for a in attachments[:10])
     return (
         "## Attached to this line\n"
         + "\n\n".join(parts)
-        + "\n\n(If this says what an agent should do, build it: "
-        f"{bot_from_brief.TOOL_NAME} with the text above as the spec.)"
+        + (
+            ""
+            if only_images
+            else "\n\n(If this says what an agent should do, build it: "
+            f"{bot_from_brief.TOOL_NAME} with the text above as the spec.)"
+        )
     )
 
 
@@ -1665,6 +1699,7 @@ def office_tools(organization_id: int | None = None) -> list[dict[str, Any]]:
         *_outreach().schemas(organization_id),
         *((_booking().tool_schema(),) if _booking().enabled(organization_id) else ()),
         *people_tools.schemas(organization_id),
+        *image_tools.schemas(organization_id),
         *(
             (_call_for_me().tool_schema(),)
             if _call_for_me().enabled(organization_id)
@@ -1769,6 +1804,10 @@ def _was_a_read(call: Any, result: Any) -> bool:
     if name in people_tools.NAMES:
         # A lookup is answered in the turn; the model may still draft or call.
         return True
+    if name in image_tools.NAMES:
+        # A brief turned back keeps the tools (ask, then try again); the
+        # grid or the provider card ends the round like any other card.
+        return image_tools.keeps_tools(result)
     if name in care_tools.NAMES and isinstance(result, dict):
         # A scam check or a phone-help step is answered in the turn; a
         # reminder card ends the round like any other card.
@@ -2039,6 +2078,19 @@ async def _tool(
             call.name,
             organization_id=organization_id,
             arguments=arguments,
+            user_id=author_id,
+        )
+    if call.name in image_tools.NAMES and image_tools.schemas(organization_id):
+        # The person's own words in this conversation are the only ground
+        # for a fact on the image (services/images/guard.py).
+        history = await _history(organization_id, thread_id)
+        said = image_tools.said_from(
+            [t["content"] for t in history if t["role"] == "user"] + [request]
+        )
+        return await image_tools.run(
+            organization_id,
+            arguments=arguments,
+            said=said,
             user_id=author_id,
         )
     if call.name in people_tools.NAMES:

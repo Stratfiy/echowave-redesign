@@ -6899,6 +6899,9 @@ from api.db.identity_models import (  # noqa: E402,F401
     NumberReadinessModel,
     PushSubscriptionModel,
 )
+from api.db.image_models import (  # noqa: E402,F401
+    GeneratedImageModel,
+)
 from api.db.learning_models import (  # noqa: E402,F401
     LearnerProfileModel,
     LearningAttemptModel,
