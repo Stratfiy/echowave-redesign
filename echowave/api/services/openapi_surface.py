@@ -54,6 +54,9 @@ TAG_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "studio",
             # Decibyl's private browser: live view, Take over, saved logins.
             "browser",
+            # Posters and ad creatives: the provider card, the images and
+            # the logo a person attaches (services/images/).
+            "images",
             "agent-templates",
             # A workspace's own saved roles, and sharing them (MP-2, MP-3).
             "workspace-roles",

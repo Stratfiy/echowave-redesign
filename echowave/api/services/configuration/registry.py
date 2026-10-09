@@ -295,6 +295,12 @@ DATA_PROVIDERS: dict[str, tuple[str, ...]] = {
     "treg": ("data",),
 }
 
+#: Vendors whose key makes images (services/images/), held in the vault
+#: under the ``image`` component. Not folded into ``known_providers``: the
+#: key screen there is about running agents, and the image key is added on
+#: the image provider card where it is used.
+IMAGE_PROVIDERS: tuple[str, ...] = ("google", "openai", "aws_bedrock")
+
 
 #: A realtime (speech-to-speech) provider authenticates with the same vendor
 #: account as its ordinary sibling, not a key of its own — OpenAI Realtime

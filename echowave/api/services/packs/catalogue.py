@@ -495,6 +495,7 @@ def _promoted() -> tuple[AgentPack, ...]:
         back_office,
         call_coach,
         chat_desks,
+        creative,
         life_stages,
         procurement,
     )
@@ -505,6 +506,7 @@ def _promoted() -> tuple[AgentPack, ...]:
         + call_coach.packs(DECIBYL)
         + procurement.packs(DECIBYL)
         + life_stages.packs(DECIBYL)
+        + creative.packs(DECIBYL)
     )
 
 

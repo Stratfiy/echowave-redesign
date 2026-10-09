@@ -137,7 +137,9 @@ export type Feature =
     | "people"
     // Voice isolation: background voices on calls (VOICE.md).
     | "caller_voice_lock"
-    | "deepfilternet_filter";
+    | "deepfilternet_filter"
+    // Posters and ad creatives: images on a provider chosen in the thread.
+    | "image_generation";
 
 export function useFeature(name: Feature): boolean {
     const { config } = useAppConfig();

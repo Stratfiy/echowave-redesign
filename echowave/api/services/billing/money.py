@@ -86,6 +86,7 @@ _QUANTITY_PER_RATE_UNIT: dict[RateUnit, int] = {
     RateUnit.THOUSAND_CHARS: 1000,
     RateUnit.THOUSAND_TOKENS: 1000,
     RateUnit.EACH: 1,
+    RateUnit.IMAGE: 1,
 }
 
 

@@ -1252,6 +1252,66 @@ DATA_RATES = (
     ),
 )
 
+#: Generated images (services/images/), per image at about 1024 pixels a side
+#: (the size the posters are asked for). What the vendor charges whoever's
+#: key made the image; the customer is charged nothing while it is tried
+#: (markup.COMPONENT_MARKUP_BPS). OpenAI's 2.5 models publish a token rate
+#: rather than a per-image table, so their row is the GPT Image 2 medium
+#: figure until real usage says otherwise -- each image also stores the
+#: tokens the vendor reported.
+_IMAGE_MODEL_RATES = (
+    DefaultRate(
+        "google",
+        "gemini-nano-banana-2.1",
+        CostComponent.IMAGE,
+        RateUnit.IMAGE,
+        0.0336,
+        "Per 1K (1024x1024) image, standard tier, as published.",
+        source_url="https://ai.google.dev/gemini-api/docs/pricing",
+        checked_on="2026-10-08",
+    ),
+    DefaultRate(
+        "openai",
+        "gpt-image-2.5-flare",
+        CostComponent.IMAGE,
+        RateUnit.IMAGE,
+        0.053,
+        f"{PROVISIONAL_MARKER} — GPT Image 2 medium 1024x1024; the 2.5 models "
+        "publish $30/1M image output tokens and no per-image table",
+        provisional=True,
+        source_url="https://developers.openai.com/api/docs/guides/image-generation",
+        checked_on="2026-10-08",
+    ),
+    DefaultRate(
+        "aws_bedrock",
+        "amazon.nova-canvas-v1:0",
+        CostComponent.IMAGE,
+        RateUnit.IMAGE,
+        0.04,
+        f"{PROVISIONAL_MARKER} — standard quality up to 1024x1024; read off "
+        "secondary listings, the pricing page did not render it",
+        provisional=True,
+        checked_on="2026-10-08",
+    ),
+)
+
+#: Each vendor's model row, and the same figure as its provider-wide
+#: fallback, so an image made on an overridden model id is still costed.
+IMAGE_RATES = _IMAGE_MODEL_RATES + tuple(
+    DefaultRate(
+        rate.provider,
+        "",
+        rate.component,
+        rate.unit,
+        rate.usd_per_unit,
+        f"{rate.basis} (provider-wide, at the {rate.model} figure)",
+        provisional=rate.provisional,
+        source_url=rate.source_url,
+        checked_on=rate.checked_on,
+    )
+    for rate in _IMAGE_MODEL_RATES
+)
+
 DEFAULT_RATES: tuple[DefaultRate, ...] = (
     *LLM_RATES,
     *REALTIME_RATES,
@@ -1260,6 +1320,7 @@ DEFAULT_RATES: tuple[DefaultRate, ...] = (
     *TELEPHONY_RATES,
     *EMBEDDING_RATES,
     *DATA_RATES,
+    *IMAGE_RATES,
 )
 
 

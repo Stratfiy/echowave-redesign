@@ -85,6 +85,8 @@ function needsInput(row: Row): boolean {
     if (row.kind === "needs_secret") return !payload(row).provided;
     if (row.kind === "needs_decision") return !payload(row).decided;
     if (row.kind === "connector_offered") return true;
+    // The image provider card: a provider to choose and a key to paste.
+    if (row.kind === "image_provider_offered") return true;
     return false;
 }
 

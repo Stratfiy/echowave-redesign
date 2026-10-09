@@ -175,6 +175,11 @@ TIMELINE_PRICES: dict[str, str] = {
     # the app's, paid there.
     AgentEventKind.REACH_CONNECT_OFFERED.value: INCLUDED,
     AgentEventKind.REACH_COMPARISON.value: INCLUDED,
+    # Image generation, free while it is tried: the provider card is an
+    # offer, and the images' vendor cost is recorded beside each image at a
+    # customer rate of zero (services/images/metering.py). Not a price.
+    AgentEventKind.IMAGE_PROVIDER_OFFERED.value: INCLUDED,
+    AgentEventKind.IMAGES_MADE.value: INCLUDED,
     AgentEventKind.MEMORY_LEARNED.value: INCLUDED,
     AgentEventKind.ROUTINE_FIRED.value: INCLUDED,
     AgentEventKind.ROUTINE_SKIPPED.value: INCLUDED,

@@ -882,6 +882,12 @@ async def _list_numbers(organization_id: int) -> dict[str, Any]:
     }
 
 
+def _equip_configurations(template: Any) -> dict[str, Any]:
+    from api.services.agent_templates import equip
+
+    return equip.configurations(None, template=template)
+
+
 async def _create_agent(
     *,
     organization_id: int,
@@ -940,7 +946,12 @@ async def _create_agent(
             PROVENANCE_TEMPLATE_KEY: template_id,
             **variables,
         },
-        workflow_configurations=None,
+        # An image template's bot is marked the way the gallery's hire marks
+        # it (equip.configurations), so the engine offers it make_images
+        # whichever door it came in by. Others are left as they were.
+        workflow_configurations=(
+            _equip_configurations(template) if template.needs_images else None
+        ),
         organization_id=organization_id,
     )
 

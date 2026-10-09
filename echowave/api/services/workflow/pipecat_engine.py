@@ -236,6 +236,9 @@ class PipecatEngine:
         #: knowledge, the channel's files, the bot's own. Read once per call,
         #: for the same reasons as the memory block. None means not looked.
         self._scoped_document_uuids: Optional[list[str]] = None
+        #: Whether this bot makes images (services/images/tools.py): hired
+        #: from an image template and the feature on. None means not looked.
+        self._makes_images: Optional[bool] = None
 
         # Open MCP tool sessions for this call, keyed by tool_uuid
         self._mcp_sessions: Dict[str, McpToolSession] = {}
@@ -974,6 +977,7 @@ class PipecatEngine:
             await self._register_knowledge_base_function(run_documents)
 
         can_run_scripts = await self._can_run_scripts(node)
+        can_make_images = await self._can_make_images()
 
         # Compose prompt and functions via the context composer module
         system_prompt = compose_system_prompt_for_node(
@@ -998,6 +1002,7 @@ class PipecatEngine:
             scoped_document_uuids=scoped_document_uuids,
             can_edit_self=self._can_edit_self,
             can_run_scripts=can_run_scripts,
+            can_make_images=can_make_images,
         )
         await self._update_llm_context(system_prompt, functions)
 
@@ -1074,6 +1079,15 @@ class PipecatEngine:
                     self.llm.register_function(
                         name, self._procurement_handler(name), timeout_secs=120.0
                     )
+            if await self._can_make_images():
+                from api.services.images import tools as image_tools
+
+                # A few options from an image model is most of a minute.
+                self.llm.register_function(
+                    image_tools.TOOL_NAME,
+                    self._make_images_handler,
+                    timeout_secs=300.0,
+                )
 
         # Register custom tool handlers for this node
         if node.tool_uuids and self._custom_tool_manager:
@@ -1927,6 +1941,55 @@ class PipecatEngine:
         except Exception as exc:  # noqa: BLE001 - the turn must finish
             logger.warning("Could not record a proposed action: {}", exc)
             result = {"status": "not_proposed", "reason": "could not be recorded"}
+        await function_call_params.result_callback(result)
+
+    async def _can_make_images(self) -> bool:
+        """Whether this run offers ``make_images``: a text or channel run of a
+        bot hired from an image template, while ``image_generation`` is on
+        for its workspace. Read once per run. Same gate for the schema and
+        the handler, so the model is never offered a tool nothing answers."""
+        if self._is_voice:
+            return False
+        if self._makes_images is None:
+            self._makes_images = False
+            try:
+                from api.services import images
+                from api.services.images import tools as image_tools
+
+                organization_id = await self._get_organization_id()
+                workflow_id = await self._get_workflow_id()
+                if organization_id and workflow_id and images.enabled(organization_id):
+                    workflow = await db_client.get_workflow(
+                        workflow_id, organization_id=organization_id
+                    )
+                    self._makes_images = bool(
+                        workflow is not None
+                        and image_tools.wants_images(workflow.workflow_configurations)
+                    )
+            except Exception as exc:  # noqa: BLE001 - the turn must go on
+                logger.warning("Could not tell whether this bot makes images: {}", exc)
+        return bool(self._makes_images)
+
+    async def _make_images_handler(self, function_call_params) -> None:
+        """``make_images`` for this run's bot (services/images/). The
+        workspace and the bot come from the run, never from the model; the
+        person's words for the never-invent check come from this run's own
+        context. Never raises, as with decisions."""
+        from api.services.images import tools as image_tools
+
+        arguments = getattr(function_call_params, "arguments", None) or {}
+        try:
+            messages = self.context.get_messages() if self.context else []
+            result = await image_tools.run(
+                await self._get_organization_id(),
+                arguments=arguments if isinstance(arguments, dict) else {},
+                said=image_tools.said_from(image_tools.user_words(messages)),
+                workflow_id=await self._get_workflow_id(),
+                workflow_run_id=self._workflow_run_id,
+            )
+        except Exception as exc:  # noqa: BLE001 - the turn must finish
+            logger.warning("make_images failed on a run: {}", exc)
+            result = {"status": "error", "error": "The images could not be made."}
         await function_call_params.result_callback(result)
 
     def _procurement_handler(self, name: str):
