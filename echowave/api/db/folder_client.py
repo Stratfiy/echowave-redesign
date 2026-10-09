@@ -1,4 +1,4 @@
-from sqlalchemy import func, or_, update
+from sqlalchemy import func, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.future import select
 
@@ -55,6 +55,7 @@ class FolderClient(BaseDBClient):
         *,
         summary: str,
         summarised_through: int,
+        expected_through: int | None,
     ) -> bool:
         """Advance a channel's rolling summary and its watermark together.
 
@@ -64,20 +65,26 @@ class FolderClient(BaseDBClient):
         without its summary would hide rows nothing covers. Neither is
         recoverable from the other.
 
-        Only ever forwards. A fold that raced another and lost must not move
-        the watermark back over rows the winner already covered.
+        A compare-and-swap on the watermark the fold *started from*
+        (``expected_through``; None is a channel never folded). "Only ever
+        forwards" is not enough: two folds that both read watermark W build
+        their summaries from W's summary, and if the second lands after the
+        first it must not replace the first's summary with one that never saw
+        it -- even when its own watermark is larger. The loser writes nothing
+        and the next fold starts from the winner.
 
         Returns True when the row was advanced.
         """
+        if expected_through is not None and summarised_through <= expected_through:
+            return False
         async with self.async_session() as session:
             result = await session.execute(
                 update(FolderModel)
                 .where(
                     FolderModel.id == folder_id,
                     FolderModel.organization_id == organization_id,
-                    or_(
-                        FolderModel.context_summarised_through.is_(None),
-                        FolderModel.context_summarised_through < summarised_through,
+                    FolderModel.context_summarised_through.is_not_distinct_from(
+                        expected_through
                     ),
                 )
                 .values(

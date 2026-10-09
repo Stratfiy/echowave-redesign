@@ -124,20 +124,19 @@ class TestFolding:
     async def test_nothing_folds_until_enough_has_accumulated(self):
         """A model call is not spent tidying a channel that ticks over one
         message a day."""
-        rows = [_row(i, f"m{i}") for i in range(cc.COMPACT_AFTER - 1, 0, -1)]
+        rows = [_row(i, f"m{i}") for i in range(1, cc.COMPACT_AFTER)]
         with patch("api.services.workflow.channel_context.db_client") as db:
             db.get_folder = AsyncMock(return_value=self._folder())
-            db.agent_events = AsyncMock(return_value=rows)
+            db.channel_events_to_compact = AsyncMock(return_value=rows)
             db.set_folder_context_summary = AsyncMock()
             assert await cc.compact(organization_id=1, folder_id=3, run_id=9) is False
         db.set_folder_context_summary.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_the_oldest_batch_folds_and_the_watermark_is_its_last_id(self):
-        """Newest-first in, oldest-first batch out, and the watermark lands on
+        """Oldest-first in, oldest-first batch out, and the watermark lands on
         the last row folded -- so the next read starts exactly one past it."""
-        total = cc.COMPACT_AFTER + 5
-        rows = [_row(i, f"m{i}") for i in range(total, 0, -1)]
+        rows = [_row(i, f"m{i}") for i in range(1, cc.COMPACT_AFTER + 1)]
         with (
             patch("api.services.workflow.channel_context.db_client") as db,
             patch(
@@ -146,7 +145,8 @@ class TestFolding:
             ) as fold,
         ):
             db.get_folder = AsyncMock(return_value=self._folder(summary="old"))
-            db.agent_events = AsyncMock(return_value=rows)
+            # Read once: the second read finds nothing left to fold.
+            db.channel_events_to_compact = AsyncMock(side_effect=[rows, []])
             db.get_all_workflows_for_listing = AsyncMock(return_value=[])
             db.set_folder_context_summary = AsyncMock(return_value=True)
             assert await cc.compact(organization_id=1, folder_id=3, run_id=9) is True
@@ -159,19 +159,27 @@ class TestFolding:
         assert len(kwargs["transcript"].splitlines()) == cc.COMPACT_BATCH
 
         written = db.set_folder_context_summary.await_args.kwargs
-        assert written["summary"] == "folded précis"
+        narrative, kept = cc.split_summary(written["summary"])
+        assert narrative == "folded précis"
+        # "m1" carries a figure, so each folded row is also kept word for word
+        # under the précis, with its id; nothing from the unfolded rows is.
+        assert kept[0] == "- [#1] A teammate: m1"
+        assert all(cc._note_id(line) <= cc.COMPACT_BATCH for line in kept)
         assert written["summarised_through"] == cc.COMPACT_BATCH
+        # Applied only over the watermark the fold started from.
+        assert written["expected_through"] is None
 
     @pytest.mark.asyncio
     async def test_a_batch_with_nothing_renderable_still_advances(self):
         """Or it blocks every later fold forever."""
-        rows = [_row(i) for i in range(cc.COMPACT_AFTER + 1, 0, -1)]  # no bodies
+        rows = [_row(i) for i in range(1, cc.COMPACT_AFTER + 1)]  # no bodies
         with (
             patch("api.services.workflow.channel_context.db_client") as db,
             patch("api.services.workflow.channel_context._fold", AsyncMock()) as fold,
         ):
             db.get_folder = AsyncMock(return_value=self._folder(summary="keep"))
-            db.agent_events = AsyncMock(return_value=rows)
+            # Read once: the second read finds nothing left to fold.
+            db.channel_events_to_compact = AsyncMock(side_effect=[rows, []])
             db.get_all_workflows_for_listing = AsyncMock(return_value=[])
             db.set_folder_context_summary = AsyncMock(return_value=True)
             assert await cc.compact(organization_id=1, folder_id=3, run_id=9) is True
@@ -184,7 +192,7 @@ class TestFolding:
     async def test_a_failed_fold_moves_nothing(self):
         """A fold that fails leaves the channel exactly as it was: rows stay
         above the watermark, still shown verbatim, still there to fold later."""
-        rows = [_row(i, f"m{i}") for i in range(cc.COMPACT_AFTER + 1, 0, -1)]
+        rows = [_row(i, f"m{i}") for i in range(1, cc.COMPACT_AFTER + 1)]
         with (
             patch("api.services.workflow.channel_context.db_client") as db,
             patch(
@@ -193,7 +201,8 @@ class TestFolding:
             ),
         ):
             db.get_folder = AsyncMock(return_value=self._folder())
-            db.agent_events = AsyncMock(return_value=rows)
+            # Read once: the second read finds nothing left to fold.
+            db.channel_events_to_compact = AsyncMock(side_effect=[rows, []])
             db.get_all_workflows_for_listing = AsyncMock(return_value=[])
             db.set_folder_context_summary = AsyncMock()
             assert await cc.compact(organization_id=1, folder_id=3, run_id=9) is False
@@ -201,7 +210,7 @@ class TestFolding:
 
     @pytest.mark.asyncio
     async def test_an_empty_summary_from_the_model_moves_nothing(self):
-        rows = [_row(i, f"m{i}") for i in range(cc.COMPACT_AFTER + 1, 0, -1)]
+        rows = [_row(i, f"m{i}") for i in range(1, cc.COMPACT_AFTER + 1)]
         with (
             patch("api.services.workflow.channel_context.db_client") as db,
             patch(
@@ -210,7 +219,8 @@ class TestFolding:
             ),
         ):
             db.get_folder = AsyncMock(return_value=self._folder())
-            db.agent_events = AsyncMock(return_value=rows)
+            # Read once: the second read finds nothing left to fold.
+            db.channel_events_to_compact = AsyncMock(side_effect=[rows, []])
             db.get_all_workflows_for_listing = AsyncMock(return_value=[])
             db.set_folder_context_summary = AsyncMock()
             assert await cc.compact(organization_id=1, folder_id=3, run_id=9) is False
