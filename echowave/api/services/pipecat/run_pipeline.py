@@ -25,6 +25,7 @@ from api.services.integrations import (
     IntegrationRuntimeContext,
     create_runtime_sessions,
 )
+from api.services.live_supervision.session import attach as attach_live_supervision
 from api.services.pipecat import caller_voice_lock, vad_sensitivity
 from api.services.pipecat.active_calls import (
     register_active_call as register_worker_active_call,
@@ -156,6 +157,15 @@ def _resolve_user_turn_stop_timeout(
     if uses_external_turns:
         return EXTERNAL_TURN_USER_STOP_TIMEOUT
     return DEFAULT_USER_TURN_STOP_TIMEOUT
+
+
+def _create_escalation_watcher(runtime):
+    """The escalation watcher for a call the policy covers, else None."""
+    if runtime is None:
+        return None
+    from api.services.pipecat.escalation_watcher import EscalationWatcher
+
+    return EscalationWatcher(runtime=runtime)
 
 
 def _create_voice_watch(user_config, workflow_run_id, tts=None):
@@ -1258,6 +1268,22 @@ async def _run_pipeline_impl(
         call_recorded=keep_recording,
     )
 
+    # Escalation v2 (services/escalation): who takes over a call, decided in
+    # code from the agent's policy. None unless escalation_v2 is on for this
+    # workspace and the call is on a phone -- then nothing below changes.
+    from api.services.escalation.runtime import EscalationRuntime
+
+    escalation_runtime = await EscalationRuntime.for_run(
+        engine=engine,
+        run_configs=run_configs,
+        organization_id=organization_id or getattr(workflow, "organization_id", None),
+        workflow=workflow,
+        workflow_run=workflow_run,
+        is_phone_call=getattr(workflow_run, "mode", None) in PHONE_RUN_MODES,
+        language=getattr(getattr(user_config, "tts", None), "language", None),
+    )
+    engine.set_escalation(escalation_runtime)
+
     # Create pipeline components
     audio_buffer, context = create_pipeline_components(audio_config)
 
@@ -1654,6 +1680,7 @@ async def _run_pipeline_impl(
             spoken_language_follower=spoken_language_follower,
             interruption_backoff=_create_interruption_backoff(run_configs),
             end_call_phrase_watcher=end_call_phrase_watcher,
+            escalation_watcher=_create_escalation_watcher(escalation_runtime),
             backchannel=backchannel,
             voice_watch=_create_voice_watch(user_config, workflow_run_id, tts),
             # The greeting can now play before the start node is set; this
@@ -1779,6 +1806,16 @@ async def _run_pipeline_impl(
             audio_buffer, workflow_run_id, in_memory_audio_buffer
         )
 
+    # Listen-in and whisper (services/live_supervision/). None, and nothing
+    # added to the call, unless the feature is on for this organisation.
+    live_supervision = await attach_live_supervision(
+        task,
+        workflow_run=workflow_run,
+        workflow=workflow,
+        logs_buffer=in_memory_logs_buffer,
+        context=context,
+    )
+
     try:
         # Run the pipeline
         await run_pipeline_worker(task)
@@ -1786,6 +1823,10 @@ async def _run_pipeline_impl(
     except asyncio.CancelledError:
         logger.warning("Received CancelledError in _run_pipeline")
     finally:
+        if live_supervision is not None:
+            # First, so the call leaves the live list even if a later
+            # cleanup step fails. Never raises.
+            await live_supervision.close()
         # Close MCP sessions here, not in engine.cleanup(). The anyio cancel
         # scopes opened by MCPClient.start() in engine.initialize() are
         # task-affine; this finally runs in the same task as initialize(),

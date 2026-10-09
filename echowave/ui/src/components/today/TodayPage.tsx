@@ -29,9 +29,11 @@ import {
     snoozeReminderApiV1TodayRemindersReminderIdSnoozePost,
 } from "@/client/sdk.gen";
 import { EmptyState } from "@/components/EmptyState";
+import { HandoffCard } from "@/components/escalation/HandoffCard";
 import { GoogleCalendarConnect } from "@/components/integrations/GoogleCalendarConnect";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { LearningToday } from "@/components/learning/LearningToday";
+import { LiveNowStrip } from "@/components/live/LiveNowStrip";
 import { Announcer, ErrorState, SourceCoverage, TaskStatus } from "@/components/shell";
 import { ActivityDetailView } from "@/components/today/ActivityDetailView";
 import { ApprovalDetail } from "@/components/today/ApprovalDetail";
@@ -184,6 +186,8 @@ export function TodayPage() {
     const pathname = usePathname();
     const params = useSearchParams();
     const [view, setView] = useState<TodayView | null>(null);
+    /** The handoff card opened in place on Today (escalation v2). */
+    const [openHandoff, setOpenHandoff] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [announcement, setAnnouncement] = useState<string | null>(null);
@@ -327,6 +331,10 @@ export function TodayPage() {
                     draws nothing unless learning is on and has something. */}
                 <LearningToday className="" />
 
+                {/* Calls in progress across the workspace; draws nothing
+                    unless live_supervision is on and a call is live. */}
+                <LiveNowStrip />
+
                 <Section id="approvals" title="Waiting for your approval" count={s.approvals.count} state={s.approvals.state} message={s.approvals.message} onRetry={() => void load()}>
                     {s.approvals.items && s.approvals.items.length > 0 ? (
                         <ul className="flex flex-col">
@@ -348,7 +356,7 @@ export function TodayPage() {
                     {s.due.items.length > 0 ? (
                         <ul className="flex flex-col gap-1">
                             {s.due.items.map((item) => (
-                                <li key={`${item.kind}-${item.id}`} className="flex flex-col gap-1 rounded-md px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+                                <li key={`${item.kind}-${item.id}`} className="flex flex-col gap-1 rounded-md px-3 py-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
                                     <div className="min-w-0">
                                         <p className="break-words text-sm font-medium">{item.title}</p>
                                         {item.when && <p className="text-xs text-muted-foreground">{item.when}</p>}
@@ -380,7 +388,22 @@ export function TodayPage() {
                                                 Call back
                                             </Button>
                                         )}
+                                        {item.kind === "handoff" && item.escalation_uuid && (
+                                            <Button
+                                                variant="outline"
+                                                className="motion-m1 min-h-11 md:min-h-9"
+                                                aria-expanded={openHandoff === item.escalation_uuid}
+                                                onClick={() => setOpenHandoff(openHandoff === item.escalation_uuid ? null : item.escalation_uuid!)}
+                                            >
+                                                {openHandoff === item.escalation_uuid ? "Hide" : "Open"}
+                                            </Button>
+                                        )}
                                     </div>
+                                    {item.kind === "handoff" && item.escalation_uuid && openHandoff === item.escalation_uuid && (
+                                        <div className="w-full sm:basis-full">
+                                            <HandoffCard escalationUuid={item.escalation_uuid} />
+                                        </div>
+                                    )}
                                 </li>
                             ))}
                         </ul>

@@ -181,6 +181,8 @@ FLAGS: dict[str, str] = {
     "call_for_me": "CALL_FOR_ME_ENABLED",
     "call_appointment": "CALL_APPOINTMENT_ENABLED",
     "call_when_done": "CALL_WHEN_DONE_ENABLED",
+    # Escalation rules, handoff card and the no-answer ladder on calls.
+    "escalation_v2": "ESCALATION_V2_ENABLED",
     # The huddle: talk to an agent as a teammate, in its thread
     # (services/huddle/).
     "huddle": "HUDDLE_ENABLED",
@@ -195,6 +197,8 @@ FLAGS: dict[str, str] = {
     # Voice isolation: background voices (VOICE.md).
     "caller_voice_lock": "CALLER_VOICE_LOCK_ENABLED",
     "deepfilternet_filter": "DEEPFILTERNET_FILTER_ENABLED",
+    # Listen in on a live call and whisper to the agent (services/live_supervision/).
+    "live_supervision": "LIVE_SUPERVISION_ENABLED",
     # Posters and ad creatives (services/images/).
     "image_generation": "IMAGE_GENERATION_ENABLED",
 }
@@ -321,7 +325,9 @@ DESCRIPTIONS: dict[str, str] = {
     "people": "People: a person's own contacts synced from Google and Outlook or imported, each with a brief and the last few interactions; private to them.",
     "caller_voice_lock": "Only the caller can interrupt a phone agent: speech that does not match the caller's voice, learnt in their first seconds, no longer stops the agent.",
     "deepfilternet_filter": "DeepFilterNet3 instead of RNNoise as the noise filter on calls with noise suppression on.",
+    "live_supervision": "Live calls: listen in on a customer call (transcript and audio) and whisper instructions the caller never hears.",
     "image_generation": "Posters and ad creatives: images from Chat and two agents, on Gemini, OpenAI or Bedrock, chosen on a card in the thread.",
+    "escalation_v2": "Escalation on calls decided in code from the agent's policy: a handoff card with Accept, Decline and Hand back to AI, spoken hold updates and a no-answer ladder.",
 }
 
 

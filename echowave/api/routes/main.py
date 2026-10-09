@@ -34,6 +34,7 @@ from api.routes.credentials import router as credentials_router
 from api.routes.desktop import router as desktop_router
 from api.routes.dialer_connections import router as dialer_connections_router
 from api.routes.do_not_call import router as do_not_call_router
+from api.routes.escalations import router as escalations_router
 from api.routes.evals import router as evals_router
 from api.routes.extraction_library import router as extraction_library_router
 from api.routes.feature_admin import router as feature_admin_router
@@ -48,6 +49,8 @@ from api.routes.knowledge_base import router as knowledge_base_router
 from api.routes.kyc import router as kyc_router
 from api.routes.kyc_admin import router as kyc_admin_router
 from api.routes.learning import router as learning_router
+from api.routes.live_calls import router as live_calls_router
+from api.routes.live_calls import ws_router as live_calls_ws_router
 from api.routes.managed_numbers import router as managed_numbers_router
 from api.routes.meetings import router as meetings_router
 from api.routes.missed_calls import router as missed_calls_router
@@ -191,6 +194,7 @@ router.include_router(controls_router)
 router.include_router(helpers_router)
 router.include_router(care_router)
 router.include_router(call_when_done_router)
+router.include_router(escalations_router)
 router.include_router(controls_admin_router)
 router.include_router(today_router)
 router.include_router(staff_console_router)
@@ -232,6 +236,8 @@ router.include_router(reach_router)
 router.include_router(people_router)
 router.include_router(images_router)
 router.include_router(learning_router)
+router.include_router(live_calls_router)
+router.include_router(live_calls_ws_router)
 router.include_router(meetings_router)
 router.include_router(support_router)
 router.include_router(support_admin_router)

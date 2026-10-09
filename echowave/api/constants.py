@@ -1013,6 +1013,13 @@ CALL_WHEN_DONE_DAILY_CAP = int(os.getenv("CALL_WHEN_DONE_DAILY_CAP", "5"))
 # The Call and Appointment runtime (handoff 6): booking policy, open slots,
 # booking within policy, caller verification and escalation on calls.
 CALL_APPOINTMENT_ENABLED = _flag("CALL_APPOINTMENT_ENABLED")
+# Escalation v2 (services/escalation): when a call goes to a person is decided
+# in code from the agent's own policy, not by the model; one idempotent record
+# per escalation; a handoff card on the agent's thread and Today with Accept,
+# Decline and Hand back to AI; spoken hold updates; and a no-answer ladder
+# (next person, back to the agent, callback, message, voicemail for the team).
+# Off by default; off means transfers behave exactly as before.
+ESCALATION_V2_ENABLED = _flag("ESCALATION_V2_ENABLED")
 # Outreach (services/outreach): find leads from a lead-data provider, then
 # one send card per lead on the person's own mailbox, with Confirm all.
 OUTREACH_ENABLED = _flag("OUTREACH_ENABLED")
@@ -1070,6 +1077,11 @@ CALLER_VOICE_LOCK_MODEL_PATH = os.getenv("CALLER_VOICE_LOCK_MODEL_PATH", "").str
 # WITH_VOICE_ISOLATION. Missing model: RNNoise, as before.
 DEEPFILTERNET_FILTER_ENABLED = _flag("DEEPFILTERNET_FILTER_ENABLED")
 DEEPFILTERNET_MODEL_PATH = os.getenv("DEEPFILTERNET_MODEL_PATH", "").strip()
+# live_supervision: a supervisor listens to a live customer call (transcript
+# and, optionally, audio) and whispers instructions to the agent, from inside
+# Decibyl (services/live_supervision/). Off by default; even when on, each
+# workspace has to switch "Allow live listening" on before anybody listens.
+LIVE_SUPERVISION_ENABLED = _flag("LIVE_SUPERVISION_ENABLED")
 EXPO_PUSH_URL = os.getenv(
     "EXPO_PUSH_URL", "https://exp.host/--/api/v2/push/send"
 ).strip()

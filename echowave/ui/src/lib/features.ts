@@ -133,6 +133,8 @@ export type Feature =
     | "call_appointment"
     // "Call me when it's done": a phone call when a task finishes.
     | "call_when_done"
+    // Escalation rules, the handoff card and the no-answer ladder on calls.
+    | "escalation_v2"
     // The huddle: talk to an agent as a teammate, in its thread.
     | "huddle"
     // Operational alerts and the daily cost summary, for the operators.
@@ -142,6 +144,8 @@ export type Feature =
     // Voice isolation: background voices on calls (VOICE.md).
     | "caller_voice_lock"
     | "deepfilternet_filter"
+    // Listen in on a live call and whisper to its agent.
+    | "live_supervision"
     // Posters and ad creatives: images on a provider chosen in the thread.
     | "image_generation";
 
