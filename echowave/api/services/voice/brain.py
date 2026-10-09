@@ -96,6 +96,10 @@ class TurnLedger:
     current: Turn | None = None
     next_index: int = 0
     last_user_stopped_at: float | None = None
+    #: Where a finished turn is written. None is Decibyl's thread
+    #: (``record_heard``); a huddle writes its own transcript instead
+    #: (services/huddle/voice.py).
+    on_heard: Callable[["TurnLedger", "Turn"], Awaitable[None]] | None = None
     #: Background writes (thread rows, latency), awaited at shutdown.
     pending: set[asyncio.Task] = field(default_factory=set)
 
@@ -249,7 +253,7 @@ async def close_turn(ledger: TurnLedger, turn: Turn, *, interrupted: bool) -> No
             },
         }
     )
-    ledger.later(record_heard(ledger, turn))
+    ledger.later((ledger.on_heard or record_heard)(ledger, turn))
     ledger.later(
         latency.record_server(
             session_id=ledger.session_id,
