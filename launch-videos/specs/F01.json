@@ -1,0 +1,82 @@
+{
+  "id": "F01",
+  "title": "Approvals: always asks before it acts",
+  "aspect": "16:9",
+  "music": "story",
+  "poster": 6.4,
+  "share": "Decibyl shows you exactly what it's about to do, in one sentence, and waits. Suresh checks the supplier order, taps \"Do it\", and it goes out once. Join the free early access list at app.decibyl.ai",
+  "scenes": [
+    {
+      "type": "title",
+      "dur": 3.0,
+      "text": "Always asks|before it acts.",
+      "sub": "Every send, call, booking or order waits for your OK."
+    },
+    {
+      "type": "chat",
+      "dur": 6.9,
+      "caption": "One sentence.|Exactly what will happen.",
+      "time": "9:40",
+      "agent": "Shop orders",
+      "color": "yellow",
+      "url": "app.decibyl.ai/chat/orders",
+      "recents": [
+        [
+          "yellow",
+          "Shop orders"
+        ],
+        [
+          "green",
+          "Daily accounts"
+        ],
+        [
+          "pink",
+          "Customer messages"
+        ]
+      ],
+      "user": "Order tomorrow's milk from Sharma Dairy, same as last Thursday but 4 more crates of curd.",
+      "reply": "Last Thursday was 20 crates of toned milk and 6 of curd. With 4 more curd, here's the order for Sharma Dairy, delivery by 7 am:",
+      "approval": {
+        "wants": "Send this order to Sharma Dairy on WhatsApp",
+        "detail": "20 crates toned milk · 10 crates curd · deliver by 7:00 am, Friday",
+        "hold": 1.9
+      },
+      "done": [
+        "Sent once · 9:41 am",
+        "Sharma Dairy replied: \"Confirmed, 7 am.\""
+      ]
+    },
+    {
+      "type": "phones",
+      "dur": 4.3,
+      "caption": "Change anything,|and it asks again.",
+      "phones": [
+        {
+          "screen": "messages",
+          "time": "9:42",
+          "contact": "Sharma Dairy",
+          "color": "green",
+          "messages": [
+            {
+              "dir": "out",
+              "text": "Namaste! Order for Suresh General Store: 20 crates toned milk, 10 crates curd. Delivery by 7 am Friday, please.",
+              "time": "9:41 am",
+              "at": 0.5
+            },
+            {
+              "dir": "in",
+              "text": "Confirmed, 7 am. 👍",
+              "time": "9:42 am",
+              "at": 1.6
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "outro",
+      "dur": 3.2,
+      "line": "Talk to Decibyl. Get everyday things done."
+    }
+  ]
+}
