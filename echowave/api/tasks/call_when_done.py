@@ -17,10 +17,11 @@ async def call_when_done_tick(_ctx) -> None:
 
 
 async def call_when_done_sweep(_ctx) -> None:
-    """Calls with no outcome after the answer window were not answered; the
-    person is told in the app."""
+    """Calls with no outcome after the answer window are reconciled against
+    their runs: settled on evidence, unknown (and said so), or -- never
+    dialled -- queued again."""
     from api.services.call_when_done import calls
 
     settled = await calls.sweep()
     if settled:
-        logger.info("call_when_done: {} calls marked not answered", settled)
+        logger.info("call_when_done: {} calls reconciled", settled)

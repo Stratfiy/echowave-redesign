@@ -385,6 +385,7 @@ class Dose(BaseModel):
     id: int
     due_at: str
     #: calling | reminded | taken | not_taken | not_answered | unclear | failed
+    #: | cancelled | unknown (may have rung; not confirmed either way)
     state: str
     reason: str | None = None
     alerted: bool

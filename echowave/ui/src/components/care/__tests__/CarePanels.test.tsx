@@ -351,3 +351,25 @@ describe("People I look after", () => {
         await waitFor(() => expect(sdk.familyApiV1CareFamilyGet).toHaveBeenCalledTimes(2));
     });
 });
+
+describe("dose words", () => {
+    it("says every state a dose can be in, the unconfirmed call included", async () => {
+        const { DOSE_WORDS } = await import("../copy");
+        // services/care/calls.py: every state care_dose_calls.state takes.
+        for (const state of [
+            "calling",
+            "reminded",
+            "taken",
+            "not_taken",
+            "not_answered",
+            "unclear",
+            "failed",
+            "cancelled",
+            "unknown",
+        ]) {
+            expect(DOSE_WORDS[state], state).toBeTruthy();
+        }
+        // An unconfirmed call is not "Not answered".
+        expect(DOSE_WORDS.unknown).toBe("Called, not confirmed yet");
+    });
+});

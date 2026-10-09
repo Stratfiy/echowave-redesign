@@ -17,10 +17,11 @@ async def care_medicine_tick(_ctx) -> None:
 
 
 async def care_call_sweep(_ctx) -> None:
-    """Reminder calls with no outcome after the answer window were not
-    answered; the family is told (services/care/calls.py)."""
+    """Reminder calls with no outcome after the answer window are reconciled
+    against their runs: settled on evidence, or unknown -- never "not
+    answered" for want of a report (services/care/calls.py)."""
     from api.services.care import calls
 
     settled = await calls.sweep()
     if settled:
-        logger.info("Care: {} reminder calls marked not answered", settled)
+        logger.info("Care: {} reminder calls reconciled", settled)
