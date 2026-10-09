@@ -47,6 +47,7 @@ from typing import Any
 import httpx
 from loguru import logger
 
+from api.services.agent_builder import request_budget
 from api.services.aws_gateway import claude as aws_claude
 from api.services.billing import model_usage
 
@@ -1346,9 +1347,17 @@ async def complete(
 ) -> ModelReply:
     """One turn; see :func:`_complete`. When the platform's Claude still
     cannot answer after every vendor fallback, the fallback brain may
-    (``services/aws_gateway/fallback.py``), and its reply says so."""
+    (``services/aws_gateway/fallback.py``), and its reply says so.
+
+    The whole request is held under the model's ceiling first
+    (``request_budget``, behind ``context_v2``), and the estimate is checked
+    against the vendor's own count afterwards."""
+    prepared = request_budget.prepare(
+        provider=provider, system=system, conversation=conversation, tools=tools
+    )
+    conversation = prepared.conversation
     try:
-        return await _complete(
+        reply = await _complete(
             provider=provider,
             model=model,
             api_key=api_key,
@@ -1365,6 +1374,8 @@ async def complete(
             conversation=conversation,
             tools=tools,
         )
+    request_budget.reconcile(prepared, reply, provider)
+    return reply
 
 
 async def _complete(
@@ -1444,9 +1455,14 @@ async def stream(
     tools: list[dict[str, Any]] | None = None,
 ) -> ModelReply:
     """One turn, word by word; see :func:`_stream`. The fallback brain may
-    answer when the platform's Claude cannot, exactly as in :func:`complete`."""
+    answer when the platform's Claude cannot, exactly as in :func:`complete`,
+    and the request is held under the model's ceiling the same way."""
+    prepared = request_budget.prepare(
+        provider=provider, system=system, conversation=conversation, tools=tools
+    )
+    conversation = prepared.conversation
     try:
-        return await _stream(
+        reply = await _stream(
             provider=provider,
             model=model,
             api_key=api_key,
@@ -1455,6 +1471,8 @@ async def stream(
             on_text=on_text,
             tools=tools,
         )
+        request_budget.reconcile(prepared, reply, provider)
+        return reply
     except BuilderClientError as exc:
         return await _fallback_brain(
             exc,
