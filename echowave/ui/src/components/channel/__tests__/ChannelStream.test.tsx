@@ -116,6 +116,36 @@ describe('a call is a row with a door', () => {
     });
 });
 
+describe('a huddle is a compact transcript', () => {
+    it('shows who said what under the agent, not as a bare summary', async () => {
+        timeline.mockResolvedValue({
+            data: {
+                events: [
+                    event({
+                        id: 11,
+                        kind: 'huddle',
+                        actor: 'human',
+                        summary: 'Huddle with Front desk',
+                        folder_id: null,
+                        payload: {
+                            turns: [
+                                { who: 'you', text: 'How many calls today?' },
+                                { who: 'agent', text: 'Four.' },
+                            ],
+                        },
+                    }),
+                ],
+                next_before_at: null,
+                next_before_id: null,
+            },
+        });
+        render(<ChannelStream workflowId={3} botNames={{ 3: 'Front desk' }} />);
+        const row = await screen.findByTestId('huddle-event');
+        expect(row.textContent).toContain('You: How many calls today?');
+        expect(row.textContent).toContain('Front desk: Four.');
+    });
+});
+
 describe('what is new since last time', () => {
     it('draws the NEW line above the first row newer than the previous visit', async () => {
         localStorage.setItem('decibyl.bot-seen', JSON.stringify({ '3': '2026-09-13T05:30:00Z' }));
