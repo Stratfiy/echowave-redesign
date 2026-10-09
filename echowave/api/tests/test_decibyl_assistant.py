@@ -268,6 +268,32 @@ class TestAnswering:
         assert "This is us, not you" in body
         assert record.await_args.kwargs["payload"]["body"] == body
 
+    async def test_only_confirmed_facts_are_read_as_confirmed(self):
+        """The block is headed "What the business has confirmed". It read
+        every fact row -- learned ones waiting for a yes, and ones a person
+        rejected -- and stated them as settled. Found on staging: a rejected
+        fact in that block. ``kind="learned"`` in the budget test was never
+        a kind, so the filter it pinned never ran."""
+        memory = AsyncMock(return_value=[])
+        with (
+            patch("api.routes.team._members", new=AsyncMock(return_value=[])),
+            patch(
+                "api.services.workflow.decibyl.db_client.organisation_memory",
+                new=memory,
+            ),
+            patch(
+                "api.services.workflow.decibyl.db_client.agent_events",
+                new=AsyncMock(return_value=[]),
+            ),
+            patch(
+                "api.services.workflow.decibyl._knowledge",
+                new=AsyncMock(return_value={"chunks": []}),
+            ),
+        ):
+            await decibyl.build_context(7, "when do we open?")
+        assert memory.await_args.kwargs["status"] == "confirmed"
+        assert memory.await_args.kwargs["kind"] == "fact"
+
     async def test_each_reading_fails_alone(self):
         with (
             patch(

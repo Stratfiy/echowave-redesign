@@ -63,6 +63,7 @@ from api.services.workflow import (
     files_search,
     filing,
     office,
+    organisation_learning,
     prospects,
     records,
     reply_draft,
@@ -811,6 +812,12 @@ async def build_context(organization_id: int, question: str) -> str:
     try:
         memory_rows = await db_client.organisation_memory(
             organization_id=organization_id,
+            # Confirmed facts only, as on every agent's prompt
+            # (recall_for_bot): unfiltered, this block -- headed "what the
+            # business has confirmed" -- carried facts still waiting for a
+            # yes and facts a person had rejected, stated as settled.
+            kind=organisation_learning.KIND_FACT,
+            status=organisation_learning.STATUS_CONFIRMED,
             # The workspace's memory, plus the asker's own (MEM-1).
             user_id=personal_memory.viewer(),
         )
