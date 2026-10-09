@@ -60,25 +60,20 @@ class TestARoutineRunIsProcessedLikeAnyOtherRun:
 class TestTheEvidenceNumberCannotInflate:
     """`times_seen` is the sentence a suggestion shows a customer — "seven
     callers asked this and no agent could answer". It increments through an
-    ON CONFLICT DO UPDATE with no per-run guard, and arq retries, so the same
-    run could count twice. A number the product states and that is not true is
-    worse than making no suggestion at all.
+    ON CONFLICT DO UPDATE, and arq retries, so the same run could count twice.
+    A number the product states and that is not true is worse than making no
+    suggestion at all. The claim and the writes are one transaction
+    (`learn_from_run_once`); the database half is proved against Postgres in
+    test_learning_is_atomic.py.
     """
 
     @pytest.mark.asyncio
     async def test_a_run_that_already_taught_us_teaches_us_nothing_again(self):
         from api.services.workflow import organisation_learning
 
-        remember = AsyncMock()
-        with (
-            patch(
-                "api.services.workflow.organisation_learning.db_client.claim_run_for_learning",
-                AsyncMock(return_value=False),
-            ),
-            patch(
-                "api.services.workflow.organisation_learning.db_client.remember_organisation_observations",
-                remember,
-            ),
+        with patch(
+            "api.services.workflow.organisation_learning.db_client.learn_from_run_once",
+            AsyncMock(return_value=None),
         ):
             written = await organisation_learning.learn_from_run(
                 organization_id=42,
@@ -88,49 +83,36 @@ class TestTheEvidenceNumberCannotInflate:
             )
 
         assert written == 0
-        remember.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_the_first_caller_to_claim_a_run_does_the_learning(self):
         from api.services.workflow import organisation_learning
 
-        remember = AsyncMock()
-        with (
-            patch(
-                "api.services.workflow.organisation_learning.db_client.claim_run_for_learning",
-                AsyncMock(return_value=True),
-            ),
-            patch(
-                "api.services.workflow.organisation_learning.db_client.remember_organisation_observations",
-                remember,
-            ),
+        learn = AsyncMock(return_value=1)
+        with patch(
+            "api.services.workflow.organisation_learning.db_client.learn_from_run_once",
+            learn,
         ):
-            await organisation_learning.learn_from_run(
+            written = await organisation_learning.learn_from_run(
                 organization_id=42,
                 workflow_run_id=336,
                 intent="not_understood",
                 escalated=True,
             )
 
-        remember.assert_awaited_once()
+        learn.assert_awaited_once()
+        assert learn.await_args.kwargs["run_id"] == 336
+        assert written == 1
 
     @pytest.mark.asyncio
-    async def test_a_run_that_cannot_be_claimed_records_nothing(self):
-        """An unclaimable run is one we cannot prove is unlearned. Recording
-        nothing is the safe direction: a missing gap comes back the next time
-        somebody asks, an inflated count never corrects itself."""
+    async def test_a_failure_records_nothing_and_does_not_raise(self):
+        """Nothing commits on a failure -- the claim included -- so the
+        retry can still learn from the run."""
         from api.services.workflow import organisation_learning
 
-        remember = AsyncMock()
-        with (
-            patch(
-                "api.services.workflow.organisation_learning.db_client.claim_run_for_learning",
-                AsyncMock(side_effect=RuntimeError("database is away")),
-            ),
-            patch(
-                "api.services.workflow.organisation_learning.db_client.remember_organisation_observations",
-                remember,
-            ),
+        with patch(
+            "api.services.workflow.organisation_learning.db_client.learn_from_run_once",
+            AsyncMock(side_effect=RuntimeError("database is away")),
         ):
             written = await organisation_learning.learn_from_run(
                 organization_id=42,
@@ -140,7 +122,6 @@ class TestTheEvidenceNumberCannotInflate:
             )
 
         assert written == 0
-        remember.assert_not_awaited()
 
 
 class TestABotAnsweringInAChannel:
