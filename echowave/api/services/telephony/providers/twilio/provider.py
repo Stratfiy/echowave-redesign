@@ -728,3 +728,25 @@ class TwilioProvider(TelephonyProvider):
             True - Twilio provider supports call transfers
         """
         return True
+
+    def detects_machines_on_transfer(self) -> bool:
+        # transfer_call always asks for MachineDetection, and the transfer
+        # result refuses to bridge on a machine's AnsweredBy.
+        return True
+
+    async def hangup_transfer_leg(self, call_id: str) -> bool:
+        """End a destination leg that will not be bridged (escalation v2):
+        a ringing one is cancelled, an answered one completed."""
+        if not call_id:
+            return False
+        endpoint = f"{self.base_url}/Calls/{call_id}.json"
+        try:
+            async with aiohttp.ClientSession() as session:
+                auth = aiohttp.BasicAuth(self.account_sid, self.auth_token)
+                async with session.post(
+                    endpoint, data={"Status": "completed"}, auth=auth
+                ) as response:
+                    return response.status in (200, 201, 204)
+        except Exception as exc:  # noqa: BLE001 - the ladder moves on regardless
+            logger.warning(f"Could not end transfer leg {call_id}: {exc}")
+            return False

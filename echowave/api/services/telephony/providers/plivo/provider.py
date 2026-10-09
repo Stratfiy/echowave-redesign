@@ -25,7 +25,10 @@ from api.services.telephony.base import (
     ProviderSyncResult,
     TelephonyProvider,
 )
-from api.services.telephony.escalation import DEFAULT_BRIEFING
+from api.services.telephony.escalation import (
+    DEFAULT_BRIEFING,
+    TRANSFER_AMD_TIMEOUT_SECONDS,
+)
 from api.utils.common import get_backend_endpoints
 from api.utils.phone_masking import last_four
 from api.utils.telephony_address import normalize_telephony_address
@@ -889,3 +892,106 @@ class PlivoProvider(TelephonyProvider):
     def supports_transfers(self) -> bool:
         """Plivo supports conference-based call transfers."""
         return True
+
+    # ------------------------------------------------------------------
+    # Escalation v2 (services/escalation)
+    # ------------------------------------------------------------------
+
+    def escalation_dial_options(
+        self, *, transfer_id: str, backend_endpoint: str
+    ) -> Dict[str, Any]:
+        """Answering-machine detection on the person's leg.
+
+        Asynchronous: Plivo posts ``Machine=true|false`` to the URL once it
+        has decided, and only a ``false`` there tells the agent a person
+        answered -- the caller is moved into the conference on that and on
+        nothing earlier, so a voicemail greeting is never bridged.
+        """
+        return {
+            "machine_detection": "true",
+            "machine_detection_time": TRANSFER_AMD_TIMEOUT_SECONDS * 1000,
+            "machine_detection_url": (
+                f"{backend_endpoint}/api/v1/telephony/plivo/escalation-amd/"
+                f"{transfer_id}"
+            ),
+            "machine_detection_method": "POST",
+        }
+
+    def detects_machines_on_transfer(self) -> bool:
+        return True
+
+    async def hangup_transfer_leg(self, call_id: str) -> bool:
+        """Stop a leg ringing (a queued request) or hang it up (a live call).
+
+        ``transfer_call`` returns Plivo's request uuid, which only the
+        Request API knows; once answered the leg has a call uuid, which only
+        the Call API knows. Try the call first, then the request.
+        """
+        if not call_id:
+            return False
+        auth = aiohttp.BasicAuth(self.auth_id, self.auth_token)
+        try:
+            async with aiohttp.ClientSession() as session:
+                for path in (f"/Call/{call_id}/", f"/Request/{call_id}/"):
+                    async with session.delete(
+                        f"{self.base_url}{path}", auth=auth
+                    ) as response:
+                        if response.status in (200, 202, 204):
+                            return True
+        except Exception as exc:  # noqa: BLE001 - the ladder moves on regardless
+            logger.warning(f"[Plivo Escalation] Could not end leg {call_id}: {exc}")
+        return False
+
+    def supports_escalation_hand_back(self) -> bool:
+        return True
+
+    async def hand_back_to_ai(
+        self,
+        *,
+        caller_call_id: str,
+        human_call_id: Optional[str],
+        resume_url: str,
+    ) -> bool:
+        """Re-point the caller's live leg at a fresh agent stream.
+
+        The same live-call redirect that put them into the conference
+        (``PlivoConferenceStrategy``), aimed the other way. The person's leg
+        is then hung up rather than left alone in an empty room.
+        """
+        auth = aiohttp.BasicAuth(self.auth_id, self.auth_token)
+        payload = {"legs": "aleg", "aleg_url": resume_url, "aleg_method": "POST"}
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    f"{self.base_url}/Call/{caller_call_id}/", json=payload, auth=auth
+                ) as response:
+                    if response.status not in (200, 202):
+                        body = await response.text()
+                        logger.error(
+                            f"[Plivo Escalation] Hand back of {caller_call_id} "
+                            f"refused: status={response.status} body={body}"
+                        )
+                        return False
+        except Exception as exc:  # noqa: BLE001
+            logger.error(f"[Plivo Escalation] Hand back failed: {exc}")
+            return False
+        if human_call_id:
+            await self.hangup_transfer_leg(human_call_id)
+        return True
+
+    async def speak_into_conference(self, conference_name: str, text: str) -> bool:
+        """The three-way introduction: one line heard by caller and person."""
+        auth = aiohttp.BasicAuth(self.auth_id, self.auth_token)
+        endpoint = (
+            f"{self.base_url}/Conference/{quote(conference_name, safe='')}"
+            "/Member/all/Speak/"
+        )
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    endpoint, json={"text": text}, auth=auth
+                ) as response:
+                    return response.status in (200, 202)
+        except Exception as exc:  # noqa: BLE001 - an intro is a courtesy
+            logger.warning(f"[Plivo Escalation] Intro not spoken: {exc}")
+            return False

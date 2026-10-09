@@ -17,14 +17,14 @@ Nothing is read or written by these until ``REMINDER_CALLS_ENABLED`` is on.
 Downgrading drops the four tables and the column.
 
 Revision ID: 20261011remindercalls
-Revises: 20261010calloutcomes
+Revises: 20261011escalations
 """
 
 import sqlalchemy as sa
 from alembic import op
 
 revision = "20261011remindercalls"
-down_revision = "20261010calloutcomes"
+down_revision = "20261011escalations"
 branch_labels = None
 depends_on = None
 

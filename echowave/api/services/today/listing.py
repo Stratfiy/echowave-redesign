@@ -240,6 +240,31 @@ async def today(viewer: Viewer, *, now: datetime | None = None) -> dict[str, Any
                     "outcome": call["outcome"],
                 }
             )
+        # Escalation v2: a caller handed to a person who has not answered the
+        # card yet. On Today so whoever opens the app first can take it.
+        from api.services import escalation
+
+        if escalation.enabled(viewer.organization_id):
+            from api.services.escalation import actions as escalation_actions
+
+            for handoff in await escalation_actions.list_open_for_today(
+                viewer.organization_id
+            ):
+                items.append(
+                    {
+                        "kind": "handoff",
+                        "id": handoff["id"],
+                        "escalation_uuid": handoff["escalation_uuid"],
+                        "title": handoff["title"],
+                        "at": handoff["at"],
+                        "when": full_local(
+                            datetime.fromisoformat(handoff["at"]), viewer.zone_name
+                        )
+                        if handoff["at"]
+                        else None,
+                        "needs_input": True,
+                    }
+                )
         items.sort(key=lambda i: (not i.get("overdue"), i.get("at") or "9999"))
         return {"items": items, "active": await _active_jobs(viewer)}
 

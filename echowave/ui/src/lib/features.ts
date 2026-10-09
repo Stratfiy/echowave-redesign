@@ -133,6 +133,8 @@ export type Feature =
     | "call_appointment"
     // "Call me when it's done": a phone call when a task finishes.
     | "call_when_done"
+    // Escalation rules, the handoff card and the no-answer ladder on calls.
+    | "escalation_v2"
     // The huddle: talk to an agent as a teammate, in its thread.
     | "huddle"
     // Reminder calls: Decibyl rings a person at a time they confirmed.
