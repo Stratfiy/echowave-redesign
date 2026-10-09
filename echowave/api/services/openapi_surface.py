@@ -184,6 +184,9 @@ TAG_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             # A person's own settings, memory, saved items and data rights
             # (launch stream `settings`).
             "settings",
+            # A phone call to the person when a task they handed over
+            # finishes (CALL_WHEN_DONE_ENABLED).
+            "call-when-done",
         ),
     ),
     (

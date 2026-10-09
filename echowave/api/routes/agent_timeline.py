@@ -862,6 +862,14 @@ async def thread_chips(
         except Exception as exc:  # noqa: BLE001 - the thread still works
             logger.warning("Could not build follow-ups for {}: {}", thread_id, exc)
 
+    # "Call me when done" first while work is running here (off: nothing).
+    # Its text is the ask itself; Decibyl answers it like any typed line.
+    from api.services.call_when_done import optin as call_when_done
+
+    done_chip = await call_when_done.chip(organization_id, user.id, thread_id)
+    if done_chip is not None:
+        follow = [ThreadChip(**done_chip), *follow]
+
     try:
         from api.routes.team import _members
 
@@ -880,7 +888,13 @@ async def thread_chips(
     return ThreadChipsResponse(
         chips=follow
         + [
-            ThreadChip(kind=str(c.get("kind") or "suggestion"), text=str(c["text"]))
+            ThreadChip(
+                kind=str(c.get("kind") or "suggestion"),
+                text=str(c["text"]),
+                # A life-stage starter goes to the helper that does its job,
+                # where that helper can answer here (home_openers).
+                helper=c.get("helper"),
+            )
             for c in cards
             if c.get("text")
         ]

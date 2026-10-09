@@ -18,14 +18,14 @@ Downgrading drops the column, the indexes and the table; files keep
 everything else and simply sit at the top level again.
 
 Revision ID: 20261010filefolders
-Revises: 20261009phase3staff
+Revises: 20261010callwhendone
 """
 
 import sqlalchemy as sa
 from alembic import op
 
 revision = "20261010filefolders"
-down_revision = "20261009phase3staff"
+down_revision = "20261010callwhendone"
 branch_labels = None
 depends_on = None
 

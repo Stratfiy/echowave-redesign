@@ -411,8 +411,10 @@ def apps_block(
         pending = (
             f" {names} {'is' if len(awaiting) == 1 else 'are'} connected but "
             "still being set up, so there are no tools for it yet. Say that "
-            "plainly if asked -- it is not a conflict and not a failure, and "
-            "it usually takes under a minute. Do NOT offer a connect card for "
+            "plainly if asked -- it is not a conflict and not a failure. The "
+            "setup has been started and is ready by their next message; if "
+            'the connect card on this thread still shows "I\'ve signed in", '
+            "pressing it finishes it at once. Do NOT offer a connect card for "
             "it: it is already connected."
         )
     # What to do about an app that is not connected is the model's next

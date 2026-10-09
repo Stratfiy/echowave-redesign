@@ -40,10 +40,10 @@ class TestRendering:
             _row(1, "what did the supplier quote?"),
         ]
         out = cc.render(rows, NAMES)
-        assert "Someone: what did the supplier quote?" in out
+        assert "A teammate: what did the supplier quote?" in out
         assert "Supplier chaser: Confirmed the shipment" in out
         # Oldest first: a conversation reads forwards.
-        assert out.index("Someone:") < out.index("Supplier chaser:")
+        assert out.index("A teammate:") < out.index("Supplier chaser:")
 
     def test_the_summary_comes_before_the_window(self):
         out = cc.render(
@@ -79,8 +79,8 @@ class TestRendering:
 
     def test_a_pasted_document_is_cut_to_its_gist(self):
         out = cc.render([_row(1, "x" * (cc.MAX_LINE * 3))], NAMES)
-        line = [l for l in out.splitlines() if l.startswith("Someone:")][0]
-        assert len(line) <= len("Someone: ") + cc.MAX_LINE
+        line = [l for l in out.splitlines() if l.startswith("A teammate:")][0]
+        assert len(line) <= len("A teammate: ") + cc.MAX_LINE
 
 
 class TestReadingTheThread:
@@ -96,7 +96,7 @@ class TestReadingTheThread:
             out = await cc.recent_thread(organization_id=1, folder_id=3)
 
         assert db.agent_events.await_args.kwargs["after_id"] == 40
-        assert "covered" in out and "Someone: new" in out
+        assert "covered" in out and "A teammate: new" in out
 
     @pytest.mark.asyncio
     async def test_a_channel_that_never_overflowed_reads_as_before(self):

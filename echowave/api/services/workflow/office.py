@@ -441,16 +441,20 @@ def edit_tool_schema() -> dict[str, Any]:
         "name": self_edit.TOOL_NAME,
         "description": (
             "Propose a change to one agent's behaviour, when a person asks. "
-            "Name the agent, the step (from its steps in the context; 'Rules' "
-            "for what applies on every step) and the complete new prompt. "
-            "Say in one line why. It becomes a draft with a diff card on "
-            "this thread; a person publishes it. Say you have proposed it "
-            "and end your reply."
+            "Name the agent. To change a word, name or phrase wherever it "
+            "appears (a sender's name, a company, a price), give `find` and "
+            "`replace_with` -- every step containing it changes, nothing else "
+            "does. To rewrite one step, give the step (from its steps in the "
+            "context; 'Rules' for what applies on every step) and its "
+            "complete new prompt; never write a 'complete' prompt from a "
+            "shortened one. Say in one line why. It becomes a draft with a "
+            "diff card on this thread; a person publishes it. Say you have "
+            "proposed it and end your reply."
         ),
         "parameters": {
             "type": "object",
             "properties": properties,
-            "required": ["bot", "step", "new_prompt", "why"],
+            "required": ["bot", "why"],
         },
     }
 

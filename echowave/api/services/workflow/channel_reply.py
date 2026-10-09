@@ -52,6 +52,43 @@ def _last_assistant_text(text_session: Any) -> Optional[str]:
     return (turns[-1].get("assistant_message") or {}).get("text")
 
 
+#: How a bot is told to answer, placed between the background and the message.
+#:
+#: Without it the turn was a long transcript with a short message stuck on the
+#: end, and nothing said which part was the request. For "Hi" the transcript
+#: was the bigger thing in the turn, so the bot answered *it*: "Here's what's
+#: been said so far in this channel:" and a recap of every earlier message,
+#: every time anybody said hello. The fix is not a rule about the word "Hi" --
+#: it is saying which part is background and which part is the message, and
+#: that the size of the reply follows the message.
+REPLY_RULES = (
+    "HOW TO ANSWER. Reply to the message below, and only to it, in your role "
+    "and the way a colleague would in chat. Match its size: a greeting or "
+    "small talk gets a short, natural line back, plus at most one line on "
+    "anything you are still waiting on from them. Do not recap, list or "
+    "summarise the conversation above unless the message asks for that (for "
+    'example "catch me up", "what has happened", "summarise"); when it does, '
+    "give the recap."
+)
+
+#: The heading the message itself sits under, last in the turn.
+MESSAGE_HEADING = "THE MESSAGE YOU ARE ANSWERING:"
+
+
+def compose_turn(context: Optional[str], text: str) -> str:
+    """The one user turn a bot is handed: background, how to answer, message.
+
+    One message rather than two turns: a separate context turn would be a turn
+    the bot answers, and the person is waiting for a reply to what they
+    actually asked. The message goes last so it is the most recent thing in
+    the window, under its own heading so it cannot be mistaken for one more
+    line of the transcript.
+    """
+    if not context:
+        return text
+    return f"{context}\n\n{REPLY_RULES}\n\n{MESSAGE_HEADING}\n{text}"
+
+
 #: How far a question may travel bot to bot before it stops. Two bots that
 #: keep @-mentioning each other would otherwise run until the credit did.
 MAX_HOPS = 2
@@ -202,13 +239,18 @@ async def answer_in_channel(
         # stands when the bot actually answers: two bots addressed in one
         # message run as two jobs, and the second should see the first's
         # reply rather than a snapshot from before either had spoken.
+        #
+        # Handed the message being answered so its own row is not shown twice
+        # (it is given on its own, last) and so its author can be named.
         thread = (
             await channel_context.recent_thread(
-                organization_id=organization_id, folder_id=folder_id
+                organization_id=organization_id, folder_id=folder_id, answering=text
             )
             if folder_id is not None
             else await channel_context.recent_bot_thread(
-                organization_id=organization_id, workflow_id=workflow_id
+                organization_id=organization_id,
+                workflow_id=workflow_id,
+                answering=text,
             )
         )
         # Who else is here, so "ask @sales" is something the bot can do
@@ -232,11 +274,7 @@ async def answer_in_channel(
         text_session = await append_text_chat_user_message(
             run_id=run_id,
             text_session=text_session,
-            # One message rather than two turns: a separate context turn would
-            # be a turn the bot answers, and the person is waiting for a reply
-            # to what they actually asked. The question goes last so it is the
-            # most recent thing in the window.
-            user_text=f"{thread}\n\n{text}" if thread else text,
+            user_text=compose_turn(thread, text),
             expected_revision=text_session.revision,
         )
         text_session = await execute_pending_text_chat_turn(
@@ -340,4 +378,12 @@ async def answer_in_channel(
         await one_shot_run.close(run_id)
 
 
-__all__ = ["MAX_HOPS", "MAX_REPLY", "answer_in_channel", "teammates_line"]
+__all__ = [
+    "MAX_HOPS",
+    "MAX_REPLY",
+    "MESSAGE_HEADING",
+    "REPLY_RULES",
+    "answer_in_channel",
+    "compose_turn",
+    "teammates_line",
+]
