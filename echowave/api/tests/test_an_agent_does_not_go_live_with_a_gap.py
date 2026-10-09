@@ -170,11 +170,11 @@ class TestHiringIsTheDoorTheBugCameThrough:
 class TestItIsWiredWhereItBites:
     def test_the_validator_runs_it(self):
         # Publish and the editor's own check both go through
-        # `_validate_workflow_definition`; a save does not, because a
+        # `publish_gate.validate_definition`; a save does not, because a
         # half-written prompt is a normal thing to be holding.
         import inspect
 
-        from api.routes import workflow as route
+        from api.services.workflow import publish_gate
 
-        source = inspect.getsource(route._validate_workflow_definition)
+        source = inspect.getsource(publish_gate.validate_definition)
         assert "unfilled.problems(workflow_definition)" in source

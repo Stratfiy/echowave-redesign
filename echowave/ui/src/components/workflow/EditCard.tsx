@@ -11,7 +11,9 @@
  *
  * A greeting is shown as its own before and after, labelled: it is the
  * first thing a caller hears, and a card that changed it without showing it
- * asked somebody to approve a change they could not see.
+ * asked somebody to approve a change they could not see. When Publish is
+ * refused -- the draft fails validation, or the acceptable-use screen names
+ * a clause -- the card keeps the reasons and stays open.
  */
 
 import { Check, GitBranch } from 'lucide-react';
@@ -33,6 +35,7 @@ export type EditPayload = {
     diff?: string;
     greetings?: GreetingChange[];
     decided?: { action?: 'publish' | 'discard'; by?: number; at?: string };
+    refused?: { kind?: 'invalid' | 'acceptable_use'; reasons?: string[]; at?: string };
 };
 
 export function editOf(event: TimelineEvent): EditPayload {
@@ -126,6 +129,20 @@ export function EditCard({
                     </div>
                 </div>
             ))}
+            {!decided && !error && edit.refused?.reasons && edit.refused.reasons.length > 0 && (
+                <div className="mt-2 text-sm text-destructive" role="alert" data-testid="edit-refused">
+                    <p>
+                        {edit.refused.kind === 'acceptable_use'
+                            ? 'Not published: this may breach the acceptable use policy.'
+                            : 'Not published: this change cannot go live yet.'}
+                    </p>
+                    <ul className="mt-1 list-disc pl-5">
+                        {edit.refused.reasons.map((reason, i) => (
+                            <li key={i}>{reason}</li>
+                        ))}
+                    </ul>
+                </div>
+            )}
             {error && (
                 <p className="mt-2 text-sm text-destructive" role="alert">
                     {error}

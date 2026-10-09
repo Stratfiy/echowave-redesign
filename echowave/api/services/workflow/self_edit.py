@@ -29,7 +29,7 @@ from loguru import logger
 
 from api.db import db_client
 from api.enums import AgentEventActor, AgentEventKind
-from api.services.workflow import agent_timeline
+from api.services.workflow import agent_timeline, publish_gate
 
 TOOL_NAME = "propose_edit"
 DESCRIPTION = (
@@ -459,6 +459,56 @@ class EditError(ValueError):
     """The click cannot be honoured; the message says why, for the screen."""
 
 
+async def _note_refusal(
+    *,
+    organization_id: int,
+    event: Any,
+    payload: dict[str, Any],
+    exc: publish_gate.PublishError,
+) -> None:
+    """Say on the card, and in the thread, why Publish did not go through.
+
+    The card stays unsettled -- Discard still works, and a fixed draft can
+    still be published -- but it carries the reasons, so whoever opens the
+    thread next sees why it is waiting rather than a Publish button that
+    looks like nobody pressed it.
+    """
+    if isinstance(exc, publish_gate.DraftInvalid):
+        reasons = publish_gate.reasons_from_errors(exc.errors)
+        kind = "invalid"
+    else:
+        reasons = publish_gate.reasons_from_findings(exc.findings)
+        kind = "acceptable_use"
+    stamped = dict(payload)
+    stamped["refused"] = {
+        "kind": kind,
+        "reasons": reasons,
+        "at": datetime.now(UTC).isoformat(),
+    }
+    try:
+        await db_client.set_agent_event_payload(
+            event.id, organization_id=organization_id, payload=stamped
+        )
+    except Exception as exc_:  # noqa: BLE001 - the refusal stands regardless
+        logger.warning("Could not stamp the refused edit card: {}", exc_)
+    line = (
+        f"Did not publish the change to {payload.get('step') or 'the bot'}: "
+        + "; ".join(reasons)
+    )
+    try:
+        await agent_timeline.record(
+            organization_id=organization_id,
+            kind=AgentEventKind.MESSAGE.value,
+            actor=AgentEventActor.SYSTEM.value,
+            summary=line[:500],
+            workflow_id=event.workflow_id,
+            payload={"body": line, "edit_event_id": event.id},
+            in_channel=False,
+        )
+    except Exception as exc_:  # noqa: BLE001
+        logger.warning("Could not note the refused edit on the thread: {}", exc_)
+
+
 async def settle(
     *,
     organization_id: int,
@@ -482,16 +532,40 @@ async def settle(
         raise EditError("That change belongs to no agent.")
     workflow_id = int(workflow_id)
 
-    try:
-        if action == "publish":
-            await db_client.publish_workflow_draft(workflow_id)
-        else:
+    if action == "publish":
+        # The same gate the editor's Publish goes through: validation, the
+        # acceptable-use screen and the audit row. A card is not a back door
+        # round them. Here a finding refuses rather than warns -- the text
+        # was written by the bot from a chat, not typed by the person
+        # clicking -- and the card says which clause.
+        try:
+            await publish_gate.publish_draft(
+                workflow_id=workflow_id,
+                organization_id=organization_id,
+                user_id=user_id,
+                via=publish_gate.VIA_EDIT_CARD,
+                refuse_on_findings=True,
+            )
+        except (publish_gate.DraftInvalid, publish_gate.PolicyFindings) as exc:
+            await _note_refusal(
+                organization_id=organization_id,
+                event=event,
+                payload=payload,
+                exc=exc,
+            )
+            raise EditError(str(exc)) from exc
+        except publish_gate.PublishError as exc:
+            # No draft any more (somebody published or discarded it from the
+            # editor), or the agent is not this account's. The card says so
+            # rather than pretending the click did it.
+            raise EditError(str(exc)) from exc
+    else:
+        try:
             await db_client.discard_workflow_draft(workflow_id)
-    except ValueError as exc:
-        # No draft any more: somebody published or discarded it from the
-        # editor. The card says so rather than pretending the click did it.
-        raise EditError(str(exc)) from exc
+        except ValueError as exc:
+            raise EditError(str(exc)) from exc
 
+    payload.pop("refused", None)
     payload["decided"] = {
         "action": action,
         "by": user_id,

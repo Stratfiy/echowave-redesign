@@ -100,6 +100,38 @@ describe('the card', () => {
         expect(screen.queryByLabelText('What changes')).toBeNull();
     });
 
+    it('a card whose Publish was refused keeps the reasons and stays open', () => {
+        render(
+            <EditCard
+                event={event({
+                    payload: {
+                        step: 'Find a slot',
+                        diff: DIFF,
+                        refused: {
+                            kind: 'acceptable_use',
+                            reasons: ['Deceiving the people it talks to'],
+                        },
+                    },
+                })}
+            />,
+        );
+        const refused = screen.getByTestId('edit-refused');
+        expect(refused.textContent).toContain('acceptable use policy');
+        expect(refused.textContent).toContain('Deceiving the people it talks to');
+        expect(screen.getByRole('button', { name: 'Publish' })).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Discard' })).toBeTruthy();
+    });
+
+    it('a refused publish says why', async () => {
+        settle.mockResolvedValue({
+            error: { detail: 'This change cannot go live yet: Field required (position on node 1)' },
+        });
+        render(<EditCard event={event()} />);
+        fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
+        expect((await screen.findByRole('alert')).textContent).toContain('cannot go live yet');
+        expect(screen.getByRole('button', { name: 'Publish' })).toBeTruthy();
+    });
+
     it('a refused click is said on the card', async () => {
         settle.mockResolvedValue({ error: { detail: 'Already settled.' } });
         render(<EditCard event={event()} />);
