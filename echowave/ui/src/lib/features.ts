@@ -135,6 +135,8 @@ export type Feature =
     | "call_when_done"
     // The huddle: talk to an agent as a teammate, in its thread.
     | "huddle"
+    // Operational alerts and the daily cost summary, for the operators.
+    | "ops_alerts"
     // People: synced contacts with context (PEOPLE.md).
     | "people"
     // Voice isolation: background voices on calls (VOICE.md).

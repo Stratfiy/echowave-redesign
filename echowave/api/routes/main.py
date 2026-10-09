@@ -55,6 +55,7 @@ from api.routes.mobile_push import router as mobile_push_router
 from api.routes.node_types import router as node_types_router
 from api.routes.notifications import router as notifications_router
 from api.routes.onboarding import router as onboarding_router
+from api.routes.ops_alerts import router as ops_alerts_router
 from api.routes.ops_console import router as ops_console_router
 from api.routes.organisation import router as organisation_router
 from api.routes.organisation_memory import router as organisation_memory_router
@@ -137,6 +138,7 @@ router.include_router(telephony_router)
 router.include_router(telephony_admin_router)
 router.include_router(superuser_router)
 router.include_router(feature_admin_router)
+router.include_router(ops_alerts_router)
 router.include_router(ops_console_router)
 router.include_router(billing_dashboard_router)
 router.include_router(admin_kpis_router)

@@ -27,11 +27,13 @@ from api.db import db_client
 from api.enums import AgentEventActor, AgentEventKind
 from api.services.billing import onboarding_credits
 from api.services.compliance import dnd
+from api.services.ops_alerts.signals import stamped
 from api.services.organization_preferences import get_organization_preferences
 from api.services.workflow import agent_timeline, routines
 from api.tasks.function_names import FunctionNames
 
 
+@stamped("fire_due_routines")
 async def fire_due_routines(ctx) -> None:
     """Look at every armed routine and start the ones that are due."""
     armed = await db_client.armed_routines()

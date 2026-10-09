@@ -24,6 +24,7 @@ from api.services.call_concurrency import (
     call_concurrency,
 )
 from api.services.compliance import predeclaration
+from api.services.ops_alerts import signals as ops_signals
 from api.services.quota_service import authorize_workflow_run_start
 from api.utils.common import get_backend_endpoints
 
@@ -129,14 +130,21 @@ async def dial_workflow(
         # workflow_id and organization_id are required by providers that build
         # the media WebSocket URL at dial time; without them the URL contains
         # "None/None" and the stream never connects.
-        await provider.initiate_call(
-            to_number=to_number,
-            webhook_url=webhook_url,
-            workflow_run_id=workflow_run_id,
-            workflow_id=workflow.id,
-            organization_id=organization_id,
-            **({"from_number": from_number} if from_number else {}),
-        )
+        try:
+            await provider.initiate_call(
+                to_number=to_number,
+                webhook_url=webhook_url,
+                workflow_run_id=workflow_run_id,
+                workflow_id=workflow.id,
+                organization_id=organization_id,
+                **({"from_number": from_number} if from_number else {}),
+            )
+        except Exception:
+            # The carrier refused or never answered the request: counted for
+            # the provider error alert (services/ops_alerts).
+            await ops_signals.dial(ok=False)
+            raise
+        await ops_signals.dial(ok=True)
     except Exception:
         await call_concurrency.release_workflow_run_slot(workflow_run_id)
         raise

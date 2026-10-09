@@ -6,7 +6,10 @@ from __future__ import annotations
 
 from loguru import logger
 
+from api.services.ops_alerts.signals import stamped
 
+
+@stamped("call_when_done_tick")
 async def call_when_done_tick(_ctx) -> None:
     """Place every "it's done" call that has come due."""
     from api.services.call_when_done import calls

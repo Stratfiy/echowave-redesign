@@ -25,6 +25,7 @@ from api.services.configuration.managed_tiers import (
 from api.services.configuration.platform_credential_seed import (
     seed_from_environment as seed_platform_credentials_from_environment,
 )
+from api.services.ops_alerts import watchdog as ops_alerts_watchdog
 from api.services.pipecat.tracing_config import (
     handle_langfuse_sync,
     load_all_org_langfuse_credentials,
@@ -114,6 +115,10 @@ async def lifespan(app: FastAPI):
         await features.refresh_overrides()
         features.start_periodic_refresh()
 
+        # The worker cannot report its own death, so the API watches it
+        # (services/ops_alerts/watchdog.py). Idle while ops_alerts is off.
+        ops_alerts_watchdog.start()
+
         # Start cross-worker sync manager so config changes propagate to all workers
         sync_manager = WorkerSyncManager(REDIS_URL)
         sync_manager.register(
@@ -137,6 +142,7 @@ async def lifespan(app: FastAPI):
         logger.info("Starting graceful shutdown...")
         await sync_manager.stop()
         await features.stop_periodic_refresh()
+        await ops_alerts_watchdog.stop()
 
 
 app = FastAPI(

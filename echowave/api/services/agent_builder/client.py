@@ -41,6 +41,7 @@ import json
 import re
 import time
 from collections.abc import Awaitable, Callable
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -49,6 +50,7 @@ from loguru import logger
 
 from api.services.aws_gateway import claude as aws_claude
 from api.services.billing import model_usage
+from api.services.ops_alerts import signals as ops_signals
 
 #: Vendors this loop can drive. Values match the provider names used in the
 #: platform credential store, so the key an operator installs selects the
@@ -1335,6 +1337,33 @@ async def _fallback_brain(
 # --- falling back when a vendor is out of credit ------------------------------
 
 
+#: Set while a turn is being counted, so a turn that goes through both doors
+#: (a Gemini stream is answered by ``complete``) counts once.
+_counting: ContextVar[bool] = ContextVar("builder_turn_counting", default=False)
+
+
+async def _counted_turn(run: Callable[[], Awaitable[ModelReply]]) -> ModelReply:
+    """Run one turn and count it for the provider error alert
+    (services/ops_alerts), unless an outer turn is already counting it. A
+    turn that raises -- and so goes to the fallback brain -- is a failed turn
+    for its vendor, whatever the brain then says."""
+    if _counting.get():
+        return await run()
+    token = _counting.set(True)
+    try:
+        reply = await run()
+    except BuilderClientError:
+        _counting.reset(token)
+        await ops_signals.direct_llm(ok=False)
+        raise
+    except BaseException:
+        _counting.reset(token)
+        raise
+    _counting.reset(token)
+    await ops_signals.direct_llm(ok=True)
+    return reply
+
+
 async def complete(
     *,
     provider: str,
@@ -1348,13 +1377,15 @@ async def complete(
     cannot answer after every vendor fallback, the fallback brain may
     (``services/aws_gateway/fallback.py``), and its reply says so."""
     try:
-        return await _complete(
-            provider=provider,
-            model=model,
-            api_key=api_key,
-            system=system,
-            conversation=conversation,
-            tools=tools,
+        return await _counted_turn(
+            lambda: _complete(
+                provider=provider,
+                model=model,
+                api_key=api_key,
+                system=system,
+                conversation=conversation,
+                tools=tools,
+            )
         )
     except BuilderClientError as exc:
         return await _fallback_brain(
@@ -1446,14 +1477,16 @@ async def stream(
     """One turn, word by word; see :func:`_stream`. The fallback brain may
     answer when the platform's Claude cannot, exactly as in :func:`complete`."""
     try:
-        return await _stream(
-            provider=provider,
-            model=model,
-            api_key=api_key,
-            system=system,
-            conversation=conversation,
-            on_text=on_text,
-            tools=tools,
+        return await _counted_turn(
+            lambda: _stream(
+                provider=provider,
+                model=model,
+                api_key=api_key,
+                system=system,
+                conversation=conversation,
+                on_text=on_text,
+                tools=tools,
+            )
         )
     except BuilderClientError as exc:
         return await _fallback_brain(

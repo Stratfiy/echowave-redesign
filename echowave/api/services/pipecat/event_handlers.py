@@ -2,12 +2,19 @@ import asyncio
 from datetime import UTC, datetime
 
 from loguru import logger
+from pipecat.frames.frames import (
+    Frame,
+)
+from pipecat.pipeline.worker import PipelineWorker
+from pipecat.processors.audio.audio_buffer_processor import AudioBufferProcessor
+from pipecat.utils.enums import EndTaskReason
 
 from api.db import db_client
 from api.enums import PostHogEvent, WorkflowRunState
 from api.services.billing.turn_metrics import record_turn_metrics
 from api.services.campaign.circuit_breaker import circuit_breaker
 from api.services.integrations import IntegrationRuntimeSession
+from api.services.ops_alerts import signals as ops_signals
 from api.services.pipecat import stuck_agent
 from api.services.pipecat.audio_config import AudioConfig
 from api.services.pipecat.audio_playback import play_audio_loop
@@ -25,12 +32,6 @@ from api.services.workflow_run_artifacts import upload_workflow_run_artifacts
 from api.tasks.arq import enqueue_job
 from api.tasks.function_names import FunctionNames
 from api.utils.transcript import generate_transcript_text
-from pipecat.frames.frames import (
-    Frame,
-)
-from pipecat.pipeline.worker import PipelineWorker
-from pipecat.processors.audio.audio_buffer_processor import AudioBufferProcessor
-from pipecat.utils.enums import EndTaskReason
 
 #: How long a call may run with a broken component and a silent agent before we
 #: end it ourselves.
@@ -334,6 +335,8 @@ def register_event_handlers(
         logger.debug("In on_pipeline_started callback handler")
         ready_state["pipeline_started"] = True
         await maybe_trigger_initial_response()
+        # The denominator of the provider error rate (services/ops_alerts).
+        await ops_signals.pipeline_started()
 
     @task.event_handler("on_pipeline_error")
     async def on_pipeline_error(_task: PipelineWorker, frame: Frame):
@@ -376,6 +379,8 @@ def register_event_handlers(
             await _record_pipeline_error(workflow_run_id, frame)
         except Exception as exc:  # noqa: BLE001 - never let reporting kill the call
             logger.error("Could not record the pipeline error detail: {}", exc)
+        # Counted once per run per component, for the provider error alert.
+        await ops_signals.pipeline_error(workflow_run_id, _processor_name(frame))
 
         if not fatal:
             # Not a failed call *yet*: no circuit-breaker strike, no

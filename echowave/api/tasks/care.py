@@ -6,7 +6,10 @@ from __future__ import annotations
 
 from loguru import logger
 
+from api.services.ops_alerts.signals import stamped
 
+
+@stamped("care_medicine_tick")
 async def care_medicine_tick(_ctx) -> None:
     """Ring for every medicine dose that has come due (services/care/calls.py)."""
     from api.services.care import calls

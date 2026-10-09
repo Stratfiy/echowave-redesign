@@ -5,7 +5,10 @@ from __future__ import annotations
 
 from loguru import logger
 
+from api.services.ops_alerts.signals import stamped
 
+
+@stamped("deliver_due_reminders")
 async def deliver_due_reminders(_ctx) -> None:
     """Reminders whose time has come, delivered once each
     (services/today/ticks.py)."""
