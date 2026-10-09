@@ -15,6 +15,7 @@ import { HuddlePanel, HuddleStrip } from '@/components/huddle/HuddlePanel';
 import { useHuddle } from '@/components/huddle/useHuddle';
 import { AuxiliaryPanel } from '@/components/layout/AuxiliaryPanel';
 import { colleagueState, RAIL_COPY } from '@/components/layout/v2/homes';
+import { LiveNowStrip } from '@/components/live/LiveNowStrip';
 import { Button } from '@/components/ui/button';
 import {
     DropdownMenu,
@@ -175,6 +176,8 @@ export default function BotChatPage({
             />
             <div className="flex min-h-0 flex-1">
                 <div className="flex min-w-0 flex-1 flex-col">
+                    {/* This agent's calls in progress; listen and whisper in place. */}
+                    <LiveNowStrip workflowId={id} className="mx-auto w-full max-w-3xl px-4 pt-3" />
                     <ChannelStream
                         workflowId={id}
                         botNames={{ [id]: botName }}

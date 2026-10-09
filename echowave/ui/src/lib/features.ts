@@ -144,6 +144,8 @@ export type Feature =
     // Voice isolation: background voices on calls (VOICE.md).
     | "caller_voice_lock"
     | "deepfilternet_filter"
+    // Listen in on a live call and whisper to its agent.
+    | "live_supervision"
     // Posters and ad creatives: images on a provider chosen in the thread.
     | "image_generation";
 

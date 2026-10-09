@@ -25,6 +25,7 @@ from api.services.integrations import (
     IntegrationRuntimeContext,
     create_runtime_sessions,
 )
+from api.services.live_supervision.session import attach as attach_live_supervision
 from api.services.pipecat import caller_voice_lock, vad_sensitivity
 from api.services.pipecat.active_calls import (
     register_active_call as register_worker_active_call,
@@ -1805,6 +1806,16 @@ async def _run_pipeline_impl(
             audio_buffer, workflow_run_id, in_memory_audio_buffer
         )
 
+    # Listen-in and whisper (services/live_supervision/). None, and nothing
+    # added to the call, unless the feature is on for this organisation.
+    live_supervision = await attach_live_supervision(
+        task,
+        workflow_run=workflow_run,
+        workflow=workflow,
+        logs_buffer=in_memory_logs_buffer,
+        context=context,
+    )
+
     try:
         # Run the pipeline
         await run_pipeline_worker(task)
@@ -1812,6 +1823,10 @@ async def _run_pipeline_impl(
     except asyncio.CancelledError:
         logger.warning("Received CancelledError in _run_pipeline")
     finally:
+        if live_supervision is not None:
+            # First, so the call leaves the live list even if a later
+            # cleanup step fails. Never raises.
+            await live_supervision.close()
         # Close MCP sessions here, not in engine.cleanup(). The anyio cancel
         # scopes opened by MCPClient.start() in engine.initialize() are
         # task-affine; this finally runs in the same task as initialize(),
