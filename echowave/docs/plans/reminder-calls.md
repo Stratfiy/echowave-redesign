@@ -140,6 +140,15 @@ arrives later (a slow post-call job) is dropped.
 A claim whose worker died before dialling is also swept as "did not answer".
 *xfail:* `...::test_a_claim_that_never_dialled_is_not_reported_as_unanswered` (both suites).
 
+**Fixed** (call outcomes and limits): both paths now have an `unknown`
+state. The sweep reconciles against the run (`telephony/call_evidence`):
+the carrier's no-answer is "not answered", silence is `unknown`. A claim
+with no run recorded was never dialled: call-when-done queues it again
+(at most three claims), care says "could not call". Late reports move
+`unknown` and correct "not answered" (history in `outcome_history`); a
+correction notice goes out only where an earlier one said something false.
+The four xfails above now pass.
+
 ### 4.2 The care path's calling-hours exemption
 `care/calls._dial` passes `enforce_calling_hours=False` because the person
 confirmed the exact times on a card. That is a defensible rule for a medicine
@@ -198,6 +207,9 @@ Test: `test_a_person_removed_after_the_call_was_queued_is_not_rung`.
 total timeout) is recorded as `failed` / `call_error`, and the person or
 family is told "could not call", although the carrier may have rung.
 *xfail:* `test_a_provider_timeout_is_unknown_not_failed` (both suites).
+**Fixed**: `dial_workflow(on_run_created=...)` records the run on the call
+before `initiate_call`; an exception after that is `unknown` (reconciled,
+never re-dialled), before it a verified non-dispatch.
 
 ## 5. Failure and duplicates at the provider boundary
 
@@ -212,6 +224,11 @@ family is told "could not call", although the carrier may have rung.
    dispatch row is `unknown`, never `failed`. A reconcile job reads
    `provider.get_call_status(provider_call_id)` (or, with no call id, the
    run's hangup callback state) before any retry or any "could not call".
+   *Done for care and call-when-done* with the run as the dispatch
+   identity (`on_run_created`) and the run's webhook-written state as the
+   evidence. Not done: storing `CallInitiationResult.call_id` and asking
+   `provider.get_call_status` -- every provider answers in its own shape,
+   and none is exercised against a live carrier.
 3. **Duplicated webhooks.** Settle by compare-and-swap on the current
    delivery state plus an idempotency key of `(provider_call_id, event)`.
    Pinned: `test_a_post_call_report_delivered_twice_*` (both suites).
@@ -221,6 +238,12 @@ family is told "could not call", although the carrier may have rung.
    `quotas.consume("reminder_calls", 1)` inside the gate (atomic), and
    releases nothing on failure: a ring attempt counts, which is what protects
    the person. Pinned (sequential): `test_the_cap_counts_calls_from_every_workspace`.
+   *Fixed for call-when-done*: `call_when_done/allowance.py` reserves one
+   slot per call in `person_call_allowances` (person, local day) by a
+   conditional upsert right before the dial, counting in-flight and
+   unknown calls, and releases only on a verified non-dispatch (refused
+   before the provider was asked, or no run recorded). Care calls are not
+   counted (D3 still open).
 5. **Retry.** Bounded and agreed on the card: at most one retry, at least 10
    minutes later, inside the window, only from `no_answer` (never from
    `unknown` or `failed`), and it consumes a cap slot. After that, the
