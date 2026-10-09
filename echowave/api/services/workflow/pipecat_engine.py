@@ -60,11 +60,13 @@ from api.services.workflow import (
     secrets_request,
     self_edit,
     skill_context,
+    standing_context,
     tasks_board,
 )
 from api.services.workflow import pipecat_engine_callbacks as engine_callbacks
 from api.services.workflow.mcp_tool_session import McpToolSession
 from api.services.workflow.pipecat_engine_context_composer import (
+    caller_block,
     compose_functions_for_node,
     compose_system_prompt_for_node,
     compose_today_line,
@@ -232,6 +234,8 @@ class PipecatEngine:
         self._remembered_block: Optional[str] = None
         #: _get_skills_block. Empty string means "looked, found none".
         self._skills_block: Optional[str] = None
+        #: _get_routines_block: this bot's own schedule. Same convention.
+        self._routines_block: Optional[str] = None
         #: Documents this run reads without a node naming them -- company
         #: knowledge, the channel's files, the bot's own. Read once per call,
         #: for the same reasons as the memory block. None means not looked.
@@ -454,6 +458,29 @@ class PipecatEngine:
                 )
                 self._skills_block = ""
         return self._skills_block
+
+    async def _get_routines_block(self) -> str:
+        """The routines set on this bot, read once and then held.
+
+        The Schedules screen lists them with their next run, and the bot
+        that runs them could not say what it was scheduled to do. Cached
+        for the reasons `_get_skills_block` is; "" when there are none or
+        they could not be read (`standing_context.agent_routines` never
+        raises, and the run lookup is guarded here).
+        """
+        if self._routines_block is None:
+            try:
+                self._routines_block = await standing_context.agent_routines(
+                    await self._get_organization_id(),
+                    await self._get_workflow_id(),
+                )
+            except Exception as exc:  # noqa: BLE001 - the call must go on
+                logger.warning(
+                    "Could not read this agent's routines; it goes on without them: {}",
+                    exc,
+                )
+                self._routines_block = ""
+        return self._routines_block
 
     def _get_otel_context(self):
         """Extract the OTel Context from the task's TracingContext.
@@ -952,6 +979,7 @@ class PipecatEngine:
             today_line = await self._get_today_line()
             remembered = await self._get_remembered_block()
             skills = await self._get_skills_block()
+            schedule = await self._get_routines_block()
         else:
             reads = asyncio.ensure_future(self._read_prompt_inputs())
             try:
@@ -961,6 +989,7 @@ class PipecatEngine:
                     today_line,
                     remembered,
                     skills,
+                    schedule,
                 ) = await reads
             finally:
                 if not reads.done():
@@ -988,6 +1017,8 @@ class PipecatEngine:
             known_values=self._gathered_context,
             remembered=remembered,
             skills=skills,
+            schedule=schedule,
+            caller=caller_block(self._call_context_vars),
             steps=self._steps_block() if self._can_edit_self else None,
         )
         functions = await compose_functions_for_node(
@@ -1007,9 +1038,10 @@ class PipecatEngine:
             self._today_line,
             self._remembered_block,
             self._skills_block,
+            self._routines_block,
         )
 
-    async def _read_prompt_inputs(self) -> tuple[list[str], str, str, str]:
+    async def _read_prompt_inputs(self) -> tuple[list[str], str, str, str, str]:
         """Shared knowledge, today, what is remembered and the skills, read together.
 
         The run's organisation and bot ids are looked up first, once, because
@@ -1028,6 +1060,7 @@ class PipecatEngine:
             self._get_today_line(),
             self._get_remembered_block(),
             self._get_skills_block(),
+            self._get_routines_block(),
         )
 
     async def _register_node_functions(self, node: Node) -> None:
