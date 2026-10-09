@@ -98,36 +98,89 @@ FOLD_SYSTEM_PROMPT = (
 )
 
 
-def _speaker(event: Any, names: Mapping[int, str]) -> str:
+#: A person whose name we have no right to use. Never their email: an
+#: address is contact data, not a name, and a colleague's address in front of
+#: a bot is one step from being in its reply.
+UNNAMED_PERSON = "A teammate"
+
+#: The person writing now, when they have not told us what to call them.
+UNNAMED_ASKER = "The person writing to you"
+
+
+def _author_of(event: Any) -> Optional[int]:
+    """The signed-in person who wrote a row, from its payload, or None."""
+    raw = (getattr(event, "payload", None) or {}).get("author_id")
+    try:
+        return int(raw) if raw is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _speaker(
+    event: Any, names: Mapping[int, str], people: Optional[Mapping[int, str]] = None
+) -> str:
     """Who said it, as the bot should read it.
 
-    A person is "Someone" rather than a name: the author id is on the row but
-    resolving it means a user lookup per line, and the bot does not need to
-    know which colleague asked -- only that a colleague did, and what they
-    said. A bot is named, because "another bot already confirmed the shipment"
-    is useless without knowing which.
+    A person is named by the name they asked to be called (``people``, from
+    ``_people_for``), never by email. This used to be "Someone" for everybody,
+    which made an owner talking to their own agent read, to the agent, like a
+    stranger -- and the agent wrote "Someone: Hi" back at them. A person with
+    no name on file is "A teammate". A bot is named, because "another bot
+    already confirmed the shipment" is useless without knowing which.
     """
     if event.actor == AgentEventActor.HUMAN.value:
-        return "Someone"
+        author = _author_of(event)
+        if people and author is not None and author in people:
+            return people[author]
+        return UNNAMED_PERSON
     workflow_id = getattr(event, "workflow_id", None)
     if workflow_id is not None and workflow_id in names:
         return names[workflow_id]
     return "Another agent"
 
 
-def _line(event: Any, names: Mapping[int, str]) -> Optional[str]:
-    """One row as one line, or None if it carries nothing worth a line."""
+def _text_of(event: Any) -> str:
     # The words somebody chose are kept whole in the payload; `summary`
     # truncates at 500 and is the display line. For a person's message the
     # payload is the real text.
     body = (event.payload or {}).get("body")
     text = body if isinstance(body, str) and body.strip() else (event.summary or "")
-    text = " ".join(str(text).split())
+    return " ".join(str(text).split())
+
+
+def _line(
+    event: Any, names: Mapping[int, str], people: Optional[Mapping[int, str]] = None
+) -> Optional[str]:
+    """One row as one line, or None if it carries nothing worth a line."""
+    text = _text_of(event)
     if not text:
         return None
     if len(text) > MAX_LINE:
         text = text[: MAX_LINE - 1].rstrip() + "…"
-    return f"{_speaker(event, names)}: {text}"
+    return f"{_speaker(event, names, people)}: {text}"
+
+
+def _is_the_question(event: Any, answering: Optional[str]) -> bool:
+    """Whether ``event`` is the message being answered right now.
+
+    The route records a person's message before it enqueues the reply, so the
+    newest row of the thread is the very message the bot is about to be handed
+    on its own. Shown twice, the bot read it as the person repeating
+    themselves ("Someone: Hi (repeat)") and answered the transcript instead.
+    """
+    if not answering or event.actor != AgentEventActor.HUMAN.value:
+        return False
+    return _text_of(event) == " ".join(answering.split()) or (
+        " ".join(str(event.summary or "").split()) == " ".join(answering.split())
+    )
+
+
+def asker_of(events: list[Any], answering: Optional[str]) -> Optional[int]:
+    """Who wrote the message being answered: the author of the newest row,
+    when that row is the message. None for a hand-off from another bot."""
+    if events and _is_the_question(events[0], answering):
+        return _author_of(events[0])
+    return None
 
 
 def render(
@@ -137,6 +190,10 @@ def render(
     summary: Optional[str] = None,
     max_chars: int = MAX_CHARS,
     max_events: int = MAX_EVENTS,
+    people: Optional[Mapping[int, str]] = None,
+    answering: Optional[str] = None,
+    asker_id: Optional[int] = None,
+    direct: bool = False,
 ) -> Optional[str]:
     """The thread as a block: the précis, then the window, newest-last.
 
@@ -145,8 +202,20 @@ def render(
 
     ``max_chars`` and ``max_events`` are the window. The defaults are the
     floor; a plan's chat memory (chat_memory) widens both.
+
+    ``answering`` is the message the bot is about to answer. It is handed to
+    the bot on its own, after this block, so its row is left out here rather
+    than shown twice. ``asker_id`` is who wrote it; ``people`` names people.
+    ``direct`` is a bot's own chat rather than a channel.
     """
     ordered = list(events)
+    read = len(ordered)
+    if ordered and _is_the_question(ordered[0], answering):
+        ordered = ordered[1:]
+    asker = (people or {}).get(asker_id) if asker_id is not None else None
+    labels = dict(people or {})
+    if asker_id is not None and not asker:
+        labels[asker_id] = UNNAMED_ASKER
     summary = (summary or "").strip() or None
     if not ordered and not summary:
         return None
@@ -158,7 +227,7 @@ def render(
     used = 0
     overflowed = False
     for event in ordered:
-        line = _line(event, names)
+        line = _line(event, names, labels)
         if line is None:
             continue
         if used + len(line) + 1 > max_chars:
@@ -166,23 +235,35 @@ def render(
             break
         lines.append(line)
         used += len(line) + 1
-    if len(ordered) >= max_events:
+    if read >= max_events:
         overflowed = True
     lines.reverse()
 
     if not lines and not summary:
         return None
 
+    where = "your chat" if direct else "this channel"
     parts = [
-        "WHAT HAS BEEN SAID IN THIS CHANNEL.",
-        "This is the conversation in the channel you are answering in. Use it "
-        "the way a colleague who has been reading along would: it tells you "
-        "what has already been asked, what another agent has already done, and "
-        "what anybody has corrected. A later message outranks an earlier one. "
-        "Do not repeat work another agent has already reported here.",
+        f"WHAT HAS BEEN SAID IN {where.upper()} BEFORE NOW.",
+        (
+            f"This is background, not a request. It is the conversation in {where} "
+            "so far, there so you can answer the way a colleague who has been "
+            "reading along would: it tells you what has already been asked, what "
+            "another agent has already done, and what anybody has corrected. A "
+            "later message outranks an earlier one. Do not repeat work another "
+            "agent has already reported here."
+        ),
     ]
+    if asker_id is not None:
+        parts.append(
+            f"{asker} is the person writing to you now. You are talking to "
+            f"{asker}: speak to them as you, not about them."
+            if asker
+            else "Lines from the person writing to you now are marked "
+            f'"{UNNAMED_ASKER}". Speak to them as you, not about them.'
+        )
     if summary:
-        parts.append("Earlier in this channel, in summary:\n" + summary)
+        parts.append(f"Earlier in {where}, in summary:\n" + summary)
     elif overflowed:
         # Something is genuinely not shown and nothing covers it: the fold has
         # not run yet. Said out loud so the bot knows it came in late.
@@ -213,16 +294,90 @@ async def _names_for(organization_id: int) -> dict[int, str]:
     return {w.id: w.name for w in workflows if getattr(w, "name", None)}
 
 
+async def _people_for(organization_id: int, events: Iterable[Any]) -> dict[int, str]:
+    """``author_id -> name`` for the people who wrote in ``events``.
+
+    The name is the one each person asked to be called (Settings, or the
+    onboarding question that seeds it) and nothing else: never an email, never
+    a phone number. Only members of this organisation are looked up, so a row
+    that somehow names an outsider resolves to "A teammate" rather than to
+    somebody else's account. A person with no name on file is left out and
+    renders as "A teammate".
+
+    Empty on any failure: a thread with unnamed people is still a thread.
+    """
+    ids = {a for a in (_author_of(e) for e in events) if a is not None}
+    if not ids:
+        return {}
+    try:
+        from sqlalchemy import select
+
+        from api.db.controls_models import MemberPreferencesModel
+        from api.db.models import OrganizationMembershipModel
+        from api.db.shell_models import UserOnboardingModel
+
+        async with db_client.async_session() as session:
+            members = set(
+                (
+                    await session.execute(
+                        select(OrganizationMembershipModel.user_id).where(
+                            OrganizationMembershipModel.organization_id
+                            == organization_id,
+                            OrganizationMembershipModel.user_id.in_(ids),
+                        )
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            if not members:
+                return {}
+            chosen = dict(
+                (
+                    await session.execute(
+                        select(
+                            MemberPreferencesModel.user_id,
+                            MemberPreferencesModel.preferred_name,
+                        ).where(MemberPreferencesModel.user_id.in_(members))
+                    )
+                ).all()
+            )
+            onboarding = dict(
+                (
+                    await session.execute(
+                        select(
+                            UserOnboardingModel.user_id,
+                            UserOnboardingModel.preferred_name,
+                        ).where(UserOnboardingModel.user_id.in_(members))
+                    )
+                ).all()
+            )
+    except Exception as exc:  # noqa: BLE001 - names are an improvement, not a dependency
+        logger.warning("Could not name the people in a thread: {}", exc)
+        return {}
+    people: dict[int, str] = {}
+    for user_id in members:
+        name = " ".join(
+            str(chosen.get(user_id) or onboarding.get(user_id) or "").split()
+        )
+        if name:
+            people[int(user_id)] = name
+    return people
+
+
 async def recent_thread(
     *,
     organization_id: Optional[int],
     folder_id: Optional[int],
+    answering: Optional[str] = None,
 ) -> Optional[str]:
     """The channel's conversation, ready to put in front of a bot.
 
     The précis covers every row at or below the watermark; the window is the
     rows above it. Nothing is in both and nothing is in neither -- that is the
     invariant ``set_folder_context_summary`` writes atomically.
+
+    ``answering`` is the message the bot is about to be handed; see ``render``.
 
     Empty on any failure. A bot that answers without the thread is a bot that
     answers less well; a bot that raises because the thread could not be read
@@ -252,11 +407,17 @@ async def recent_thread(
         summary=folder.context_summary,
         max_chars=max_chars,
         max_events=max_events,
+        people=await _people_for(organization_id, rows),
+        answering=answering,
+        asker_id=asker_of(rows, answering),
     )
 
 
 async def recent_bot_thread(
-    *, organization_id: Optional[int], workflow_id: Optional[int]
+    *,
+    organization_id: Optional[int],
+    workflow_id: Optional[int],
+    answering: Optional[str] = None,
 ) -> Optional[str]:
     """A bot's own chat, for when somebody talks to it directly.
 
@@ -277,7 +438,16 @@ async def recent_bot_thread(
             "Could not read agent {} thread for context: {}", workflow_id, exc
         )
         return None
-    return render(rows, names, max_chars=max_chars, max_events=max_events)
+    return render(
+        rows,
+        names,
+        max_chars=max_chars,
+        max_events=max_events,
+        people=await _people_for(organization_id, rows),
+        answering=answering,
+        asker_id=asker_of(rows, answering),
+        direct=True,
+    )
 
 
 async def compact(*, organization_id: int, folder_id: int, run_id: int) -> bool:
@@ -309,7 +479,8 @@ async def compact(*, organization_id: int, folder_id: int, run_id: int) -> bool:
         batch = pending[:COMPACT_BATCH]
 
         names = await _names_for(organization_id)
-        lines = [line for line in (_line(e, names) for e in batch) if line]
+        people = await _people_for(organization_id, batch)
+        lines = [line for line in (_line(e, names, people) for e in batch) if line]
         if not lines:
             # Nothing renderable in the batch -- still advance, or this batch
             # blocks every later one forever.
@@ -395,6 +566,9 @@ __all__ = [
     "MAX_LINE",
     "MAX_SUMMARY_CHARS",
     "TRUNCATED_NOTE",
+    "UNNAMED_ASKER",
+    "UNNAMED_PERSON",
+    "asker_of",
     "compact",
     "recent_thread",
     "render",

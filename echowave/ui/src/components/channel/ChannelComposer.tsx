@@ -210,8 +210,10 @@ export function ChannelComposer({
     replying?: boolean;
     onStop?: () => void;
     /** Words to put in the box, editable, from a starter. A new id each
-     *  time, so choosing the same starter twice still fills it. */
-    draftRequest?: { text: string; id: number } | null;
+     *  time, so choosing the same starter twice still fills it. A starter
+     *  for a life stage may name the helper that does its job; it is chosen
+     *  with the words, while helpers are on. */
+    draftRequest?: { text: string; id: number; helper?: ChosenHelper | null } | null;
     /** Screen 06: a helper named on the address (`?helper=`), chosen once
      *  the server says it is available. */
     initialHelper?: string | null;
@@ -273,12 +275,15 @@ export function ChannelComposer({
     useEffect(() => {
         if (!draftRequest) return;
         setText(draftRequest.text);
+        if (helpersOn && draftRequest.helper) setHelper(draftRequest.helper);
         requestAnimationFrame(() => {
             const box = input.current;
             if (!box) return;
             box.focus();
             box.setSelectionRange(draftRequest.text.length, draftRequest.text.length);
         });
+        // Once per request: the helper switch flipping must not refill the box.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [draftRequest]);
     // Files already uploaded and waiting to go with the next message. The
     // upload happens on pick, not on send: a 5MB PDF takes a moment, and a

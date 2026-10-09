@@ -13201,6 +13201,18 @@ export type Opener = {
      * Text
      */
     text: string;
+    /**
+     * Helper
+     */
+    helper?: string | null;
+    /**
+     * Helper Name
+     */
+    helper_name?: string | null;
+    /**
+     * Template
+     */
+    template?: string | null;
 };
 
 /**

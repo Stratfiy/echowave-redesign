@@ -439,8 +439,9 @@ class TestTheRuleReachesEveryLivePack:
         # Nine written in code; four chat desks, ten back-office desks and
         # the report generator and the telecaller coach promoted on
         # 22 Sept 2026; the four procurement desks (Step 2) and the
-        # maturity assessor (E-2).
-        assert len(packs) == 30
+        # maturity assessor (E-2); the daily check-in promoted for the
+        # seniors' shelf (October 2026).
+        assert len(packs) == 31
         missing = []
         for pack in packs:
             template = get_template(pack.template_id)

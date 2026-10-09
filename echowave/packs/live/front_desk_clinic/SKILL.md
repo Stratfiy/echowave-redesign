@@ -153,6 +153,7 @@ decibyl:
       doctor_names: Doctors who take appointments, comma separated
       opening_hours: e.g. Monday to Saturday, 9am to 7pm
       clinic_address: Full address, for callers asking directions
+    life_stage: small_business
     nodes:
     - type: startCall
       name: Answer

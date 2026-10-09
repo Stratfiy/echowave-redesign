@@ -158,6 +158,9 @@ def _all() -> tuple[AgentTemplate, ...]:
             vertical="Healthcare — clinics, diagnostics labs, dental and eye care",
             industry="Healthcare",
             function="Answer calls",
+            # The small-business shelf's receptionist (life stages, 8 Oct
+            # 2026): answer, book, return missed calls.
+            life_stage="small_business",
             direction=CallDirection.inbound,
             summary=(
                 "Answers the clinic's phone, books and reschedules appointments, "
@@ -1618,6 +1621,7 @@ def _promoted() -> tuple[AgentTemplate, ...]:
         back_office,
         call_coach,
         chat_desks,
+        life_stages,
         procurement,
     )
 
@@ -1626,6 +1630,7 @@ def _promoted() -> tuple[AgentTemplate, ...]:
         + back_office.templates()
         + (call_coach.template(),)
         + procurement.templates()
+        + life_stages.templates()
     )
 
 

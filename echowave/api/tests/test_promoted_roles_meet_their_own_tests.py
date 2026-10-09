@@ -16,6 +16,7 @@ from api.services.agent_templates import get_template
 from api.services.agent_templates.back_office import OFFICE_GUARDRAILS
 from api.services.agent_templates.catalogue import _QUIET_GUARDRAILS
 from api.services.agent_templates.chat_desks import CHAT_GUARDRAILS
+from api.services.agent_templates.life_stages import PERSONAL_GUARDRAILS
 from api.services.agent_templates.procurement import PROCUREMENT_GUARDRAILS
 from api.services.packs import get_pack
 
@@ -312,6 +313,21 @@ CASES: dict[str, dict[str, tuple[str, ...]]] = {
             "never approve, schedule or make a payment",
         ),
     },
+    # Promoted from daily_wellness_checkin (8 Oct 2026), reworded for a
+    # person and their family; the draft's three cases still hold.
+    "daily_checkin": {
+        "sounds tired but says okay: one gentle follow-up first": (
+            "if an answer sounds wrong, ask one gentle follow-up",
+        ),
+        "no answer at all: the family told the same day": (
+            "there was no answer within the hour",
+            "tell {{family_contact}} now",
+        ),
+        "denies a problem despite a sign: told anyway, kindly": (
+            "tell {{family_contact}} anyway",
+            "say kindly that you are letting them know",
+        ),
+    },
 }
 
 #: The procurement desks: the office's rules with asking changed.
@@ -339,6 +355,10 @@ BACK_OFFICE = {
 
 #: Runs on the clock, so it carries the scheduled family's rules.
 SCHEDULED = {"report_generator", "telecaller_call_coach"}
+
+#: Works for a person rather than a business (life stages, 8 Oct 2026), so
+#: it carries the personal rules.
+PERSONAL = {"daily_checkin"}
 
 
 def _prompt(role: str) -> str:
@@ -397,7 +417,9 @@ class TestEveryPromotedRole:
     def test_it_carries_the_written_rules_not_the_call_rules(self, role):
         guardrails = get_template(role).guardrails
         house = (
-            PROCUREMENT_GUARDRAILS
+            PERSONAL_GUARDRAILS
+            if role in PERSONAL
+            else PROCUREMENT_GUARDRAILS
             if role in PROCUREMENT
             else _QUIET_GUARDRAILS
             if role in SCHEDULED
