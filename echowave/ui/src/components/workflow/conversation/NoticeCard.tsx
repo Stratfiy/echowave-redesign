@@ -1,12 +1,12 @@
 "use client";
 
-import { AlertTriangle, ExternalLink, MicOff } from "lucide-react";
+import { AlertTriangle, ExternalLink, Lock, MicOff } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
 interface NoticeCardProps {
-    tone: "warning" | "error";
-    icon?: "alert" | "mic-off";
+    tone: "warning" | "error" | "info";
+    icon?: "alert" | "mic-off" | "lock";
     title: string;
     text: string;
     linkHref?: string;
@@ -21,6 +21,20 @@ export function NoticeCard({
     linkHref,
     linkLabel,
 }: NoticeCardProps) {
+    if (tone === "info") {
+        // Something that happened on the call without being said (a
+        // supervisor's whisper): quiet, and plainly not a fault.
+        const InfoIcon = icon === "lock" ? Lock : AlertTriangle;
+        return (
+            <div className="flex items-start gap-2 rounded-lg border border-dashed border-border bg-muted/40 px-3 py-2">
+                <InfoIcon className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+                <div className="min-w-0 flex-1">
+                    <div className="text-xs font-medium text-muted-foreground">{title}</div>
+                    <div className="mt-0.5 break-words text-sm text-foreground">{text}</div>
+                </div>
+            </div>
+        );
+    }
     const isWarning = tone === "warning";
     const Icon = (icon ?? (isWarning ? "mic-off" : "alert")) === "mic-off" ? MicOff : AlertTriangle;
 

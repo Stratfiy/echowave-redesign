@@ -54,6 +54,9 @@ export interface RealtimeFeedbackEvent {
         model?: string;
         error?: string;
         fatal?: boolean;
+        /** A supervisor's whisper: who gave it, and whether it cut in. */
+        by?: string;
+        urgent?: boolean;
     };
     timestamp: string;
     turn: number;
@@ -98,14 +101,16 @@ export interface ConversationNodeTransitionItem extends ConversationItemBase {
 
 export interface ConversationNoticeItem extends ConversationItemBase {
     kind: "notice";
-    tone: "warning" | "error";
+    /** `info` is something that happened on the call without being said:
+     *  a supervisor's whisper to the agent. */
+    tone: "warning" | "error" | "info";
     /**
      * Which picture goes with this notice. The default follows the tone, which
      * is right for the interruption warning the tone was designed around and
      * wrong for anything else: a provider failure drawn with a muted microphone
      * reads as an audio setting, not an error.
      */
-    icon?: "alert" | "mic-off";
+    icon?: "alert" | "mic-off" | "lock";
     title: string;
     text: string;
     fatal?: boolean;
