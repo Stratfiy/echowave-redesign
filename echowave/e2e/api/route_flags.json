@@ -845,6 +845,12 @@
    "live_supervision"
   ]
  },
+ "/api/v1/live-calls/join-settings": {
+  "PUT": [
+   "live_supervision",
+   "live_takeover"
+  ]
+ },
  "/api/v1/live-calls/settings": {
   "PUT": [
    "live_supervision"
@@ -858,6 +864,28 @@
  "/api/v1/live-calls/{run_id}/consent-fix": {
   "POST": [
    "live_supervision"
+  ]
+ },
+ "/api/v1/live-calls/{run_id}/hand-back": {
+  "POST": [
+   "live_supervision",
+   "live_takeover"
+  ]
+ },
+ "/api/v1/live-calls/{run_id}/let-agent-answer": {
+  "POST": [
+   "live_supervision",
+   "live_takeover"
+  ]
+ },
+ "/api/v1/live-calls/{run_id}/takeover": {
+  "GET": [
+   "live_supervision",
+   "live_takeover"
+  ],
+  "POST": [
+   "live_supervision",
+   "live_takeover"
   ]
  },
  "/api/v1/live-calls/{run_id}/whisper": {
