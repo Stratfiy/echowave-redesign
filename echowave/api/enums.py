@@ -207,6 +207,7 @@ class OrganizationConfigurationKey(Enum):
     )
     ORGANIZATION_PREFERENCES = "ORGANIZATION_PREFERENCES"  # Org-level defaults such as timezone/test call number
     MODEL_CONFIGURATION_PREFERENCES = "MODEL_CONFIGURATION_PREFERENCES"  # Deprecated; read fallback for old org preferences
+    IMAGE_GENERATION = "IMAGE_GENERATION"  # Which image provider the workspace chose (services/images/)
 
 
 class UserConfigurationKey(Enum):
@@ -397,6 +398,12 @@ class CostComponent(str, Enum):
     #: carries its catalogue key, so a new data vendor never needs a
     #: migration. A lookup on the customer's own connector produces no line.
     DATA = "data"
+    #: A generated image (a poster, an ad creative), per image, from the
+    #: provider the workspace chose (services/images/). Free to the customer
+    #: while it is being tried: the vendor's cost is recorded beside each
+    #: image (``generated_images``) at a customer rate of zero, so a price
+    #: can later be set from real numbers. Which vendor is in ``provider``.
+    IMAGE = "image"
 
     @classmethod
     def provider_components(cls) -> tuple["CostComponent", ...]:
@@ -412,6 +419,7 @@ class CostComponent(str, Enum):
             cls.TELEPHONY,
             cls.EMBEDDING,
             cls.DATA,
+            cls.IMAGE,
         )
 
     @classmethod
@@ -446,6 +454,10 @@ class RateUnit(str, Enum):
     #: component, whose vendors price per call rather than per anything
     #: measured inside it.
     EACH = "each"
+    #: One generated image: the unit of the ``image`` component. Vendors
+    #: price an image by its size and quality, which the rate's model key
+    #: carries, never by anything measured inside it.
+    IMAGE = "image"
 
 
 class CreditLedgerKind(str, Enum):
@@ -927,6 +939,16 @@ class AgentEventKind(str, Enum):
     #: and carries only the session's id; the session row holds the rest and
     #: is readable by the person who asked alone. See services/browser/.
     BROWSER_SESSION = "browser_session"
+    #: Images were asked for and no provider is ready: the card that picks
+    #: Gemini, OpenAI or Bedrock and takes the workspace's key, in the thread
+    #: that asked. Nothing is connected by the row existing. See
+    #: services/images/offer.py.
+    IMAGE_PROVIDER_OFFERED = "image_provider_offered"
+    #: Images were made -- the options of a poster or an ad creative -- and
+    #: the row is their grid, with Download and Edit this one. Carries image
+    #: uuids, never URLs: a signed URL expires, so the card asks for one when
+    #: it draws. See services/images/service.py.
+    IMAGES_MADE = "images_made"
 
 
 class AgentEventActor(str, Enum):

@@ -47,6 +47,8 @@ import { tagTokens } from '@/components/channel/ChannelComposer';
 import { emphasisTokens } from '@/components/channel/emphasis';
 import { isJudgeableReply, ReplyFeedback, useMyFeedback } from '@/components/channel/ReplyFeedback';
 import { SaveReportButton } from '@/components/helpers/SaveReportButton';
+import { ImageProviderCard } from '@/components/images/ImageProviderCard';
+import { ImagesCard } from '@/components/images/ImagesCard';
 import { ComparisonCard } from '@/components/reach/ComparisonCard';
 import { ReachConnectChip } from '@/components/reach/ReachConnectChip';
 import { SaveReplyButton } from '@/components/settings/SaveReplyButton';
@@ -145,6 +147,9 @@ const CARDS = new Set([
     // Stream `reach`: the connect chip and the comparison table.
     'reach_connect_offered',
     'reach_comparison',
+    // Image generation: the provider card and the grid of options.
+    'image_provider_offered',
+    'images_made',
 ]);
 
 /** How long a pause can be and still read as one person still talking. */
@@ -486,6 +491,16 @@ export function ChannelStream({
         void loadLatest();
     };
 
+    // A line sent on the person's behalf from a card in this thread (an
+    // image request once its provider is connected, an edit of one option).
+    const canSendLine = assistant || workflowId != null;
+    const sendLine = async (text: string) => {
+        const response = await postMessageApiV1TimelineMessagePost({
+            body: assistant ? { assistant: true, thread_id: threadId, text } : { workflow_id: workflowId!, text },
+        });
+        if (!response.error) void loadLatest();
+    };
+
     const translateRow = async (event: TimelineEvent, text: string) => {
         setTranslated((all) => ({ ...all, [event.id]: null }));
         const response = await translateTextApiV1TranslatePost({ body: { text } });
@@ -524,6 +539,9 @@ export function ChannelStream({
     const orderingOn = useFeature('ordering');
     const reachChipsOn = outsideToolsOn || orderingOn;
     const comparisonOn = useFeature('price_compare');
+    // Posters and ad creatives (services/images/). Off, the rows fall
+    // through to the plain summary rather than vanish.
+    const imagesOn = useFeature('image_generation');
     // Screen 28: a failed reply offers Help about that one reply.
     const helpOn = useFeature('support_help');
     // Keep a reply in saved items (settings stream, screen 15).
@@ -1308,6 +1326,38 @@ export function ChannelStream({
                                         <BrowserPanel sessionUuid={sessionUuid} />
                                     ) : (
                                         <p className="text-sm text-muted-foreground">{event.summary}</p>
+                                    )}
+                                </div>
+                            </li>
+                            </React.Fragment>
+                        );
+                    }
+                    if (
+                        imagesOn &&
+                        (event.kind === 'image_provider_offered' || event.kind === 'images_made')
+                    ) {
+                        // Images: the card that picks a provider and takes
+                        // its key, in the thread that asked; or the grid of
+                        // options with Download and Edit this one. Both send
+                        // on as the person's next line in this same thread.
+                        const asker =
+                            (event.workflow_id != null && botNames[event.workflow_id]) || fallbackName;
+                        return (
+                            <React.Fragment key={event.id}>
+                            {divider}
+                            <li className="flex gap-3">
+                                {face(event)}
+                                <div className="min-w-0 flex-1">
+                                    <p className="mb-1 text-sm">
+                                        <span className="font-medium">{asker}</span>
+                                        <span className="ml-2 text-xs text-muted-foreground">
+                                            <time dateTime={event.at}>{when(event.at)}</time>
+                                        </span>
+                                    </p>
+                                    {event.kind === 'image_provider_offered' ? (
+                                        <ImageProviderCard event={event} onConnected={canSendLine ? sendLine : undefined} />
+                                    ) : (
+                                        <ImagesCard event={event} onEdit={canSendLine ? sendLine : undefined} />
                                     )}
                                 </div>
                             </li>

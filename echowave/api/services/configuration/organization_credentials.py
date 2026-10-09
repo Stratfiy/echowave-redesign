@@ -44,7 +44,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api.constants import PLATFORM_CREDENTIAL_SECRET
 from api.db.models import OrganizationProviderCredentialModel
 from api.enums import CostComponent
-from api.services.configuration.registry import DATA_PROVIDERS, realtime_key_provider
+from api.services.configuration.registry import (
+    DATA_PROVIDERS,
+    IMAGE_PROVIDERS,
+    realtime_key_provider,
+)
 
 #: Components a customer key can serve. Telephony is absent for the same reason
 #: it is absent from the platform vault: carrier credentials live on
@@ -54,6 +58,9 @@ CREDENTIAL_COMPONENTS = (CostComponent.STT, CostComponent.LLM, CostComponent.TTS
 #: such as Apollo). The workspace's own contact-data source is already the
 #: first one ``lookup_source`` reads; this is where its key is kept.
 DATA_COMPONENT = CostComponent.DATA
+#: ``image`` too, for a vendor that makes images (services/images/): the key
+#: a person pastes on the image provider card in the thread.
+IMAGE_COMPONENT = CostComponent.IMAGE
 
 
 class OrganizationCredentialError(ValueError):
@@ -131,6 +138,12 @@ def _normalise(component: CostComponent | str, provider: str) -> tuple[str, str]
                 "can use. Data keys here are for: "
                 + ", ".join(sorted(DATA_PROVIDERS))
                 + "."
+            )
+    elif parsed == IMAGE_COMPONENT:
+        if provider not in IMAGE_PROVIDERS:
+            raise OrganizationCredentialError(
+                f"{provider or 'That provider'} does not make images here. "
+                "Image keys are for: " + ", ".join(IMAGE_PROVIDERS) + "."
             )
     elif parsed not in CREDENTIAL_COMPONENTS:
         raise OrganizationCredentialError(
