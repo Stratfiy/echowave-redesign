@@ -990,6 +990,11 @@ CALL_WHEN_DONE_ENABLED = _flag("CALL_WHEN_DONE_ENABLED")
 # voice conversation with that agent as a teammate. Changes it proposes are
 # cards in the thread; nothing is published by voice.
 HUDDLE_ENABLED = _flag("HUDDLE_ENABLED")
+# Agent editing follow-ups (services/workflow/self_edit.py): each edit card is
+# its own draft, cards stack with Publish all / Discard all, hours and files
+# can be changed by chat, a published card can be undone, and only the
+# agent's owner or a workspace admin publishes (see edit_permissions.py).
+EDITING_V2_ENABLED = _flag("EDITING_V2_ENABLED")
 # How long a finished task waits before its call is placed, so tasks that
 # finish together are said in one call rather than one call each.
 CALL_WHEN_DONE_GATHER_SECONDS = int(os.getenv("CALL_WHEN_DONE_GATHER_SECONDS", "60"))

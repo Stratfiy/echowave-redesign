@@ -436,6 +436,29 @@ export type AgentSchedule = {
      * Slots
      */
     slots?: Array<AgentScheduleSlot>;
+    /**
+     * Closures
+     */
+    closures?: Array<AgentScheduleClosure>;
+};
+
+/**
+ * AgentScheduleClosure
+ *
+ * One day the agent is shut although its week says open: a holiday.
+ *
+ * A date rather than a recurring rule. Diwali moves every year, and a rule
+ * that guessed it would close the wrong day with nothing to show for it.
+ */
+export type AgentScheduleClosure = {
+    /**
+     * Date
+     */
+    date: string;
+    /**
+     * Reason
+     */
+    reason?: string | null;
 };
 
 /**
@@ -6668,6 +6691,20 @@ export type EditProposalRequest = {
     graph: {
         [key: string]: unknown;
     };
+};
+
+/**
+ * EditPublisherResponse
+ */
+export type EditPublisherResponse = {
+    /**
+     * Can Publish
+     */
+    can_publish: boolean;
+    /**
+     * Waiting
+     */
+    waiting?: string | null;
 };
 
 /**
@@ -52020,6 +52057,50 @@ export type ProvideSecretApiV1TimelineSecretsProvidePostResponses = {
 };
 
 export type ProvideSecretApiV1TimelineSecretsProvidePostResponse = ProvideSecretApiV1TimelineSecretsProvidePostResponses[keyof ProvideSecretApiV1TimelineSecretsProvidePostResponses];
+
+export type EditPublisherApiV1TimelineEditsPublisherGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+    };
+    url: '/api/v1/timeline/edits/publisher';
+};
+
+export type EditPublisherApiV1TimelineEditsPublisherGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type EditPublisherApiV1TimelineEditsPublisherGetError = EditPublisherApiV1TimelineEditsPublisherGetErrors[keyof EditPublisherApiV1TimelineEditsPublisherGetErrors];
+
+export type EditPublisherApiV1TimelineEditsPublisherGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: EditPublisherResponse;
+};
+
+export type EditPublisherApiV1TimelineEditsPublisherGetResponse = EditPublisherApiV1TimelineEditsPublisherGetResponses[keyof EditPublisherApiV1TimelineEditsPublisherGetResponses];
 
 export type SettleEditApiV1TimelineEditsSettlePostData = {
     body: SettleEditRequest;

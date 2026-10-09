@@ -1265,7 +1265,25 @@ async def set_voice_live(
     the same voice so publishing it later does not undo this.
     """
     from api.services.configuration import model_slot
-    from api.services.workflow import live_voice
+    from api.services.workflow import edit_permissions, live_voice
+
+    # This puts a voice live with no card, so it is held to the same rule
+    # as a card's Publish (editing_v2; a no-op while it is off). Default
+    # pending founder decision 11 -- see edit_permissions.
+    if edit_permissions.enabled(user.selected_organization_id):
+        workflow = await db_client.get_workflow(
+            workflow_id, organization_id=user.selected_organization_id
+        )
+        if workflow is None:
+            raise HTTPException(status_code=404, detail="Workflow not found")
+        try:
+            await edit_permissions.check(
+                organization_id=user.selected_organization_id,
+                user_id=user.id,
+                workflow=workflow,
+            )
+        except edit_permissions.NotAllowed as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
 
     try:
         published = await live_voice.apply_voice_now(

@@ -352,7 +352,32 @@ class PipecatEngine:
         """
         if self._today_line is None:
             self._today_line = compose_today_line(await self._get_timezone())
+            hours = await self._get_hours_line()
+            if hours:
+                self._today_line = f"{self._today_line}\n{hours}"
         return self._today_line
+
+    async def _get_hours_line(self) -> str:
+        """The hours this agent keeps and, when shut, when it next opens
+        (editing_v2: hours can now be changed by chat, so the agent has to
+        know them). Read with the today line and held with it. Empty when
+        the flag is off, no hours are kept, or anything fails -- a call must
+        never fail over this."""
+        try:
+            from api.services import features
+            from api.services.voice import appointments
+            from api.services.workflow import agent_hours
+
+            organization_id = await self._get_organization_id()
+            if not organization_id or not features.is_on("editing_v2", organization_id):
+                return ""
+            schedule = await appointments._schedule(
+                organization_id, await self._get_workflow_id(), self._workflow_run_id
+            )
+            return agent_hours.hours_line(schedule)
+        except Exception as exc:  # noqa: BLE001 - never fail a call over this
+            logger.warning(f"Could not read this agent's hours: {exc}")
+            return ""
 
     async def _get_workflow_id(self) -> Optional[int]:
         """Which bot is running, cached for the call."""
@@ -1038,6 +1063,7 @@ class PipecatEngine:
             can_edit_self=self._can_edit_self,
             can_run_scripts=can_run_scripts,
             can_make_images=can_make_images,
+            organization_id=await self._get_organization_id(),
             escalation_tools=self._escalation is not None,
         )
         await self._update_llm_context(system_prompt, functions)

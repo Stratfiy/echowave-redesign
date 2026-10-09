@@ -83,6 +83,35 @@ class AgentEventClient(BaseDBClient):
                 )
             )
 
+    async def edit_cards_for_workflow(
+        self, *, organization_id: int, workflow_id: int, limit: int = 200
+    ) -> list[AgentEventModel]:
+        """One agent's edit cards, newest first: those on its own thread and
+        those Decibyl posted on its thread naming the agent in the payload.
+
+        Scoped to the tenant at the query; the agent is matched afterwards,
+        among that organisation's own cards only."""
+        async with self.async_session() as session:
+            rows = (
+                await session.scalars(
+                    select(AgentEventModel)
+                    .where(
+                        AgentEventModel.organization_id == organization_id,
+                        AgentEventModel.kind == AgentEventKind.EDIT_PROPOSED.value,
+                    )
+                    .order_by(AgentEventModel.id.desc())
+                    .limit(limit)
+                )
+            ).all()
+        out = []
+        for row in rows:
+            named = (row.payload or {}).get("workflow_id")
+            if row.workflow_id == workflow_id or (
+                row.workflow_id is None and str(named) == str(workflow_id)
+            ):
+                out.append(row)
+        return out
+
     async def set_agent_event_payload(
         self, event_id: int, *, organization_id: int, payload: dict[str, Any]
     ) -> bool:

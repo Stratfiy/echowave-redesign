@@ -62,7 +62,8 @@ import { ActionCard } from '@/components/workflow/ActionCard';
 import { ConfirmAllBar } from '@/components/workflow/ConfirmAllBar';
 import { ConnectorCard } from '@/components/workflow/ConnectorCard';
 import { DecisionCard } from '@/components/workflow/DecisionCard';
-import { EditCard } from '@/components/workflow/EditCard';
+import { EditCard, editOf, isPending } from '@/components/workflow/EditCard';
+import { EditStack } from '@/components/workflow/EditStack';
 import { SecretCard } from '@/components/workflow/SecretCard';
 import { detailFromResult } from '@/lib/apiError';
 import { useAuth } from '@/lib/auth';
@@ -342,6 +343,18 @@ export type ChannelStreamHandle = { refresh: () => void };
  *  said, or a bot decided, is never folded. */
 type Group = { key: string; events: TimelineEvent[] };
 
+/** Waiting edit cards, oldest first, by the agent they change. An agent
+ *  with one waiting card has no stack; EditStack draws nothing for it. */
+export function pendingEditsByAgent(inOrder: TimelineEvent[]): [string, TimelineEvent[]][] {
+    const byAgent = new Map<string, TimelineEvent[]>();
+    for (const event of inOrder) {
+        if (!isPending(event)) continue;
+        const agent = String(event.workflow_id ?? editOf(event).workflow_id ?? 'none');
+        byAgent.set(agent, [...(byAgent.get(agent) ?? []), event]);
+    }
+    return Array.from(byAgent.entries());
+}
+
 export function groupRows(inOrder: TimelineEvent[]): Group[] {
     const groups: Group[] = [];
     for (const event of inOrder) {
@@ -562,6 +575,8 @@ export function ChannelStream({
     const helpOn = useFeature('support_help');
     // Keep a reply in saved items (settings stream, screen 15).
     const savingOn = useFeature('saved_items') && assistant;
+    // Agent editing follow-ups: waiting edit cards stack (EditStack).
+    const editingV2 = useFeature('editing_v2');
     const judgeable = feedbackOn ? events.filter(isJudgeableReply).map((e) => e.id) : [];
     const feedback = useMyFeedback(judgeable, feedbackOn && !authLoading && Boolean(user));
     // Whether the reader is at the bottom. Scrolling them back down while they
@@ -975,6 +990,18 @@ export function ChannelStream({
             {/* Two or more send cards waiting (outreach drafts): one press,
                 each still confirmed against the version it showed. */}
             <ConfirmAllBar events={inOrder} onDone={() => void loadLatest()} />
+            {/* Two or more edit cards waiting on one agent (editing_v2): a
+                stack with Publish all / Discard all, acting card by card. */}
+            {editingV2 &&
+                pendingEditsByAgent(inOrder).map(([agent, pending]) => (
+                    <EditStack
+                        key={`edit-stack-${agent}`}
+                        pending={pending}
+                        onSettled={(updated) =>
+                            setEvents((all) => all.map((e) => (e.id === updated.id ? updated : e)))
+                        }
+                    />
+                ))}
             {/* What to ask next, so the thread carries its own next steps.
                 Hidden while a bot is thinking: offering a follow-up to an
                 answer that has not arrived is asking somebody to interrupt.

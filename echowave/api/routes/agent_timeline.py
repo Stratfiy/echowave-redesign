@@ -42,6 +42,7 @@ from api.enums import (
     AgentEventKind,
     OrganizationRole,
 )
+from api.services import features
 from api.services.auth.depends import get_user, require_organization_role
 from api.services.configuration import chat_presets
 from api.services.images import service as image_service
@@ -1183,6 +1184,44 @@ async def provide_secret(
     return _as_event(row)
 
 
+class EditPublisherResponse(BaseModel):
+    #: Whether the person asking may publish or undo this agent's changes.
+    can_publish: bool
+    #: The card's line when they may not -- "Waiting for Asha or a
+    #: workspace admin to publish." -- else null.
+    waiting: Optional[str] = None
+
+
+@router.get(
+    "/edits/publisher",
+    response_model=EditPublisherResponse,
+    dependencies=[Depends(features.require("editing_v2", per_organization=True))],
+)
+async def edit_publisher(workflow_id: int, user: UserModel = Depends(get_user)):
+    """Whether the viewer may publish this agent's edit cards, and if not,
+    who can (editing_v2). Proposing is open to everyone in the workspace."""
+    from api.services.workflow import edit_permissions
+
+    organization_id = user.selected_organization_id
+    if not organization_id:
+        raise HTTPException(status_code=400, detail="No organization selected")
+    workflow = await db_client.get_workflow(
+        workflow_id, organization_id=organization_id
+    )
+    if workflow is None:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+    if await edit_permissions.may_publish(
+        organization_id=organization_id, user_id=user.id, workflow=workflow
+    ):
+        return EditPublisherResponse(can_publish=True)
+    return EditPublisherResponse(
+        can_publish=False,
+        waiting=await edit_permissions.who_can_publish(
+            organization_id=organization_id, workflow=workflow
+        ),
+    )
+
+
 class SettleEditRequest(BaseModel):
     event_id: int
     #: "publish" puts the draft live; "discard" throws it away.
@@ -1207,6 +1246,8 @@ async def settle_edit(body: SettleEditRequest, user: UserModel = Depends(get_use
             action=body.action.strip().lower(),
             user_id=user.id,
         )
+    except self_edit.EditForbidden as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
     except self_edit.EditError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     row = await db_client.get_agent_event(

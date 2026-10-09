@@ -68,7 +68,7 @@ DETAIL_FIELDS = (
 )
 
 
-def schemas() -> list[dict[str, Any]]:
+def schemas(organization_id: int | None = None) -> list[dict[str, Any]]:
     return [
         {
             "name": RECENT_WORK,
@@ -130,12 +130,12 @@ def schemas() -> list[dict[str, Any]]:
         },
         {
             "name": PROPOSE_EDIT,
-            "description": self_edit.DESCRIPTION
+            "description": self_edit.description(organization_id)
             + " In a huddle the person is your operator; propose only what "
             "they asked for.",
             "parameters": {
                 "type": "object",
-                "properties": self_edit.tool_properties(),
+                "properties": self_edit.tool_properties(organization_id),
             },
         },
     ]

@@ -1742,7 +1742,7 @@ def office_tools(organization_id: int | None = None) -> list[dict[str, Any]]:
     """
     return [
         actions.tool_schema(),
-        office.edit_tool_schema(),
+        office.edit_tool_schema(organization_id),
         office.test_tool_schema(),
         office.check_tool_schema(),
         tasks_board.tool_schema(),

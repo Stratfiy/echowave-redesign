@@ -1415,6 +1415,11 @@
    "task_ledger"
   ]
  },
+ "/api/v1/timeline/edits/publisher": {
+  "GET": [
+   "editing_v2"
+  ]
+ },
  "/api/v1/today": {
   "GET": [
    "today_list"
