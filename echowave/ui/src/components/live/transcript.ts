@@ -7,6 +7,16 @@
  * handed and the events that arrive live merge into one order, and an event
  * seen twice (in the backlog and live) is applied once.
  * See api/services/live_supervision/lines.py.
+ *
+ * With live_takeover, two more: `takeover` (somebody joined, switched, let
+ * the agent answer, handed back, or dropped off and the agent took the call
+ * back) and `supervisor` (one stretch of a supervisor speaking to the
+ * caller, sent when it starts and again, final, when it ends -- with
+ * their words, once transcribed). Both are entries in the transcript, and
+ * `takeover` also keeps `state.takeover`: who has the call now. And
+ * `escalation`: something that would have handed the call to a person
+ * ("Caller asked for a manager"), held back because a supervisor already
+ * has it. See api/services/live_takeover/controller.py.
  */
 
 export type LiveEvent = {
@@ -23,7 +33,28 @@ export type LiveEvent = {
     urgent?: boolean;
     step?: string | null;
     detail?: string;
+    /** `takeover`: what happened, and who has the call after it. */
+    action?: string;
+    mode?: string;
+    by_user_id?: number | null;
+    /** `takeover` on a recovery: who dropped off. */
+    supervisor?: string;
+    /** `supervisor`: how long they spoke, once final. */
+    seconds?: number;
+    /** `escalation`: what was held back, in one line. */
+    label?: string;
 };
+
+export type TakeoverMode = 'ai' | 'barge' | 'takeover';
+
+export type TakeoverLive = {
+    mode: TakeoverMode;
+    by: string | null;
+    byUserId: number | null;
+    agentAnswering: boolean;
+};
+
+export const AGENT_HAS_IT: TakeoverLive = { mode: 'ai', by: null, byUserId: null, agentAnswering: false };
 
 export type TranscriptEntry =
     | {
@@ -35,7 +66,19 @@ export type TranscriptEntry =
           final: boolean;
           cutOff: boolean;
       }
-    | { kind: 'whisper'; key: string; seq: number; by: string; text: string; urgent: boolean };
+    | { kind: 'whisper'; key: string; seq: number; by: string; text: string; urgent: boolean }
+    | { kind: 'takeover'; key: string; seq: number; text: string }
+    | {
+          kind: 'supervisor';
+          key: string;
+          seq: number;
+          by: string;
+          seconds: number;
+          final: boolean;
+          /** Their words, once the transcriber has them. */
+          text: string;
+      }
+    | { kind: 'escalation'; key: string; seq: number; text: string };
 
 export type TranscriptState = {
     entries: TranscriptEntry[];
@@ -43,9 +86,75 @@ export type TranscriptState = {
     step: string | null;
     ended: boolean;
     interrupted: number;
+    /** Who has the call: the agent, or a supervisor and how. */
+    takeover: TakeoverLive;
 };
 
-export const EMPTY: TranscriptState = { entries: [], seen: new Set(), step: null, ended: false, interrupted: 0 };
+export const EMPTY: TranscriptState = {
+    entries: [],
+    seen: new Set(),
+    step: null,
+    ended: false,
+    interrupted: 0,
+    takeover: AGENT_HAS_IT,
+};
+
+function asMode(mode: string | undefined): TakeoverMode {
+    return mode === 'barge' || mode === 'takeover' ? mode : 'ai';
+}
+
+/** One line for a change of who has the call, in the panel and on the
+ *  call's record alike. */
+export function takeoverText(event: Pick<LiveEvent, 'action' | 'mode' | 'by' | 'supervisor' | 'detail'>): string {
+    const by = event.by || 'A supervisor';
+    switch (event.action) {
+        case 'joined':
+            return event.mode === 'takeover'
+                ? `${by} took over the call. The agent is silent until it is handed back.`
+                : `${by} joined the call. The agent is paused.`;
+        case 'switched':
+            return event.mode === 'takeover'
+                ? `${by} took over the call. The agent is silent until it is handed back.`
+                : `${by} switched to barge. The agent is paused.`;
+        case 'agent_answering':
+            return `${by} let the agent answer.`;
+        case 'agent_paused':
+            return `The agent stopped as ${by} spoke.`;
+        case 'handed_back':
+            return `${by} handed the call back to the agent.`;
+        case 'recovered':
+            return `${event.supervisor || by} dropped off the call. The agent took it back.`;
+        case 'failed':
+            return `${by} could not join the call. ${event.detail ?? ''}`.trim();
+        default:
+            return `${by} changed who has the call.`;
+    }
+}
+
+/** An escalation held back while a supervisor had the call, in one line. */
+export function escalationText(event: Pick<LiveEvent, 'label' | 'supervisor'>): string {
+    const what = event.label || 'The caller wanted a person';
+    const who = event.supervisor || 'a supervisor';
+    return `${what}. Not transferred: ${who} is on the call.`;
+}
+
+function nextTakeover(was: TakeoverLive, event: LiveEvent): TakeoverLive {
+    switch (event.action) {
+        case 'joined':
+        case 'switched':
+            return { mode: asMode(event.mode), by: event.by ?? null, byUserId: event.by_user_id ?? null, agentAnswering: false };
+        case 'agent_answering':
+            return { ...was, agentAnswering: true };
+        case 'agent_paused':
+            return { ...was, agentAnswering: false };
+        case 'handed_back':
+        case 'recovered':
+        case 'failed':
+            return AGENT_HAS_IT;
+        default:
+            return was;
+    }
+}
 
 /** Where an entry first appeared: a line keeps the place of its first words. */
 function place(entries: TranscriptEntry[], entry: TranscriptEntry): TranscriptEntry[] {
@@ -97,6 +206,50 @@ export function apply(state: TranscriptState, event: LiveEvent): TranscriptState
                     by: event.by || 'A supervisor',
                     text: event.text ?? '',
                     urgent: Boolean(event.urgent),
+                }),
+            };
+        case 'takeover':
+            return {
+                ...state,
+                seen,
+                takeover: nextTakeover(state.takeover, event),
+                entries: place(state.entries, {
+                    kind: 'takeover',
+                    key: `takeover-${order}`,
+                    seq: order,
+                    text: takeoverText(event),
+                }),
+            };
+        case 'supervisor': {
+            const key = `supervisor-${event.id ?? order}`;
+            const found = state.entries.find((e) => e.key === key);
+            const existing = found && found.kind === 'supervisor' ? found : undefined;
+            if (existing && existing.final && !event.final) return { ...state, seen };
+            return {
+                ...state,
+                seen,
+                entries: place(state.entries, {
+                    kind: 'supervisor',
+                    key,
+                    seq: order,
+                    by: event.by || 'A supervisor',
+                    seconds: event.seconds ?? existing?.seconds ?? 0,
+                    final: Boolean(event.final),
+                    // Words arrive after the stretch they belong to; a later
+                    // event without them keeps what was already heard.
+                    text: event.text ?? existing?.text ?? '',
+                }),
+            };
+        }
+        case 'escalation':
+            return {
+                ...state,
+                seen,
+                entries: place(state.entries, {
+                    kind: 'escalation',
+                    key: `escalation-${order}`,
+                    seq: order,
+                    text: escalationText(event),
                 }),
             };
         case 'step':

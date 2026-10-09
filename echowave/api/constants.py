@@ -1071,6 +1071,32 @@ DEEPFILTERNET_MODEL_PATH = os.getenv("DEEPFILTERNET_MODEL_PATH", "").strip()
 # Decibyl (services/live_supervision/). Off by default; even when on, each
 # workspace has to switch "Allow live listening" on before anybody listens.
 LIVE_SUPERVISION_ENABLED = _flag("LIVE_SUPERVISION_ENABLED")
+# live_takeover: a supervisor joins a live call and speaks to the caller
+# (barge), or replaces the agent until they hand back (take-over), from the
+# listen panel (services/live_takeover/). Needs live_supervision on as well.
+# Off by default; even when on, each workspace has to switch "Allow
+# supervisors to join calls" on first.
+LIVE_TAKEOVER_ENABLED = _flag("LIVE_TAKEOVER_ENABLED")
+# A supervisor who drops off a call they were speaking on (their browser or
+# connection gone) is waited for this long; then the agent picks the call
+# back up with a short line rather than leave the caller in silence.
+LIVE_TAKEOVER_RECOVERY_SECONDS = max(
+    1.0, float(os.getenv("LIVE_TAKEOVER_RECOVERY_SECONDS", "5"))
+)
+# How the supervisor's voice reaches the caller: "pipeline" (from the
+# browser, mixed into the call's own audio by Decibyl) or "plivo_mpc" (the
+# supervisor's phone dialled into a Plivo Multi-Party Call; see
+# services/live_takeover/plivo_mpc.py for what is still unconfirmed).
+LIVE_TAKEOVER_BRIDGE = os.getenv("LIVE_TAKEOVER_BRIDGE", "pipeline").strip().lower()
+# Whether the "pipeline" bridge may mix a supervisor's browser audio into a
+# phone (PSTN) call on Decibyl's own servers. Off: mixing internet audio into
+# an Indian phone call raises the VoIP-PSTN interconnection question, and the
+# plan is to let the carrier's conference do the mixing until telecom counsel
+# says otherwise. A founder and counsel decision, so a constant and not an
+# environment switch. Web calls are unaffected, and taking a phone call over
+# without speaking (the agent silenced, instructions typed, then handed back)
+# stays available either way.
+ALLOW_SERVER_MIXED_PSTN_BARGE = False
 EXPO_PUSH_URL = os.getenv(
     "EXPO_PUSH_URL", "https://exp.host/--/api/v2/push/send"
 ).strip()

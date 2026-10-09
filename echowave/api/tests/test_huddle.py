@@ -732,3 +732,230 @@ class TestTheConnection:
         await brain.close_turn(ledger, turn, interrupted=False)
         await ledger.drain()
         assert written == ["hello"]
+
+
+# --- during a live call, the huddle is that call's whisper channel ------------
+
+
+class _CallTask:
+    """The live call's pipeline, as far as a whisper goes."""
+
+    def __init__(self):
+        self.queued: list = []
+
+    async def queue_frames(self, frames):
+        self.queued.extend(frames)
+
+    def add_observer(self, observer):
+        pass
+
+
+@pytest.fixture
+async def live_reset():
+    from api.services.live_supervision import channels
+
+    channels.reset()
+    yield
+    client = channels._client
+    channels.reset()
+    if client is not None:
+        await client.aclose()
+
+
+@pytest.fixture
+def supervision_on(monkeypatch):
+    monkeypatch.setattr(constants, "LIVE_SUPERVISION_ENABLED", True)
+
+
+async def _live_call(people, *, allow: bool = True):
+    """A call in progress on the agent, with live supervision attached."""
+    # The app first: importing it the first time can take longer than a live
+    # call's entry lasts without a heartbeat (no heartbeat loop runs here).
+    from api.app import app  # noqa: F401
+    from api.services.live_supervision import access
+    from api.services.live_supervision import session as live_session
+
+    await db_client.upsert_configuration(
+        people.org, access.KEY, {"allow_listening": allow}
+    )
+    run = await db_client.create_workflow_run(
+        "Live huddle call",
+        people.agent.id,
+        WorkflowRunMode.PLIVO.value,
+        user_id=people.a.id,
+        initial_context={"caller_number": "+919812345678"},
+        organization_id=people.org,
+    )
+    task = _CallTask()
+    live = live_session.LiveSession(
+        run_id=run.id,
+        organization_id=people.org,
+        workflow_id=people.agent.id,
+        agent_name="Front desk",
+        direction="outbound",
+        task=task,
+    )
+    await live.start()
+    return run, live, task
+
+
+async def _until(predicate, timeout: float = 3.0) -> bool:
+    import asyncio
+    import time
+
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if predicate():
+            return True
+        await asyncio.sleep(0.02)
+    return predicate()
+
+
+def _no_model(monkeypatch) -> list:
+    called: list = []
+
+    async def stream(**kwargs):
+        called.append(kwargs)
+        return model_client.ModelReply(text="A teammate's answer.")
+
+    async def resolve(self):
+        return SimpleNamespace(provider="anthropic", model="m", api_key="k")
+
+    monkeypatch.setattr(model_client, "stream", stream)
+    monkeypatch.setattr(HuddleState, "_resolve_model", resolve)
+    return called
+
+
+@pytest.mark.asyncio
+class TestTheLiveCallsWhisperChannel:
+    async def test_a_spoken_line_goes_to_the_live_call_as_a_whisper(
+        self, people, on, supervision_on, live_reset, monkeypatch
+    ):
+        from api.services.huddle import live_call
+
+        called = _no_model(monkeypatch)
+        run, live, task = await _live_call(people)
+        try:
+            state = _state(people)
+            told: list[dict] = []
+
+            async def tell(message):
+                told.append(message)
+
+            state.tell = tell
+            said: list[str] = []
+            turn = Turn(index=0, text="Offer her the 4pm slot", started_at=0.0)
+
+            async def on_words(piece):
+                said.append(piece)
+
+            body = await state.answer(None, turn, on_words)
+            # Passed to the call, not answered as a teammate.
+            assert body == live_call.SENT and "".join(said) == live_call.SENT
+            assert called == []
+            assert await _until(lambda: live.whispers_applied == 1)
+            [frame] = task.queued
+            content = frame.messages[0]["content"]
+            assert content.startswith("[supervisor:")
+            assert "Offer her the 4pm slot" in content
+            assert frame.run_llm is False
+            # The panel is told, marked "This call only".
+            [shown] = [m for m in told if m["type"] == "huddle-whisper"]
+            assert shown["payload"]["run_id"] == run.id
+            assert shown["payload"]["label"] == "This call only"
+            # The huddle's transcript says the line went to the call.
+            rows = await _huddle_events(people.org, people.agent.id)
+            turns = rows[0].payload["turns"]
+            assert turns[0]["text"] == "Offer her the 4pm slot"
+            assert turns[0]["whisper_run_id"] == run.id
+        finally:
+            await live.close()
+
+        # The call over: the huddle is an ordinary huddle again.
+        body = await state.answer(
+            None, Turn(index=1, text="How did that go?", started_at=0.0), on_words
+        )
+        assert body == "A teammate's answer." and len(called) == 1
+        history = called[0]["conversation"].messages
+        assert history[0]["content"].startswith("(whispered to the live call)")
+
+    async def test_the_panel_reads_this_call_only_and_can_type_a_whisper(
+        self, people, on, supervision_on, live_reset
+    ):
+        run, live, task = await _live_call(people)
+        try:
+            wid = people.agent.id
+            async with client_as(people.as_a) as c:
+                found = (await c.get(f"/api/v1/huddle/{wid}/live-call")).json()
+                assert found["live"] is True and found["run_id"] == run.id, found
+                assert found["label"] == "This call only" and found["calls"] == 1
+                sent = await c.post(
+                    f"/api/v1/huddle/{wid}/whisper", json={"text": "Mention parking"}
+                )
+                assert sent.status_code == 200, sent.text
+                assert sent.json()["run_id"] == run.id
+                assert sent.json()["label"] == "This call only"
+            assert await _until(lambda: live.whispers_applied == 1)
+            assert "Mention parking" in task.queued[0].messages[0]["content"]
+            # A member who may not listen to this agent's calls gets an
+            # ordinary huddle, and nothing typed reaches the call.
+            async with client_as(people.as_b) as c:
+                found = (await c.get(f"/api/v1/huddle/{wid}/live-call")).json()
+                assert found["live"] is False
+                refused = await c.post(
+                    f"/api/v1/huddle/{wid}/whisper", json={"text": "Hello"}
+                )
+                assert refused.status_code == 409
+            # Another workspace's agent is not found.
+            async with client_as(people.as_a) as c:
+                other = await c.get(f"/api/v1/huddle/{people.elsewhere.id}/live-call")
+                assert other.status_code == 404
+            assert live.whispers_applied == 1
+        finally:
+            await live.close()
+
+    async def test_listening_off_for_the_workspace_means_an_ordinary_huddle(
+        self, people, on, supervision_on, live_reset, monkeypatch
+    ):
+        called = _no_model(monkeypatch)
+        run, live, task = await _live_call(people, allow=False)
+        try:
+            body = await _state(people).answer(
+                None, Turn(index=0, text="Hello", started_at=0.0), lambda _p: _noop()
+            )
+            assert body == "A teammate's answer." and len(called) == 1
+            assert task.queued == []
+            async with client_as(people.as_a) as c:
+                found = await c.get(f"/api/v1/huddle/{people.agent.id}/live-call")
+                assert found.json()["live"] is False
+        finally:
+            await live.close()
+
+    async def test_without_live_supervision_nothing_changes(
+        self, people, on, live_reset, monkeypatch
+    ):
+        called = _no_model(monkeypatch)
+        monkeypatch.setattr(constants, "LIVE_SUPERVISION_ENABLED", True)
+        run, live, task = await _live_call(people)
+        monkeypatch.setattr(constants, "LIVE_SUPERVISION_ENABLED", False)
+        try:
+            body = await _state(people).answer(
+                None, Turn(index=0, text="Hello", started_at=0.0), lambda _p: _noop()
+            )
+            assert body == "A teammate's answer." and len(called) == 1
+            assert task.queued == []
+            wid = people.agent.id
+            async with client_as(people.as_a) as c:
+                assert (
+                    await c.get(f"/api/v1/huddle/{wid}/live-call")
+                ).status_code == 404
+                response = await c.post(
+                    f"/api/v1/huddle/{wid}/whisper", json={"text": "Hello"}
+                )
+                assert response.status_code == 404
+        finally:
+            await live.close()
+
+
+async def _noop():
+    return None

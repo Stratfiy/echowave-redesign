@@ -8760,6 +8760,16 @@ export type HandBackRequest = {
 };
 
 /**
+ * HandBackResponse
+ */
+export type HandBackResponse = {
+    /**
+     * Mode
+     */
+    mode: string;
+};
+
+/**
  * Headline
  *
  * The facts the greeting is built from.
@@ -9363,6 +9373,40 @@ export type HttpTransferResolverConfig = {
 };
 
 /**
+ * HuddleLiveCall
+ */
+export type HuddleLiveCall = {
+    /**
+     * Live
+     */
+    live: boolean;
+    /**
+     * Label
+     */
+    label?: string | null;
+    /**
+     * Run Id
+     */
+    run_id?: number | null;
+    /**
+     * Direction
+     */
+    direction?: string | null;
+    /**
+     * Caller
+     */
+    caller?: string | null;
+    /**
+     * Started At
+     */
+    started_at?: string | null;
+    /**
+     * Calls
+     */
+    calls?: number;
+};
+
+/**
  * HuddleNotes
  */
 export type HuddleNotes = {
@@ -9436,6 +9480,42 @@ export type HuddleSession = {
      * Notes
      */
     notes?: Array<string>;
+};
+
+/**
+ * HuddleWhisper
+ */
+export type HuddleWhisper = {
+    /**
+     * Text
+     */
+    text: string;
+};
+
+/**
+ * HuddleWhisperSent
+ */
+export type HuddleWhisperSent = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * At
+     */
+    at: string;
+    /**
+     * Text
+     */
+    text: string;
+    /**
+     * Run Id
+     */
+    run_id: number;
+    /**
+     * Label
+     */
+    label: string;
 };
 
 /**
@@ -10259,6 +10339,58 @@ export type InworldTtsConfiguration = {
  * ItemKind
  */
 export type ItemKind = 'node' | 'edge' | 'workflow';
+
+/**
+ * JoinRequest
+ */
+export type JoinRequest = {
+    /**
+     * Mode
+     */
+    mode: string;
+    /**
+     * Phone
+     */
+    phone?: string | null;
+};
+
+/**
+ * JoinResponse
+ */
+export type JoinResponse = {
+    /**
+     * Mode
+     */
+    mode: string;
+    /**
+     * By
+     */
+    by?: string | null;
+    /**
+     * By User Id
+     */
+    by_user_id?: number | null;
+};
+
+/**
+ * JoinSettingsRequest
+ */
+export type JoinSettingsRequest = {
+    /**
+     * Allow Joining
+     */
+    allow_joining: boolean;
+};
+
+/**
+ * JoinSettingsResponse
+ */
+export type JoinSettingsResponse = {
+    /**
+     * Allow Joining
+     */
+    allow_joining: boolean;
+};
 
 /**
  * KnowledgeBaseUsageSchema
@@ -20473,6 +20605,80 @@ export type SyncToolsResponse = {
      * Error
      */
     error?: string | null;
+};
+
+/**
+ * TakeoverState
+ */
+export type TakeoverState = {
+    /**
+     * Run Id
+     */
+    run_id: number;
+    /**
+     * Mode
+     */
+    mode: string;
+    /**
+     * By
+     */
+    by?: string | null;
+    /**
+     * By User Id
+     */
+    by_user_id?: number | null;
+    /**
+     * Since
+     */
+    since?: string | null;
+    /**
+     * Agent Answering
+     */
+    agent_answering?: boolean;
+    /**
+     * Mine
+     */
+    mine?: boolean;
+    /**
+     * Can Join
+     */
+    can_join: boolean;
+    /**
+     * Blocked
+     */
+    blocked?: string | null;
+    /**
+     * Allow Joining
+     */
+    allow_joining: boolean;
+    /**
+     * Can Change Setting
+     */
+    can_change_setting: boolean;
+    /**
+     * Bridge
+     */
+    bridge: string;
+    /**
+     * Needs Phone
+     */
+    needs_phone?: boolean;
+    /**
+     * Recovery Seconds
+     */
+    recovery_seconds: number;
+    /**
+     * Voice
+     */
+    voice?: boolean;
+    /**
+     * Can Barge
+     */
+    can_barge?: boolean;
+    /**
+     * Notice
+     */
+    notice?: string | null;
 };
 
 /**
@@ -50534,6 +50740,94 @@ export type HuddleNotesApiV1HuddleWorkflowIdNotesGetResponses = {
 
 export type HuddleNotesApiV1HuddleWorkflowIdNotesGetResponse = HuddleNotesApiV1HuddleWorkflowIdNotesGetResponses[keyof HuddleNotesApiV1HuddleWorkflowIdNotesGetResponses];
 
+export type HuddleLiveCallApiV1HuddleWorkflowIdLiveCallGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+    };
+    query?: never;
+    url: '/api/v1/huddle/{workflow_id}/live-call';
+};
+
+export type HuddleLiveCallApiV1HuddleWorkflowIdLiveCallGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type HuddleLiveCallApiV1HuddleWorkflowIdLiveCallGetError = HuddleLiveCallApiV1HuddleWorkflowIdLiveCallGetErrors[keyof HuddleLiveCallApiV1HuddleWorkflowIdLiveCallGetErrors];
+
+export type HuddleLiveCallApiV1HuddleWorkflowIdLiveCallGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: HuddleLiveCall;
+};
+
+export type HuddleLiveCallApiV1HuddleWorkflowIdLiveCallGetResponse = HuddleLiveCallApiV1HuddleWorkflowIdLiveCallGetResponses[keyof HuddleLiveCallApiV1HuddleWorkflowIdLiveCallGetResponses];
+
+export type HuddleWhisperApiV1HuddleWorkflowIdWhisperPostData = {
+    body: HuddleWhisper;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+    };
+    query?: never;
+    url: '/api/v1/huddle/{workflow_id}/whisper';
+};
+
+export type HuddleWhisperApiV1HuddleWorkflowIdWhisperPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type HuddleWhisperApiV1HuddleWorkflowIdWhisperPostError = HuddleWhisperApiV1HuddleWorkflowIdWhisperPostErrors[keyof HuddleWhisperApiV1HuddleWorkflowIdWhisperPostErrors];
+
+export type HuddleWhisperApiV1HuddleWorkflowIdWhisperPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: HuddleWhisperSent;
+};
+
+export type HuddleWhisperApiV1HuddleWorkflowIdWhisperPostResponse = HuddleWhisperApiV1HuddleWorkflowIdWhisperPostResponses[keyof HuddleWhisperApiV1HuddleWorkflowIdWhisperPostResponses];
+
 export type OrganisationApiV1OrganisationGetData = {
     body?: never;
     headers?: {
@@ -59007,6 +59301,221 @@ export type ProposeConsentFixApiV1LiveCallsRunIdConsentFixPostResponses = {
 };
 
 export type ProposeConsentFixApiV1LiveCallsRunIdConsentFixPostResponse = ProposeConsentFixApiV1LiveCallsRunIdConsentFixPostResponses[keyof ProposeConsentFixApiV1LiveCallsRunIdConsentFixPostResponses];
+
+export type SetJoinSettingsApiV1LiveCallsJoinSettingsPutData = {
+    body: JoinSettingsRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/live-calls/join-settings';
+};
+
+export type SetJoinSettingsApiV1LiveCallsJoinSettingsPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SetJoinSettingsApiV1LiveCallsJoinSettingsPutError = SetJoinSettingsApiV1LiveCallsJoinSettingsPutErrors[keyof SetJoinSettingsApiV1LiveCallsJoinSettingsPutErrors];
+
+export type SetJoinSettingsApiV1LiveCallsJoinSettingsPutResponses = {
+    /**
+     * Successful Response
+     */
+    200: JoinSettingsResponse;
+};
+
+export type SetJoinSettingsApiV1LiveCallsJoinSettingsPutResponse = SetJoinSettingsApiV1LiveCallsJoinSettingsPutResponses[keyof SetJoinSettingsApiV1LiveCallsJoinSettingsPutResponses];
+
+export type TakeoverStateApiV1LiveCallsRunIdTakeoverGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Run Id
+         */
+        run_id: number;
+    };
+    query?: never;
+    url: '/api/v1/live-calls/{run_id}/takeover';
+};
+
+export type TakeoverStateApiV1LiveCallsRunIdTakeoverGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type TakeoverStateApiV1LiveCallsRunIdTakeoverGetError = TakeoverStateApiV1LiveCallsRunIdTakeoverGetErrors[keyof TakeoverStateApiV1LiveCallsRunIdTakeoverGetErrors];
+
+export type TakeoverStateApiV1LiveCallsRunIdTakeoverGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: TakeoverState;
+};
+
+export type TakeoverStateApiV1LiveCallsRunIdTakeoverGetResponse = TakeoverStateApiV1LiveCallsRunIdTakeoverGetResponses[keyof TakeoverStateApiV1LiveCallsRunIdTakeoverGetResponses];
+
+export type JoinCallApiV1LiveCallsRunIdTakeoverPostData = {
+    body: JoinRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Run Id
+         */
+        run_id: number;
+    };
+    query?: never;
+    url: '/api/v1/live-calls/{run_id}/takeover';
+};
+
+export type JoinCallApiV1LiveCallsRunIdTakeoverPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type JoinCallApiV1LiveCallsRunIdTakeoverPostError = JoinCallApiV1LiveCallsRunIdTakeoverPostErrors[keyof JoinCallApiV1LiveCallsRunIdTakeoverPostErrors];
+
+export type JoinCallApiV1LiveCallsRunIdTakeoverPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: JoinResponse;
+};
+
+export type JoinCallApiV1LiveCallsRunIdTakeoverPostResponse = JoinCallApiV1LiveCallsRunIdTakeoverPostResponses[keyof JoinCallApiV1LiveCallsRunIdTakeoverPostResponses];
+
+export type LetAgentAnswerApiV1LiveCallsRunIdLetAgentAnswerPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Run Id
+         */
+        run_id: number;
+    };
+    query?: never;
+    url: '/api/v1/live-calls/{run_id}/let-agent-answer';
+};
+
+export type LetAgentAnswerApiV1LiveCallsRunIdLetAgentAnswerPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type LetAgentAnswerApiV1LiveCallsRunIdLetAgentAnswerPostError = LetAgentAnswerApiV1LiveCallsRunIdLetAgentAnswerPostErrors[keyof LetAgentAnswerApiV1LiveCallsRunIdLetAgentAnswerPostErrors];
+
+export type LetAgentAnswerApiV1LiveCallsRunIdLetAgentAnswerPostResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type LetAgentAnswerApiV1LiveCallsRunIdLetAgentAnswerPostResponse = LetAgentAnswerApiV1LiveCallsRunIdLetAgentAnswerPostResponses[keyof LetAgentAnswerApiV1LiveCallsRunIdLetAgentAnswerPostResponses];
+
+export type HandBackApiV1LiveCallsRunIdHandBackPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Run Id
+         */
+        run_id: number;
+    };
+    query?: never;
+    url: '/api/v1/live-calls/{run_id}/hand-back';
+};
+
+export type HandBackApiV1LiveCallsRunIdHandBackPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type HandBackApiV1LiveCallsRunIdHandBackPostError = HandBackApiV1LiveCallsRunIdHandBackPostErrors[keyof HandBackApiV1LiveCallsRunIdHandBackPostErrors];
+
+export type HandBackApiV1LiveCallsRunIdHandBackPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: HandBackResponse;
+};
+
+export type HandBackApiV1LiveCallsRunIdHandBackPostResponse = HandBackApiV1LiveCallsRunIdHandBackPostResponses[keyof HandBackApiV1LiveCallsRunIdHandBackPostResponses];
 
 export type MeetingCapabilitiesApiV1MeetingsCapabilitiesGetData = {
     body?: never;

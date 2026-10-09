@@ -44,6 +44,8 @@ from pipecat.processors.frame_processor import FrameDirection
 from pipecat.transports.base_input import BaseInputTransport
 from pipecat.transports.base_output import BaseOutputTransport
 
+from api.services.live_takeover.frames import SupervisorAudioFrame
+
 #: About two seconds of 20 ms frames from both sides.
 AUDIO_QUEUE_SIZE = 200
 #: Words are a few events a second; this is minutes of them.
@@ -137,8 +139,11 @@ class LiveCallTap(BaseObserver):
                 isinstance(data.destination, BaseOutputTransport)
                 and self._audio_wanted()
             ):
+                # A supervisor who joined the call is their own side, so the
+                # one speaking can leave themselves out of what they hear.
+                side = "s" if isinstance(frame, SupervisorAudioFrame) else "a"
                 self._put_audio(
-                    (AUDIO, "a", frame.sample_rate, frame.num_channels, frame.audio)
+                    (AUDIO, side, frame.sample_rate, frame.num_channels, frame.audio)
                 )
             return
 

@@ -209,6 +209,7 @@ class OrganizationConfigurationKey(Enum):
     MODEL_CONFIGURATION_PREFERENCES = "MODEL_CONFIGURATION_PREFERENCES"  # Deprecated; read fallback for old org preferences
     IMAGE_GENERATION = "IMAGE_GENERATION"  # Which image provider the workspace chose (services/images/)
     LIVE_SUPERVISION = "LIVE_SUPERVISION"  # "Allow live listening" for the workspace (services/live_supervision/)
+    LIVE_TAKEOVER = "LIVE_TAKEOVER"  # "Allow supervisors to join calls" for the workspace (services/live_takeover/)
 
 
 class UserConfigurationKey(Enum):

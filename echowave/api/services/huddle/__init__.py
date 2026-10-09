@@ -22,6 +22,10 @@ Built from what exists rather than beside it:
   in the agent's prompt, so nothing said in a huddle reaches a customer
   unless a card carrying it is published.
 
+* **During a live call** (with ``live_supervision``), the huddle is that
+  call's whisper channel, marked "This call only" (``live_call``): what the
+  operator says or types goes to the call as a whisper, never to the caller.
+
 Behind the ``huddle`` flag; off, every route is a 404 and the thread keeps
 its old "Call me to test" link.
 """

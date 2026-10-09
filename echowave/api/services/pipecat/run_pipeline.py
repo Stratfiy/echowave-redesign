@@ -26,6 +26,7 @@ from api.services.integrations import (
     create_runtime_sessions,
 )
 from api.services.live_supervision.session import attach as attach_live_supervision
+from api.services.live_takeover.controller import prepare as prepare_live_takeover
 from api.services.pipecat import caller_voice_lock, vad_sensitivity
 from api.services.pipecat.active_calls import (
     register_active_call as register_worker_active_call,
@@ -1429,8 +1430,34 @@ async def _run_pipeline_impl(
     engine.set_user_idle_timeout(max_user_idle_timeout)
     user_idle_handler = engine.create_user_idle_handler()
 
+    # Barge and take-over (services/live_takeover/). None, and nothing added
+    # to the pipeline, unless the feature is on for this organisation.
+    live_takeover = prepare_live_takeover(workflow_run=workflow_run, workflow=workflow)
+    if live_takeover is not None:
+        # Escalation stands down while a supervisor has the call, and says
+        # what it held back to the supervisor.
+        if escalation_runtime is not None:
+            escalation_runtime.set_supervision(live_takeover)
+        # The supervisor's words are transcribed by a copy of this call's own
+        # transcriber, made only if they speak.
+        if not is_realtime and audio_config is not None:
+            live_takeover.transcribe_with(
+                lambda: create_stt_service_with_backups(
+                    user_config,
+                    audio_config,
+                    keyterms=keyterms,
+                    correlation_id=mps_correlation_id,
+                )[0],
+                sample_rate=audio_config.transport_in_sample_rate,
+            )
+
     @user_context_aggregator.event_handler("on_user_turn_idle")
     async def on_user_turn_idle(aggregator):
+        if live_takeover is not None and live_takeover.holds_the_call:
+            # A caller listening to a supervisor is not idle, and the idle
+            # handler's second strike hangs up.
+            user_idle_handler.reset()
+            return
         await user_idle_handler.handle_idle(aggregator)
 
     @user_context_aggregator.event_handler("on_user_turn_started")
@@ -1660,6 +1687,7 @@ async def _run_pipeline_impl(
             pipeline_engine_callback_processor,
             pipeline_metrics_aggregator,
             voicemail_detector=voicemail_detector,
+            takeover_output_gate=live_takeover.output_gate if live_takeover else None,
         )
     else:
         pipeline = build_pipeline(
@@ -1686,6 +1714,8 @@ async def _run_pipeline_impl(
             # The greeting can now play before the start node is set; this
             # holds a caller's turn that beats the start node to the model.
             context_ready_gate=LLMContextReadyGate(engine.llm_context_ready),
+            takeover_llm_gate=live_takeover.llm_gate if live_takeover else None,
+            takeover_output_gate=live_takeover.output_gate if live_takeover else None,
         )
 
     # Create pipeline task with audio configuration
@@ -1815,6 +1845,10 @@ async def _run_pipeline_impl(
         logs_buffer=in_memory_logs_buffer,
         context=context,
     )
+    if live_takeover is not None:
+        await live_takeover.attach(
+            task, logs_buffer=in_memory_logs_buffer, live=live_supervision
+        )
 
     try:
         # Run the pipeline
@@ -1823,9 +1857,13 @@ async def _run_pipeline_impl(
     except asyncio.CancelledError:
         logger.warning("Received CancelledError in _run_pipeline")
     finally:
+        if live_takeover is not None:
+            # Before supervision closes, so the hand-back of a call that ends
+            # with a supervisor on it still reaches the listeners. Never raises.
+            await live_takeover.close()
         if live_supervision is not None:
-            # First, so the call leaves the live list even if a later
-            # cleanup step fails. Never raises.
+            # Next (only the take-over above comes first), so the call leaves
+            # the live list even if a later cleanup step fails. Never raises.
             await live_supervision.close()
         # Close MCP sessions here, not in engine.cleanup(). The anyio cancel
         # scopes opened by MCPClient.start() in engine.initialize() are

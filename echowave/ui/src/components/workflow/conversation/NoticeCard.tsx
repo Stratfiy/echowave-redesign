@@ -1,12 +1,12 @@
 "use client";
 
-import { AlertTriangle, ExternalLink, Lock, MicOff } from "lucide-react";
+import { AlertTriangle, ExternalLink, Lock, MicOff, UserRound } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
 interface NoticeCardProps {
     tone: "warning" | "error" | "info";
-    icon?: "alert" | "mic-off" | "lock";
+    icon?: "alert" | "mic-off" | "lock" | "user";
     title: string;
     text: string;
     linkHref?: string;
@@ -24,7 +24,7 @@ export function NoticeCard({
     if (tone === "info") {
         // Something that happened on the call without being said (a
         // supervisor's whisper): quiet, and plainly not a fault.
-        const InfoIcon = icon === "lock" ? Lock : AlertTriangle;
+        const InfoIcon = icon === "lock" ? Lock : icon === "user" ? UserRound : AlertTriangle;
         return (
             <div className="flex items-start gap-2 rounded-lg border border-dashed border-border bg-muted/40 px-3 py-2">
                 <InfoIcon className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />

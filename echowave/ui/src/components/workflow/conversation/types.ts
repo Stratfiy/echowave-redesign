@@ -57,6 +57,20 @@ export interface RealtimeFeedbackEvent {
         /** A supervisor's whisper: who gave it, and whether it cut in. */
         by?: string;
         urgent?: boolean;
+        /** A supervisor joining the call (live_takeover): what happened... */
+        action?: string;
+        mode?: string;
+        detail?: string;
+        /** ...who dropped off, on a recovery... */
+        supervisor?: string;
+        /** ...and, for a stretch of them speaking, for how long. */
+        seconds?: number;
+        /** A stretch of a supervisor speaking: its id, written again with
+         *  their words when those arrive after it ended. */
+        id?: string;
+        transcribed?: boolean;
+        /** An escalation held back while a supervisor had the call. */
+        label?: string;
     };
     timestamp: string;
     turn: number;
@@ -110,7 +124,7 @@ export interface ConversationNoticeItem extends ConversationItemBase {
      * wrong for anything else: a provider failure drawn with a muted microphone
      * reads as an audio setting, not an error.
      */
-    icon?: "alert" | "mic-off" | "lock";
+    icon?: "alert" | "mic-off" | "lock" | "user";
     title: string;
     text: string;
     fatal?: boolean;

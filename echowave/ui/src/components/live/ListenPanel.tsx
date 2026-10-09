@@ -14,9 +14,16 @@
  * the workspace (an admin turns it on here), not permitted (who can), a
  * greeting that never tells callers they may be monitored (a proposed change,
  * as the same publish-or-discard card the agent's own edits use, right here).
+ *
+ * With live_takeover, the panel is also where a supervisor joins the call
+ * (`TakeoverControls`): barge in or take over, speaking from this browser.
+ * Who has the call, and each stretch of a supervisor speaking (with their
+ * words once transcribed, under their name), appear in the transcript in
+ * order with the words; so does an escalation held back because a
+ * supervisor already has the call ("Caller asked for a manager").
  */
 
-import { Headphones, Lock, Mic, Send, Square, VolumeX, X } from 'lucide-react';
+import { Headphones, Lock, Mic, Send, Square, UserRound, VolumeX, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 import {
@@ -33,7 +40,8 @@ import { detailFromError } from '@/lib/apiError';
 import { appendDictation, useDictation } from '@/lib/useDictation';
 import { cn } from '@/lib/utils';
 
-import type { LiveEvent, TranscriptEntry } from './transcript';
+import { TakeoverControls } from './TakeoverControls';
+import { duration, type LiveEvent, type TranscriptEntry } from './transcript';
 import { useLiveListen } from './useLiveListen';
 
 export const BLOCKED_COPY: Record<string, string> = {
@@ -166,9 +174,11 @@ function Listening({ call }: { call: LiveCallItem }) {
 
 function LiveCall({ call, detail }: { call: LiveCallItem; detail: LiveCallDetail }) {
     const [audio, setAudio] = useState(false);
+    const [speaking, setSpeaking] = useState(false);
     const { state, status, error } = useLiveListen(call.run_id, {
         audio,
         initial: detail.transcript as LiveEvent[],
+        speaking,
     });
     const ended = status === 'ended' || state.ended;
     const bottom = useRef<HTMLLIElement | null>(null);
@@ -210,12 +220,43 @@ function LiveCall({ call, detail }: { call: LiveCallItem; detail: LiveCallDetail
                 ))}
                 <li ref={bottom} aria-hidden className="h-0" />
             </ol>
+            <TakeoverControls runId={call.run_id} live={state.takeover} ended={ended} onSpeakingChange={setSpeaking} />
             <WhisperBox runId={call.run_id} disabled={ended} />
         </div>
     );
 }
 
 function Entry({ entry }: { entry: TranscriptEntry }) {
+    if (entry.kind === 'takeover') {
+        return (
+            <li className="flex items-start gap-2 rounded-lg border border-dashed border-border px-3 py-2">
+                <UserRound className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
+                <p className="min-w-0 break-words text-xs text-muted-foreground">{entry.text}</p>
+            </li>
+        );
+    }
+    if (entry.kind === 'supervisor') {
+        return (
+            <li className="flex flex-col">
+                <span className="text-xs font-medium text-muted-foreground">{entry.by} (supervisor)</span>
+                <span className={cn('break-words text-sm', !entry.final && 'text-muted-foreground')}>
+                    {entry.text
+                        ? entry.text
+                        : entry.final
+                          ? `Spoke to the caller · ${duration(entry.seconds)} · not transcribed`
+                          : 'Speaking to the caller…'}
+                </span>
+            </li>
+        );
+    }
+    if (entry.kind === 'escalation') {
+        return (
+            <li className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2">
+                <UserRound className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-700 dark:text-amber-300" aria-hidden />
+                <p className="min-w-0 break-words text-xs text-amber-800 dark:text-amber-200">{entry.text}</p>
+            </li>
+        );
+    }
     if (entry.kind === 'whisper') {
         return (
             <li className="flex items-start gap-2 rounded-lg border border-dashed border-border bg-muted/40 px-3 py-2">
