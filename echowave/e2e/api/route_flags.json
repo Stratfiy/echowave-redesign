@@ -916,6 +916,31 @@
    "learning"
   ]
  },
+ "/api/v1/live-calls": {
+  "GET": [
+   "live_supervision"
+  ]
+ },
+ "/api/v1/live-calls/settings": {
+  "PUT": [
+   "live_supervision"
+  ]
+ },
+ "/api/v1/live-calls/{run_id}": {
+  "GET": [
+   "live_supervision"
+  ]
+ },
+ "/api/v1/live-calls/{run_id}/consent-fix": {
+  "POST": [
+   "live_supervision"
+  ]
+ },
+ "/api/v1/live-calls/{run_id}/whisper": {
+  "POST": [
+   "live_supervision"
+  ]
+ },
  "/api/v1/me/card-interest": {
   "PUT": [
    "identity_email"
