@@ -20,7 +20,6 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from api.services.call_when_done import agent as done_agent
-from api.services.call_when_done import number as done_number
 from api.services.reminder_calls import ReminderCallError, draft, number, policy
 from api.services.today.scope import full_local
 
@@ -79,11 +78,22 @@ def summary(args: dict[str, Any]) -> tuple[str, str]:
     label = f"{when} · {number.masked(str(args['phone']))} · {language}"
     effect = (
         f"“{args['title']}” · {_recurrence_words(args)} · {retry_words(due, zone_name)}. "
-        f"Calls ring only between {done_number.window()} and never on a number on "
+        f"Calls ring only between {policy.window_words()} and never on a number on "
         "this workspace's do-not-call list. The call says it is Decibyl and checks "
         "it is you before it reads your reminder."
     )
     return label, effect
+
+
+def outside_window_words(asked: str, offered: str) -> str:
+    """Why the time asked for cannot ring, and what the card offers instead
+    (decision D2: the window is ``policy.CALLING_WINDOW_START``-``_END``)."""
+    return (
+        f"You asked for {asked}, which is outside calling hours: reminder "
+        f"calls ring only between {policy.window_words()} your time, so "
+        f"{asked} can't ring. This card is for {offered}, the nearest time "
+        "that can. Confirm it, or say another time."
+    )
 
 
 def resolve(arguments: dict[str, Any], why: str) -> dict[str, Any]:
@@ -109,11 +119,7 @@ def resolve(arguments: dict[str, Any], why: str) -> dict[str, Any]:
     asked = args.get("asked_time")
     because = why or "You asked Decibyl to call you with a reminder."
     if asked:
-        because = (
-            f"You asked for {asked}, which is outside calling hours "
-            f"({done_number.window()}), so this card is for "
-            f"{args['local_time']}. Say another time if that does not suit you."
-        )
+        because = outside_window_words(str(asked), str(args["local_time"]))
     return {
         "action": actions.REMINDER_CALL,
         "args": args,

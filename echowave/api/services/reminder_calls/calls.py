@@ -14,6 +14,12 @@ The flow (docs/plans/reminder-calls.md, sections 2, 3 and 5):
   directly, the do-not-call list, the shared daily cap reserved. A refusal
   is ``skipped`` with its reason; the slot (if any) is given back; the
   person gets the reminder as a notification and a line on the thread.
+* **The conditional claim** (``_claim_to_dial``), right after the gate and
+  again as the run is recorded: under row locks taken in a cancel's order,
+  the schedule is still active, the occurrence still open at its version,
+  the attempt still this worker's. A cancel that committed first is seen;
+  one that comes later finds the run recorded and leaves the ring alone.
+  A cancelled occurrence never rings.
 * **The dial** (``dial_workflow``) records the run on the dispatch before
   the provider is asked (``on_run_created``). A dial that raises before
   that is a verified non-dispatch (``skipped``, slot released); after it,
@@ -33,6 +39,7 @@ The flow (docs/plans/reminder-calls.md, sections 2, 3 and 5):
 
 from __future__ import annotations
 
+import re
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -51,14 +58,15 @@ from api.db.reminder_call_models import (
 from api.enums import AgentEventActor, AgentEventKind
 from api.services import features
 from api.services import reminder_calls as rc
-from api.services.call_when_done import number as done_number
 from api.services.compliance import dnd
 from api.services.reminder_calls import draft, gate, policy
 from api.services.telephony import call_evidence
 
 #: Reasons where the person stopped it themselves, or is no longer in the
 #: workspace: nothing is sent about them.
-QUIET_REASONS = frozenset({"cancelled", "superseded", "not_member", "answered_earlier"})
+QUIET_REASONS = frozenset(
+    {"cancelled", "done", "superseded", "not_member", "answered_earlier"}
+)
 
 
 def _now() -> datetime:
@@ -72,7 +80,7 @@ def why(reason: str | None) -> str:
         "no_line": "this workspace has no phone line for calling out",
         "no_number": "the number for reminder calls is not confirmed",
         "not_adult": f"the number card's “{policy.ADULT_ATTESTATION}” was not confirmed",
-        "quiet_hours": f"it was outside calling hours ({done_number.window()})",
+        "quiet_hours": f"it was outside calling hours ({policy.window_words()})",
         "dnd": "your number is on this workspace's do-not-call list",
         "cap": f"the day's call limit is reached ({cap} call{'s' if cap != 1 else ''} a day)",
         "late": "the call could not go out on time",
@@ -295,15 +303,18 @@ async def place(dispatch_id: int, *, now: datetime | None = None) -> None:
     organization_id = dispatch.organization_id
 
     async def link(run_id: int) -> None:
-        # Only while this worker still holds the claim: otherwise raising
-        # here stops dial_workflow before the provider is asked.
-        if not await _link_run(dispatch_id, organization_id, run_id, claimed=True):
-            raise _Superseded()
+        # The conditional claim, the last thing before the provider is
+        # asked: raising here stops dial_workflow before anything rings.
+        await _claim_to_dial(dispatch_id, organization_id, run_id)
 
     try:
+        # Once now (a cancel that landed while the gate was asking), and
+        # again, under lock, as the run is recorded.
+        await _claim_to_dial(dispatch_id, organization_id, None)
         run_id = await _dial(dispatch_id, verdict.dialable or "", on_run_created=link)
     except _Superseded:
         logger.warning("reminder_calls: dispatch {} settled mid-dial", dispatch_id)
+        await _release_if_unrung(dispatch_id)
         return
     except _Refused as exc:
         await _skip(dispatch_id, exc.reason)
@@ -323,6 +334,102 @@ async def place(dispatch_id: int, *, now: datetime | None = None) -> None:
         source="dial",
         values={"dialled_at": now},
     )
+
+
+async def _claim_to_dial(
+    dispatch_id: int, organization_id: int, run_id: int | None
+) -> None:
+    """Re-check, under lock, that this attempt is still wanted, and (with
+    ``run_id``) record its run: the point of no return.
+
+    Locks in the order a cancel takes them (``schedule._stop``): the
+    schedule and the occurrence for share, then the attempt for update. A
+    cancel, a "done" or a superseding card that committed first is seen
+    here; one that comes after waits for this commit and then finds the run
+    recorded, so it leaves the attempt alone (it is ringing). Raises
+    ``_Superseded`` when the attempt is no longer this worker's to ring
+    (somebody settled it: a cancel skipped it, the sweep took it back), and
+    ``_Refused`` when the reminder was stopped but the attempt was not yet
+    touched."""
+    async with db_client.async_session() as session:
+        ids = (
+            await session.execute(
+                select(
+                    ReminderCallDispatchModel.occurrence_id,
+                    ReminderCallOccurrenceModel.schedule_id,
+                )
+                .join(
+                    ReminderCallOccurrenceModel,
+                    ReminderCallOccurrenceModel.id
+                    == ReminderCallDispatchModel.occurrence_id,
+                )
+                .where(
+                    ReminderCallDispatchModel.id == dispatch_id,
+                    ReminderCallDispatchModel.organization_id == organization_id,
+                )
+            )
+        ).first()
+        if ids is None:
+            raise _Superseded()
+        schedule = (
+            await session.execute(
+                select(ReminderCallScheduleModel)
+                .where(
+                    ReminderCallScheduleModel.id == ids.schedule_id,
+                    ReminderCallScheduleModel.organization_id == organization_id,
+                )
+                .with_for_update(read=True)
+            )
+        ).scalar_one_or_none()
+        occurrence = (
+            await session.execute(
+                select(ReminderCallOccurrenceModel)
+                .where(
+                    ReminderCallOccurrenceModel.id == ids.occurrence_id,
+                    ReminderCallOccurrenceModel.organization_id == organization_id,
+                )
+                .with_for_update(read=True)
+            )
+        ).scalar_one_or_none()
+        dispatch = (
+            await session.execute(
+                select(ReminderCallDispatchModel)
+                .where(ReminderCallDispatchModel.id == dispatch_id)
+                .with_for_update()
+            )
+        ).scalar_one_or_none()
+        if (
+            dispatch is None
+            or dispatch.state != rc.DISPATCHING
+            or dispatch.workflow_run_id not in (None, run_id)
+        ):
+            await session.rollback()
+            raise _Superseded()
+        if (
+            schedule is None
+            or occurrence is None
+            or schedule.state != rc.ACTIVE
+            or occurrence.task_state != rc.OPEN
+        ):
+            await session.rollback()
+            raise _Refused("cancelled")
+        if occurrence.schedule_version != schedule.version:
+            await session.rollback()
+            raise _Refused("superseded")
+        if run_id is None:
+            await session.rollback()
+            return
+        dispatch.workflow_run_id = run_id
+        await session.commit()
+
+
+async def _release_if_unrung(dispatch_id: int) -> None:
+    """An attempt settled under this worker as ``skipped`` (a cancel) never
+    rang: a slot it took at the gate after that cancel goes back."""
+    from api.services.call_when_done import allowance
+
+    if await _state(dispatch_id) == rc.SKIPPED:
+        await allowance.give_back(ReminderCallDispatchModel, dispatch_id)
 
 
 async def _link_run(
@@ -614,7 +721,7 @@ async def _after_no_answer(dispatch_id: int, reason: str, now: datetime) -> None
         dispatch.attempt <= policy.MAX_RETRIES
         and occurrence.task_state == rc.OPEN
         and schedule.state == rc.ACTIVE
-        and dnd.within_calling_hours(timezone_name=schedule.timezone, now=when)
+        and policy.within_window(schedule.timezone, when)
     )
     if not may_retry:
         await fallback(dispatch_id, reason)
@@ -924,32 +1031,74 @@ async def _say_answered(dispatch_id: int, said: str | None) -> None:
 
 
 async def _set_task(
-    occurrence_id: int, state: str, *, snoozed_until: datetime | None = None
+    occurrence_id: int,
+    state: str,
+    *,
+    snoozed_until: datetime | None = None,
+    session: Any = None,
 ) -> bool:
-    async with db_client.async_session() as session:
-        moved = (
-            await session.execute(
-                update(ReminderCallOccurrenceModel)
-                .where(
-                    ReminderCallOccurrenceModel.id == occurrence_id,
-                    ReminderCallOccurrenceModel.task_state == rc.OPEN,
-                )
-                .values(
-                    task_state=state, snoozed_until=snoozed_until, updated_at=_now()
-                )
-                .returning(ReminderCallOccurrenceModel.id)
-            )
-        ).first()
-        await session.commit()
+    """Move the task from open only. With ``session``, inside the caller's
+    transaction (which commits); otherwise in its own."""
+    query = (
+        update(ReminderCallOccurrenceModel)
+        .where(
+            ReminderCallOccurrenceModel.id == occurrence_id,
+            ReminderCallOccurrenceModel.task_state == rc.OPEN,
+        )
+        .values(task_state=state, snoozed_until=snoozed_until, updated_at=_now())
+        .returning(ReminderCallOccurrenceModel.id)
+    )
+    if session is not None:
+        return (await session.execute(query)).first() is not None
+    async with db_client.async_session() as own:
+        moved = (await own.execute(query)).first()
+        await own.commit()
     return moved is not None
 
 
-def _snooze_minutes(value: Any) -> int:
-    try:
-        minutes = int(str(value).strip())
-    except (TypeError, ValueError):
-        minutes = policy.SNOOZE_DEFAULT_MINUTES
-    return max(policy.SNOOZE_MIN_MINUTES, min(policy.SNOOZE_MAX_MINUTES, minutes))
+_SNOOZE = re.compile(r"^\s*(\d{1,4})\s*(m|min|mins|minute|minutes)?\s*$", re.IGNORECASE)
+
+
+def snooze_minutes(value: Any) -> int | None:
+    """How long the person asked to snooze, when they said it clearly and
+    within ``SNOOZE_MIN_MINUTES``-``SNOOZE_MAX_MINUTES``: "15", "15 min".
+    None for anything else -- nothing said, "later", "a bit", 300 -- which
+    is asked back, never guessed."""
+    match = _SNOOZE.match(str(value or ""))
+    if not match:
+        return None
+    minutes = int(match.group(1))
+    if not policy.SNOOZE_MIN_MINUTES <= minutes <= policy.SNOOZE_MAX_MINUTES:
+        return None
+    return minutes
+
+
+def snooze_unclear_words(title: str) -> str:
+    """What the thread says when a snooze's length was not clear."""
+    return (
+        "You asked me to call again later, but I didn't catch when, so I "
+        f"haven't set another call. Your reminder: “{title}”. How many "
+        f"minutes from now should I call ({policy.SNOOZE_MIN_MINUTES} to "
+        f"{policy.SNOOZE_MAX_MINUTES})?"
+    )
+
+
+async def _snooze(
+    dispatch: Any, occurrence: Any, schedule: Any, minutes: int
+) -> str | None:
+    """Snoozed, and its follow-up ring, in one transaction: a crash between
+    the two cannot leave a snoozed task with nothing to ring it again."""
+    base = dispatch.dialled_at or _now()
+    until = base + timedelta(minutes=minutes)
+    async with db_client.async_session() as session:
+        if not await _set_task(
+            occurrence.id, rc.SNOOZED, snoozed_until=until, session=session
+        ):
+            await session.rollback()
+            return None
+        await _new_occurrence(session, schedule, until, _now())
+        await session.commit()
+    return f"You asked me to call again at {_local(until, schedule.timezone)}."
 
 
 async def _task_from_call(dispatch_id: int, extracted: dict[str, Any]) -> str | None:
@@ -972,16 +1121,15 @@ async def _task_from_call(dispatch_id: int, extracted: dict[str, Any]) -> str | 
             else None
         )
     if reply == "snooze":
-        base = dispatch.dialled_at or _now()
-        until = base + timedelta(
-            minutes=_snooze_minutes(extracted.get("snooze_minutes"))
-        )
-        if not await _set_task(occurrence.id, rc.SNOOZED, snoozed_until=until):
-            return None
-        async with db_client.async_session() as session:
-            await _new_occurrence(session, schedule, until, _now())
-            await session.commit()
-        return f"You asked me to call again at {_local(until, schedule.timezone)}."
+        minutes = snooze_minutes(extracted.get("snooze_minutes"))
+        if minutes is None:
+            # Never guessed: the task stays open and the person is asked.
+            return (
+                snooze_unclear_words(schedule.title)
+                if occurrence.task_state == rc.OPEN
+                else None
+            )
+        return await _snooze(dispatch, occurrence, schedule, minutes)
     return None
 
 

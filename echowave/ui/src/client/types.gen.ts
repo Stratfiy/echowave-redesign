@@ -17516,9 +17516,66 @@ export type ReminderCall = {
      */
     next_due_at?: string | null;
     /**
+     * Next Due Label
+     */
+    next_due_label?: string | null;
+    /**
      * Recent
      */
     recent: Array<ReminderCallOccurrence>;
+};
+
+/**
+ * ReminderCallAsk
+ */
+export type ReminderCallAsk = {
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Date
+     */
+    date?: string | null;
+    /**
+     * Time
+     */
+    time: string;
+    /**
+     * Recurrence
+     */
+    recurrence?: string;
+    /**
+     * Weekday
+     */
+    weekday?: number | null;
+    /**
+     * Timezone
+     */
+    timezone?: string | null;
+    /**
+     * Language
+     */
+    language?: string | null;
+    /**
+     * Phone Number
+     */
+    phone_number?: string | null;
+};
+
+/**
+ * ReminderCallAsked
+ */
+export type ReminderCallAsked = {
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Message
+     */
+    message?: string | null;
+    card?: TimelineEvent | null;
 };
 
 /**
@@ -45088,6 +45145,89 @@ export type MarkReminderDoneApiV1ReminderCallsOccurrencesOccurrenceIdDonePostRes
 };
 
 export type MarkReminderDoneApiV1ReminderCallsOccurrencesOccurrenceIdDonePostResponse = MarkReminderDoneApiV1ReminderCallsOccurrencesOccurrenceIdDonePostResponses[keyof MarkReminderDoneApiV1ReminderCallsOccurrencesOccurrenceIdDonePostResponses];
+
+export type AskForReminderCallApiV1ReminderCallsAskPostData = {
+    body: ReminderCallAsk;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/reminder-calls/ask';
+};
+
+export type AskForReminderCallApiV1ReminderCallsAskPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AskForReminderCallApiV1ReminderCallsAskPostError = AskForReminderCallApiV1ReminderCallsAskPostErrors[keyof AskForReminderCallApiV1ReminderCallsAskPostErrors];
+
+export type AskForReminderCallApiV1ReminderCallsAskPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: ReminderCallAsked;
+};
+
+export type AskForReminderCallApiV1ReminderCallsAskPostResponse = AskForReminderCallApiV1ReminderCallsAskPostResponses[keyof AskForReminderCallApiV1ReminderCallsAskPostResponses];
+
+export type ReminderCallCardApiV1ReminderCallsCardsEventIdGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Event Id
+         */
+        event_id: number;
+    };
+    query?: never;
+    url: '/api/v1/reminder-calls/cards/{event_id}';
+};
+
+export type ReminderCallCardApiV1ReminderCallsCardsEventIdGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReminderCallCardApiV1ReminderCallsCardsEventIdGetError = ReminderCallCardApiV1ReminderCallsCardsEventIdGetErrors[keyof ReminderCallCardApiV1ReminderCallsCardsEventIdGetErrors];
+
+export type ReminderCallCardApiV1ReminderCallsCardsEventIdGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: TimelineEvent;
+};
+
+export type ReminderCallCardApiV1ReminderCallsCardsEventIdGetResponse = ReminderCallCardApiV1ReminderCallsCardsEventIdGetResponses[keyof ReminderCallCardApiV1ReminderCallsCardsEventIdGetResponses];
 
 export type GetEscalationPolicyApiV1EscalationsPolicyWorkflowIdGetData = {
     body?: never;

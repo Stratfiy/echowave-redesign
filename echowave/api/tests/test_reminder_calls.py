@@ -86,12 +86,16 @@ async def home(test_engine, monkeypatch):
 
     monkeypatch.setattr(member_preferences, "timezone_of", timezone_of)
     dial_fails = {"before_run": None, "after_run": None}
+    #: The provider being asked to ring: what ``dial_workflow`` does after
+    #: ``on_run_created`` returns. Not awaited means nothing rang.
+    provider = AsyncMock()
 
     async def fake_dial(dispatch_id, dialable, *, on_run_created=None):
         if dial_fails["before_run"]:
             raise dial_fails["before_run"]
         if on_run_created is not None:
             await on_run_created(RUN)
+        await provider(dispatch_id)
         if dial_fails["after_run"]:
             raise dial_fails["after_run"]
         return RUN
@@ -112,6 +116,7 @@ async def home(test_engine, monkeypatch):
         line=line,
         dial=dial,
         dial_fails=dial_fails,
+        provider=provider,
         told=told,
         clock=clock,
         zone=zone,
@@ -912,7 +917,9 @@ class TestTheAppAndTheSwitch:
         await schedule.mark_done(home.org, home.asha.id, row["occurrence_id"])
         await calls.tick(_ist(10, 45, days=1))
         assert home.dial.await_count == 1
-        assert (await _dispatches(home))[1]["reason"] == "cancelled"
+        # Skipped by "done" itself, in its transaction: not left for the gate.
+        retry = (await _dispatches(home))[1]
+        assert (retry["state"], retry["reason"]) == (rc.SKIPPED, "done")
 
     async def test_put_it_back_cancels_the_reminder(self, home):
         await _set(home)

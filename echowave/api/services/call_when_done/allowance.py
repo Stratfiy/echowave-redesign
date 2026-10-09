@@ -162,6 +162,20 @@ async def hold(
     return True
 
 
+async def give_back_locked(session: Any, *, user_id: int, day: date) -> None:
+    """Give back one slot of ``day`` inside the caller's transaction, for a
+    holder row the caller has already locked (and clears ``allowance_day``
+    on itself): the same lock order as ``give_back`` -- holder, then
+    allowance."""
+    await session.execute(
+        text(
+            "UPDATE person_call_allowances SET used = GREATEST(used - 1, 0), "
+            "updated_at = :now WHERE user_id = :u AND local_day = :d"
+        ),
+        {"u": user_id, "d": day, "now": datetime.now(UTC)},
+    )
+
+
 async def give_back(model: Any, row_id: int, *, user_id: int | None = None) -> bool:
     """Give back the slot the row holds, once. Only for a verified
     non-dispatch. True if one was given back; False when it held none."""

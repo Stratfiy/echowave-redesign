@@ -121,7 +121,7 @@ def resolve(arguments: dict[str, Any], why: str) -> dict[str, Any]:
         "why": why or "You asked Decibyl to call you with a reminder.",
         "effect": (
             f"Decibyl will ring {shown} only for reminders you confirm on a "
-            f"card, only between {done_number.window()}, and never if the "
+            f"card, only between {policy.window_words()}, and never if the "
             "number is on this workspace's do-not-call list."
         ),
         "reversible": True,

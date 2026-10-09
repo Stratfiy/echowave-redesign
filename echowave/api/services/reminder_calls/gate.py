@@ -10,9 +10,9 @@ a. the occurrence is still open (not cancelled, snoozed or done) and was
 b. the person is still a member of the workspace (``not_member``), the
    workspace still has a line (``no_line``), and the number is still the
    confirmed one, confirmed by an adult (``no_number``, ``not_adult``);
-c. quiet hours: 09:00-21:00 in the person's zone, asked of
-   ``dnd.within_calling_hours`` **directly**, never through the do-not-call
-   switch. No approved exception exists for general reminders (D2)
+c. quiet hours: ``policy.CALLING_WINDOW_START``-``_END`` (09:00-21:00 by
+   default) in the person's zone, asked of ``dnd.within_calling_hours``
+   **directly**, never through the do-not-call switch. No approved exception exists for general reminders (D2)
    -- ``quiet_hours``;
 d. the do-not-call list (``dnd.assert_may_call``, fail closed, window
    already decided above) -- ``dnd``;
@@ -125,7 +125,7 @@ async def may_dial(dispatch_id: int, now: datetime) -> Verdict:
         return _no("not_adult", tz)
 
     # c. Quiet hours, asked directly: the window is not the list's to drop.
-    if not dnd.within_calling_hours(timezone_name=tz, now=now):
+    if not policy.within_window(tz, now):
         if not quiet_exception_covers(schedule, now):
             return _no("quiet_hours", tz)
 

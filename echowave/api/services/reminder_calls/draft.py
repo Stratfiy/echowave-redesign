@@ -28,7 +28,6 @@ from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from api import constants
 from api.services.reminder_calls import ReminderCallError
 
 RECURRENCES = ("once", "daily", "weekdays", "weekly")
@@ -81,12 +80,11 @@ def hhmm(value: time) -> str:
 
 
 def _window() -> tuple[time, time]:
-    from api.services.compliance import dnd
+    # The one window for reminder calls (``policy.CALLING_WINDOW_START``):
+    # the gate reads the same pair, so what the card offers can ring.
+    from api.services.reminder_calls import policy
 
-    return (
-        dnd._parse_hhmm(constants.CALLING_HOURS_START, time(9, 0)),
-        dnd._parse_hhmm(constants.CALLING_HOURS_END, time(21, 0)),
-    )
+    return policy.window()
 
 
 def inside_window(value: time) -> bool:

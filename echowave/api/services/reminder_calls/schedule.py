@@ -11,7 +11,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import select, update
+from sqlalchemy import and_, or_, select, update
 
 from api.db import db_client
 from api.db.reminder_call_models import (
@@ -27,6 +27,7 @@ from api.services.reminder_calls import (
     number,
     policy,
 )
+from api.services.today.scope import full_local
 
 
 def _now() -> datetime:
@@ -69,15 +70,7 @@ async def save(
     replaces = args.get("replaces")
     async with db_client.async_session() as session:
         if replaces:
-            await session.execute(
-                update(ReminderCallScheduleModel)
-                .where(
-                    ReminderCallScheduleModel.id == int(replaces),
-                    ReminderCallScheduleModel.organization_id == organization_id,
-                    ReminderCallScheduleModel.user_id == user_id,
-                )
-                .values(state=rc.CANCELLED, next_due_at=None, updated_at=now)
-            )
+            await _stop(session, organization_id, user_id, int(replaces), now)
         row = ReminderCallScheduleModel(
             organization_id=organization_id,
             user_id=user_id,
@@ -110,38 +103,118 @@ async def save(
     return row
 
 
+async def _stop_unrung(
+    session: Any,
+    organization_id: int,
+    occurrence_ids: Any,
+    reason: str,
+    now: datetime,
+) -> int:
+    """Inside the caller's transaction: every ring attempt of these
+    occurrences that the provider has not been asked for -- ``queued``, or
+    ``dispatching`` with no run recorded yet -- becomes ``skipped`` with
+    ``reason``, and gives back the cap slot it held. Rows are locked first;
+    an attempt whose run was recorded before this lock was granted is past
+    the point of no return (``calls._claim_to_dial``) and is left alone."""
+    from api.services.call_when_done import allowance
+
+    rows = (
+        await session.scalars(
+            select(ReminderCallDispatchModel)
+            .where(
+                ReminderCallDispatchModel.occurrence_id.in_(occurrence_ids),
+                ReminderCallDispatchModel.organization_id == organization_id,
+                or_(
+                    ReminderCallDispatchModel.state == rc.QUEUED,
+                    and_(
+                        ReminderCallDispatchModel.state == rc.DISPATCHING,
+                        ReminderCallDispatchModel.workflow_run_id.is_(None),
+                    ),
+                ),
+            )
+            .order_by(ReminderCallDispatchModel.id)
+            .with_for_update()
+        )
+    ).all()
+    for row in rows:
+        if row.allowance_day is not None:
+            await allowance.give_back_locked(
+                session, user_id=row.user_id, day=row.allowance_day
+            )
+            row.allowance_day = None
+        row.outcome_history = [
+            *(row.outcome_history or []),
+            {
+                "at": now.isoformat(),
+                "from": row.state,
+                "to": rc.SKIPPED,
+                "reason": reason,
+                "source": "person",
+            },
+        ]
+        row.state = rc.SKIPPED
+        row.reason = reason
+        row.settled_at = now
+    return len(rows)
+
+
+async def _stop(
+    session: Any, organization_id: int, user_id: int, schedule_id: int, now: datetime
+) -> bool:
+    """Inside the caller's transaction, in lock order (schedule, then its
+    occurrences, then their attempts -- the order ``calls._claim_to_dial``
+    takes them in): the schedule stops, its open occurrences are cancelled
+    tasks, and every attempt not yet handed to the provider is skipped."""
+    moved = (
+        await session.execute(
+            update(ReminderCallScheduleModel)
+            .where(
+                ReminderCallScheduleModel.id == schedule_id,
+                ReminderCallScheduleModel.organization_id == organization_id,
+                ReminderCallScheduleModel.user_id == user_id,
+                ReminderCallScheduleModel.state == rc.ACTIVE,
+            )
+            .values(state=rc.CANCELLED, next_due_at=None, updated_at=now)
+            .returning(ReminderCallScheduleModel.id)
+        )
+    ).first()
+    if not moved:
+        return False
+    await session.execute(
+        update(ReminderCallOccurrenceModel)
+        .where(
+            ReminderCallOccurrenceModel.schedule_id == schedule_id,
+            ReminderCallOccurrenceModel.organization_id == organization_id,
+            ReminderCallOccurrenceModel.task_state.in_((rc.OPEN, rc.SNOOZED)),
+        )
+        .values(task_state=rc.TASK_CANCELLED, updated_at=now)
+    )
+    await _stop_unrung(
+        session,
+        organization_id,
+        select(ReminderCallOccurrenceModel.id).where(
+            ReminderCallOccurrenceModel.schedule_id == schedule_id,
+            ReminderCallOccurrenceModel.organization_id == organization_id,
+        ),
+        "cancelled",
+        now,
+    )
+    return True
+
+
 async def cancel(organization_id: int, user_id: int, schedule_id: int) -> bool:
-    """Stop a schedule: nothing more is made for it, and anything already
-    queued is skipped at the gate (5a). Returns False when it is not this
-    person's in this workspace, or already stopped."""
+    """Stop a schedule, in one transaction: nothing more is made for it, its
+    open occurrences are cancelled, and every ring attempt not yet handed
+    to the provider is skipped (its slot given back). A dial already past
+    the gate re-checks all of this under lock before the provider is asked
+    (``calls._claim_to_dial``), so a cancelled occurrence never rings.
+    Returns False when it is not this person's in this workspace, or
+    already stopped."""
     now = _now()
     async with db_client.async_session() as session:
-        moved = (
-            await session.execute(
-                update(ReminderCallScheduleModel)
-                .where(
-                    ReminderCallScheduleModel.id == schedule_id,
-                    ReminderCallScheduleModel.organization_id == organization_id,
-                    ReminderCallScheduleModel.user_id == user_id,
-                    ReminderCallScheduleModel.state == rc.ACTIVE,
-                )
-                .values(state=rc.CANCELLED, next_due_at=None, updated_at=now)
-                .returning(ReminderCallScheduleModel.id)
-            )
-        ).first()
-        if moved:
-            # Open occurrences of a stopped series are cancelled tasks.
-            await session.execute(
-                update(ReminderCallOccurrenceModel)
-                .where(
-                    ReminderCallOccurrenceModel.schedule_id == schedule_id,
-                    ReminderCallOccurrenceModel.organization_id == organization_id,
-                    ReminderCallOccurrenceModel.task_state.in_((rc.OPEN, rc.SNOOZED)),
-                )
-                .values(task_state=rc.TASK_CANCELLED, updated_at=now)
-            )
+        moved = await _stop(session, organization_id, user_id, schedule_id, now)
         await session.commit()
-    return bool(moved)
+    return moved
 
 
 async def cancel_for_card(
@@ -166,9 +239,10 @@ async def cancel_for_card(
 
 
 async def mark_done(organization_id: int, user_id: int, occurrence_id: int) -> bool:
-    """The person says, in the app, they have dealt with it. Moves the task
-    only; the calls' own outcomes are untouched. A queued retry for it is
-    not rung (5a)."""
+    """The person says, in the app, they have dealt with it. Moves the task;
+    the outcomes of calls that rang are untouched, and an attempt not yet
+    handed to the provider (a queued retry, say) is skipped, never rung."""
+    now = _now()
     async with db_client.async_session() as session:
         moved = (
             await session.execute(
@@ -179,10 +253,12 @@ async def mark_done(organization_id: int, user_id: int, occurrence_id: int) -> b
                     ReminderCallOccurrenceModel.user_id == user_id,
                     ReminderCallOccurrenceModel.task_state.in_((rc.OPEN, rc.SNOOZED)),
                 )
-                .values(task_state=rc.USER_REPORTED_DONE, updated_at=_now())
+                .values(task_state=rc.USER_REPORTED_DONE, updated_at=now)
                 .returning(ReminderCallOccurrenceModel.id)
             )
         ).first()
+        if moved is not None:
+            await _stop_unrung(session, organization_id, [occurrence_id], "done", now)
         await session.commit()
     if moved is None:
         async with db_client.async_session() as session:
@@ -212,6 +288,11 @@ def _view(
         "weekday": row.weekday,
         "state": row.state,
         "next_due_at": row.next_due_at.isoformat() if row.next_due_at else None,
+        # The next ring as the card said it: "Tue 13 Oct 2026, 09:00 IST
+        # (Asia/Kolkata)".
+        "next_due_label": (
+            full_local(row.next_due_at, row.timezone) if row.next_due_at else None
+        ),
         "recent": recent,
     }
 

@@ -104,8 +104,14 @@ async def ask(
     *,
     thread_id: str | None,
     now: datetime | None = None,
+    zone_name: str | None = None,
+    carry: bool = True,
 ) -> dict[str, Any]:
-    """Draft, then the right card. Raises ReminderCallError."""
+    """Draft, then the right card. Raises ReminderCallError.
+
+    ``carry`` puts the reminder on the number card, so confirming the number
+    brings the reminder's own card next on the thread. Today asks again
+    itself once the number is confirmed, so it passes False."""
     if not rc.enabled(organization_id):
         raise ReminderCallError("Reminder calls are not switched on here.")
     if not await line_ready(organization_id):
@@ -117,7 +123,9 @@ async def ask(
                 "(a notification) instead; it needs no number."
             ),
         }
-    cleaned = await draft.clean(organization_id, user_id, arguments, now=now)
+    cleaned = await draft.clean(
+        organization_id, user_id, arguments, now=now, zone_name=zone_name
+    )
     given = arguments.get("phone_number")
     phone = number.clean(str(given)) if given else None
     ready = await number.ready(organization_id, user_id)
@@ -134,7 +142,11 @@ async def ask(
         }
     if phone != ready:
         event_id = await number.propose(
-            organization_id, user_id, phone, thread_id=thread_id, then=cleaned
+            organization_id,
+            user_id,
+            phone,
+            thread_id=thread_id,
+            then=cleaned if carry else None,
         )
         return {
             "status": "proposed",
@@ -174,3 +186,57 @@ async def run_tool(
         return await ask(organization_id, int(user_id), arguments, thread_id=thread_id)
     except (ReminderCallError, TypeError, ValueError) as exc:
         return {"status": "not_done", "reason": str(exc)}
+
+
+#: What Today says for each answer of ``ask`` that is not a card.
+TODAY_WORDS = {
+    "no_line": (
+        "This workspace has no phone line for calling out, so Decibyl can't "
+        "ring you. Choose In the app or Push instead: they need no number."
+    ),
+    "needs_number": "Which number should Decibyl ring? Type it below.",
+}
+
+
+async def ask_from_today(
+    organization_id: int, user_id: int, fields: dict[str, Any]
+) -> dict[str, Any]:
+    """ "Call me" chosen in Today's reminder editor: the same draft and the
+    same cards as Decibyl's tool, shown in the editor itself. Returns
+    ``{"status", "event_id", "message"}``; raises ReminderCallError with a
+    sentence for the person."""
+    from api.services.today.scope import valid_zone
+
+    zone = None
+    if fields.get("timezone"):
+        zone = valid_zone(fields.get("timezone"))
+        if zone is None:
+            raise ReminderCallError(
+                "That timezone is not one I know. Use a name like Asia/Kolkata."
+            )
+    told = await ask(
+        organization_id,
+        user_id,
+        {
+            k: fields.get(k)
+            for k in (
+                "title",
+                "date",
+                "time",
+                "recurrence",
+                "weekday",
+                "language",
+                "phone_number",
+            )
+            if fields.get(k) not in (None, "")
+        },
+        thread_id=None,
+        zone_name=zone,
+        carry=False,
+    )
+    status = str(told.get("status") or "")
+    return {
+        "status": status,
+        "event_id": told.get("event_id"),
+        "message": TODAY_WORDS.get(status),
+    }

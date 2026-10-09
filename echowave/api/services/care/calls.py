@@ -294,7 +294,12 @@ def _shares_the_cap(organization_id: int) -> bool:
     from api.services import reminder_calls
     from api.services.reminder_calls import policy
 
-    return policy.CARE_SHARES_THE_CAP and reminder_calls.enabled(organization_id)
+    if not policy.CARE_SHARES_THE_CAP:
+        return False
+    # Founder decision: counted only while reminder calls are on here.
+    if policy.CARE_CAP_ONLY_WITH_REMINDER_CALLS:
+        return reminder_calls.enabled(organization_id)
+    return True
 
 
 async def _hold_slot(med: Any, dose_id: int) -> bool:

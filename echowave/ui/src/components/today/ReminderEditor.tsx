@@ -8,6 +8,11 @@
  * stored. "Tomorrow" is resolved in the person's timezone and shown as a
  * full date. An event's time and its reminders' offsets are separate
  * fields; moving the event later recalculates them (Today, Upcoming).
+ *
+ * With `reminder_calls` on, a new reminder can also be "Call me": the same
+ * card Decibyl shows in chat (the number card first, with "I am 18 or
+ * over", then the reminder card), answered right here. Nothing is set
+ * until the card is confirmed.
  */
 
 import Link from "next/link";
@@ -15,24 +20,29 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 import {
+    askForReminderCallApiV1ReminderCallsAskPost,
     createEventApiV1TodayEventsPost,
     createReminderApiV1TodayRemindersPost,
     getReminderApiV1TodayRemindersReminderIdGet,
     listRemindersApiV1TodayRemindersGet,
     previewReminderApiV1TodayRemindersPreviewPost,
+    reminderCallCardApiV1ReminderCallsCardsEventIdGet,
     resolveDateApiV1TodayResolveDatePost,
     setReminderStatusApiV1TodayRemindersReminderIdStatusPost,
     testReminderApiV1TodayRemindersReminderIdTestPost,
     updateReminderApiV1TodayRemindersReminderIdPut,
 } from "@/client/sdk.gen";
+import type { TimelineEvent } from "@/client/types.gen";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { ErrorState, type SaveState } from "@/components/shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { ActionCard, actionOf } from "@/components/workflow/ActionCard";
 import { detailFromError } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
+import { useFeature } from "@/lib/features";
 import { TODAY_TABS } from "@/lib/today/tabs";
 import {
     type Channel,
@@ -52,7 +62,8 @@ type Draft = {
     local_time: string;
     weekday: number;
     timezone: string;
-    channel: Channel;
+    /** "call": Decibyl rings the person (reminder calls), set by its card. */
+    channel: Channel | "call";
 };
 
 const INPUT = "min-h-11 text-base md:min-h-9 md:text-sm";
@@ -82,10 +93,13 @@ function ChannelPicker({
     value,
     states,
     onChange,
+    allowCall = false,
 }: {
-    value: Channel;
+    value: Draft["channel"];
     states: ChannelState[];
-    onChange: (c: Channel) => void;
+    onChange: (c: Draft["channel"]) => void;
+    /** Offer "Call me" (reminder calls, a new reminder only). */
+    allowCall?: boolean;
 }) {
     return (
         <fieldset className="flex flex-col gap-2">
@@ -104,7 +118,107 @@ function ChannelPicker({
                     </label>
                 );
             })}
+            {allowCall && (
+                <label className="flex min-h-11 items-start gap-2 text-sm md:min-h-8">
+                    <input type="radio" name="channel" className="mt-1 h-4 w-4" checked={value === "call"} onChange={() => onChange("call")} />
+                    <span>
+                        Call me
+                        <span className="block text-xs text-muted-foreground">Decibyl rings you and reads it out. You confirm the call on a card first.</span>
+                    </span>
+                </label>
+            )}
         </fieldset>
+    );
+}
+
+/**
+ * "Call me": the reminder-call card for what is in the form, answered here.
+ * A number card comes first when no number is confirmed for calls; once it
+ * is done, the reminder's own card is asked for.
+ */
+function CallMe({ draft }: { draft: Draft }) {
+    const [card, setCard] = useState<TimelineEvent | null>(null);
+    const [message, setMessage] = useState<string | null>(null);
+    const [needsNumber, setNeedsNumber] = useState(false);
+    const [phone, setPhone] = useState("");
+    const [error, setError] = useState<string | null>(null);
+    const [busy, setBusy] = useState(false);
+
+    const ask = useCallback(
+        async (phoneNumber?: string) => {
+            setBusy(true);
+            setError(null);
+            const result = await askForReminderCallApiV1ReminderCallsAskPost({
+                body: {
+                    title: draft.title,
+                    time: draft.local_time,
+                    recurrence: draft.recurrence,
+                    timezone: draft.timezone || null,
+                    ...(draft.recurrence === "once" ? { date: draft.date } : {}),
+                    ...(draft.recurrence === "weekly" ? { weekday: draft.weekday } : {}),
+                    ...(phoneNumber ? { phone_number: phoneNumber } : {}),
+                },
+            });
+            setBusy(false);
+            if (result.error) {
+                setError(detailFromError(result.error, "The call could not be set up."));
+                return;
+            }
+            const told = result.data;
+            setMessage(told?.message ?? null);
+            setNeedsNumber(told?.status === "needs_number");
+            setCard(told?.card ?? null);
+        },
+        [draft.title, draft.local_time, draft.recurrence, draft.timezone, draft.date, draft.weekday],
+    );
+
+    // What the form says changed: a card shown for the old words is not
+    // this reminder's any more.
+    useEffect(() => {
+        setCard(null);
+        setMessage(null);
+        setNeedsNumber(false);
+    }, [ask]);
+
+    const refresh = useCallback(async () => {
+        if (!card) return;
+        const result = await reminderCallCardApiV1ReminderCallsCardsEventIdGet({ path: { event_id: card.id } });
+        if (!result.error && result.data) setCard(result.data);
+    }, [card]);
+
+    // The number is confirmed: now the reminder's own card.
+    const cardAction = card ? actionOf(card) : null;
+    const numberDone = cardAction?.action === "reminder_call_number" && cardAction.state === "done";
+    useEffect(() => {
+        if (numberDone) void ask();
+    }, [numberDone, ask]);
+
+    return (
+        <div className="flex flex-col gap-3" data-testid="call-me">
+            {!card && (
+                <Button type="button" className="motion-m1 min-h-11 self-start md:min-h-9" disabled={busy || !draft.title.trim()} onClick={() => void ask()}>
+                    {busy ? "Getting the call ready…" : "Show the call to confirm"}
+                </Button>
+            )}
+            {message && <p className="text-sm text-[#705500] dark:text-amber-300">{message}</p>}
+            {needsNumber && (
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                    <label className={FIELD}>
+                        Number to ring
+                        <Input type="tel" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} className={INPUT} placeholder="+91 98765 43210" />
+                    </label>
+                    <Button type="button" className="motion-m1 min-h-11 md:min-h-9" disabled={busy || !phone.trim()} onClick={() => void ask(phone.trim())}>
+                        Use this number
+                    </Button>
+                </div>
+            )}
+            {card && <ActionCard event={card} onSettled={setCard} onFired={() => void refresh()} />}
+            {error && (
+                <p role="alert" className="text-sm text-destructive">
+                    {error}
+                </p>
+            )}
+        </div>
     );
 }
 
@@ -198,7 +312,7 @@ function EventForm({ timezone, states }: { timezone: string; states: ChannelStat
                     </label>
                 ))}
             </fieldset>
-            <ChannelPicker value={channel} states={states} onChange={setChannel} />
+            <ChannelPicker value={channel} states={states} onChange={(c) => c !== "call" && setChannel(c)} />
             <div className="sticky bottom-0 flex flex-col gap-2 border-t border-border bg-background py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
                 <p className="motion-m2 text-sm" aria-live="polite" data-testid="event-when">
                     {resolved ? `${title || "The event"}: ${resolved}.` : "Say the day and the time it starts. We never guess one."}
@@ -218,6 +332,7 @@ export function ReminderEditor({ reminderId }: { reminderId?: number }) {
     // refetches.
     const signedIn = Boolean(user);
     const router = useRouter();
+    const callsOn = useFeature("reminder_calls");
     const [mode, setMode] = useState<"reminder" | "event">("reminder");
     const [states, setStates] = useState<ChannelState[]>([]);
     const [zone, setZone] = useState<string>("");
@@ -275,6 +390,12 @@ export function ReminderEditor({ reminderId }: { reminderId?: number }) {
     // must send: the schedule the person saw, nothing else.
     useEffect(() => {
         if (!draft || stored?.event_id) return;
+        // A call is previewed by its own card, not by the app-reminder preview.
+        if (draft.channel === "call") {
+            setPreview(null);
+            setPreviewError(null);
+            return;
+        }
         if (!draft.title.trim()) {
             setPreview(null);
             return;
@@ -300,7 +421,7 @@ export function ReminderEditor({ reminderId }: { reminderId?: number }) {
     }
 
     async function saveIt() {
-        if (!draft || !preview) return;
+        if (!draft || !preview || draft.channel === "call") return;
         setSave("saving");
         const body = { ...draftBody(draft), schedule_key: preview.schedule_key };
         const result = stored
@@ -465,61 +586,65 @@ export function ReminderEditor({ reminderId }: { reminderId?: number }) {
                             </section>
                         )}
 
-                        <ChannelPicker value={draft.channel} states={states} onChange={(c) => change({ channel: c })} />
+                        <ChannelPicker value={draft.channel} states={states} onChange={(c) => change({ channel: c })} allowCall={callsOn && !stored} />
 
-                        <div className="sticky bottom-0 flex flex-col gap-2 border-t border-border bg-background py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-                            <p className="motion-m2 text-sm" aria-live="polite" data-testid="reminder-next">
-                                {previewError ?? preview?.sentence ?? (stored?.event_id ? stored.when : "Fill in what and when to see the next reminder.")}
-                            </p>
-                            {preview?.problems.map((p) => (
-                                <p key={p.code} className="text-sm text-[#705500] dark:text-amber-300">
-                                    {p.message}
+                        {draft.channel === "call" && !stored ? (
+                            <CallMe draft={draft} />
+                        ) : (
+                            <div className="sticky bottom-0 flex flex-col gap-2 border-t border-border bg-background py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+                                <p className="motion-m2 text-sm" aria-live="polite" data-testid="reminder-next">
+                                    {previewError ?? preview?.sentence ?? (stored?.event_id ? stored.when : "Fill in what and when to see the next reminder.")}
                                 </p>
-                            ))}
-                            {save === "conflict" && conflict && (
-                                <div role="alert" className="text-sm text-destructive">
-                                    This reminder changed elsewhere: it now says “{conflict.title}”, {conflict.when}. Your draft is kept.
-                                    <Button type="button" variant="outline" className="motion-m1 ml-2 min-h-11 md:min-h-8" onClick={() => void load().then(() => setSave("clean"))}>
-                                        Use the saved one
-                                    </Button>
+                                {preview?.problems.map((p) => (
+                                    <p key={p.code} className="text-sm text-[#705500] dark:text-amber-300">
+                                        {p.message}
+                                    </p>
+                                ))}
+                                {save === "conflict" && conflict && (
+                                    <div role="alert" className="text-sm text-destructive">
+                                        This reminder changed elsewhere: it now says “{conflict.title}”, {conflict.when}. Your draft is kept.
+                                        <Button type="button" variant="outline" className="motion-m1 ml-2 min-h-11 md:min-h-8" onClick={() => void load().then(() => setSave("clean"))}>
+                                            Use the saved one
+                                        </Button>
+                                    </div>
+                                )}
+                                {save === "rejected" && <p role="alert" className="text-sm text-destructive">{message}</p>}
+                                {save === "saved" && <p role="status" className="text-sm text-[#075A39]">Saved.</p>}
+                                <div className="flex flex-wrap gap-2">
+                                    {!stored?.event_id && (
+                                        <Button type="submit" className="motion-m1 min-h-11 md:min-h-9" disabled={!canSave}>
+                                            {save === "saving" ? "Saving…" : "Save this schedule"}
+                                        </Button>
+                                    )}
+                                    {stored && stored.status === "active" && (
+                                        <Button type="button" variant="outline" className="motion-m1 min-h-11 md:min-h-9" onClick={() => void status("pause")}>
+                                            Pause
+                                        </Button>
+                                    )}
+                                    {stored && stored.status === "paused" && (
+                                        <Button type="button" variant="outline" className="motion-m1 min-h-11 md:min-h-9" onClick={() => void status("resume")}>
+                                            Resume
+                                        </Button>
+                                    )}
+                                    {stored && stored.status !== "cancelled" && (
+                                        <Button type="button" variant="ghost" className="motion-m1 min-h-11 md:min-h-9" onClick={() => void status("cancel")}>
+                                            Cancel reminder
+                                        </Button>
+                                    )}
+                                    {stored && (
+                                        <Button type="button" variant="ghost" className="motion-m1 min-h-11 md:min-h-9" onClick={() => void testIt()}>
+                                            Send a test (labelled)
+                                        </Button>
+                                    )}
                                 </div>
-                            )}
-                            {save === "rejected" && <p role="alert" className="text-sm text-destructive">{message}</p>}
-                            {save === "saved" && <p role="status" className="text-sm text-[#075A39]">Saved.</p>}
-                            <div className="flex flex-wrap gap-2">
-                                {!stored?.event_id && (
-                                    <Button type="submit" className="motion-m1 min-h-11 md:min-h-9" disabled={!canSave}>
-                                        {save === "saving" ? "Saving…" : "Save this schedule"}
-                                    </Button>
-                                )}
-                                {stored && stored.status === "active" && (
-                                    <Button type="button" variant="outline" className="motion-m1 min-h-11 md:min-h-9" onClick={() => void status("pause")}>
-                                        Pause
-                                    </Button>
-                                )}
-                                {stored && stored.status === "paused" && (
-                                    <Button type="button" variant="outline" className="motion-m1 min-h-11 md:min-h-9" onClick={() => void status("resume")}>
-                                        Resume
-                                    </Button>
-                                )}
-                                {stored && stored.status !== "cancelled" && (
-                                    <Button type="button" variant="ghost" className="motion-m1 min-h-11 md:min-h-9" onClick={() => void status("cancel")}>
-                                        Cancel reminder
-                                    </Button>
-                                )}
-                                {stored && (
-                                    <Button type="button" variant="ghost" className="motion-m1 min-h-11 md:min-h-9" onClick={() => void testIt()}>
-                                        Send a test (labelled)
-                                    </Button>
+                                {test && (
+                                    <p role="status" className="text-sm text-muted-foreground" data-testid="reminder-test">
+                                        Test {test.duplicate ? "already sent this minute" : test.status.replace("_", " ")}
+                                        {test.detail ? `: ${test.detail}` : "."} It does not change the schedule.
+                                    </p>
                                 )}
                             </div>
-                            {test && (
-                                <p role="status" className="text-sm text-muted-foreground" data-testid="reminder-test">
-                                    Test {test.duplicate ? "already sent this minute" : test.status.replace("_", " ")}
-                                    {test.detail ? `: ${test.detail}` : "."} It does not change the schedule.
-                                </p>
-                            )}
-                        </div>
+                        )}
                     </form>
                 )}
 

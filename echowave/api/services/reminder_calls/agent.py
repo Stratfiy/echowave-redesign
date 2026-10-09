@@ -78,8 +78,9 @@ EXTRACTION_REPLY = {
 EXTRACTION_SNOOZE = {
     "name": "snooze_minutes",
     "type": "string",
-    "prompt": "If they asked to be reminded again later, how many minutes "
-    "from now, as a whole number; otherwise empty.",
+    "prompt": "If they asked to be reminded again later and said how many "
+    "minutes from now, that number as a whole number. Empty if they did not "
+    "say a clear length: never guess one.",
 }
 
 _RULES = (
@@ -158,8 +159,10 @@ def definition() -> dict[str, Any]:
             'reminder is: "{{reminder_text}}". Read those words exactly as '
             "written, nothing added. Then ask whether they want to mark it "
             "done, be reminded again later (snooze, say in how many "
-            "minutes), cancel it, or hear it again. If they ask to hear it "
-            "again, read it again. Then say goodbye in one sentence.",
+            "minutes), cancel it, or hear it again. If they ask to be reminded "
+            "later without a clear length, ask how many minutes from now; "
+            "never pick one for them. If they ask to hear it again, read it "
+            "again. Then say goodbye in one sentence.",
             220,
             extraction=[EXTRACTION_REACHED, EXTRACTION_REPLY, EXTRACTION_SNOOZE],
         ),

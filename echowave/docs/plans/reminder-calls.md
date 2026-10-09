@@ -28,6 +28,23 @@ on the number card (D4); the window holds with do-not-call enforcement off
 xfails left in section 4 are on the care, call-when-done and today paths,
 which this stage does not change.
 
+**Verification fixes (9 Oct 2026)**: a cancel that lands after the gate
+but before the provider is asked no longer rings. `calls._claim_to_dial`
+re-checks the schedule, occurrence and attempt under row locks (taken in
+the order `schedule.cancel` takes them), once right after the gate and
+again as the run is recorded; `schedule.cancel` and in-app "done" skip
+every attempt not yet handed to the provider in their own transaction and
+give its cap slot back. Once the run is recorded the call is ringing, and
+a later cancel leaves that attempt's record alone. A snooze and its next
+ring are one transaction, and a snooze with no clear length is asked back
+on the thread, not set to 15 minutes. The reminder-call window is one pair
+of constants (`policy.CALLING_WINDOW_START`/`_END`) read by the draft, the
+card, the gate and the retry. Today lists upcoming reminder calls with
+Cancel, and its reminder editor offers "Call me", which shows the same
+cards in place (`POST /reminder-calls/ask`). Care's calls count against
+the shared cap only while `reminder_calls` is on: the founder's decision,
+`policy.CARE_CAP_ONLY_WITH_REMINDER_CALLS`.
+
 Settled by the founder and not re-opened here: calls only between **09:00 and
 21:00** in the person's time, at most **5 calls a day per person**, voice
 approvals are **read-out only** (a call never moves a card), and **no

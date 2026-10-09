@@ -6,7 +6,8 @@ daily allowance -- the same counter call-when-done and reminder calls use,
 on the person's local day -- reserved right before the dial and given back
 only on a verified non-dispatch. Past the cap the dose is ``failed``
 (``daily_cap``) and the family is told Decibyl could not call. With
-``reminder_calls`` off, care is exactly as before: uncapped. The calling
+``reminder_calls`` off, care is exactly as before: uncapped (the founder's
+decision, ``policy.CARE_CAP_ONLY_WITH_REMINDER_CALLS``). The calling
 window exemption is unchanged either way.
 
 No call is placed: ``calls._dial`` is replaced.
@@ -130,5 +131,30 @@ async def test_the_switch_keeps_care_out_of_the_cap(home, dial, monkeypatch):
     try:
         await calls.tick(_at(8, 1))
         dial.assert_awaited_once()
+    finally:
+        await _forget(med)
+
+
+async def test_care_counts_only_while_reminder_calls_is_on_is_the_founders_decision():
+    """Founder decision (9 Oct 2026), kept as built: care's medicine calls
+    share the one daily cap only where ``reminder_calls`` is on. Changing
+    either constant changes who can be rung uncapped: that is a decision,
+    not a refactor, so this test names it."""
+    assert policy.CARE_SHARES_THE_CAP is True
+    assert policy.CARE_CAP_ONLY_WITH_REMINDER_CALLS is True
+
+
+async def test_without_the_coupling_care_is_capped_with_reminder_calls_off(
+    home, dial, monkeypatch
+):
+    monkeypatch.setattr(constants, "REMINDER_CALLS_ENABLED", False)
+    monkeypatch.setattr(policy, "CARE_CAP_ONLY_WITH_REMINDER_CALLS", False)
+    med = await _live(home, monkeypatch)
+    await _fill(med, constants.CALL_WHEN_DONE_DAILY_CAP)
+    try:
+        await calls.tick(_at(8, 1))
+        dial.assert_not_awaited()
+        dose = (await _doses(home.org))[0]
+        assert dose.state == calls.FAILED and dose.reason == "daily_cap"
     finally:
         await _forget(med)
