@@ -66,8 +66,9 @@ class TestLiveFoldersEqualTheCatalogue:
         # the report generator and the telecaller coach promoted from the
         # drafts on 22 Sept 2026; the four procurement desks (Step 2) and
         # the maturity assessor (E-2); Daily Check-in, promoted from the
-        # daily wellness check-in draft for the seniors' shelf (8 Oct 2026).
-        assert len(pairs) == 31
+        # daily wellness check-in draft for the seniors' shelf (8 Oct 2026);
+        # the poster designer and the ad creative maker (image generation).
+        assert len(pairs) == 33
         assert check_drift(pairs, LIVE_DIR) == [], (
             "packs/live has drifted from the catalogue; "
             "run: python -m scripts.export_pack_folders"

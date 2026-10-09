@@ -732,6 +732,31 @@
    "launch_helpers"
   ]
  },
+ "/api/v1/images/provider": {
+  "PUT": [
+   "image_generation"
+  ]
+ },
+ "/api/v1/images/providers": {
+  "GET": [
+   "image_generation"
+  ]
+ },
+ "/api/v1/images/references": {
+  "POST": [
+   "image_generation"
+  ]
+ },
+ "/api/v1/images/{image_uuid}": {
+  "GET": [
+   "image_generation"
+  ]
+ },
+ "/api/v1/images/{image_uuid}/file": {
+  "GET": [
+   "image_generation"
+  ]
+ },
  "/api/v1/learning/goals": {
   "GET": [
    "learning"

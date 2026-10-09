@@ -44,6 +44,8 @@ from api.enums import (
 )
 from api.services.auth.depends import get_user, require_organization_role
 from api.services.configuration import chat_presets
+from api.services.images import service as image_service
+from api.services.images import tools as image_tools
 from api.services.workflow import (
     actions,
     agent_timeline,
@@ -721,6 +723,16 @@ async def _what_was_said(
 
     attachments: list[dict[str, Any]] = []
     for attachment in body.attachments:
+        if image_service.is_image_attachment(attachment.document_uuid):
+            # A logo or product photo for a poster (services/images/): this
+            # workspace's own, or refused like a document from elsewhere.
+            image = await image_service.attachment_for(
+                organization_id, attachment.document_uuid, attachment.filename
+            )
+            if image is None:
+                raise HTTPException(status_code=404, detail="No such image here")
+            attachments.append(image)
+            continue
         document = await db_client.get_document_by_uuid(
             attachment.document_uuid, organization_id=organization_id
         )
@@ -773,8 +785,14 @@ async def _post_direct_message(
         in_channel=False,
     )
     try:
+        # An attached image is named with its id, so the agent can put the
+        # person's logo on the poster (services/images/tools.py).
         await enqueue_job(
-            FunctionNames.ANSWER_CHANNEL_MESSAGE, workflow.id, None, line, preset
+            FunctionNames.ANSWER_CHANNEL_MESSAGE,
+            workflow.id,
+            None,
+            line + image_tools.attachment_note(attachments),
+            preset,
         )
     except Exception as exc:  # noqa: BLE001 - said out loud, as in the channel path
         logger.error(

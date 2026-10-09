@@ -2189,3 +2189,34 @@ OPS_SSM_TARGET_INSTANCE_ID = os.getenv("OPS_SSM_TARGET_INSTANCE_ID", "")
 #: controls event catalogue above.
 #: How old a signal may be before the console stops calling it healthy.
 OPS_SIGNAL_STALE_SECONDS = int(os.getenv("OPS_SIGNAL_STALE_SECONDS", "900"))
+
+# ---------------------------------------------------------------------------
+# Image generation: posters and ad creatives (services/images/). Off by
+# default. The provider is the workspace's choice, made on a card in the
+# thread; the key is the workspace's own (the BYOK vault, component "image")
+# unless a platform key for that provider is set below, in which case the
+# provider shows as ready without one.
+# ---------------------------------------------------------------------------
+IMAGE_GENERATION_ENABLED = _flag("IMAGE_GENERATION_ENABLED")
+#: Platform keys for images. Unset (the default) means every workspace
+#: brings its own. Deliberately not ``GEMINI_API_KEY`` / ``OPENAI_API_KEY``:
+#: a deployment that holds those for its models would otherwise make images
+#: on the platform's account for everybody without anyone deciding so.
+IMAGE_GEMINI_API_KEY = (os.getenv("IMAGE_GEMINI_API_KEY") or "").strip()
+IMAGE_OPENAI_API_KEY = (os.getenv("IMAGE_OPENAI_API_KEY") or "").strip()
+#: Nova Canvas on the box's own AWS role, no key needed. Off unless said.
+IMAGE_BEDROCK_ENABLED = _flag("IMAGE_BEDROCK_ENABLED")
+#: Nova Canvas is served in a few regions only (us-east-1, eu-west-1 and
+#: ap-northeast-1 when this was written), so it has its own region.
+IMAGE_BEDROCK_REGION = (os.getenv("IMAGE_BEDROCK_REGION") or "us-east-1").strip()
+#: Model ids, overridable so a model its vendor retires is a config change.
+IMAGE_GEMINI_MODEL = (
+    os.getenv("IMAGE_GEMINI_MODEL") or "gemini-nano-banana-2.1"
+).strip()
+IMAGE_OPENAI_MODEL = (os.getenv("IMAGE_OPENAI_MODEL") or "gpt-image-2.5-flare").strip()
+IMAGE_BEDROCK_MODEL = (
+    os.getenv("IMAGE_BEDROCK_MODEL") or "amazon.nova-canvas-v1:0"
+).strip()
+#: Seconds one provider request may take. Generation is slow; a request is
+#: never retried, because a retry would spend the person's key twice.
+IMAGE_TIMEOUT_SECONDS = float(os.getenv("IMAGE_TIMEOUT_SECONDS", "120"))

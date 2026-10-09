@@ -40,6 +40,7 @@ from api.routes.feature_admin import router as feature_admin_router
 from api.routes.folder import router as folder_router
 from api.routes.helpers import router as helpers_router
 from api.routes.identity import router as identity_router
+from api.routes.images import router as images_router
 from api.routes.impersonation import router as impersonation_router
 from api.routes.invite_requests import router as public_invite_requests_router
 from api.routes.knowledge_base import router as knowledge_base_router
@@ -225,6 +226,7 @@ router.include_router(public_invite_requests_router)
 router.include_router(shell_router)
 router.include_router(reach_router)
 router.include_router(people_router)
+router.include_router(images_router)
 router.include_router(learning_router)
 router.include_router(meetings_router)
 router.include_router(support_router)

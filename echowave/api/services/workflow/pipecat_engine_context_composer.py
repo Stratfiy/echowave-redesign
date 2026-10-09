@@ -324,6 +324,7 @@ async def compose_functions_for_node(
     scoped_document_uuids: Optional[list[str]] = None,
     can_edit_self: bool = False,
     can_run_scripts: bool = False,
+    can_make_images: bool = False,
 ) -> list[dict]:
     """Compose the function/tool schemas for a workflow node.
 
@@ -428,6 +429,21 @@ async def compose_functions_for_node(
                         required=schema["parameters"].get("required", []),
                     )
                 )
+
+    # Making images (services/images/): a bot hired from an image template,
+    # on text and channel runs, while image_generation is on -- the engine
+    # works that out once and registers the handler on the same answer.
+    if can_make_images:
+        from api.services.images import tools as image_tools
+
+        functions.append(
+            get_function_schema(
+                image_tools.TOOL_NAME,
+                image_tools.DESCRIPTION,
+                properties=image_tools.tool_properties(),
+                required=[],
+            )
+        )
 
     # Editing itself is offered where asking a person is: a staff chat. A
     # caller is not the bot's owner.

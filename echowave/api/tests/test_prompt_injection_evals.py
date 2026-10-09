@@ -440,8 +440,9 @@ class TestTheRuleReachesEveryLivePack:
         # the report generator and the telecaller coach promoted on
         # 22 Sept 2026; the four procurement desks (Step 2) and the
         # maturity assessor (E-2); the daily check-in promoted for the
-        # seniors' shelf (October 2026).
-        assert len(packs) == 31
+        # seniors' shelf (October 2026); the poster designer and the ad
+        # creative maker (image generation).
+        assert len(packs) == 33
         missing = []
         for pack in packs:
             template = get_template(pack.template_id)
