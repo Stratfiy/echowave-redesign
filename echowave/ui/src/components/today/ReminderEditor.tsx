@@ -212,6 +212,19 @@ function EventForm({ timezone, states }: { timezone: string; states: ChannelStat
     );
 }
 
+/** A missed reminder says why: its time passed, or its delivery reached
+ * nobody (the latest real delivery, with the reason the server recorded). */
+function missedWords(stored: ReminderView): string {
+    const last = (stored.deliveries ?? []).find((d) => !d.is_test);
+    if (last?.status === "unknown") {
+        return "Not confirmed: we can't tell whether it reached you. Change the time to set it again.";
+    }
+    if (last && last.status !== "sent" && last.status !== "accepted") {
+        return `Not sent: ${last.detail ?? "it could not be delivered."} Change the time to set it again.`;
+    }
+    return "Missed: its time passed before it could be sent. Change the time to set it again.";
+}
+
 export function ReminderEditor({ reminderId }: { reminderId?: number }) {
     const { user, loading: authLoading } = useAuth();
     // Keyed on signed-in, not on the user object, so a re-render never
@@ -396,7 +409,7 @@ export function ReminderEditor({ reminderId }: { reminderId?: number }) {
                                 {stored.status === "paused"
                                     ? "Paused. Nothing new is sent; a reminder already being sent finishes."
                                     : stored.status === "missed"
-                                      ? "Missed: its time passed before it could be sent. Change the time to set it again."
+                                      ? missedWords(stored)
                                       : stored.status === "cancelled"
                                         ? "Cancelled."
                                         : stored.status === "done"
