@@ -258,7 +258,14 @@ async def recall_for_bot(
     # recall_facts. Same rule in both places on purpose: a reader who learns it
     # once should not have to check whether it holds here too.
     ordered = sorted(rows, key=lambda row: row.workflow_id is not None)
-    return {row.key: row.value for row in ordered}
+    merged = {row.key: row.value for row in ordered}
+    # ...and the bot's own keys first in the result, because the prompt keeps
+    # only the first MAX_REMEMBERED: with the organisation's rows first, an
+    # organisation past the cap silently dropped every instruction that was
+    # this bot's alone. Within each group the database's most-seen order holds.
+    own = [row.key for row in rows if row.workflow_id is not None]
+    first = {key: merged[key] for key in own if key in merged}
+    return {**first, **{k: v for k, v in merged.items() if k not in first}}
 
 
 def merge_for_prompt(
@@ -318,10 +325,13 @@ def remembered_block(remembered: Mapping[str, str] | None) -> Optional[str]:
         return None
 
     lines = []
-    for key, value in list(remembered.items())[:MAX_REMEMBERED]:
+    for key, value in remembered.items():
         text = str(value or "").strip()
         if not text:
+            # A blank value is not a fact and does not take one of the slots.
             continue
+        if len(lines) >= MAX_REMEMBERED:
+            break
         # The key as written, not slugged. These were composed to be read --
         # "cancellation policy", not "cancellation_policy" -- and a prompt is
         # the one place the machine-readable form has no advantage.

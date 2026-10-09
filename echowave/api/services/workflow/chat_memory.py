@@ -12,8 +12,9 @@ the newest message backwards until the budget is spent, and the meter in
 the composer shows the same arithmetic: what is kept, out of what could be.
 
 Tokens are estimated, not counted. Four characters a token is close enough
-across the vendors a chat may run on, and the meter is a gauge, not an
-invoice -- the invoice is the usage the vendor reports back.
+for Latin-script text across the vendors a chat may run on (Indian scripts
+are counted at two, see ``INDIC_CHARS_PER_TOKEN``), and the meter is a
+gauge, not an invoice -- the invoice is the usage the vendor reports back.
 """
 
 from __future__ import annotations
@@ -73,11 +74,26 @@ class Usage:
         }
 
 
+#: Indian scripts tokenise far worse than Latin text: a Tamil or Hindi word
+#: is several tokens on most vendors' tokenisers, so four characters a token
+#: undercounts a Tamil thread by a factor of two or more and lets it run well
+#: past the plan's budget. Two characters a token for these scripts is still
+#: an estimate, but one that errs towards a shorter window, not a bigger bill.
+INDIC_CHARS_PER_TOKEN = 2
+
+#: Devanagari (U+0900) through Malayalam and Sinhala (U+0DFF): Hindi, Marathi,
+#: Bengali, Punjabi, Gujarati, Odia, Tamil, Telugu, Kannada, Malayalam.
+_INDIC_START, _INDIC_END = 0x0900, 0x0DFF
+
+
 def tokens_of(text: Optional[str]) -> int:
     """The estimate for one piece of text. Never zero for a non-empty one."""
     if not text:
         return 0
-    return max(1, (len(text) + CHARS_PER_TOKEN - 1) // CHARS_PER_TOKEN)
+    indic = sum(1 for ch in text if _INDIC_START <= ord(ch) <= _INDIC_END)
+    other = len(text) - indic
+    estimate = -(-other // CHARS_PER_TOKEN) + -(-indic // INDIC_CHARS_PER_TOKEN)
+    return max(1, estimate)
 
 
 async def budget(organization_id: int) -> Budget:

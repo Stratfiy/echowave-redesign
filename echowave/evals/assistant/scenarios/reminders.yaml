@@ -1,0 +1,313 @@
+# Reminders and timezones. "now" is Friday 9 October 2026 unless a case says
+# otherwise. Founder rules every case holds: calls only 09:00-21:00 in the
+# person's own zone, at most 5 a day per person, no under-18s, nothing
+# scheduled that the person did not see as a full local date on a card.
+# Stores and operators: see ../README.md.
+
+- id: rem-en-01
+  category: reminders
+  language: en
+  target: stage2
+  context:
+    now: "2026-10-09T18:00:00+05:30"
+    person: {timezone: Asia/Kolkata, language: en, phone_confirmed: true}
+    workspace: {outbound_line: true}
+  turns:
+    - "Call me tomorrow at 8:30 to remind me to send the proposal."
+  expect:
+    state:
+      - store: cards
+        count: 1
+        fields: {kind: reminder_call, state: proposed, local_date: "2026-10-10", requested_local_time: "08:30", quiet_hours_conflict: true}
+      - store: reminder_call_schedules
+        count: 0
+      - store: reminder_call_dispatches
+        count: 0
+  why: >
+    The plan's own example lands before 09:00. The card says so and offers
+    09:00 (or an approved exception, decision D2); nothing is scheduled for
+    08:30 by default and nothing rings.
+
+- id: rem-en-02
+  category: reminders
+  language: en
+  target: stage2
+  context:
+    now: "2026-10-10T00:10:00+05:30"
+    person: {timezone: Asia/Kolkata, language: en, phone_confirmed: true}
+    workspace: {outbound_line: true}
+  turns:
+    - "Remind me by phone tomorrow at 10 to pay the electricity bill."
+  expect:
+    state:
+      - store: cards
+        count: 1
+        fields: {kind: reminder_call, state: proposed, local_date: "2026-10-11", local_time: "10:00", timezone: Asia/Kolkata}
+      - store: cards
+        fields_contain: {shown_date: "Sunday 11 October 2026"}
+      - store: reminder_call_schedules
+        count: 0
+  why: >
+    Ten past midnight: "tomorrow" is resolved deterministically in the
+    person's zone (the 11th) and shown as a full date, so a person who meant
+    "later today" can see it and correct it before anything is saved.
+
+- id: rem-en-03
+  category: reminders
+  language: en
+  target: stage2
+  context:
+    now: "2026-10-09T14:00:00+04:00"
+    person: {timezone: Asia/Dubai, language: en, phone_confirmed: true}
+    workspace: {outbound_line: true, organization_timezone: Asia/Kolkata}
+  turns:
+    - "Call me at 7pm today to remind me about the school fees."
+  expect:
+    state:
+      - store: cards
+        count: 1
+        fields: {kind: reminder_call, local_date: "2026-10-09", local_time: "19:00", timezone: Asia/Dubai, quiet_hours_conflict: false}
+  why: >
+    The person's own zone decides, not the workspace's. 19:00 in Dubai is
+    20:30 in India; it is within the window because the window is the
+    person's.
+
+- id: rem-en-04
+  category: reminders
+  language: en
+  target: stage2
+  context:
+    now: "2026-10-09T11:00:00+05:30"
+    person: {timezone: null, language: en, phone_confirmed: true}
+    workspace: {outbound_line: true, organization_timezone: Asia/Kolkata}
+  turns:
+    - "Ring me at 3 this afternoon to remind me to call the CA."
+  expect:
+    state:
+      - store: cards
+        count: 1
+        fields: {kind: reminder_call, local_time: "15:00", timezone: Asia/Kolkata}
+      - store: cards
+        fields_contain: {shown_zone: "IST"}
+  why: >
+    No zone on the person: the workspace's is used and named on the card,
+    never assumed silently.
+
+- id: rem-en-05
+  category: reminders
+  language: en
+  target: stage2
+  context:
+    now: "2026-10-09T11:00:00+05:30"
+    person: {timezone: Asia/Kolkata, language: en, phone_confirmed: true}
+    workspace: {outbound_line: true}
+  turns:
+    - "Every weekday at 9:15, call me to remind me to check the bank balance."
+  expect:
+    state:
+      - store: cards
+        count: 1
+        fields: {kind: reminder_call, recurrence: weekdays, local_time: "09:15", next_local_date: "2026-10-12"}
+  why: >
+    Friday 11:00: today's 09:15 has passed, Saturday and Sunday are not
+    weekdays, so the first occurrence shown is Monday 12 October.
+
+- id: rem-en-06
+  category: reminders
+  language: en
+  target: stage2
+  context:
+    now: "2026-10-09T15:00:00+05:30"
+    person: {timezone: Asia/Kolkata, language: en, phone_confirmed: true, calls_today: 5}
+    workspace: {outbound_line: true}
+  turns:
+    - "Call me in an hour to remind me to leave for the airport."
+  expect:
+    state:
+      - store: cards
+        count: 1
+        fields: {kind: reminder_call, daily_cap_reached: true, fallback: push}
+      - store: reminder_call_dispatches
+        count: 0
+  why: >
+    Five calls already today. The card says the day's limit is reached and
+    offers a notification at 16:00 instead; no sixth call.
+
+- id: rem-en-07
+  category: reminders
+  language: en
+  target: stage2
+  context:
+    now: "2026-10-10T09:30:00+05:30"
+    person: {timezone: Asia/Kolkata, language: en, phone_confirmed: true}
+    workspace: {outbound_line: true}
+    setup:
+      - {store: reminder_call_occurrences, row: {title: "Send the proposal", task_state: open, due_local: "2026-10-10T09:30"}}
+  on_call:
+    - "Snooze it fifteen minutes."
+  expect:
+    state:
+      - store: reminder_call_dispatches
+        fields: {state: answered}
+      - store: reminder_call_occurrences
+        fields: {task_state: snoozed, snoozed_until_local: "2026-10-10T09:45"}
+  why: >
+    On the call the person can say done, snooze, cancel or repeat. Snooze
+    moves the task, not the delivery: the ring that was answered stays
+    "answered".
+
+- id: rem-en-08
+  category: reminders
+  language: en
+  target: stage2
+  context:
+    now: "2026-10-09T11:00:00+05:30"
+    person: {timezone: Asia/Kolkata, language: en, phone_confirmed: false}
+    workspace: {outbound_line: false}
+  turns:
+    - "Call me at 4 to remind me to submit the form."
+  expect:
+    state:
+      - store: cards
+        count: 1
+        fields: {kind: reminder, channel: push, local_time: "16:00"}
+      - store: reminder_call_schedules
+        count: 0
+  why: >
+    No outbound line: the reminder still works, as a notification, and the
+    thread says why it is not a call. Never a dead end.
+
+- id: rem-en-09
+  category: reminders
+  language: en
+  target: stage2
+  context:
+    now: "2026-10-09T11:00:00+05:30"
+    person: {timezone: Asia/Kolkata, language: en, phone_confirmed: true, age: 16}
+    workspace: {outbound_line: true}
+  turns:
+    - "Call me tomorrow at 10 to remind me about my exam."
+  expect:
+    state:
+      - store: reminder_call_schedules
+        count: 0
+      - store: cards
+        fields: {kind: reminder, channel: in_app}
+  why: >
+    No reminder calls for under-18s (founder rule). An in-app reminder is
+    still offered.
+
+- id: rem-ta-01
+  category: reminders
+  language: ta
+  target: stage2
+  context:
+    now: "2026-10-09T18:00:00+05:30"
+    person: {timezone: Asia/Kolkata, language: ta, phone_confirmed: true}
+    workspace: {outbound_line: true}
+  turns:
+    - "நாளை காலை ஒன்பதரை மணிக்கு என்னை அழைத்து முன்மொழிவை அனுப்ப நினைவூட்டு."
+  expect:
+    state:
+      - store: cards
+        count: 1
+        fields: {kind: reminder_call, local_date: "2026-10-10", local_time: "09:30", language: ta, quiet_hours_conflict: false}
+  why: >
+    Tamil time words ("ஒன்பதரை" = half past nine) resolve to 09:30; the
+    call's language is Tamil because the person asked in Tamil.
+
+- id: rem-ta-02
+  category: reminders
+  language: ta
+  target: stage2
+  context:
+    now: "2026-10-09T18:00:00+05:30"
+    person: {timezone: Asia/Kolkata, language: ta, phone_confirmed: true}
+    workspace: {outbound_line: true}
+  turns:
+    - "இன்னைக்கு ராத்திரி பத்து மணிக்கு கால் பண்ணு, அம்மாவுக்கு மருந்து வாங்கணும்."
+  expect:
+    state:
+      - store: cards
+        count: 1
+        fields: {kind: reminder_call, requested_local_time: "22:00", quiet_hours_conflict: true}
+      - store: reminder_call_schedules
+        count: 0
+  why: >
+    22:00 is outside the window. The general path has no care-style
+    exemption: the card offers an earlier time or a notification at 22:00.
+
+- id: rem-ta-en-01
+  category: reminders
+  language: ta-en
+  target: stage2
+  context:
+    now: "2026-10-09T18:00:00+05:30"
+    person: {timezone: Asia/Kolkata, language: ta, phone_confirmed: true}
+    workspace: {outbound_line: true}
+  turns:
+    - "Monday morning 10 o'clock call பண்ணி GST filing remind பண்ணு."
+  expect:
+    state:
+      - store: cards
+        count: 1
+        fields: {kind: reminder_call, local_date: "2026-10-12", local_time: "10:00", language: ta}
+  why: >
+    Code-mixed: the English time words carry the schedule, the Tamil verbs
+    the request; the call is in Tamil.
+
+- id: rem-hi-01
+  category: reminders
+  language: hi
+  target: stage2
+  context:
+    now: "2026-10-09T18:00:00+05:30"
+    person: {timezone: Asia/Kolkata, language: hi, phone_confirmed: true}
+    workspace: {outbound_line: true}
+  turns:
+    - "कल सुबह साढ़े नौ बजे मुझे फ़ोन करके प्रस्ताव भेजने की याद दिलाना।"
+  expect:
+    state:
+      - store: cards
+        count: 1
+        fields: {kind: reminder_call, local_date: "2026-10-10", local_time: "09:30", language: hi}
+  why: >
+    "कल" after a past-tense context can mean yesterday; with "याद दिलाना"
+    (future) it is tomorrow. "साढ़े नौ" = 09:30.
+
+- id: rem-hi-02
+  category: reminders
+  language: hi
+  target: stage2
+  context:
+    now: "2026-10-09T18:00:00+05:30"
+    person: {timezone: Asia/Kolkata, language: hi, phone_confirmed: true}
+    workspace: {outbound_line: true}
+  turns:
+    - "हर सोमवार शाम छह बजे कॉल करके किराया याद दिलाना।"
+  expect:
+    state:
+      - store: cards
+        count: 1
+        fields: {kind: reminder_call, recurrence: weekly, weekday: 0, local_time: "18:00", next_local_date: "2026-10-12"}
+
+- id: rem-hi-en-01
+  category: reminders
+  language: hi-en
+  target: stage2
+  context:
+    now: "2026-10-09T18:00:00+05:30"
+    person: {timezone: Asia/Kolkata, language: hi, phone_confirmed: true}
+    workspace: {outbound_line: true}
+  turns:
+    - "Parso 11 baje call karke remind karna ki Sharma ji ko payment bhejna hai."
+  expect:
+    state:
+      - store: cards
+        count: 1
+        fields: {kind: reminder_call, local_date: "2026-10-11", local_time: "11:00"}
+      - store: cards
+        fields_contain: {title: "Sharma"}
+  why: >
+    "Parso" in Hinglish is the day after tomorrow (Sunday 11 October), not
+    tomorrow.
