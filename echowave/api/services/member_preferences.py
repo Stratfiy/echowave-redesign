@@ -68,14 +68,22 @@ SETTINGS_FIELDS = (
     "captions",
     "auto_detect_language",
 )
-ALL_FIELDS = FIELDS + SETTINGS_FIELDS
+#: "Call me when long tasks finish" (services/call_when_done). Same row and
+#: revision; the route accepts it only while ``call_when_done`` is on.
+CALL_WHEN_DONE = "call_when_done"
+ALL_FIELDS = FIELDS + SETTINGS_FIELDS + (CALL_WHEN_DONE,)
 RESPONSE_LENGTHS = ("short", "balanced", "detailed")
 #: Long enough for a paragraph of standing instructions; a longer one is
 #: refused with the limit, never silently cut (screen 18).
 MAX_INSTRUCTIONS = 1500
 MAX_NAME = 80
 SPEED_RANGE = (0.5, 2.0)
-_BOOLEAN_FIELDS = ("memory_enabled", "captions", "auto_detect_language")
+_BOOLEAN_FIELDS = (
+    "memory_enabled",
+    "captions",
+    "auto_detect_language",
+    CALL_WHEN_DONE,
+)
 _TIME = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 _VOICE = re.compile(r"^[A-Za-z0-9_.:\-]{1,64}$")
 
@@ -104,6 +112,7 @@ def _empty(user_id: int) -> dict[str, Any]:
         "summary_time": None,
         "simple_mode": None,
         **{key: None for key in SETTINGS_FIELDS},
+        CALL_WHEN_DONE: None,
         "onboarding_absorbed_at": None,
         "revision": 0,
         "updated_at": None,
@@ -121,6 +130,7 @@ def _as_dict(row: MemberPreferencesModel | None, user_id: int) -> dict[str, Any]
         "summary_time": row.summary_time,
         "simple_mode": row.simple_mode,
         **{key: getattr(row, key) for key in SETTINGS_FIELDS},
+        CALL_WHEN_DONE: row.call_when_done,
         "onboarding_absorbed_at": (
             row.onboarding_absorbed_at.isoformat()
             if row.onboarding_absorbed_at

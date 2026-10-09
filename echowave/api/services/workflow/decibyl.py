@@ -314,6 +314,7 @@ def system_prompt(organization_id: int | None = None) -> str:
         # none were set or the switches are off.
         + settings_profile.turn_block()
         + (call_for_me.RULES if call_for_me.enabled(organization_id) else "")
+        + (_done_calls().RULES if _done_calls_on(organization_id) else "")
         + (_outreach().RULES if _outreach().enabled(organization_id) else "")
         + (_booking().RULES if _booking().enabled(organization_id) else "")
     )
@@ -453,6 +454,30 @@ async def ask(
     if await turn_refused(
         organization_id=organization_id, user_id=user_id, thread_id=thread_id
     ):
+        return []
+
+    # "Call me when it's done", said on its own (or the chip's own words):
+    # answered here, with no model, so the ask cannot be misread. A longer
+    # line that only contains it goes to the model, which has the tool.
+    if (
+        not handed_to
+        and _done_calls_on(organization_id)
+        and _done_calls().is_the_ask(text)
+    ):
+        from api.services.call_when_done import CallWhenDoneError
+
+        try:
+            await _done_calls().opt_in(organization_id, user_id, thread_id=thread_id)
+        except CallWhenDoneError as exc:
+            await agent_timeline.record(
+                organization_id=organization_id,
+                kind=AgentEventKind.MESSAGE.value,
+                actor=AgentEventActor.AGENT.value,
+                summary=str(exc)[:500],
+                payload={"body": str(exc), "from": NAME},
+                in_channel=False,
+                thread_id=thread_id,
+            )
         return []
 
     from api.tasks.arq import enqueue_job
@@ -1672,6 +1697,7 @@ def office_tools(organization_id: int | None = None) -> list[dict[str, Any]]:
             if _call_for_me().enabled(organization_id)
             else ()
         ),
+        *((_done_calls().tool_schema(),) if _done_calls_on(organization_id) else ()),
     ]
 
 
@@ -1685,6 +1711,19 @@ def _call_for_me():
     from api.services.voice import call_for_me
 
     return call_for_me
+
+
+def _done_calls():
+    """ "Call me when it's done" (services/call_when_done/optin.py)."""
+    from api.services.call_when_done import optin
+
+    return optin
+
+
+def _done_calls_on(organization_id: int | None) -> bool:
+    from api.services import call_when_done
+
+    return call_when_done.enabled(organization_id)
 
 
 #: The old name, kept for anything that imported it.
@@ -2075,6 +2114,10 @@ async def _tool(
             workflow_run_id=None,
             arguments={**arguments, "action": actions.PLACE_CALL},
             in_channel=False,
+        )
+    if call.name == _done_calls().TOOL_NAME and _done_calls_on(organization_id):
+        return await _done_calls().run_tool(
+            organization_id, arguments, user_id=author_id, thread_id=thread_id
         )
     if call.name == documents.SEND_TOOL_NAME:
         return await documents.send_for_thread(

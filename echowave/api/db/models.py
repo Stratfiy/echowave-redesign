@@ -6861,6 +6861,11 @@ from api.db.browser_models import (  # noqa: E402,F401
     BrowserSiteLoginModel,
     BrowserSiteRuleModel,
 )
+from api.db.call_when_done_models import (  # noqa: E402,F401
+    DoneCallbackModel,
+    DoneCallModel,
+    DoneCallNumberModel,
+)
 from api.db.care_models import (  # noqa: E402,F401
     CareAlertModel,
     CareCircleMemberModel,

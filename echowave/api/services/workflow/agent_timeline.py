@@ -200,6 +200,24 @@ async def record(
         workflow_id=workflow_id,
     )
 
+    # "Call me when it's done" (services/call_when_done). Every job that
+    # finishes later writes its finish here, so this is the one place a
+    # finish is heard -- a job type added later is heard without being
+    # wired. After the row, and guarded inside: it never raises, leaves at
+    # once for kinds that cannot be a finish, and does nothing while off.
+    from api.services.call_when_done import completion as finished_work
+
+    await finished_work.on_recorded(
+        organization_id=organization_id,
+        kind=kind,
+        summary=summary,
+        payload=payload,
+        workflow_id=workflow_id,
+        workflow_run_id=workflow_run_id,
+        thread_id=thread,
+        event_id=event_id,
+    )
+
     # And out to whatever the operator wired this bot to. After the row and
     # after the bell, in its own guard, for the same reason the bell is: a
     # receiver that is down must not be able to undo something that happened.

@@ -2803,6 +2803,96 @@ export type CallOutcomeResponse = {
 export type CallType = 'inbound' | 'outbound';
 
 /**
+ * CallWhenDoneRequest
+ */
+export type CallWhenDoneRequest = {
+    /**
+     * Thread Id
+     */
+    thread_id?: string | null;
+    /**
+     * Task Id
+     */
+    task_id?: number | null;
+    /**
+     * Workflow Id
+     */
+    workflow_id?: number | null;
+    /**
+     * Phone
+     */
+    phone?: string | null;
+};
+
+/**
+ * CallWhenDoneResponse
+ */
+export type CallWhenDoneResponse = {
+    /**
+     * Callback Id
+     */
+    callback_id: number;
+    /**
+     * Subject
+     */
+    subject: string;
+    /**
+     * State
+     */
+    state: string;
+    /**
+     * Line
+     */
+    line: string;
+    /**
+     * Can Call
+     */
+    can_call: boolean;
+    /**
+     * Reason
+     */
+    reason?: string | null;
+    /**
+     * Number
+     */
+    number?: string | null;
+    /**
+     * Card Event Id
+     */
+    card_event_id?: number | null;
+};
+
+/**
+ * CallWhenDoneStatus
+ */
+export type CallWhenDoneStatus = {
+    /**
+     * Pending
+     */
+    pending: Array<PendingCallback>;
+    /**
+     * Number
+     */
+    number?: string | null;
+    /**
+     * Can Call
+     */
+    can_call: boolean;
+    /**
+     * Reason
+     */
+    reason?: string | null;
+    /**
+     * Offer
+     */
+    offer: boolean;
+    /**
+     * In Flight
+     */
+    in_flight?: string | null;
+};
+
+/**
  * Camb.ai
  */
 export type CambTtsConfiguration = {
@@ -11200,6 +11290,10 @@ export type MemberPreferences = {
      */
     simple_mode?: boolean | null;
     /**
+     * Call When Done
+     */
+    call_when_done?: boolean | null;
+    /**
      * Revision
      */
     revision: number;
@@ -11240,6 +11334,10 @@ export type MemberPreferencesWrite = {
      * Simple Mode
      */
     simple_mode?: boolean | null;
+    /**
+     * Call When Done
+     */
+    call_when_done?: boolean | null;
     /**
      * Revision
      */
@@ -13689,6 +13787,24 @@ export type PaymentPolicy = {
      * Steps
      */
     steps: Array<string>;
+};
+
+/**
+ * PendingCallback
+ */
+export type PendingCallback = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Subject
+     */
+    subject: string;
+    /**
+     * Title
+     */
+    title?: string | null;
 };
 
 /**
@@ -43287,6 +43403,133 @@ export type AnswerHelpApiV1CareHelpSessionsSessionIdAnswerPostResponses = {
 };
 
 export type AnswerHelpApiV1CareHelpSessionsSessionIdAnswerPostResponse = AnswerHelpApiV1CareHelpSessionsSessionIdAnswerPostResponses[keyof AnswerHelpApiV1CareHelpSessionsSessionIdAnswerPostResponses];
+
+export type CallWhenDoneStatusApiV1CallWhenDoneStatusGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Thread Id
+         */
+        thread_id?: string | null;
+    };
+    url: '/api/v1/call-when-done/status';
+};
+
+export type CallWhenDoneStatusApiV1CallWhenDoneStatusGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CallWhenDoneStatusApiV1CallWhenDoneStatusGetError = CallWhenDoneStatusApiV1CallWhenDoneStatusGetErrors[keyof CallWhenDoneStatusApiV1CallWhenDoneStatusGetErrors];
+
+export type CallWhenDoneStatusApiV1CallWhenDoneStatusGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: CallWhenDoneStatus;
+};
+
+export type CallWhenDoneStatusApiV1CallWhenDoneStatusGetResponse = CallWhenDoneStatusApiV1CallWhenDoneStatusGetResponses[keyof CallWhenDoneStatusApiV1CallWhenDoneStatusGetResponses];
+
+export type AskToBeCalledApiV1CallWhenDonePostData = {
+    body: CallWhenDoneRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/call-when-done';
+};
+
+export type AskToBeCalledApiV1CallWhenDonePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AskToBeCalledApiV1CallWhenDonePostError = AskToBeCalledApiV1CallWhenDonePostErrors[keyof AskToBeCalledApiV1CallWhenDonePostErrors];
+
+export type AskToBeCalledApiV1CallWhenDonePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: CallWhenDoneResponse;
+};
+
+export type AskToBeCalledApiV1CallWhenDonePostResponse = AskToBeCalledApiV1CallWhenDonePostResponses[keyof AskToBeCalledApiV1CallWhenDonePostResponses];
+
+export type StopWaitingApiV1CallWhenDoneCallbackIdDeleteData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Callback Id
+         */
+        callback_id: number;
+    };
+    query?: never;
+    url: '/api/v1/call-when-done/{callback_id}';
+};
+
+export type StopWaitingApiV1CallWhenDoneCallbackIdDeleteErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type StopWaitingApiV1CallWhenDoneCallbackIdDeleteError = StopWaitingApiV1CallWhenDoneCallbackIdDeleteErrors[keyof StopWaitingApiV1CallWhenDoneCallbackIdDeleteErrors];
+
+export type StopWaitingApiV1CallWhenDoneCallbackIdDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type StopWaitingApiV1CallWhenDoneCallbackIdDeleteResponse = StopWaitingApiV1CallWhenDoneCallbackIdDeleteResponses[keyof StopWaitingApiV1CallWhenDoneCallbackIdDeleteResponses];
 
 export type CapabilityChecklistApiV1AdminControlsCapabilitiesGetData = {
     body?: never;
