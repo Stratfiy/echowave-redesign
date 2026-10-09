@@ -5,6 +5,7 @@ import { Suspense } from 'react';
 import { getWorkflowsApiV1WorkflowFetchGet, listFoldersApiV1FolderGet } from '@/client/sdk.gen';
 import type { FolderResponse, WorkflowListResponse } from '@/client/types.gen';
 import { Art3D } from '@/components/art/Art3D';
+import { AgentsSectionTabs } from '@/components/evolve/AgentsSectionTabs';
 import { PageBody, PageHeader } from '@/components/layout/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -259,6 +260,8 @@ export default async function WorkflowPage({
                     </>
                 }
             />
+            {/* My agents · Skills, while evolve_skills is on; nothing otherwise. */}
+            {!archived && <AgentsSectionTabs />}
             <Suspense fallback={<WorkflowsLoading />}>
                 <PageContent archived={archived} />
             </Suspense>

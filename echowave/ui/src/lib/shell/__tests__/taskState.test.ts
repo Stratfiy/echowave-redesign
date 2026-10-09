@@ -48,6 +48,18 @@ describe("latestTurnStatus", () => {
         );
     });
 
+    it("waits on the person for a learning card until they press", () => {
+        expect(latestTurnStatus([row("message", "human"), row("skill_lesson", "agent", { type: "remembered" })], false)?.state).toBe(
+            "awaiting_approval",
+        );
+        expect(
+            latestTurnStatus(
+                [row("message", "human"), row("skill_lesson", "agent", { decided: { action: "publish" } }), row("message", "agent")],
+                false,
+            )?.state,
+        ).toBe("completed");
+    });
+
     it("describes only the latest turn", () => {
         const rows = [row("message", "human"), row("message", "agent", { failed: true }), row("message", "human")];
         expect(latestTurnStatus(rows, true)?.state).toBe("running");
