@@ -89,6 +89,24 @@ def _scope(workflow_id: Optional[int], user_id: Optional[int] = None):
     )
 
 
+def _keeps_what_it_replaces(statement) -> dict[str, Any]:
+    """``ON CONFLICT`` assignments that keep the value a write replaces.
+
+    Only a changed value moves into ``previous_value`` (with the time in
+    ``superseded_at``); the same value said again leaves both as they were,
+    so a repeat never erases the record of the last real correction. The
+    right-hand side of an ``ON CONFLICT DO UPDATE`` reads the row as it was,
+    so ``value`` here is the old one."""
+    table = OrganisationFactModel.__table__
+    changed = table.c.value.is_distinct_from(statement.excluded.value)
+    return {
+        "previous_value": case((changed, table.c.value), else_=table.c.previous_value),
+        "superseded_at": case(
+            (changed, statement.excluded.last_seen_at), else_=table.c.superseded_at
+        ),
+    }
+
+
 #: ``key`` is 128 characters and carries the identity of an observation, so a
 #: long question has to fold onto a stable short form. Lowercased and stripped
 #: of punctuation so "Do you open on Saturday?" and "do you open on saturday"
@@ -230,6 +248,7 @@ class OrganisationFactClient(BaseDBClient):
             index_elements=index_elements,
             index_where=index_where,
             set_={
+                **_keeps_what_it_replaces(statement),
                 "value": statement.excluded.value,
                 "source_run_id": statement.excluded.source_run_id,
                 "last_seen_at": statement.excluded.last_seen_at,
@@ -431,6 +450,7 @@ class OrganisationFactClient(BaseDBClient):
             index_elements=index_elements,
             index_where=index_where,
             set_={
+                **_keeps_what_it_replaces(statement),
                 "value": statement.excluded.value,
                 "status": statement.excluded.status,
                 "confirmed_at": statement.excluded.confirmed_at,

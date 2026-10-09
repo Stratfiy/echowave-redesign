@@ -84,7 +84,9 @@ class TestTheEstimate:
         assert rb.content_tokens(content) < rb.IMAGE_TOKENS + 100
 
     def test_the_ceiling_is_the_smallest_vendor_a_turn_can_fall_back_to(self):
-        assert rb.request_ceiling("google") == min(rb.PROVIDER_CEILINGS.values())
+        assert rb.request_ceiling("google") == min(
+            rb.PROVIDER_CEILINGS[v] for v in rb.FALLBACK_VENDORS
+        )
         assert rb.input_budget(100_000) == int(100_000 * rb.SAFETY) - rb.OUTPUT_RESERVE
 
 
@@ -315,3 +317,243 @@ class TestTheVendorSeesTheFittedRequest:
 
         assert sent["conversation"] is not conversation
         assert "What is this about?" in sent["conversation"].messages[-1]["content"]
+
+
+def _tools(n: int, words: int = 60) -> list[dict]:
+    return [
+        {
+            "name": f"tool_{i}",
+            "description": "Does a thing. " * words,
+            "parameters": {"type": "object", "properties": {}},
+        }
+        for i in range(n)
+    ]
+
+
+class TestSystemAndToolsAloneOverTheCeiling:
+    def test_huge_tool_schemas_alone_stay_inside_the_ceiling(self, v2_on):
+        """From the verification report's conformance tests (F6d), measured
+        on the tools actually sent rather than the tools offered."""
+        tools = _tools(400)
+        assert rb.tools_tokens(tools) > BUDGET
+        conversation = client.Conversation()
+        conversation.add_user("What is on my calendar today?")
+        prepared = _prepare(conversation, tools=tools)
+        assert prepared.refused is None
+        assert prepared.tools is not None and len(prepared.tools) < len(tools)
+        system = prepared.system_or("You are helpful.")
+        assert _sent_tokens(prepared, system, prepared.tools) <= BUDGET
+        # Said to the model, not silently cut.
+        assert "left out of this turn" in system
+        assert (
+            "What is on my calendar today?"
+            in (prepared.conversation.messages[-1]["content"])
+        )
+
+    def test_descriptions_are_shortened_before_any_tool_is_left_out(self, v2_on):
+        tools = _tools(12, words=400)
+        assert rb.tools_tokens(tools) > BUDGET
+        conversation = client.Conversation()
+        conversation.add_user("hello")
+        prepared = _prepare(conversation, tools=tools)
+        assert prepared.tools is not None
+        assert [t["name"] for t in prepared.tools] == [t["name"] for t in tools]
+        assert any(len(t["description"]) < 260 for t in prepared.tools)
+        assert _sent_tokens(prepared, "You are helpful.", prepared.tools) <= BUDGET
+        # Nothing left out, so nothing to tell the model.
+        assert prepared.system is None
+
+    def test_a_tool_the_turn_already_used_is_kept(self, v2_on):
+        tools = _tools(400) + [
+            {"name": "calendar_read", "description": "Reads the calendar. " * 40}
+        ]
+        conversation = client.Conversation()
+        conversation.add_user("What is on my calendar today?")
+        conversation.messages.append(
+            {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [{"id": "c1", "name": "calendar_read", "arguments": {}}],
+            }
+        )
+        conversation.messages.append(
+            {
+                "role": "tool",
+                "tool_call_id": "c1",
+                "name": "calendar_read",
+                "content": "10:00 dentist",
+            }
+        )
+        prepared = _prepare(conversation, tools=tools)
+        names = [t["name"] for t in prepared.tools]
+        assert "calendar_read" in names
+        sent = next(t for t in prepared.tools if t["name"] == "calendar_read")
+        assert sent["description"] == tools[-1]["description"]
+
+    def test_the_memory_search_is_never_left_out(self, v2_on):
+        tools = _tools(400) + [
+            {"name": "search_memory", "description": "Looks up facts. " * 40}
+        ]
+        conversation = client.Conversation()
+        conversation.add_user("hi")
+        prepared = _prepare(conversation, tools=tools)
+        assert "search_memory" in [t["name"] for t in prepared.tools]
+
+    def test_a_system_prompt_alone_over_the_ceiling_is_refused_honestly(self, v2_on):
+        conversation = client.Conversation()
+        conversation.add_user("hi")
+        prepared = _prepare(conversation, system="rules " * 60_000)
+        assert prepared.refused
+        assert "Nothing was sent" in prepared.refused
+        assert "on our side" in prepared.refused
+
+    @pytest.mark.asyncio
+    async def test_an_over_limit_request_never_reaches_the_vendor(self, v2_on):
+        conversation = client.Conversation()
+        conversation.add_user("hi")
+        vendor = AsyncMock()
+        brain = AsyncMock()
+        with (
+            patch.object(client, "_complete", vendor),
+            patch.object(client, "_stream", vendor),
+            patch.object(client, "_fallback_brain", brain),
+            model_usage.scope(organization_id=7, feature="test"),
+        ):
+            for call in (client.complete, client.stream):
+                kwargs = {"on_text": AsyncMock()} if call is client.stream else {}
+                with pytest.raises(client.RequestTooLarge) as raised:
+                    await call(
+                        provider="openai",
+                        model="m",
+                        api_key="k",
+                        system="rules " * 300_000,
+                        conversation=conversation,
+                        tools=[],
+                        **kwargs,
+                    )
+                # A BuilderClientError, so the thread shows its words as a
+                # failed turn rather than "could not think that through".
+                assert isinstance(raised.value, client.BuilderClientError)
+                assert "Nothing was sent" in str(raised.value)
+        vendor.assert_not_called()
+        brain.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_the_vendor_is_sent_the_fitted_tools_and_system(self, v2_on):
+        conversation = client.Conversation()
+        conversation.add_user("What is on my calendar today?")
+        tools = _tools(2000)
+        sent = {}
+
+        async def fake(**kwargs):
+            sent.update(kwargs)
+            return client.ModelReply(text="done")
+
+        with (
+            patch.object(client, "_complete", AsyncMock(side_effect=fake)),
+            model_usage.scope(organization_id=7, feature="test"),
+        ):
+            await client.complete(
+                provider="openai",
+                model="m",
+                api_key="k",
+                system="sys",
+                conversation=conversation,
+                tools=tools,
+            )
+        assert len(sent["tools"]) < len(tools)
+        assert "left out of this turn" in sent["system"]
+        total = (
+            rb.estimate(sent["system"])
+            + rb.tools_tokens(sent["tools"])
+            + sum(rb.message_tokens(m) for m in sent["conversation"].messages)
+        )
+        assert total <= rb.input_budget(rb.request_ceiling("openai"))
+
+
+class TestEveryVendorHasACeiling:
+    def test_sarvam_has_its_own_conservative_row(self):
+        assert rb.ceiling_for("sarvam") == rb.PROVIDER_CEILINGS["sarvam"]
+        assert rb.ceiling_for("sarvam") <= 32_000
+
+    def test_an_unknown_vendor_is_never_assumed_generous(self):
+        assert rb.ceiling_for("someone-new") == rb.DEFAULT_CEILING
+        assert rb.DEFAULT_CEILING <= min(rb.PROVIDER_CEILINGS.values())
+
+    def test_a_pipeline_service_is_named_by_its_vendor(self):
+        class SarvamLLMService: ...
+
+        class GoogleVertexLLMService: ...
+
+        class GeminiLiveLLMService: ...
+
+        class GroqLLMService: ...
+
+        assert rb.vendor_of(SarvamLLMService()) == "sarvam"
+        assert rb.vendor_of(GoogleVertexLLMService()) == "google"
+        assert rb.vendor_of(GeminiLiveLLMService()) == "google"
+        assert rb.vendor_of(GroqLLMService()) == ""
+
+
+class TestThePipelineIsMeasured:
+    def test_a_call_over_its_ceiling_logs_one_line(self):
+        from loguru import logger
+
+        lines: list[str] = []
+        sink = logger.add(lines.append, level="WARNING", format="{message}")
+        try:
+            small = rb.measure_pipeline("sarvam", "Be brief.", [], [])
+            big = rb.measure_pipeline(
+                "sarvam",
+                "Be brief.",
+                [],
+                [{"role": "user", "content": "x " * 60_000}],
+            )
+        finally:
+            logger.remove(sink)
+        assert small < big
+        over = [line for line in lines if "pipeline_request_over_ceiling" in line]
+        assert len(over) == 1
+        assert "vendor=sarvam" in over[0]
+
+    def test_function_schemas_are_counted(self):
+        from pipecat.adapters.schemas.function_schema import FunctionSchema
+
+        schema = FunctionSchema(
+            name="lookup",
+            description="Looks a thing up. " * 50,
+            properties={},
+            required=[],
+        )
+        assert rb.measure_pipeline("openai", "", [schema], []) > 200
+
+    @pytest.mark.asyncio
+    async def test_the_engine_measures_each_prompt_it_sets(
+        self, simple_workflow, v2_on
+    ):
+        from types import SimpleNamespace
+
+        from pipecat.processors.aggregators.llm_context import LLMContext
+
+        from api.services.workflow.pipecat_engine import PipecatEngine
+        from pipecat.tests import MockLLMService
+
+        engine = PipecatEngine(
+            llm=MockLLMService(mock_steps=[]),
+            context=LLMContext(),
+            workflow=simple_workflow,
+            call_context_vars={},
+            workflow_run_id=1,
+            task=SimpleNamespace(),
+            is_voice=True,
+        )
+        engine._organization_id = 1
+        engine.context.add_message({"role": "user", "content": "x " * 60_000})
+        with patch.object(rb, "measure_pipeline") as measure:
+            await engine._update_llm_context("Be brief.", [])
+        measure.assert_called_once()
+        vendor, system, _tools, messages = measure.call_args.args
+        # MockLLMService names no vendor in the table: the default ceiling.
+        assert vendor == ""
+        assert system == "Be brief."
+        assert len(messages) == 1

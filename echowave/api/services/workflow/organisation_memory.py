@@ -325,13 +325,16 @@ def remembered_block(
 
     ``left_out`` is how many confirmed facts were chosen against
     (``fact_selection``, context v2), said in a last line so the agent knows
-    the list is not everything the business has confirmed.
+    the list is not everything the business has confirmed, and is told not
+    to fill the gap with a guess. When none of them was chosen at all, that
+    line is the whole block: an agent that knows the business has confirmed
+    things it was not shown says "I will find out" rather than inventing one.
     """
-    if not remembered:
+    if not remembered and left_out <= 0:
         return None
 
     lines = []
-    for key, value in remembered.items():
+    for key, value in (remembered or {}).items():
         text = str(value or "").strip()
         if not text:
             # A blank value is not a fact and does not take one of the slots.
@@ -343,13 +346,14 @@ def remembered_block(
         # the one place the machine-readable form has no advantage.
         lines.append(f"- {key}: {text}")
 
-    if not lines:
-        return None
     if left_out > 0:
         lines.append(
             f"- and {left_out} more confirmed fact{'s' if left_out != 1 else ''} "
-            "on record, not shown here"
+            "on record, not shown here. Asked for a detail that is not listed, "
+            "say you will find out rather than guess."
         )
+    if not lines:
+        return None
 
     return (
         "WHAT THIS BUSINESS HAS CONFIRMED.\n"

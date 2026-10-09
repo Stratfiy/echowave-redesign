@@ -97,6 +97,48 @@ class TestRelevanceNotPopularity:
         chosen = fact_selection.select(_hundred(), "hi", now=NOW)
         assert [r.id for r in chosen.rows] == list(range(fact_selection.GENERIC_FILL))
 
+    def test_no_matching_fact_says_none_bears_rather_than_padding(self):
+        """From the verification report's conformance tests (F8c): a question
+        with words to match on and nothing that matches them gets no
+        unrelated facts, and a line that says none bears on it."""
+        rows = [
+            _fact(i, f"service {i}", f"counter service {i}", seen=100 - i)
+            for i in range(100)
+        ]
+        chosen = fact_selection.select(rows, "What is the GST number for Pune?")
+        assert chosen.rows == []
+        assert chosen.unmatched
+        assert "None of the 100 confirmed facts bears on this question" in (
+            fact_selection.block(chosen)
+        )
+
+    def test_an_unanswerable_question_gets_only_identity_and_rules(self):
+        rows = [
+            _fact(i, f"service {i}", f"counter service {i}", seen=100 - i)
+            for i in range(99)
+        ] + [
+            _fact(200, "business name", "Kaveri Opticals"),
+            _fact(201, "never discuss", "competitor prices"),
+        ]
+        chosen = fact_selection.select(
+            rows, "What is the GST number for Pune?", now=NOW
+        )
+        assert {r.key for r in chosen.rows} == {"business name", "never discuss"}
+        text = fact_selection.block(chosen)
+        assert "counter" not in text
+        assert "none of the other 99 confirmed facts bears on this question" in text
+        assert fact_selection.TOOL_NAME in text
+
+    def test_a_period_with_nothing_in_it_is_not_padded(self):
+        rows = [_fact(i, f"service {i}", "counter", days_ago=90) for i in range(30)]
+        chosen = fact_selection.select(rows, "What did we confirm this week?", now=NOW)
+        assert chosen.rows == []
+
+    def test_the_rules_tell_the_model_not_to_guess(self):
+        assert fact_selection.TOOL_NAME in fact_selection.RULES
+        assert "do not guess" in fact_selection.RULES
+        assert "don't know" in fact_selection.RULES
+
     def test_identity_rules_and_the_bots_own_always_come(self):
         rows = _hundred() + [
             _fact(200, "business name", "Kaveri Opticals"),
@@ -163,6 +205,14 @@ class TestWhatIsLeftOutIsSaid:
     def test_the_agents_block_counts_what_it_left_out(self):
         block = organisation_memory.remembered_block({"hours": "9 to 6"}, left_out=12)
         assert "and 12 more confirmed facts on record, not shown here" in block
+        assert "rather than guess" in block
+
+    def test_an_agent_shown_no_fact_is_still_told_not_to_guess(self):
+        block = organisation_memory.remembered_block({}, left_out=60)
+        assert "and 60 more confirmed facts on record, not shown here" in block
+        assert "rather than guess" in block
+        # Nothing chosen and nothing left out is still no block at all.
+        assert organisation_memory.remembered_block({}) is None
 
 
 # --- against the database -------------------------------------------------------
@@ -277,6 +327,97 @@ class TestAgainstTheDatabase:
         )
         assert "delivery radius: 8 km" in text
         assert "5 km" not in text
+
+    async def test_a_correction_keeps_the_value_it_replaced(
+        self, db_session, async_session
+    ):
+        from sqlalchemy import select
+
+        from api.db import db_client
+
+        org, owner, _, _ = await _org(async_session, "history")
+        for value in ("5 km", "5 km", "8 km", "8 km"):
+            await db_client.remember_organisation_facts(
+                organization_id=org.id, facts={"delivery radius": value}
+            )
+        async with db_client.async_session() as session:
+            row = (
+                await session.execute(
+                    select(OrganisationFactModel).where(
+                        OrganisationFactModel.organization_id == org.id
+                    )
+                )
+            ).scalar_one()
+        assert row.value == "8 km"
+        # The repeat of "8 km" did not erase what the correction replaced.
+        assert row.previous_value == "5 km"
+        assert row.superseded_at is not None
+
+        found = await fact_selection.for_thread(
+            org.id, {"query": "delivery radius"}, user_id=owner.id
+        )
+        assert found["facts"][0]["value"] == "8 km"
+        assert found["facts"][0]["previously"].startswith("5 km (until ")
+
+    async def test_a_fact_never_corrected_has_no_history(
+        self, db_session, async_session
+    ):
+        from sqlalchemy import select
+
+        from api.db import db_client
+
+        org, _, _, _ = await _org(async_session, "nohistory")
+        for _ in range(2):
+            await db_client.remember_organisation_facts(
+                organization_id=org.id, facts={"opening hours": "9 to 6"}
+            )
+        async with db_client.async_session() as session:
+            row = (
+                await session.execute(
+                    select(OrganisationFactModel).where(
+                        OrganisationFactModel.organization_id == org.id
+                    )
+                )
+            ).scalar_one()
+        assert row.previous_value is None and row.superseded_at is None
+
+    async def test_decibyl_does_not_pad_an_unanswerable_question(
+        self, db_session, async_session, v2_on, monkeypatch
+    ):
+        from unittest.mock import AsyncMock
+
+        from api.services.workflow import connected_tools, files_search
+
+        async def no_embeddings(organization_id):
+            return {}
+
+        monkeypatch.setattr(files_search, "_embeddings", no_embeddings)
+        monkeypatch.setattr(
+            connected_tools, "awaiting_setup", AsyncMock(return_value=[])
+        )
+        org, owner, _, _ = await _org(async_session, "abstain")
+        async_session.add_all(
+            [
+                _row(org, f"service {i}", f"counter service {i}", seen=1000 - i)
+                for i in range(100)
+            ]
+            + [_row(org, "business name", "Kaveri Opticals")]
+        )
+        await async_session.flush()
+
+        with acting.acting_as(owner.id):
+            context = await decibyl.build_context(
+                org.id, "What's our GST number in Pune?"
+            )
+        memory = context.split("## What the business has confirmed\n", 1)[1]
+        memory = memory.split("\n## ", 1)[0]
+        assert "Kaveri Opticals" in memory
+        assert "counter service" not in memory
+        assert "none of the other 100 confirmed facts bears on this question" in (
+            memory
+        )
+        prompt = decibyl.system_prompt(org.id)
+        assert "do not guess" in prompt and "don't know" in prompt
 
     async def test_unconfirmed_facts_stay_out(self, db_session, async_session):
         org, owner, _, _ = await _org(async_session, "learned")

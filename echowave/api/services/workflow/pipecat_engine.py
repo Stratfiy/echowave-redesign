@@ -565,6 +565,25 @@ class PipecatEngine:
             self.llm._context = self.context
 
         await self.llm._update_settings(LLMSettings(system_instruction=system_prompt))
+        self._measure_request(system_prompt, functions)
+
+    def _measure_request(self, system_prompt: str, functions: list) -> None:
+        """Context v2: one log line when this call's request is over its
+        vendor's ceiling (``request_budget.measure_pipeline``). Measures
+        only; the call's request is never cut here."""
+        from api.services.agent_builder import request_budget
+
+        try:
+            if not request_budget.enabled(self._organization_id):
+                return
+            request_budget.measure_pipeline(
+                request_budget.vendor_of(self.llm),
+                system_prompt,
+                functions,
+                list(self.context.messages) if self.context else [],
+            )
+        except Exception as exc:  # noqa: BLE001 - a measurement never ends a call
+            logger.debug("Could not measure the call's request: {}", exc)
 
     def _format_prompt(self, prompt: str) -> str:
         """Delegate prompt formatting to the shared workflow.utils implementation."""

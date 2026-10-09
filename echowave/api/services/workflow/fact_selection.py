@@ -21,7 +21,11 @@ This picks for the question, in three layers, and says what it left out:
    hold an embeddings key, which a fact lookup should not.
 3. **Nothing else.** An unrelated fact is not padding. Only a question with
    nothing to match on ("hi", "what can you do") gets the most-seen few, as
-   general context.
+   general context. A question that has words to match on and matches
+   nothing ("the GST number for Pune?" against a hundred service facts) gets
+   the first layer alone and a line saying none of the rest bears on it:
+   ten popular unrelated facts there read as an answer to lean on, and the
+   model guesses from them instead of saying it does not know.
 
 Scopes are applied before anything here sees a row: the database read is
 what keeps another member's personal memory out (``organisation_memory``
@@ -355,6 +359,9 @@ class Selection:
     matched: int = 0
     #: Facts the question matched at all, shown or not.
     relevant: int = 0
+    #: The question had words to match on and no fact matched them: what
+    #: memory holds does not answer it, and the block says so.
+    unmatched: bool = False
 
     @property
     def left_out(self) -> int:
@@ -417,6 +424,9 @@ def select(
     words matched."""
     facts = resolve(rows)
     ranked = scores(facts, query, now)
+    # "hi" has nothing to match on; "GST number for Pune?" has, whether or
+    # not anything matches it. Only the first gets general context.
+    nothing_to_match = not query_terms(query) and since_for(query, now) is None
     chosen: list[Any] = []
     taken: set[int] = set()
 
@@ -439,9 +449,10 @@ def select(
         taken.add(index)
         matched += 1
 
-    if not any(score > 0 for score in ranked):
+    if nothing_to_match:
         # Nothing to match on: the most-seen few as general context, in the
-        # database's order (most-seen first).
+        # database's order (most-seen first). A question that matched
+        # nothing gets none: unrelated facts are not padding.
         cap = min(limit, len(chosen) + generic_fill)
         for index, row in enumerate(facts):
             if len(chosen) >= cap:
@@ -450,7 +461,11 @@ def select(
                 chosen.append(row)
                 taken.add(index)
     return Selection(
-        rows=chosen, total=len(facts), matched=matched, relevant=len(relevant)
+        rows=chosen,
+        total=len(facts),
+        matched=matched,
+        relevant=len(relevant),
+        unmatched=bool(facts) and not nothing_to_match and not relevant,
     )
 
 
@@ -514,7 +529,14 @@ def block(selection: Selection, *, can_search: bool = True) -> str:
             )
         return "Nothing confirmed yet."
     lines = [line(row) for row in selection.rows]
-    if selection.left_out:
+    if selection.unmatched and selection.left_out:
+        more = selection.left_out
+        lines.append(
+            f"- none of the other {more} confirmed fact{'s' if more != 1 else ''} "
+            "bears on this question"
+            + (f"; {TOOL_NAME} looks them up by words" if can_search else "")
+        )
+    elif selection.left_out:
         more = selection.left_out
         lines.append(
             f"- and {more} more confirmed fact{'s' if more != 1 else ''} not "
@@ -555,6 +577,11 @@ RULES = (
     f"for this question. When one you need is not there, call {TOOL_NAME} "
     "with the words it would use (a name, a number, a subject); it returns "
     "confirmed facts with where each came from. State them as fact.\n"
+    "- Not on record: when no confirmed fact, context line or tool result "
+    "supports an answer -- a number, a name, a date, a price, a policy -- do "
+    f"not guess one. Call {TOOL_NAME} if it might be on record; if it is not, "
+    "say you don't know it yet, or ask the person. A likely-sounding guess "
+    "stated as fact is worse than saying you don't have it.\n"
 )
 
 
@@ -579,6 +606,25 @@ def tool_schema() -> dict[str, Any]:
     }
 
 
+def _found(row: Any) -> dict[str, Any]:
+    """One fact as the search returns it, with the value a correction
+    replaced when there was one ("was 5 km until 8 Oct")."""
+    fact = {
+        "id": row.id,
+        "key": row.key,
+        "value": row.value,
+        "source": _reference(row),
+    }
+    # Rows read before the history columns existed, and test rows, have none.
+    previous = getattr(row, "previous_value", None)
+    if previous:
+        at = getattr(row, "superseded_at", None)
+        fact["previously"] = previous + (
+            f" (until {at.strftime('%d %b %Y')})" if at is not None else ""
+        )
+    return fact
+
+
 async def for_thread(
     organization_id: int, arguments: dict[str, Any], *, user_id: int | None
 ) -> dict[str, Any]:
@@ -592,15 +638,7 @@ async def for_thread(
         logger.warning("Memory search failed for org {}: {}", organization_id, exc)
         return {"status": "error", "error": "Memory could not be read just now."}
     chosen = select(rows, query, limit=SEARCH_LIMIT, generic_fill=0, required=False)
-    facts = [
-        {
-            "id": row.id,
-            "key": row.key,
-            "value": row.value,
-            "source": _reference(row),
-        }
-        for row in chosen.rows
-    ]
+    facts = [_found(row) for row in chosen.rows]
     if not facts:
         return {
             "status": "success",

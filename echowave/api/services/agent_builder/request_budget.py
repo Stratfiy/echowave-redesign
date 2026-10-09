@@ -39,6 +39,20 @@ half of something with no sign of it answers as if it had the whole. The
 person's current request is never dropped: its opening, its closing and the
 passages that match them are always kept.
 
+**Never over the ceiling either.** When the system prompt and the tool
+schemas alone leave no room for the conversation, the tools this turn does
+not need (none of its messages called them) are shortened to a brief
+description and then left out, largest first, and the model is told which.
+If the request is still over after everything that is ours to shorten, it
+is not sent: the turn fails with :class:`RequestTooLarge`, which says why in
+words a person can act on, rather than reaching the vendor and coming back
+as its refusal.
+
+**The voice pipeline is measured, not fitted.** A call's request is built by
+the pipeline, not here; :func:`measure_pipeline` logs one line when its
+estimate is over the vendor's ceiling, so how often that happens is known
+before anything is cut on a live call.
+
 Behind ``context_v2``; off, requests go out exactly as built.
 """
 
@@ -64,10 +78,18 @@ PROVIDER_CEILINGS: dict[str, int] = {
     "anthropic": 200_000,
     "openai": 128_000,
     "google": 1_000_000,
+    # Sarvam's chat models (the voice pipeline's Indic brain). The smallest
+    # context among them, as for every vendor here.
+    "sarvam": 32_000,
 }
 
-#: For a vendor not in the table.
-DEFAULT_CEILING = 128_000
+#: The vendors a builder turn can be moved to when its own is out of credit
+#: (``client._fallback_model`` walks ``client.SUPPORTED_PROVIDERS``).
+FALLBACK_VENDORS: tuple[str, ...] = ("anthropic", "openai", "google")
+
+#: For a vendor not in the table: the small end of what current chat models
+#: take, so an unknown vendor is never assumed to be generous.
+DEFAULT_CEILING = 32_000
 
 #: The share of the ceiling a request may fill. The estimate is already
 #: conservative; this is room for what it cannot see (vendor framing of
@@ -112,6 +134,21 @@ MIN_KEEP_TOKENS = 400
 #: History messages kept before any are shortened: the turn just before the
 #: request is usually what "that" and "her" refer to.
 KEEP_RECENT_HISTORY = 2
+
+#: A tool the turn does not need keeps this much of its description before
+#: it is left out altogether.
+SHORT_TOOL_DESCRIPTION_CHARS = 200
+
+#: Tools always kept when tools have to go: the way to look up what the
+#: context could not hold.
+ESSENTIAL_TOOLS = frozenset({"search_memory"})
+
+#: Tool names listed in the note to the model before "and N more".
+NAMED_DROPPED_TOOLS = 12
+
+#: Tokens kept free for that note: twelve names of up to 64 characters
+#: and the sentence around them, at the Latin rate.
+TOOLS_NOTE_RESERVE = 400
 
 #: Where Decibyl's request message puts the person's words after its
 #: context (``decibyl._answer``). The context above it is shortened first.
@@ -221,7 +258,9 @@ def request_ceiling(provider: str | None) -> int:
     another (``client._fallback_model``), and the request is not rebuilt
     for it.
     """
-    return min([ceiling_for(provider), *PROVIDER_CEILINGS.values()])
+    return min(
+        [ceiling_for(provider), *(PROVIDER_CEILINGS[v] for v in FALLBACK_VENDORS)]
+    )
 
 
 def input_budget(ceiling: int) -> int:
@@ -411,6 +450,15 @@ def condense(text: str, query: str, target_tokens: int, *, note: str = "") -> st
 # --- the request ---------------------------------------------------------------
 
 
+class RequestTooLarge(RuntimeError):
+    """A request that would be over the model's ceiling even after
+    everything ours to shorten was shortened. Never sent.
+
+    ``client`` raises it as a ``BuilderClientError`` (``str(exc)`` is what
+    the person reads), so it reaches the thread as a failed turn that says
+    why, not as the vendor's refusal of an oversized request."""
+
+
 @dataclass
 class Prepared:
     """A request as it goes out, and what was done to make it fit."""
@@ -420,6 +468,111 @@ class Prepared:
     estimated: int | None = None
     ceiling: int | None = None
     actions: list[str] = field(default_factory=list)
+    #: The system prompt and tools to send, when fitting changed them; None
+    #: means send what was given.
+    system: str | None = None
+    tools: list[dict[str, Any]] | None = None
+    #: Why the request must not be sent, in words for the person; None when
+    #: it fits.
+    refused: str | None = None
+
+    def system_or(self, given: str) -> str:
+        return given if self.system is None else self.system
+
+    def tools_or(self, given: list[dict[str, Any]] | None) -> Any:
+        return given if self.tools is None else self.tools
+
+
+def _tool_name(tool: Any) -> str:
+    if not isinstance(tool, dict):
+        return str(getattr(tool, "name", "") or "")
+    inner = tool.get("function") if isinstance(tool.get("function"), dict) else {}
+    return str(tool.get("name") or inner.get("name") or "")
+
+
+def _needed_tools(messages: list[dict[str, Any]]) -> set[str]:
+    """Tools this turn has already used: a call or a result in the
+    conversation names a tool the vendor must still be given."""
+    names = set(ESSENTIAL_TOOLS)
+    for message in messages:
+        for call in message.get("tool_calls") or []:
+            names.add(str(call.get("name") or ""))
+        if message.get("role") == "tool" and message.get("name"):
+            names.add(str(message["name"]))
+    return names
+
+
+def _short_tool(tool: dict[str, Any]) -> dict[str, Any]:
+    description = str(tool.get("description") or "")
+    if len(description) <= SHORT_TOOL_DESCRIPTION_CHARS:
+        return tool
+    cut = description[:SHORT_TOOL_DESCRIPTION_CHARS].rsplit(" ", 1)[0]
+    return {**tool, "description": cut + " ..."}
+
+
+def fit_tools(
+    tools: list[dict[str, Any]], needed: set[str], over: int
+) -> tuple[list[dict[str, Any]], int, list[str]]:
+    """``tools`` with about ``over`` tokens taken out, never from a needed
+    one: optional tools' descriptions shortened first, then optional tools
+    left out, largest first. Returns the tools, how many were shortened,
+    and the names left out. Order is kept, so the prefix a cache keys on
+    changes as little as it can."""
+    kept = list(tools)
+    costs = [estimate(_json(t)) + MESSAGE_OVERHEAD for t in kept]
+    optional = sorted(
+        (i for i, t in enumerate(kept) if _tool_name(t) not in needed),
+        key=lambda i: -costs[i],
+    )
+    saved = shortened = 0
+    for index in optional:
+        if saved >= over:
+            break
+        short = _short_tool(kept[index])
+        if short is kept[index]:
+            continue
+        cost = estimate(_json(short)) + MESSAGE_OVERHEAD
+        saved += costs[index] - cost
+        kept[index], costs[index] = short, cost
+        shortened += 1
+    dropped: set[int] = set()
+    for index in sorted(optional, key=lambda i: -costs[i]):
+        if saved >= over:
+            break
+        dropped.add(index)
+        saved += costs[index]
+    names = [_tool_name(kept[i]) for i in sorted(dropped)]
+    return [t for i, t in enumerate(kept) if i not in dropped], shortened, names
+
+
+def _tools_note(names: list[str]) -> str:
+    shown = ", ".join(name[:64] for name in names[:NAMED_DROPPED_TOOLS])
+    more = len(names) - NAMED_DROPPED_TOOLS
+    return (
+        f"\n\n[To fit the model's limit, {len(names)} tool"
+        f"{'s were' if len(names) != 1 else ' was'} left out of this turn: "
+        f"{shown}{f' and {more} more' if more > 0 else ''}. If the request "
+        "needs one of them, say it was not available just now; do not "
+        "pretend to have used it.]"
+    )
+
+
+def _refusal(fixed: int, budget: int) -> str:
+    if fixed > budget:
+        return (
+            "I could not send this to the model: my own instructions and "
+            "tools for this workspace are larger than it accepts in one "
+            "request, even with every tool this turn could do without left "
+            "out. Nothing was sent. This is on our side, not yours -- please "
+            "let support know."
+        )
+    return (
+        "I could not send this to the model: the request is larger than it "
+        "accepts at once, even after shortening the conversation and the "
+        "message to the parts that match what you asked. Nothing was sent. "
+        "Try a shorter message or a new conversation; a long document is "
+        "better added to Files, where it can be searched."
+    )
 
 
 def _opens(message: dict[str, Any]) -> bool:
@@ -493,6 +646,35 @@ def prepare(
     initial = total
 
     actions: list[str] = []
+    sent_tools = list(tools or [])
+    dropped_tools: list[str] = []
+    needed = _needed_tools(messages)
+
+    def trim_tools(over: int) -> None:
+        nonlocal sent_tools, fixed, total
+        if over <= 0 or not sent_tools:
+            return
+        # Room for the note that names what was left out, which is added
+        # to the system prompt afterwards.
+        fitted, shortened, names = fit_tools(
+            sent_tools, needed, over + TOOLS_NOTE_RESERVE
+        )
+        if not shortened and not names:
+            return
+        saved = tools_tokens(sent_tools) - tools_tokens(fitted)
+        sent_tools = fitted
+        fixed -= saved
+        total -= saved
+        dropped_tools.extend(names)
+        if shortened:
+            actions.append(f"shortened {shortened} tool descriptions")
+        if names:
+            actions.append(f"left out {len(names)} tools")
+
+    # 0. A system prompt and tools that leave no room for the conversation:
+    # the tools this turn does not need give way first.
+    trim_tools(fixed + min(sum(costs), 2 * MIN_KEEP_TOKENS) - budget)
+
     request_at = _request_index(messages)
     request_text = messages[request_at].get("content") if messages else ""
     query = _query_for(request_text if isinstance(request_text, str) else "")
@@ -608,12 +790,24 @@ def prepare(
             )
             total += estimate(str(dropped)) + 20
 
+    # 5. Still over: the optional tools that are left, before giving up.
+    trim_tools(total - budget)
+
+    sent_system = system
+    if dropped_tools:
+        note = _tools_note(dropped_tools)
+        sent_system = system + note
+        fixed += estimate(note)
+        total += estimate(note)
+
+    refused = None
     if total > budget:
-        # The system prompt and the tools alone are over: nothing left to
-        # shorten that is ours to shorten. Said loudly; the vendor decides.
+        # Nothing left that is ours to shorten. Not sent: the vendor's
+        # refusal would reach the person as an unexplained failure.
+        refused = _refusal(fixed, budget)
         logger.error(
-            "Request still over its ceiling after fitting: about {} of {} "
-            "input tokens (system and tools {})",
+            "Request still over its ceiling after fitting, not sent: about {} "
+            "of {} input tokens (system and tools {})",
             total,
             budget,
             fixed,
@@ -627,7 +821,58 @@ def prepare(
         "; ".join(actions) or "nothing to do",
     )
     fitted = type(conversation)(messages=messages)
-    return Prepared(fitted, estimated=total, ceiling=limit, actions=actions)
+    return Prepared(
+        fitted,
+        estimated=total,
+        ceiling=limit,
+        actions=actions,
+        system=sent_system if sent_system != system else None,
+        tools=sent_tools if sent_tools != list(tools or []) else None,
+        refused=refused,
+    )
+
+
+def vendor_of(service: Any) -> str:
+    """The vendor behind a pipeline LLM service, from its class name; ""
+    when it is none in the ceiling table (which then reads the default)."""
+    name = type(service).__name__.lower()
+    if "gemini" in name:
+        return "google"
+    for vendor in PROVIDER_CEILINGS:
+        if vendor in name:
+            return vendor
+    return ""
+
+
+def measure_pipeline(
+    vendor: str, system: str, tools: list[Any] | None, messages: list[Any]
+) -> int:
+    """The voice pipeline's request, estimated as a builder request is, with
+    one log line when it is over the vendor's ceiling. Measures only:
+    nothing on a live call is cut here. Returns the estimate."""
+    limit = ceiling_for(vendor)
+    budget = input_budget(limit)
+    schemas = [
+        tool.to_default_dict() if hasattr(tool, "to_default_dict") else tool
+        for tool in tools or []
+    ]
+    total = (
+        estimate(system)
+        + tools_tokens(schemas)
+        + sum(
+            message_tokens(m) if isinstance(m, dict) else content_tokens(_json(m))
+            for m in messages
+        )
+    )
+    if total > budget:
+        logger.warning(
+            "pipeline_request_over_ceiling vendor={} estimated={} budget={} ceiling={}",
+            vendor or "unknown",
+            total,
+            budget,
+            limit,
+        )
+    return total
 
 
 def reported_input(usage: dict[str, Any] | None, provider: str | None) -> int | None:
