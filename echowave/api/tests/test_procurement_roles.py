@@ -114,7 +114,13 @@ class TestTheFlag:
         )
         from api.services.agent_templates.catalogue import _all
 
-        assert len(shown) == len(_all()) - len(ROLES)
+        # Templates switched off by their own feature (the image agents, on
+        # image_generation) are not this flag's doing.
+        everything = _all()
+        off_elsewhere = {
+            t.id for t in everything if not t.available and t.id not in ROLES
+        }
+        assert shown == {t.id for t in everything} - set(ROLES) - off_elsewhere
 
     @pytest.mark.asyncio
     async def test_off_the_route_does_not_know_them(self, off):
