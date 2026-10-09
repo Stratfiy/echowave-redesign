@@ -38,6 +38,7 @@ import { Announcer, ErrorState, SourceCoverage, TaskStatus } from "@/components/
 import { ActivityDetailView } from "@/components/today/ActivityDetailView";
 import { ApprovalDetail } from "@/components/today/ApprovalDetail";
 import { EventRow } from "@/components/today/EventRow";
+import { ReminderCallsSection } from "@/components/today/ReminderCallsSection";
 import { TodayDrawer } from "@/components/today/TodayDrawer";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -422,6 +423,10 @@ export function TodayPage() {
                         </div>
                     )}
                 </Section>
+
+                {/* Calls Decibyl will ring you with (reminder_calls); draws
+                    nothing while that is off. */}
+                <ReminderCallsSection onAnnounce={setAnnouncement} />
 
                 {s.brief && (
                     <Section id="brief" title="Daily brief" state={s.brief.state} message={s.brief.message} onRetry={() => void load()}>

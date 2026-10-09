@@ -184,6 +184,13 @@ SET_UP_BOOKING = "set_up_booking"
 #: person opts in without a confirmed number, never by a model on its own;
 #: only that person may answer it.
 CALL_WHEN_DONE_NUMBER = "call_when_done_number"
+#: Reminder calls (services/reminder_calls): the number card, which carries
+#: "I am 18 or over" (``attestation``), and the reminder card itself.
+#: Internal: proposed by Decibyl's remind_me_by_call tool, never by a model
+#: on its own; only that person may answer them.
+REMINDER_CALL_NUMBER = "reminder_call_number"
+REMINDER_CALL = "reminder_call"
+REMINDER_CALL_ACTIONS = (REMINDER_CALL_NUMBER, REMINDER_CALL)
 INTERNAL_ACTIONS = (
     PLACE_ORDER,
     RUN_OUTSIDE_TOOL,
@@ -203,6 +210,7 @@ INTERNAL_ACTIONS = (
     PLACE_CALL,
     SET_UP_BOOKING,
     CALL_WHEN_DONE_NUMBER,
+    *REMINDER_CALL_ACTIONS,
 )
 
 #: The states a proposal moves through. Terminal ones are the last four.
@@ -543,6 +551,8 @@ async def resolve(
             return number.resolve(arguments, why)
         except CallWhenDoneError as exc:
             raise ActionError(str(exc)) from exc
+    if action in REMINDER_CALL_ACTIONS:
+        return _resolve_reminder_call(organization_id, action, arguments, why)
     if action in CARE_ACTIONS:
         from api.services.care import cards as care_cards
 
@@ -969,6 +979,23 @@ async def resolve(
         "reversible": False,
         "state": PROPOSED,
     }
+
+
+def _resolve_reminder_call(
+    organization_id: int, action: str, arguments: dict[str, Any], why: str
+) -> dict[str, Any]:
+    from api.services import reminder_calls
+    from api.services.reminder_calls import cards as reminder_cards
+    from api.services.reminder_calls import number as reminder_number
+
+    if not reminder_calls.enabled(organization_id):
+        raise ActionError("Reminder calls are not switched on here.")
+    try:
+        if action == REMINDER_CALL_NUMBER:
+            return reminder_number.resolve(arguments, why)
+        return reminder_cards.resolve(arguments, why)
+    except reminder_calls.ReminderCallError as exc:
+        raise ActionError(str(exc)) from exc
 
 
 def _owned_switched_on(organization_id: int, action: str | None) -> bool:
@@ -1490,6 +1517,7 @@ async def settle(
     user_id: int,
     version: str | None = None,
     require_version: bool = False,
+    attested: bool = False,
 ) -> dict[str, Any]:
     """Confirm, decline or undo, on the card. Returns the updated payload.
 
@@ -1504,6 +1532,11 @@ async def settle(
     arms it once: the move from proposed is a compare-and-swap.
     ``require_version`` holds a Confirm to its version with the ledger off
     too (``settle_many``).
+
+    A card with an ``attestation`` (the reminder-call number card's "I am 18
+    or over") is confirmed only with ``attested``: the person ticked it on
+    the card. Every other path (Confirm all, a chat channel) is refused and
+    sent to the card. The attestation is stamped into ``confirmed``.
     """
     event = await _proposal(organization_id, event_id)
     refusal = await thread_refusal(event, user_id)
@@ -1518,6 +1551,10 @@ async def settle(
     if verb == "confirm":
         if state != PROPOSED:
             raise ActionError("Already settled.")
+        if payload.get("attestation") and not attested:
+            raise ActionError(
+                f"Tick “{payload['attestation']}” on the card to confirm it."
+            )
         if _ledger_on(organization_id) or require_version:
             current = payload_version(payload)
             stored = payload.get("version")
@@ -1554,6 +1591,8 @@ async def settle(
         payload["confirmed"] = _stamp(user_id)
         if payload.get("version"):
             payload["confirmed"]["version"] = payload["version"]
+        if payload.get("attestation"):
+            payload["confirmed"]["attested"] = payload["attestation"]
         payload["fires_at"] = fires_at.isoformat()
         await _move(event, PROPOSED, payload)
         from api.tasks.arq import enqueue_job
@@ -2329,6 +2368,19 @@ async def _execute(
             return await number.execute(organization_id, payload, event_id)
         except CallWhenDoneError as exc:
             raise ActionError(str(exc)) from exc
+    if action in REMINDER_CALL_ACTIONS:
+        from api.services import reminder_calls
+        from api.services.reminder_calls import cards as reminder_cards
+        from api.services.reminder_calls import number as reminder_number
+
+        if not reminder_calls.enabled(organization_id):
+            raise ActionError("Reminder calls are not switched on here.")
+        try:
+            if action == REMINDER_CALL_NUMBER:
+                return await reminder_number.execute(organization_id, payload, event_id)
+            return await reminder_cards.execute(organization_id, payload, event_id)
+        except reminder_calls.ReminderCallError as exc:
+            raise ActionError(str(exc)) from exc
     if action == RUN_TOOL:
         from api.services.workflow import connected_tools
 
@@ -2448,6 +2500,16 @@ async def _reverse(organization_id: int, payload: dict[str, Any]) -> None:
         from api.services.call_when_done import number
 
         await number.reverse(organization_id, payload)
+        return
+    if action == REMINDER_CALL_NUMBER:
+        from api.services.reminder_calls import number as reminder_number
+
+        await reminder_number.reverse(organization_id, payload)
+        return
+    if action == REMINDER_CALL:
+        from api.services.reminder_calls import cards as reminder_cards
+
+        await reminder_cards.reverse(organization_id, payload)
         return
     if action == MEETING_FOLLOW_UP:
         from api.services.meetings import follow_ups

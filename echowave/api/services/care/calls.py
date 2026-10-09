@@ -32,10 +32,16 @@ The run is recorded on the dose before the provider is asked
 is ``unknown`` (it may have rung), and one that raises before is a
 verified "could not call".
 
-These calls are **not** counted against the person's daily call allowance
-(``call_when_done.allowance``): the person chose these exact times on the
-card. Whether they should share the 5-a-day cap is open (D3 in
-docs/plans/reminder-calls.md).
+Where ``reminder_calls`` is on for the workspace, these calls take a slot
+of the person's daily call allowance (``call_when_done.allowance``), the one
+cap of 5 shared with call-when-done and reminder calls on the person's local
+day (decision D3 in docs/plans/reminder-calls.md, default chosen pending the
+founder: ``reminder_calls.policy.CARE_SHARES_THE_CAP``). The slot is
+reserved right before the dial and given back only on a verified
+non-dispatch; past the cap the dose is ``failed`` (``daily_cap``) and the
+family told Decibyl could not call. With ``reminder_calls`` off, nothing
+changes: these calls are uncapped, at the times the person confirmed.
+The calling-window exemption below is unchanged either way (D2).
 
 ``CARE_CALLS_FAKE`` replaces the dial with a simulated outcome for local
 runs and tests; it is ignored in every other environment, and where it
@@ -235,6 +241,9 @@ async def place(dose_id: int) -> None:
         logger.info("Care call for dose {} simulated ({})", dose_id, fake)
         await settle(dose_id, FAKE_OUTCOMES[fake], reason="test_mode")
         return
+    if not await _hold_slot(med, dose_id):
+        await settle(dose_id, FAILED, reason="daily_cap")
+        return
 
     async def link(run_id: int) -> None:
         # Only while the dose is still waiting on this call. If it was
@@ -248,10 +257,12 @@ async def place(dose_id: int) -> None:
         run_id = await _dial(med, dose, on_run_created=link)
     except _Superseded:
         logger.info("Care call for dose {} settled before the dial", dose_id)
+        await _give_slot_back(med, dose_id)
         return
     except CallRefused as exc:
         # Refused before the provider was asked: nothing rang, and that is
         # what the family is told.
+        await _give_slot_back(med, dose_id)
         await settle(dose_id, FAILED, reason=exc.reason)
         return
     except Exception as exc:  # noqa: BLE001 - the dose must say something
@@ -265,6 +276,7 @@ async def place(dose_id: int) -> None:
         if linked is None:
             # No run recorded: the provider was never asked (dial_workflow
             # records the run first). Verified: Decibyl could not call.
+            await _give_slot_back(med, dose_id)
             await settle(dose_id, FAILED, reason="call_error")
         else:
             # The provider may have rung (a timeout after it accepted, say):
@@ -276,6 +288,42 @@ async def place(dose_id: int) -> None:
 
 class _Superseded(Exception):
     """The dose was settled before the provider was asked."""
+
+
+def _shares_the_cap(organization_id: int) -> bool:
+    from api.services import reminder_calls
+    from api.services.reminder_calls import policy
+
+    if not policy.CARE_SHARES_THE_CAP:
+        return False
+    # Founder decision: counted only while reminder calls are on here.
+    if policy.CARE_CAP_ONLY_WITH_REMINDER_CALLS:
+        return reminder_calls.enabled(organization_id)
+    return True
+
+
+async def _hold_slot(med: Any, dose_id: int) -> bool:
+    """A slot of the person's day for this call, where the cap is shared
+    (see the module docstring); always True where it is not."""
+    if not _shares_the_cap(med.organization_id):
+        return True
+    from api.services.call_when_done import allowance
+
+    return await allowance.hold(
+        CareDoseCallModel,
+        dose_id,
+        timezone_name=med.timezone,
+        now=_now(),
+        user_id=med.person_user_id,
+    )
+
+
+async def _give_slot_back(med: Any, dose_id: int) -> None:
+    """A verified non-dispatch gives its slot back. A no-op for a dose that
+    holds none (always, while the cap is not shared)."""
+    from api.services.call_when_done import allowance
+
+    await allowance.give_back(CareDoseCallModel, dose_id, user_id=med.person_user_id)
 
 
 async def _link_run(
@@ -591,6 +639,7 @@ def _alert_line(
         "do_not_call": "the number is on the workspace's do-not-call list",
         "line_busy": "every line was busy",
         "not_connected": "the call could not be connected",
+        "daily_cap": "the day's call limit was reached",
     }.get(reason or "", "something went wrong on our side")
     return (
         "call_failed",
@@ -749,6 +798,10 @@ async def reconcile(
         return dose.state if dose else None
     if dose.workflow_run_id is None:
         if dose.state == CALLING:
+            async with db_client.async_session() as session:
+                med = await session.get(CareMedicineModel, dose.medicine_id)
+            if med is not None:
+                await _give_slot_back(med, dose_id)
             await settle(dose_id, FAILED, reason="not_dialled")
         return await _state(dose_id)
     evidence, _run = await call_evidence.read(

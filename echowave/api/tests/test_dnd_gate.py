@@ -253,9 +253,47 @@ class TestWhatTheGateHandsBack:
     async def test_enforcement_disabled_still_returns_a_dialable_number(
         self, monkeypatch
     ):
-        """The bypass path is the one nobody re-reads. It got this wrong too."""
+        """The bypass path is the one nobody re-reads. It got this wrong too.
+
+        Asked at a fixed hour inside the window: the window still holds with
+        enforcement off (D5), so the wall clock must not decide this test."""
         monkeypatch.setattr(dnd, "DND_ENFORCEMENT_ENABLED", False)
-        assert await dnd.assert_may_call(1, "09876543210") == "+919876543210"
+        assert (
+            await dnd.assert_may_call(
+                1, "09876543210", timezone_name="Asia/Kolkata", now=_at(10)
+            )
+            == "+919876543210"
+        )
+
+    async def test_the_window_holds_with_enforcement_disabled(self, monkeypatch):
+        """D5: switching the do-not-call list off does not switch the
+        09:00-21:00 window off with it."""
+        monkeypatch.setattr(dnd, "DND_ENFORCEMENT_ENABLED", False)
+        with pytest.raises(dnd.OutsideCallingHours):
+            await dnd.assert_may_call(
+                1, "09876543210", timezone_name="Asia/Kolkata", now=_at(21, 30)
+            )
+        # A number the account proved it owns is still exempt from the window.
+        assert (
+            await dnd.assert_may_call(
+                1,
+                "09876543210",
+                timezone_name="Asia/Kolkata",
+                now=_at(21, 30),
+                enforce_calling_hours=False,
+            )
+            == "+919876543210"
+        )
+
+    async def test_the_old_early_return_is_one_switch_away(self, monkeypatch):
+        monkeypatch.setattr(dnd, "DND_ENFORCEMENT_ENABLED", False)
+        monkeypatch.setattr(dnd, "WINDOW_HOLDS_WITHOUT_DND_ENFORCEMENT", False)
+        assert (
+            await dnd.assert_may_call(
+                1, "09876543210", timezone_name="Asia/Kolkata", now=_at(21, 30)
+            )
+            == "+919876543210"
+        )
 
     def test_to_dialable_is_idempotent(self):
         assert dnd.to_dialable("919876543210") == "+919876543210"

@@ -35,15 +35,19 @@ The provider's concurrency limit is separate and unchanged: it lives in
 ``dial_workflow`` (``call_concurrency``) and is per workspace, per moment;
 this is per person, per day. A refusal for a busy line releases the slot.
 
-Care's medicine reminder calls do not reserve here. Whether they share the
-person's 5 is the founder's open decision (D3 in
-docs/plans/reminder-calls.md); until then their behaviour is unchanged:
-they are rung at the times the person confirmed on the card, uncapped.
+Reminder calls (services/reminder_calls) reserve here too, one slot per
+ring attempt (a retry is a ring). Care's medicine reminder calls reserve
+here only where ``reminder_calls`` is on for the workspace: then the cap is
+one shared 5 across the three paths (decision D3 in
+docs/plans/reminder-calls.md, default chosen pending the founder, see
+``services/reminder_calls/policy.py``). With it off, care is unchanged:
+rung at the times the person confirmed on the card, uncapped.
 """
 
 from __future__ import annotations
 
 from datetime import UTC, date, datetime
+from typing import Any
 
 from sqlalchemy import select, text, update
 
@@ -82,20 +86,57 @@ async def remaining(user_id: int, timezone_name: str | None, now: datetime) -> i
 async def reserve(call_id: int, timezone_name: str | None, now: datetime) -> bool:
     """Take one of the person's slots for this call, atomically. True when
     the call holds a slot (already, or now); False when the day is full."""
+    return await hold(DoneCallModel, call_id, timezone_name=timezone_name, now=now)
+
+
+async def release(call_id: int) -> bool:
+    """Give back the slot this call holds, once. Only for a verified
+    non-dispatch (see the module docstring). True if one was given back."""
+    return await give_back(DoneCallModel, call_id)
+
+
+# --- any call that holds a slot ---------------------------------------------
+#
+# The person's allowance is one counter per local day, whichever path rings
+# them. A path that shares it (reminder calls, and care's calls where the
+# reminder-calls switch shares the cap with them: decision D3 in
+# docs/plans/reminder-calls.md) marks its own row with the day it holds,
+# in an ``allowance_day`` column, exactly as ``done_calls`` does.
+
+
+def _holder(model: Any, row_id: int):
+    return select(model.allowance_day).where(model.id == row_id).with_for_update()
+
+
+async def hold(
+    model: Any,
+    row_id: int,
+    *,
+    timezone_name: str | None,
+    now: datetime,
+    user_id: int | None = None,
+) -> bool:
+    """Take one slot of the person's day for the row ``row_id`` of ``model``
+    (which has an ``allowance_day`` column), atomically. ``user_id`` is the
+    person rung, read from the row's own ``user_id`` when not given. True
+    when the row holds a slot (already, or now); False when the day is full.
+
+    Locks the holder row first, then the allowance row, the same order as
+    ``give_back``, so the two cannot deadlock."""
     limit = cap()
     async with db_client.async_session() as session:
-        call = (
-            await session.execute(
-                select(DoneCallModel.user_id, DoneCallModel.allowance_day)
-                .where(DoneCallModel.id == call_id)
-                .with_for_update()
-            )
-        ).first()
-        if call is None:
+        held = (await session.execute(_holder(model, row_id))).first()
+        if held is None:
             return False
-        if call.allowance_day is not None:
+        if held.allowance_day is not None:
             return True
-        if limit <= 0:
+        person = user_id
+        if person is None:
+            person = await session.scalar(
+                select(model.user_id).where(model.id == row_id)
+            )
+        if not person or limit <= 0:
+            await session.rollback()
             return False
         day = local_day(timezone_name, now)
         took = (
@@ -108,48 +149,55 @@ async def reserve(call_id: int, timezone_name: str | None, now: datetime) -> boo
                     "WHERE person_call_allowances.used < :cap "
                     "RETURNING used"
                 ),
-                {"u": call.user_id, "d": day, "now": now, "cap": limit},
+                {"u": person, "d": day, "now": now, "cap": limit},
             )
         ).first()
         if took is None:
             await session.rollback()
             return False
         await session.execute(
-            update(DoneCallModel)
-            .where(DoneCallModel.id == call_id)
-            .values(allowance_day=day)
+            update(model).where(model.id == row_id).values(allowance_day=day)
         )
         await session.commit()
     return True
 
 
-async def release(call_id: int) -> bool:
-    """Give back the slot this call holds, once. Only for a verified
-    non-dispatch (see the module docstring). True if one was given back.
+async def give_back_locked(session: Any, *, user_id: int, day: date) -> None:
+    """Give back one slot of ``day`` inside the caller's transaction, for a
+    holder row the caller has already locked (and clears ``allowance_day``
+    on itself): the same lock order as ``give_back`` -- holder, then
+    allowance."""
+    await session.execute(
+        text(
+            "UPDATE person_call_allowances SET used = GREATEST(used - 1, 0), "
+            "updated_at = :now WHERE user_id = :u AND local_day = :d"
+        ),
+        {"u": user_id, "d": day, "now": datetime.now(UTC)},
+    )
 
-    Locks the call row first, then the allowance row, the same order as
-    ``reserve``, so the two cannot deadlock."""
+
+async def give_back(model: Any, row_id: int, *, user_id: int | None = None) -> bool:
+    """Give back the slot the row holds, once. Only for a verified
+    non-dispatch. True if one was given back; False when it held none."""
     async with db_client.async_session() as session:
-        call = (
-            await session.execute(
-                select(DoneCallModel.user_id, DoneCallModel.allowance_day)
-                .where(DoneCallModel.id == call_id)
-                .with_for_update()
-            )
-        ).first()
-        if call is None or call.allowance_day is None:
+        held = (await session.execute(_holder(model, row_id))).first()
+        if held is None or held.allowance_day is None:
+            await session.rollback()
             return False
+        person = user_id
+        if person is None:
+            person = await session.scalar(
+                select(model.user_id).where(model.id == row_id)
+            )
         await session.execute(
             text(
                 "UPDATE person_call_allowances SET used = GREATEST(used - 1, 0), "
                 "updated_at = :now WHERE user_id = :u AND local_day = :d"
             ),
-            {"u": call.user_id, "d": call.allowance_day, "now": datetime.now(UTC)},
+            {"u": person, "d": held.allowance_day, "now": datetime.now(UTC)},
         )
         await session.execute(
-            update(DoneCallModel)
-            .where(DoneCallModel.id == call_id)
-            .values(allowance_day=None)
+            update(model).where(model.id == row_id).values(allowance_day=None)
         )
         await session.commit()
     return True

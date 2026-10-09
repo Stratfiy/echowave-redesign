@@ -203,6 +203,9 @@ TAG_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             # A phone call to the person when a task they handed over
             # finishes (CALL_WHEN_DONE_ENABLED).
             "call-when-done",
+            # A phone call at a time the person confirmed, reading out their
+            # own reminder (REMINDER_CALLS_ENABLED).
+            "reminder-calls",
         ),
     ),
     (

@@ -11,6 +11,40 @@ disagrees with the contract called out, and tests that pin the disagreement
 (`xfail` with a reason) so that Stage 2 turns them green rather than
 rediscovering them.
 
+**Stage 2 is built, behind `reminder_calls` (off by default)**:
+`services/reminder_calls/` (draft, number card, reminder card, schedule,
+gate, calls, agent, tools), the tables of section 7 (migration
+`20261011remindercalls`), the `remind_me_by_call` tool, and
+`/api/v1/reminder-calls`. D1-D7 are not yet decided; each has a
+conservative default in one constant (`services/reminder_calls/policy.py`,
+and `dnd.WINDOW_HOLDS_WITHOUT_DND_ENFORCEMENT` for D5): one retry after 15
+minutes counted against the cap, then a notification (D1); no quiet-hours
+exceptions for general reminders (D2); the person's local day and one cap of
+5 shared by call-when-done, reminder calls and care (D3); "I am 18 or over"
+on the number card (D4); the window holds with do-not-call enforcement off
+(D5); an unknown answerer and a voicemail hear only the content-free line
+(D6, D7). Not done: storing the provider's call id and asking
+`provider.get_call_status` (reconcile reads the run, as in 5.2); the four
+xfails left in section 4 are on the care, call-when-done and today paths,
+which this stage does not change.
+
+**Verification fixes (9 Oct 2026)**: a cancel that lands after the gate
+but before the provider is asked no longer rings. `calls._claim_to_dial`
+re-checks the schedule, occurrence and attempt under row locks (taken in
+the order `schedule.cancel` takes them), once right after the gate and
+again as the run is recorded; `schedule.cancel` and in-app "done" skip
+every attempt not yet handed to the provider in their own transaction and
+give its cap slot back. Once the run is recorded the call is ringing, and
+a later cancel leaves that attempt's record alone. A snooze and its next
+ring are one transaction, and a snooze with no clear length is asked back
+on the thread, not set to 15 minutes. The reminder-call window is one pair
+of constants (`policy.CALLING_WINDOW_START`/`_END`) read by the draft, the
+card, the gate and the retry. Today lists upcoming reminder calls with
+Cancel, and its reminder editor offers "Call me", which shows the same
+cards in place (`POST /reminder-calls/ask`). Care's calls count against
+the shared cap only while `reminder_calls` is on: the founder's decision,
+`policy.CARE_CAP_ONLY_WITH_REMINDER_CALLS`.
+
 Settled by the founder and not re-opened here: calls only between **09:00 and
 21:00** in the person's time, at most **5 calls a day per person**, voice
 approvals are **read-out only** (a call never moves a card), and **no

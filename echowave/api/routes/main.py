@@ -85,6 +85,7 @@ from api.routes.public_trust import router as public_trust_router
 from api.routes.public_whatsapp import router as public_whatsapp_router
 from api.routes.reach import router as reach_router
 from api.routes.referrals import router as referrals_router
+from api.routes.reminder_calls import router as reminder_calls_router
 from api.routes.reports import router as reports_router
 from api.routes.routines import all_router as all_routines_router
 from api.routes.routines import router as routines_router
@@ -192,6 +193,7 @@ router.include_router(controls_router)
 router.include_router(helpers_router)
 router.include_router(care_router)
 router.include_router(call_when_done_router)
+router.include_router(reminder_calls_router)
 router.include_router(escalations_router)
 router.include_router(controls_admin_router)
 router.include_router(today_router)

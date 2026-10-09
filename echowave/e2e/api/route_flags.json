@@ -1346,6 +1346,31 @@
    "identity_email"
   ]
  },
+ "/api/v1/reminder-calls": {
+  "GET": [
+   "reminder_calls"
+  ]
+ },
+ "/api/v1/reminder-calls/ask": {
+  "POST": [
+   "reminder_calls"
+  ]
+ },
+ "/api/v1/reminder-calls/cards/{event_id}": {
+  "GET": [
+   "reminder_calls"
+  ]
+ },
+ "/api/v1/reminder-calls/occurrences/{occurrence_id}/done": {
+  "POST": [
+   "reminder_calls"
+  ]
+ },
+ "/api/v1/reminder-calls/{schedule_id}/cancel": {
+  "POST": [
+   "reminder_calls"
+  ]
+ },
  "/api/v1/settings/models/inheritance": {
   "GET": [
    "model_inheritance"

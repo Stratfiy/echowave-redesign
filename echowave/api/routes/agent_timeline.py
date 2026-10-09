@@ -1031,6 +1031,10 @@ class SettleActionRequest(BaseModel):
     #: The card's payload version the person was shown. With the task
     #: ledger on, Confirm approves exactly that version and no other.
     version: Optional[str] = Field(default=None, max_length=32)
+    #: The card's ``attestation`` (e.g. "I am 18 or over" on a reminder-call
+    #: number card) was ticked. A card that carries one is confirmed only
+    #: with this set.
+    attested: bool = False
 
 
 @router.post("/actions/settle", response_model=TimelineEvent)
@@ -1051,6 +1055,7 @@ async def settle_action(body: SettleActionRequest, user: UserModel = Depends(get
             verb=body.verb,
             user_id=user.id,
             version=body.version,
+            attested=body.attested,
         )
     except actions.ActionError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc

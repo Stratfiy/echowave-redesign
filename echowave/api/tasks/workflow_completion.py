@@ -70,4 +70,11 @@ async def process_workflow_completion(
 
     await done_calls.record_run_outcome(workflow_run_id)
 
+    # A reminder call (services/reminder_calls) settles its attempt on what
+    # the run shows and moves the reminder by what the person said. Never
+    # raises; any other run is left alone.
+    from api.services.reminder_calls import calls as reminder_calls
+
+    await reminder_calls.record_run_outcome(workflow_run_id)
+
     logger.info(f"Completed workflow completion processing for run {workflow_run_id}")

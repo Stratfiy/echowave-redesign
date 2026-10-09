@@ -179,12 +179,14 @@ class DoneCallNumberModel(Base):
 
 
 class PersonCallAllowanceModel(Base):
-    """How many "call me when it's done" calls one person has reserved on
-    one of their local days, across every workspace they are rung from.
+    """How many calls one person has reserved on one of their local days,
+    across every workspace they are rung from: "call me when it's done"
+    calls, reminder calls, and -- where reminder calls are on -- care's
+    medicine calls (one shared cap; see allowance.py).
 
     Grown only by a conditional upsert that refuses past the cap, so the
     count is a reservation made before the dial, not a tally taken after
-    it. Care's medicine reminder calls do not use it (see allowance.py).
+    it.
     """
 
     __tablename__ = "person_call_allowances"

@@ -188,6 +188,23 @@ def within_calling_hours(
 # The gate
 # ---------------------------------------------------------------------------
 
+#: Decision D5 (docs/plans/reminder-calls.md), default chosen pending the
+#: founder: the 09:00-21:00 window is enforced by ``assert_may_call`` even
+#: where a deployment sets ``DND_ENFORCEMENT_ENABLED=false``. That switch
+#: turns off the do-not-call *list*; the window is a separate rule and used
+#: to disappear with it (campaigns included). False restores the old early
+#: return, window and all.
+WINDOW_HOLDS_WITHOUT_DND_ENFORCEMENT = True
+
+
+def _assert_within_window(timezone_name: str | None, now: datetime | None) -> None:
+    if not within_calling_hours(timezone_name=timezone_name, now=now):
+        raise OutsideCallingHours(
+            f"Calls are only placed between {CALLING_HOURS_START} and "
+            f"{CALLING_HOURS_END} in your organization's timezone. "
+            "This call was not placed."
+        )
+
 
 async def assert_may_call(
     organization_id: int,
@@ -223,10 +240,18 @@ async def assert_may_call(
     this account said do not call this, and owning the handset is not a reason
     to overrule that.
 
+    With ``DND_ENFORCEMENT_ENABLED`` off, the list and the number check are
+    skipped but the window still holds (``WINDOW_HOLDS_WITHOUT_DND_ENFORCEMENT``).
+
     Raises DoNotDisturbListed or OutsideCallingHours. Both are refusals the
     caller is expected to surface, not errors to retry.
     """
     if not DND_ENFORCEMENT_ENABLED:
+        # The list is switched off for this deployment. The window is not
+        # the list's: with ``WINDOW_HOLDS_WITHOUT_DND_ENFORCEMENT`` it still
+        # holds (decision D5, docs/plans/reminder-calls.md).
+        if WINDOW_HOLDS_WITHOUT_DND_ENFORCEMENT and enforce_calling_hours:
+            _assert_within_window(timezone_name, now)
         return to_dialable(normalise_number(phone_number)) or phone_number
 
     normalised = normalise_number(phone_number)
@@ -235,14 +260,8 @@ async def assert_may_call(
         # row from consuming a concurrency slot to fail at the trunk.
         raise DoNotDisturbListed(f"{phone_number!r} is not a dialable phone number.")
 
-    if enforce_calling_hours and not within_calling_hours(
-        timezone_name=timezone_name, now=now
-    ):
-        raise OutsideCallingHours(
-            f"Calls are only placed between {CALLING_HOURS_START} and "
-            f"{CALLING_HOURS_END} in your organization's timezone. "
-            "This call was not placed."
-        )
+    if enforce_calling_hours:
+        _assert_within_window(timezone_name, now)
 
     from api.db import db_client as default_db_client
 
