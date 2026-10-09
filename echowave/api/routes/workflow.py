@@ -1157,6 +1157,14 @@ class ModelSlotRequest(BaseModel):
     speed: float | None = Field(default=None, ge=0.5, le=2.0)
     language: str | None = Field(default=None, max_length=16)
 
+    def tuning(self) -> dict[str, Any]:
+        return {
+            "temperature": self.temperature,
+            "max_tokens": self.max_tokens,
+            "speed": self.speed,
+            "language": self.language,
+        }
+
 
 @router.put("/{workflow_id}/model-slot")
 async def set_model_slot(
@@ -1164,26 +1172,18 @@ async def set_model_slot(
     request: ModelSlotRequest,
     user: UserModel = Depends(get_user),
 ) -> dict:
-    """Point one slot of this agent at a managed catalogue model.
+    """Point one slot of this agent at a managed catalogue model, in its draft.
 
     The Advanced tiles' pencil. The rest of the stack is carried over
     untouched — the agent's own override if it has one, else what it inherits
     from the workspace — so changing the voice never changes the brain.
     Only models on the sellable catalogue are accepted: anything else is what
-    the per-slot editor and the customer's own keys are for.
+    the per-slot editor and the customer's own keys are for. The voice row in
+    the agent's About panel uses ``PUT /{workflow_id}/voice/live`` instead,
+    which puts the change live at once.
     """
-    from api.services.configuration import model_catalogue
-    from api.services.configuration.agent_options import (
-        SelectionError,
-        model_row,
-        stack_from_configurations,
-        with_model_slot,
-    )
-    from api.services.configuration.ai_model_configuration import (
-        compile_workflow_model_configuration_override,
-        get_resolved_ai_model_configuration,
-    )
-    from api.services.configuration.resolve import resolve_effective_config
+    from api.services.configuration import model_slot
+    from api.services.configuration.agent_options import model_row
 
     workflow = await db_client.get_workflow(
         workflow_id, organization_id=user.selected_organization_id
@@ -1191,77 +1191,30 @@ async def set_model_slot(
     if workflow is None:
         raise HTTPException(status_code=404, detail="Workflow not found")
 
-    async with db_client.async_session() as session:
-        offered = await model_catalogue.sellable(session, component=request.component)
-    if not any(
-        e.provider == request.provider and e.model == request.model for e in offered
-    ):
-        raise HTTPException(
-            status_code=422,
-            detail=(
-                f"{request.provider} {request.model} is not on offer for this slot. "
-                "Use the per-slot editor to run a model on your own key."
-            ),
-        )
-
     draft = await db_client.get_draft_version(workflow_id)
     source = draft or workflow.released_definition
-    existing = dict((source.workflow_configurations if source else None) or {})
-    current_override = existing.get(WORKFLOW_MODEL_CONFIGURATION_V2_OVERRIDE_KEY)
-
-    if isinstance(current_override, dict) and isinstance(
-        current_override.get("stack"), dict
-    ):
-        base = dict(current_override["stack"])
-    elif current_override:
-        base = stack_from_configurations(
-            compile_workflow_model_configuration_override(current_override)
-        )
-    else:
-        resolved = await get_resolved_ai_model_configuration(
-            organization_id=user.selected_organization_id
-        )
-        base = stack_from_configurations(
-            resolve_effective_config(
-                resolved.effective, existing.get("model_overrides")
-            )
-        )
-
     try:
-        stack = with_model_slot(
-            base,
+        await model_slot.ensure_sellable(
+            component=request.component,
+            provider=request.provider,
+            model=request.model,
+        )
+        existing, before = await model_slot.with_slot(
+            (source.workflow_configurations if source else None) or {},
+            organization_id=user.selected_organization_id,
             component=request.component,
             provider=request.provider,
             model=request.model,
             voice=request.voice,
-            tuning={
-                "temperature": request.temperature,
-                "max_tokens": request.max_tokens,
-                "speed": request.speed,
-                "language": request.language,
-            },
+            tuning=request.tuning(),
         )
-    except SelectionError as exc:
+    except model_slot.SlotRefused as exc:
         raise HTTPException(status_code=422, detail=str(exc))
 
-    # Compiled before it is stored: a stack that cannot run is refused here
-    # rather than on the first call.
-    try:
-        compile_workflow_model_configuration_override({"version": 3, "stack": stack})
-    except (ValueError, ValidationError) as exc:
-        raise HTTPException(status_code=422, detail=str(exc))
-
-    existing.pop("model_overrides", None)
-    existing[WORKFLOW_MODEL_CONFIGURATION_V2_OVERRIDE_KEY] = {
-        "version": 3,
-        "stack": stack,
-    }
     await db_client.save_workflow_draft(workflow_id, workflow_configurations=existing)
 
     # Who trades which slot for what. Without the before and after there is
     # no telling whether the rate card pushes people to cheaper voices.
-    before = base.get(request.component) if isinstance(base, dict) else None
-    before = before if isinstance(before, dict) else {}
     capture_event(
         distinct_id=str(user.provider_id),
         event=PostHogEvent.MODEL_SLOT_CHANGED,
@@ -1284,6 +1237,73 @@ async def set_model_slot(
             workflow_id=workflow_id,
             workflow_configurations=existing,
         )
+
+
+class LiveVoiceRequest(ModelSlotRequest):
+    """The About panel's voice row: the voice slot, and the voice's own
+    settings from the panel behind its pencil, put live together.
+
+    ``settings`` takes only what the voice panel edits. Anything else is
+    refused rather than dropped: a key that vanished on save would be a
+    setting somebody changed and nobody kept.
+    """
+
+    component: Literal["tts", "realtime"]
+    settings: dict[str, Any] | None = None
+
+
+@router.put("/{workflow_id}/voice/live")
+async def set_voice_live(
+    workflow_id: int,
+    request: LiveVoiceRequest,
+    user: UserModel = Depends(get_user),
+) -> dict:
+    """Change this agent's voice and put it live now, without its draft.
+
+    Publishes a new version that is the live one with only the voice
+    changed; unrelated work waiting in the draft stays a draft, and is given
+    the same voice so publishing it later does not undo this.
+    """
+    from api.services.configuration import model_slot
+    from api.services.workflow import live_voice
+
+    try:
+        published = await live_voice.apply_voice_now(
+            workflow_id=workflow_id,
+            organization_id=user.selected_organization_id,
+            user_id=user.id,
+            component=request.component,
+            provider=request.provider,
+            model=request.model,
+            voice=request.voice,
+            tuning=request.tuning(),
+            settings=request.settings,
+        )
+    except live_voice.AgentNotFound as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except (model_slot.SlotRefused, live_voice.SettingsRefused) as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+    capture_event(
+        distinct_id=str(user.provider_id),
+        event=PostHogEvent.MODEL_SLOT_CHANGED,
+        properties={
+            "organization_id": user.selected_organization_id,
+            "workflow_id": workflow_id,
+            "component": request.component,
+            "from_provider": published.before.get("provider"),
+            "from_model": published.before.get("model"),
+            "to_provider": request.provider,
+            "to_model": request.model,
+            "voice": request.voice,
+            "live": True,
+        },
+    )
+    return {
+        "version_number": published.version_number,
+        "published_at": published.published_at,
+        "draft_kept": published.draft_kept,
+    }
 
 
 @router.get("/{workflow_id}/versions")
