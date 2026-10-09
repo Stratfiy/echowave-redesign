@@ -181,6 +181,8 @@ FLAGS: dict[str, str] = {
     "call_for_me": "CALL_FOR_ME_ENABLED",
     "call_appointment": "CALL_APPOINTMENT_ENABLED",
     "call_when_done": "CALL_WHEN_DONE_ENABLED",
+    # Escalation rules, handoff card and the no-answer ladder on calls.
+    "escalation_v2": "ESCALATION_V2_ENABLED",
     # The huddle: talk to an agent as a teammate, in its thread
     # (services/huddle/).
     "huddle": "HUDDLE_ENABLED",
@@ -319,6 +321,7 @@ DESCRIPTIONS: dict[str, str] = {
     "caller_voice_lock": "Only the caller can interrupt a phone agent: speech that does not match the caller's voice, learnt in their first seconds, no longer stops the agent.",
     "deepfilternet_filter": "DeepFilterNet3 instead of RNNoise as the noise filter on calls with noise suppression on.",
     "image_generation": "Posters and ad creatives: images from Chat and two agents, on Gemini, OpenAI or Bedrock, chosen on a card in the thread.",
+    "escalation_v2": "Escalation on calls decided in code from the agent's policy: a handoff card with Accept, Decline and Hand back to AI, spoken hold updates and a no-answer ladder.",
 }
 
 

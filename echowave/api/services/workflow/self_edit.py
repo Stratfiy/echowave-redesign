@@ -109,6 +109,43 @@ def tool_properties() -> dict[str, Any]:
             "type": "string",
             "description": "One line on what the person asked for.",
         },
+        **_escalation_property(),
+    }
+
+
+def _escalation_property() -> dict[str, Any]:
+    """Escalation v2: who takes over a call and when, changed by chat. Only
+    offered while the switch is on, so the tool is unchanged without it."""
+    from api.services import features
+
+    if not features.is_on("escalation_v2"):
+        return {}
+    from api.services.escalation.policy import TOPICS
+
+    return {
+        "escalation": {
+            "type": "object",
+            "description": (
+                "Change who takes over your phone calls and when, instead of "
+                "a step: only the fields to change. transfer_numbers is a list "
+                "of {number, name}; transfer_hours is {enabled, timezone, "
+                "slots:[{day_of_week 0-6 Monday first, start_time HH:MM, "
+                "end_time HH:MM}]}; always_transfer_topics is a list of "
+                f"{', '.join(TOPICS)}; custom_topics is a list of phrases; "
+                "refund_limit is rupees; max_ai_attempts is 1-5."
+            ),
+            "properties": {
+                "transfer_numbers": {"type": "array", "items": {"type": "object"}},
+                "transfer_hours": {"type": "object"},
+                "always_transfer_topics": {
+                    "type": "array",
+                    "items": {"type": "string", "enum": list(TOPICS)},
+                },
+                "custom_topics": {"type": "array", "items": {"type": "string"}},
+                "refund_limit": {"type": "integer"},
+                "max_ai_attempts": {"type": "integer"},
+            },
+        }
     }
 
 
@@ -251,6 +288,23 @@ async def propose(
     )
     why = str(arguments.get("why") or "").strip()[:MAX_WHY_CHARS]
     find = str(arguments.get("find") or "")[:MAX_FIND_CHARS]
+    escalation_changes = arguments.get("escalation")
+    if (
+        isinstance(escalation_changes, dict)
+        and escalation_changes
+        and workflow_id is not None
+    ):
+        from api.services import escalation
+
+        if escalation.enabled(organization_id):
+            return await _propose_escalation(
+                organization_id=organization_id,
+                workflow_id=workflow_id,
+                workflow_run_id=workflow_run_id,
+                changes=escalation_changes,
+                why=why,
+                on_assistant_thread=on_assistant_thread,
+            )
     if find.strip() and workflow_id is not None:
         return await _propose_replace(
             organization_id=organization_id,
@@ -477,6 +531,91 @@ async def _propose_replace(
             f"Changed {find!r} to {replace_with!r} in {where}, as a "
             "draft. A person has to publish it from the card on this thread. "
             "Tell them, then end your reply."
+        ),
+    }
+
+
+async def _propose_escalation(
+    *,
+    organization_id: int | None,
+    workflow_id: int,
+    workflow_run_id: int | None,
+    changes: dict[str, Any],
+    why: str,
+    on_assistant_thread: bool,
+) -> dict[str, Any]:
+    """The escalation policy, changed by chat: into the draft, with a card
+    showing the policy before and after in plain lines. Publish on the card
+    puts it on live calls, the same as any other edit."""
+    from pydantic import ValidationError
+
+    from api.services.escalation import policy as escalation_policy
+    from api.services.escalation import settings as escalation_settings
+
+    workflow = await db_client.get_workflow_by_id(workflow_id)
+    if workflow is None or (
+        organization_id is not None
+        and getattr(workflow, "organization_id", None) != organization_id
+    ):
+        return {"status": "not_proposed", "reason": "This agent could not be found."}
+    draft = await db_client.get_draft_version(workflow_id)
+    configurations = dict(
+        (draft.workflow_configurations if draft is not None else None)
+        or await db_client.get_released_configurations(workflow)
+        or workflow.workflow_configurations
+        or {}
+    )
+    current = escalation_policy.from_configurations(configurations)
+    try:
+        proposed = escalation_policy.validate_changes(
+            escalation_settings.merged(current, changes)
+        )
+    except ValidationError as exc:
+        return {
+            "status": "not_proposed",
+            "reason": escalation_settings._message(exc),
+        }
+    old = "\n".join(escalation_policy.summary_lines(current))
+    new = "\n".join(escalation_policy.summary_lines(proposed))
+    if proposed == current:
+        return {"status": "not_proposed", "reason": "That is already the policy."}
+    configurations[escalation_policy.CONFIG_KEY] = proposed.model_dump(mode="json")
+    saved = await db_client.save_workflow_draft(
+        workflow_id, workflow_configurations=configurations
+    )
+    label = "Escalation"
+    payload = {
+        "workflow_id": workflow_id,
+        "bot_name": getattr(workflow, "name", None),
+        "step": label,
+        "node_id": None,
+        "why": why,
+        "old": old,
+        "new": new,
+        "diff": unified_diff(old + "\n", new + "\n", name=label),
+        "greetings": [],
+        "escalation": proposed.model_dump(mode="json"),
+        "draft_version": getattr(saved, "version_number", None),
+    }
+    summary = (
+        f"Proposed a change to {getattr(workflow, 'name', 'the bot')}'s escalation"
+        if on_assistant_thread
+        else "Proposed a change to when calls go to a person"
+    ) + (f": {why}" if why else "")
+    await agent_timeline.record(
+        organization_id=organization_id,
+        kind=AgentEventKind.EDIT_PROPOSED.value,
+        summary=summary,
+        workflow_id=None if on_assistant_thread else workflow_id,
+        workflow_run_id=workflow_run_id,
+        payload=payload,
+        in_channel=not on_assistant_thread,
+    )
+    return {
+        "status": "proposed",
+        "note": (
+            "The new escalation policy is a draft now. A person has to publish "
+            "it from the card on this thread. Tell them, then end your reply."
         ),
     }
 

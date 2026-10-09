@@ -7111,6 +7111,152 @@ export type ErasureRequest = {
 };
 
 /**
+ * EscalationAttempt
+ */
+export type EscalationAttempt = {
+    /**
+     * N
+     */
+    n?: number | null;
+    /**
+     * Target
+     */
+    target?: string | null;
+    /**
+     * Outcome
+     */
+    outcome?: string | null;
+    /**
+     * Started At
+     */
+    started_at?: string | null;
+    /**
+     * Ended At
+     */
+    ended_at?: string | null;
+};
+
+/**
+ * EscalationPolicyRequest
+ */
+export type EscalationPolicyRequest = {
+    /**
+     * Policy
+     */
+    policy: {
+        [key: string]: unknown;
+    };
+};
+
+/**
+ * EscalationPolicyResponse
+ */
+export type EscalationPolicyResponse = {
+    /**
+     * Workflow Id
+     */
+    workflow_id: number;
+    /**
+     * Policy
+     */
+    policy: {
+        [key: string]: unknown;
+    };
+    /**
+     * Topics
+     */
+    topics: Array<TopicOption>;
+    /**
+     * Unpublished
+     */
+    unpublished: boolean;
+};
+
+/**
+ * EscalationResponse
+ */
+export type EscalationResponse = {
+    /**
+     * Escalation Uuid
+     */
+    escalation_uuid: string;
+    /**
+     * Workflow Id
+     */
+    workflow_id?: number | null;
+    /**
+     * Workflow Run Id
+     */
+    workflow_run_id?: number | null;
+    /**
+     * State
+     */
+    state: string;
+    /**
+     * Failure Reason
+     */
+    failure_reason?: string | null;
+    /**
+     * Reason Code
+     */
+    reason_code: string;
+    /**
+     * Reason Detail
+     */
+    reason_detail?: string | null;
+    /**
+     * Trigger
+     */
+    trigger: string;
+    /**
+     * Attempts
+     */
+    attempts: Array<EscalationAttempt>;
+    /**
+     * Fallback
+     */
+    fallback?: string | null;
+    /**
+     * Handoff Card
+     */
+    handoff_card: {
+        [key: string]: unknown;
+    };
+    /**
+     * Human Response
+     */
+    human_response?: string | null;
+    /**
+     * Outcome Note
+     */
+    outcome_note?: string | null;
+    /**
+     * Time To Human Ms
+     */
+    time_to_human_ms?: number | null;
+    /**
+     * Requested At
+     */
+    requested_at?: string | null;
+    /**
+     * Bridged At
+     */
+    bridged_at?: string | null;
+    /**
+     * Handed Back At
+     */
+    handed_back_at?: string | null;
+    /**
+     * Completed At
+     */
+    completed_at?: string | null;
+    /**
+     * Can Hand Back
+     */
+    can_hand_back?: boolean;
+};
+
+/**
  * EvalCaseRequest
  */
 export type EvalCaseRequest = {
@@ -8587,6 +8733,16 @@ export type HttpValidationError = {
      * Detail
      */
     detail?: Array<ValidationError>;
+};
+
+/**
+ * HandBackRequest
+ */
+export type HandBackRequest = {
+    /**
+     * Note
+     */
+    note?: string;
 };
 
 /**
@@ -13771,6 +13927,38 @@ export type OpenAittsService = {
      * Override only if using an OpenAI-compatible API (e.g. local TTS, proxy).
      */
     base_url?: string;
+};
+
+/**
+ * OpenEscalation
+ */
+export type OpenEscalation = {
+    /**
+     * Escalation Uuid
+     */
+    escalation_uuid: string;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * At
+     */
+    at?: string | null;
+    /**
+     * State
+     */
+    state: string;
+};
+
+/**
+ * OpenEscalationsResponse
+ */
+export type OpenEscalationsResponse = {
+    /**
+     * Items
+     */
+    items: Array<OpenEscalation>;
 };
 
 /**
@@ -21262,6 +21450,20 @@ export type TopicMeta = {
      * Requested
      */
     requested: boolean;
+};
+
+/**
+ * TopicOption
+ */
+export type TopicOption = {
+    /**
+     * Key
+     */
+    key: string;
+    /**
+     * Label
+     */
+    label: string;
 };
 
 /**
@@ -44645,6 +44847,309 @@ export type StopWaitingApiV1CallWhenDoneCallbackIdDeleteResponses = {
 };
 
 export type StopWaitingApiV1CallWhenDoneCallbackIdDeleteResponse = StopWaitingApiV1CallWhenDoneCallbackIdDeleteResponses[keyof StopWaitingApiV1CallWhenDoneCallbackIdDeleteResponses];
+
+export type GetEscalationPolicyApiV1EscalationsPolicyWorkflowIdGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+    };
+    query?: never;
+    url: '/api/v1/escalations/policy/{workflow_id}';
+};
+
+export type GetEscalationPolicyApiV1EscalationsPolicyWorkflowIdGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetEscalationPolicyApiV1EscalationsPolicyWorkflowIdGetError = GetEscalationPolicyApiV1EscalationsPolicyWorkflowIdGetErrors[keyof GetEscalationPolicyApiV1EscalationsPolicyWorkflowIdGetErrors];
+
+export type GetEscalationPolicyApiV1EscalationsPolicyWorkflowIdGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: EscalationPolicyResponse;
+};
+
+export type GetEscalationPolicyApiV1EscalationsPolicyWorkflowIdGetResponse = GetEscalationPolicyApiV1EscalationsPolicyWorkflowIdGetResponses[keyof GetEscalationPolicyApiV1EscalationsPolicyWorkflowIdGetResponses];
+
+export type SaveEscalationPolicyApiV1EscalationsPolicyWorkflowIdPutData = {
+    body: EscalationPolicyRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+    };
+    query?: never;
+    url: '/api/v1/escalations/policy/{workflow_id}';
+};
+
+export type SaveEscalationPolicyApiV1EscalationsPolicyWorkflowIdPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SaveEscalationPolicyApiV1EscalationsPolicyWorkflowIdPutError = SaveEscalationPolicyApiV1EscalationsPolicyWorkflowIdPutErrors[keyof SaveEscalationPolicyApiV1EscalationsPolicyWorkflowIdPutErrors];
+
+export type SaveEscalationPolicyApiV1EscalationsPolicyWorkflowIdPutResponses = {
+    /**
+     * Successful Response
+     */
+    200: EscalationPolicyResponse;
+};
+
+export type SaveEscalationPolicyApiV1EscalationsPolicyWorkflowIdPutResponse = SaveEscalationPolicyApiV1EscalationsPolicyWorkflowIdPutResponses[keyof SaveEscalationPolicyApiV1EscalationsPolicyWorkflowIdPutResponses];
+
+export type OpenEscalationsApiV1EscalationsOpenGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/escalations/open';
+};
+
+export type OpenEscalationsApiV1EscalationsOpenGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type OpenEscalationsApiV1EscalationsOpenGetError = OpenEscalationsApiV1EscalationsOpenGetErrors[keyof OpenEscalationsApiV1EscalationsOpenGetErrors];
+
+export type OpenEscalationsApiV1EscalationsOpenGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: OpenEscalationsResponse;
+};
+
+export type OpenEscalationsApiV1EscalationsOpenGetResponse = OpenEscalationsApiV1EscalationsOpenGetResponses[keyof OpenEscalationsApiV1EscalationsOpenGetResponses];
+
+export type GetEscalationApiV1EscalationsEscalationUuidGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Escalation Uuid
+         */
+        escalation_uuid: string;
+    };
+    query?: never;
+    url: '/api/v1/escalations/{escalation_uuid}';
+};
+
+export type GetEscalationApiV1EscalationsEscalationUuidGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetEscalationApiV1EscalationsEscalationUuidGetError = GetEscalationApiV1EscalationsEscalationUuidGetErrors[keyof GetEscalationApiV1EscalationsEscalationUuidGetErrors];
+
+export type GetEscalationApiV1EscalationsEscalationUuidGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: EscalationResponse;
+};
+
+export type GetEscalationApiV1EscalationsEscalationUuidGetResponse = GetEscalationApiV1EscalationsEscalationUuidGetResponses[keyof GetEscalationApiV1EscalationsEscalationUuidGetResponses];
+
+export type AcceptEscalationApiV1EscalationsEscalationUuidAcceptPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Escalation Uuid
+         */
+        escalation_uuid: string;
+    };
+    query?: never;
+    url: '/api/v1/escalations/{escalation_uuid}/accept';
+};
+
+export type AcceptEscalationApiV1EscalationsEscalationUuidAcceptPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AcceptEscalationApiV1EscalationsEscalationUuidAcceptPostError = AcceptEscalationApiV1EscalationsEscalationUuidAcceptPostErrors[keyof AcceptEscalationApiV1EscalationsEscalationUuidAcceptPostErrors];
+
+export type AcceptEscalationApiV1EscalationsEscalationUuidAcceptPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: EscalationResponse;
+};
+
+export type AcceptEscalationApiV1EscalationsEscalationUuidAcceptPostResponse = AcceptEscalationApiV1EscalationsEscalationUuidAcceptPostResponses[keyof AcceptEscalationApiV1EscalationsEscalationUuidAcceptPostResponses];
+
+export type DeclineEscalationApiV1EscalationsEscalationUuidDeclinePostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Escalation Uuid
+         */
+        escalation_uuid: string;
+    };
+    query?: never;
+    url: '/api/v1/escalations/{escalation_uuid}/decline';
+};
+
+export type DeclineEscalationApiV1EscalationsEscalationUuidDeclinePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeclineEscalationApiV1EscalationsEscalationUuidDeclinePostError = DeclineEscalationApiV1EscalationsEscalationUuidDeclinePostErrors[keyof DeclineEscalationApiV1EscalationsEscalationUuidDeclinePostErrors];
+
+export type DeclineEscalationApiV1EscalationsEscalationUuidDeclinePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: EscalationResponse;
+};
+
+export type DeclineEscalationApiV1EscalationsEscalationUuidDeclinePostResponse = DeclineEscalationApiV1EscalationsEscalationUuidDeclinePostResponses[keyof DeclineEscalationApiV1EscalationsEscalationUuidDeclinePostResponses];
+
+export type HandBackEscalationApiV1EscalationsEscalationUuidHandBackPostData = {
+    body: HandBackRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Escalation Uuid
+         */
+        escalation_uuid: string;
+    };
+    query?: never;
+    url: '/api/v1/escalations/{escalation_uuid}/hand-back';
+};
+
+export type HandBackEscalationApiV1EscalationsEscalationUuidHandBackPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type HandBackEscalationApiV1EscalationsEscalationUuidHandBackPostError = HandBackEscalationApiV1EscalationsEscalationUuidHandBackPostErrors[keyof HandBackEscalationApiV1EscalationsEscalationUuidHandBackPostErrors];
+
+export type HandBackEscalationApiV1EscalationsEscalationUuidHandBackPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: EscalationResponse;
+};
+
+export type HandBackEscalationApiV1EscalationsEscalationUuidHandBackPostResponse = HandBackEscalationApiV1EscalationsEscalationUuidHandBackPostResponses[keyof HandBackEscalationApiV1EscalationsEscalationUuidHandBackPostResponses];
 
 export type CapabilityChecklistApiV1AdminControlsCapabilitiesGetData = {
     body?: never;

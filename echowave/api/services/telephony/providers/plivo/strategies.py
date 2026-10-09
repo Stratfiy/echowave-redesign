@@ -61,6 +61,11 @@ class PlivoConferenceStrategy(TransferStrategy):
             f"{backend_endpoint}/api/v1/telephony/plivo/transfer-caller/"
             f"{quote(conference_name, safe='')}"
         )
+        # Escalation v2: the caller's conference carries the three-way
+        # introduction. Absent on every transfer made with the flag off.
+        escalation_uuid = getattr(transfer_context, "escalation_uuid", None)
+        if escalation_uuid:
+            caller_url += f"?escalation={quote(escalation_uuid, safe='')}"
 
         logger.info(
             f"[Plivo Transfer] Redirecting caller {call_uuid} into conference "

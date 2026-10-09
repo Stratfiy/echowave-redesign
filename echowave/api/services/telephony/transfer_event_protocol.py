@@ -72,6 +72,10 @@ class TransferContext:
     # conference_id: set by providers that seed the conference on answer (Telnyx).
     workflow_run_id: Optional[int] = None
     conference_id: Optional[str] = None
+    # Escalation v2: the escalation this leg belongs to, so the caller's
+    # conference can carry the three-way introduction. None on every
+    # transfer made with the flag off.
+    escalation_uuid: Optional[str] = None
 
     def to_json(self) -> str:
         """Convert context to JSON string."""
@@ -79,8 +83,15 @@ class TransferContext:
 
     @classmethod
     def from_json(cls, data: str) -> "TransferContext":
-        """Create context from JSON string."""
-        return cls(**json.loads(data))
+        """Create context from JSON string.
+
+        Unknown keys are ignored, so a context written by a newer worker
+        mid-deploy is still read by an older one rather than failing the
+        transfer it describes.
+        """
+        raw = json.loads(data)
+        known = {f for f in cls.__dataclass_fields__}
+        return cls(**{k: v for k, v in raw.items() if k in known})
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary."""
