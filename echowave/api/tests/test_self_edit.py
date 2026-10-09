@@ -53,7 +53,9 @@ class TestTheStepsBlock:
             < block.index("### Confirm")
         )
         assert "Ask for a date." in block
-        assert "### Start" not in block  # no prompt, nothing to edit
+        # No prompt, but a start step can carry a greeting, so it is listed
+        # with the greeting it has (none yet).
+        assert "### Start\n(empty)\nGreeting: (none)" in block
 
     def test_nothing_for_no_steps(self):
         assert self_edit.steps_block({}) == ""

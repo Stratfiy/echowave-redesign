@@ -1869,15 +1869,24 @@ class PipecatEngine:
     def _steps_block(self) -> str:
         """The bot's steps as the composer lists them, from the graph it runs."""
         try:
-            nodes = [
-                {
-                    "id": node.id,
-                    "type": node.node_type,
-                    "data": {"name": node.name, "prompt": node.prompt},
-                }
-                for node in self.workflow.nodes.values()
-                if node.prompt is not None
-            ]
+            nodes = []
+            for node in self.workflow.nodes.values():
+                data = {"name": node.name}
+                if node.prompt is not None:
+                    data["prompt"] = node.prompt
+                # The greeting is listed too, so "change how you greet
+                # people" names something the bot can see.
+                if node.greeting is not None:
+                    data["greeting"] = node.greeting
+                    data["greeting_type"] = node.greeting_type
+                if len(data) > 1:
+                    nodes.append(
+                        {
+                            "id": node.id,
+                            "type": getattr(node.node_type, "value", node.node_type),
+                            "data": data,
+                        }
+                    )
             return self_edit.steps_block({"nodes": nodes})
         except Exception as exc:  # noqa: BLE001 - a missing block is not a failed turn
             logger.warning("Could not list this agent's steps: {}", exc)

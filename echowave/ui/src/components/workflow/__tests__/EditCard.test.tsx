@@ -73,6 +73,33 @@ describe('the card', () => {
         expect(screen.queryByRole('button', { name: 'Publish' })).toBeNull();
     });
 
+    it('shows a greeting change, labelled, before and after', () => {
+        render(
+            <EditCard
+                event={event({
+                    payload: {
+                        step: 'Start',
+                        diff: '',
+                        greetings: [
+                            {
+                                step: 'Start',
+                                node_id: 's',
+                                old: 'Namaste, City Dental.',
+                                new: 'Namaste, Sharma Dental.',
+                            },
+                        ],
+                    },
+                })}
+            />,
+        );
+        const change = screen.getByTestId('greeting-change');
+        expect(change.textContent).toContain('Greeting · Start');
+        expect(change.textContent).toContain('Namaste, City Dental.');
+        expect(change.textContent).toContain('Namaste, Sharma Dental.');
+        // No prompt diff to draw.
+        expect(screen.queryByLabelText('What changes')).toBeNull();
+    });
+
     it('a refused click is said on the card', async () => {
         settle.mockResolvedValue({ error: { detail: 'Already settled.' } });
         render(<EditCard event={event()} />);
