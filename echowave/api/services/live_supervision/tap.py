@@ -30,7 +30,6 @@ from collections import deque
 from collections.abc import Callable
 
 from loguru import logger
-
 from pipecat.frames.frames import (
     BotStoppedSpeakingFrame,
     InputAudioRawFrame,

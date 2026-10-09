@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from typing import Annotated, Any, Optional
+from typing import Annotated, Any
 
 from fastapi import (
     APIRouter,
