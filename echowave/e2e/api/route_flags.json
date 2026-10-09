@@ -588,6 +588,39 @@
    "dialer_import"
   ]
  },
+ "/api/v1/escalations/open": {
+  "GET": [
+   "escalation_v2"
+  ]
+ },
+ "/api/v1/escalations/policy/{workflow_id}": {
+  "GET": [
+   "escalation_v2"
+  ],
+  "PUT": [
+   "escalation_v2"
+  ]
+ },
+ "/api/v1/escalations/{escalation_uuid}": {
+  "GET": [
+   "escalation_v2"
+  ]
+ },
+ "/api/v1/escalations/{escalation_uuid}/accept": {
+  "POST": [
+   "escalation_v2"
+  ]
+ },
+ "/api/v1/escalations/{escalation_uuid}/decline": {
+  "POST": [
+   "escalation_v2"
+  ]
+ },
+ "/api/v1/escalations/{escalation_uuid}/hand-back": {
+  "POST": [
+   "escalation_v2"
+  ]
+ },
  "/api/v1/events/client": {
   "POST": [
    "event_catalogue"
