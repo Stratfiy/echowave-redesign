@@ -955,17 +955,79 @@ async def _create_agent(
         organization_id=organization_id,
     )
 
+    schedule = await _schedule_from_template(
+        template, organization_id=organization_id, workflow_id=workflow.id
+    )
+    from api.services.agent_templates._base import CALLING_DIRECTIONS
+
+    on_a_phone = template.direction in CALLING_DIRECTIONS
+    next_steps = ["Tell the user the agent is built and can be opened and tested now."]
+    if on_a_phone:
+        next_steps.append(
+            "Remind them to attach a phone number in Telephony before it can "
+            "take real calls."
+        )
+    if schedule:
+        next_steps.append(
+            f"Say it is scheduled to run {schedule}, and that the schedule is "
+            "switched on after one test: Setup, then Triggers, Run once, then "
+            "Switch on."
+        )
     return {
         "created": True,
         "workflow_id": workflow.id,
         "name": built.name,
         "open_url": f"/workflow/{workflow.id}",
-        "next_steps": [
-            "Tell the user the agent is built and can be opened and tested now.",
-            "Remind them to attach a phone number in Telephony before it can "
-            "take real calls.",
-        ],
+        "calls": on_a_phone,
+        "schedule": schedule,
+        "next_steps": next_steps,
     }
+
+
+#: What a scheduled agent is told when its routine fires. Its own steps say
+#: what a run is; this only starts one.
+SCHEDULED_RUN_INSTRUCTION = "Start today's run, as your steps describe."
+
+
+async def _schedule_from_template(
+    template: Any, *, organization_id: int, workflow_id: int
+) -> Optional[str]:
+    """Give an agent that only ever runs on the clock the schedule its
+    template describes ("every weekday morning"), and say it back.
+
+    Hired from the chat, the outreach agent had none: the person had to find
+    Setup, Triggers, Add a routine and type in the schedule the template had
+    already named. Created switched off -- a routine arms only after a test
+    run, the same gate as one typed into the form. Never raises: an agent
+    without a schedule is the agent they would have had before this.
+    """
+    from api.services.agent_templates._base import CallDirection
+    from api.services.workflow import schedule_from_words
+
+    shape = getattr(template, "schedule_shape", None)
+    if template.direction != CallDirection.scheduled or shape is None:
+        return None
+    parsed = schedule_from_words.parse(shape.runs)
+    if parsed is None:
+        return None
+    try:
+        await db_client.create_routine(
+            organization_id=organization_id,
+            workflow_id=workflow_id,
+            name=template.name,
+            instruction=SCHEDULED_RUN_INSTRUCTION,
+            cadence=parsed.cadence.value,
+            anchor=parsed.anchor.value,
+            at_minute=parsed.at_minute,
+            offset_minutes=parsed.offset_minutes,
+            weekday=parsed.weekday,
+        )
+    except Exception as exc:  # noqa: BLE001 - the agent is the deliverable
+        logger.warning(
+            "Built {} but could not give it its schedule: {}", template.id, exc
+        )
+        return None
+    return parsed.said
 
 
 async def _list_my_agents(organization_id: int) -> dict[str, Any]:
