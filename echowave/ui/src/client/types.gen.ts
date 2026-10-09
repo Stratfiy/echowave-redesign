@@ -2034,6 +2034,16 @@ export type BodyUploadRecordingApiV1MeetingsMeetingIdUploadPost = {
 };
 
 /**
+ * Body_upload_reference_image_api_v1_images_references_post
+ */
+export type BodyUploadReferenceImageApiV1ImagesReferencesPost = {
+    /**
+     * File
+     */
+    file: Blob | File;
+};
+
+/**
  * BotChannel
  *
  * Where a bot does its work: on the phone, or in writing.
@@ -4244,6 +4254,24 @@ export type ConfirmRequest = {
      * Code
      */
     code: string;
+};
+
+/**
+ * ConnectImageProviderRequest
+ */
+export type ConnectImageProviderRequest = {
+    /**
+     * Provider
+     */
+    provider: string;
+    /**
+     * Api Key
+     */
+    api_key?: string | null;
+    /**
+     * Verify
+     */
+    verify?: boolean;
 };
 
 /**
@@ -9338,6 +9366,147 @@ export type IdentityCards = {
      * Cards
      */
     cards: Array<IdentityCard>;
+};
+
+/**
+ * ImageProviderState
+ */
+export type ImageProviderState = {
+    /**
+     * Provider
+     */
+    provider: string;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Blurb
+     */
+    blurb: string;
+    /**
+     * Key Label
+     */
+    key_label: string;
+    /**
+     * Key Hint
+     */
+    key_hint: string;
+    /**
+     * Ready
+     */
+    ready: boolean;
+    /**
+     * Source
+     */
+    source?: string | null;
+    /**
+     * Masked Key
+     */
+    masked_key?: string | null;
+    /**
+     * Takes References
+     */
+    takes_references: boolean;
+};
+
+/**
+ * ImageProvidersResponse
+ */
+export type ImageProvidersResponse = {
+    /**
+     * Chosen
+     */
+    chosen?: string | null;
+    /**
+     * Ready
+     */
+    ready: boolean;
+    /**
+     * Providers
+     */
+    providers: Array<ImageProviderState>;
+    /**
+     * Encryption Configured
+     */
+    encryption_configured: boolean;
+    /**
+     * Verification
+     */
+    verification?: string | null;
+    /**
+     * Verification Message
+     */
+    verification_message?: string | null;
+};
+
+/**
+ * ImageUrlResponse
+ */
+export type ImageUrlResponse = {
+    image: ImageView;
+    /**
+     * Url
+     */
+    url: string;
+    /**
+     * Expires In
+     */
+    expires_in: number;
+};
+
+/**
+ * ImageView
+ */
+export type ImageView = {
+    /**
+     * Image Uuid
+     */
+    image_uuid: string;
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Provider
+     */
+    provider: string;
+    /**
+     * Format
+     */
+    format: string;
+    /**
+     * Width
+     */
+    width?: number | null;
+    /**
+     * Height
+     */
+    height?: number | null;
+    /**
+     * Mime Type
+     */
+    mime_type: string;
+    /**
+     * Size Bytes
+     */
+    size_bytes: number;
+    /**
+     * Filename
+     */
+    filename?: string | null;
+    /**
+     * Option Index
+     */
+    option_index: number;
+    /**
+     * Parent Uuid
+     */
+    parent_uuid?: string | null;
+    /**
+     * Created At
+     */
+    created_at?: string | null;
 };
 
 /**
@@ -56211,6 +56380,209 @@ export type ConnectProviderApiV1PeopleConnectProviderPostResponses = {
 };
 
 export type ConnectProviderApiV1PeopleConnectProviderPostResponse = ConnectProviderApiV1PeopleConnectProviderPostResponses[keyof ConnectProviderApiV1PeopleConnectProviderPostResponses];
+
+export type ImageProvidersApiV1ImagesProvidersGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/images/providers';
+};
+
+export type ImageProvidersApiV1ImagesProvidersGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ImageProvidersApiV1ImagesProvidersGetError = ImageProvidersApiV1ImagesProvidersGetErrors[keyof ImageProvidersApiV1ImagesProvidersGetErrors];
+
+export type ImageProvidersApiV1ImagesProvidersGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: ImageProvidersResponse;
+};
+
+export type ImageProvidersApiV1ImagesProvidersGetResponse = ImageProvidersApiV1ImagesProvidersGetResponses[keyof ImageProvidersApiV1ImagesProvidersGetResponses];
+
+export type ConnectImageProviderApiV1ImagesProviderPutData = {
+    body: ConnectImageProviderRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/images/provider';
+};
+
+export type ConnectImageProviderApiV1ImagesProviderPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ConnectImageProviderApiV1ImagesProviderPutError = ConnectImageProviderApiV1ImagesProviderPutErrors[keyof ConnectImageProviderApiV1ImagesProviderPutErrors];
+
+export type ConnectImageProviderApiV1ImagesProviderPutResponses = {
+    /**
+     * Successful Response
+     */
+    200: ImageProvidersResponse;
+};
+
+export type ConnectImageProviderApiV1ImagesProviderPutResponse = ConnectImageProviderApiV1ImagesProviderPutResponses[keyof ConnectImageProviderApiV1ImagesProviderPutResponses];
+
+export type UploadReferenceImageApiV1ImagesReferencesPostData = {
+    body: BodyUploadReferenceImageApiV1ImagesReferencesPost;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/images/references';
+};
+
+export type UploadReferenceImageApiV1ImagesReferencesPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UploadReferenceImageApiV1ImagesReferencesPostError = UploadReferenceImageApiV1ImagesReferencesPostErrors[keyof UploadReferenceImageApiV1ImagesReferencesPostErrors];
+
+export type UploadReferenceImageApiV1ImagesReferencesPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: ImageView;
+};
+
+export type UploadReferenceImageApiV1ImagesReferencesPostResponse = UploadReferenceImageApiV1ImagesReferencesPostResponses[keyof UploadReferenceImageApiV1ImagesReferencesPostResponses];
+
+export type ImageUrlApiV1ImagesImageUuidGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Image Uuid
+         */
+        image_uuid: string;
+    };
+    query?: never;
+    url: '/api/v1/images/{image_uuid}';
+};
+
+export type ImageUrlApiV1ImagesImageUuidGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ImageUrlApiV1ImagesImageUuidGetError = ImageUrlApiV1ImagesImageUuidGetErrors[keyof ImageUrlApiV1ImagesImageUuidGetErrors];
+
+export type ImageUrlApiV1ImagesImageUuidGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: ImageUrlResponse;
+};
+
+export type ImageUrlApiV1ImagesImageUuidGetResponse = ImageUrlApiV1ImagesImageUuidGetResponses[keyof ImageUrlApiV1ImagesImageUuidGetResponses];
+
+export type DownloadImageApiV1ImagesImageUuidFileGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Image Uuid
+         */
+        image_uuid: string;
+    };
+    query?: never;
+    url: '/api/v1/images/{image_uuid}/file';
+};
+
+export type DownloadImageApiV1ImagesImageUuidFileGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DownloadImageApiV1ImagesImageUuidFileGetError = DownloadImageApiV1ImagesImageUuidFileGetErrors[keyof DownloadImageApiV1ImagesImageUuidFileGetErrors];
+
+export type DownloadImageApiV1ImagesImageUuidFileGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
 
 export type LearningStatusApiV1LearningStatusGetData = {
     body?: never;
