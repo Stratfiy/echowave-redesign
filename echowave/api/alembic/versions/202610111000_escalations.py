@@ -9,14 +9,14 @@ off both stay empty.
 Downgrading drops both tables.
 
 Revision ID: 20261011escalations
-Revises: 20261010images
+Revises: 20261010calloutcomes
 """
 
 import sqlalchemy as sa
 from alembic import op
 
 revision = "20261011escalations"
-down_revision = "20261010images"
+down_revision = "20261010calloutcomes"
 branch_labels = None
 depends_on = None
 
