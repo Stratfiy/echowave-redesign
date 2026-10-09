@@ -19,6 +19,10 @@ describe("isPublicPath", () => {
     expect(isPublicPath("/embed/decibyl-widget.js")).toBe(true);
   });
 
+  it("lets an approver open a mailed Approve or Reject link with no session", () => {
+    expect(isPublicPath("/invite-requests/decide")).toBe(true);
+  });
+
   it("keeps the product behind a session", () => {
     expect(isPublicPath("/")).toBe(false);
     expect(isPublicPath("/workflow/19")).toBe(false);

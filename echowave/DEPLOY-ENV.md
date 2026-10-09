@@ -463,6 +463,18 @@ DECIBYL_SLACK_ENABLED=false           # DCH-1     KAN-277  ... on Slack
 DECIBYL_TEAMS_ENABLED=false           # DCH-1     KAN-277  ... on Teams
 ```
 
+**Invite requests (approve from the inbox).** When somebody asks for an invite
+on `/early-access` (needs `EARLY_ACCESS_ENABLED=true`), the approvers get a
+mail with Approve and Reject; approving mints an email-pinned code and mails
+the person a short welcome (`api/services/auth/invite_requests.py`). Uses the
+SMTP settings above and `UI_APP_URL` (or `DECIBYL_APP_HOST`) for the links.
+
+```
+INVITE_APPROVER_EMAILS=               # comma-separated; unset = every superadmin, with a warning
+INVITE_DECISION_TTL_DAYS=14           # how long the Approve / Reject links work
+INVITE_REJECT_NOTIFY=false            # true = a rejected request gets one kind line
+```
+
 Pre-existing switches now also reported on `/health`: `BUDGET_POLICIES_ENABLED`,
 `PLAN_LADDER_2026_09_ENABLED`, `DECIBYL_TOOLS_2026_09_ENABLED`,
 `AGENT_BUILDER_ENABLED`, `MANAGED_TELEPHONY_ENABLED`.

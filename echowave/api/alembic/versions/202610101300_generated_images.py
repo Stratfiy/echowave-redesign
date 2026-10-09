@@ -8,14 +8,14 @@ stored and what its vendor charged for it. Read only while
 Downgrading drops the table (the stored objects stay in the bucket).
 
 Revision ID: 20261010images
-Revises: 20261010filefolders
+Revises: 20261010invitedecisions
 """
 
 import sqlalchemy as sa
 from alembic import op
 
 revision = "20261010images"
-down_revision = "20261010filefolders"
+down_revision = "20261010invitedecisions"
 branch_labels = None
 depends_on = None
 

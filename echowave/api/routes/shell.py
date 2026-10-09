@@ -38,6 +38,8 @@ router = APIRouter(prefix="/shell", tags=["shell"])
 
 class WaitlistJoinRequest(BaseModel):
     email: EmailStr
+    #: What to call them in the welcome mail. Optional.
+    name: Optional[str] = Field(default=None, max_length=120)
     language: str = Field(default="en", max_length=16)
     first_task: Optional[str] = Field(default=None, max_length=2000)
     phone: Optional[str] = Field(default=None, max_length=32)
@@ -110,6 +112,7 @@ async def join_waitlist(
             phone=body.phone,
             occupation=body.occupation,
             renewal=body.renewal,
+            name=body.name,
         )
     except early_access.Invalid as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc

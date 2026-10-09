@@ -28,7 +28,7 @@ from sqlalchemy.dialects.postgresql import insert
 from api.db import db_client
 from api.db.shell_models import WaitlistRequestModel
 from api.db.signup_invite_models import SignupInviteModel
-from api.services.auth import signup_invites
+from api.services.auth import invite_requests, signup_invites
 from api.services.shell import languages
 
 FLAG = "early_access"
@@ -103,9 +103,14 @@ async def join(
     phone: str | None = None,
     occupation: str | None = None,
     renewal: bool = False,
+    name: str | None = None,
 ) -> JoinResult:
     """Put ``email`` on the list once. Raises ``Invalid`` for a field the
-    person can correct; never raises for a repeat."""
+    person can correct; never raises for a repeat.
+
+    A new request is mailed to the approvers at once
+    (``invite_requests.notify_approvers``). A repeat, an address with an
+    account and an address already holding a live invite mail nobody."""
     address = normalise_email(email)
     if not languages.is_supported(language):
         raise Invalid("Choose a language from the list.")
@@ -114,6 +119,7 @@ async def join(
         raise Invalid("Enter the phone number with digits only, or leave it empty.")
     occupation = (occupation or "").strip()[:120] or None
     first_task = (first_task or "").strip()[:2000] or None
+    name = " ".join((name or "").split())[:120] or None
 
     if await db_client.get_user_by_email(address):
         return JoinResult(state=ALREADY_REGISTERED, created=False)
@@ -129,6 +135,7 @@ async def join(
                 first_task=first_task,
                 phone=phone,
                 occupation=occupation,
+                name=name,
                 source="renewal" if renewal else "waitlist",
                 status=WAITLISTED,
                 created_at=datetime.now(UTC),
@@ -139,9 +146,11 @@ async def join(
             )
             .returning(WaitlistRequestModel.id)
         )
-        created = result.scalar_one_or_none() is not None
+        request_id = result.scalar_one_or_none()
         await session.commit()
-    return JoinResult(state=WAITLISTED, created=created)
+    if request_id is not None:
+        await invite_requests.notify_approvers(request_id)
+    return JoinResult(state=WAITLISTED, created=request_id is not None)
 
 
 async def invite_status(code: str) -> dict:
