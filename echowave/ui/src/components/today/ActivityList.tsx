@@ -14,6 +14,7 @@ import { useCallback, useEffect, useState } from "react";
 import { listActivityApiV1TodayActivityGet } from "@/client/sdk.gen";
 import { EmptyState } from "@/components/EmptyState";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { LiveNowStrip } from "@/components/live/LiveNowStrip";
 import { ErrorState, TaskStatus } from "@/components/shell";
 import { Skeleton } from "@/components/ui/skeleton";
 import { detailFromError } from "@/lib/apiError";
@@ -85,6 +86,8 @@ export function ActivityList() {
         <>
             <PageHeader title="Activity" tabs={TODAY_TABS} />
             <div className="mx-auto flex w-full max-w-[960px] flex-col gap-4 px-4 py-4 sm:px-6">
+                {/* Work still in progress on the phone; nothing while none is. */}
+                <LiveNowStrip />
                 <details className="rounded-md border border-border p-2 md:open:border-transparent" open={filtered || undefined}>
                     <summary className="inline-flex min-h-11 cursor-pointer items-center px-1 text-sm font-medium md:min-h-8">
                         Filters{filtered ? " (on)" : ""}
