@@ -49,11 +49,20 @@ async def dial_workflow(
     telephony_configuration_id: int | None,
     source: str,
     extra_context: dict | None = None,
+    on_run_created=None,
 ) -> int:
     """Place the call and return the workflow run id.
 
     ``source`` names the caller in concurrency accounting and in the run's
     context, so a bill can be traced back to the thing that caused it.
+
+    ``on_run_created`` (an async callable taking the run id) is awaited once
+    the run exists and **before** the provider is asked to dial, so a caller
+    can record which run its call is before anything can ring. If the
+    provider request then raises -- a timeout after the carrier accepted the
+    call, say -- the caller still knows the run to reconcile against, and
+    knows that a call with no run recorded was never requested. If the hook
+    itself raises, nothing is dialled.
     """
     # The calling number first (FD-2): an Indian number places an automated
     # call only once declared to its provider. Refused here, before a slot
@@ -97,6 +106,8 @@ async def dial_workflow(
         raise
 
     try:
+        if on_run_created is not None:
+            await on_run_created(workflow_run_id)
         # After the run exists, so hosted billing can attach its correlation id
         # before the provider starts the call.
         quota = await authorize_workflow_run_start(
