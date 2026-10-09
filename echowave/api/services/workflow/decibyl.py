@@ -71,6 +71,7 @@ from api.services.workflow import (
     routines,
     self_edit,
     skill_context,
+    standing_context,
     tables,
     tasks_board,
     untrusted,
@@ -910,6 +911,20 @@ async def build_context(organization_id: int, question: str) -> str:
         awaiting = []
         mcp_servers = []
 
+    # The clock, the account's schedules and the asker's own reminders
+    # (standing_context): each one a screen promised and no prompt carried.
+    asker = acting.valid_member(acting.acting_user())
+    now = standing_context.now_line(
+        await standing_context.zone_for(organization_id, asker)
+    )
+    schedules = await standing_context.account_routines(
+        organization_id,
+        viewer_id=asker,
+        thread_id=agent_timeline.current_thread(),
+        names=await _workflow_names(organization_id, bot_names),
+    )
+    personal = await standing_context.personal_block(organization_id, asker)
+
     await agent_timeline.record_activity(
         organization_id=organization_id,
         summary=readings_line(
@@ -927,12 +942,15 @@ async def build_context(organization_id: int, question: str) -> str:
     )
 
     return (
+        f"## Now\n{now}\n\n"
         f"## Team\n{team_block(headline, members, window.label)}\n\n"
         f"## Who you are talking to\n{door_block(door)}\n\n"
         f"## What the business has confirmed\n{memory_block(memory_rows)}\n\n"
         f"## Lately\n{recent_block(recent, bot_names)}\n\n"
         f"## Missed calls not returned\n{missed_block(missed)}\n\n"
-        f"## Connected apps\n"
+        f"## Schedules\n{schedules or 'Nothing scheduled.'}\n\n"
+        + (f"## Your reminders\n{personal}\n\n" if personal else "")
+        + f"## Connected apps\n"
         f"{connected_tools.apps_block(apps, awaiting, mcp_servers)}\n\n"
         f"## From the knowledge base\n{knowledge_block(knowledge, contacts)}\n\n"
         f"{skills_section(skills, invoked)}"
@@ -946,6 +964,23 @@ async def build_context(organization_id: int, question: str) -> str:
             )
         )
     )
+
+
+async def _workflow_names(
+    organization_id: int, known: dict[int, str]
+) -> dict[int, str]:
+    """Every agent's name by id, for saying whose a routine is. The team
+    reading already has most of them; a bot it left out (or a team that
+    could not be read) is looked up rather than shown nameless."""
+    names = dict(known)
+    try:
+        for w in await db_client.get_all_workflows_for_listing(
+            organization_id=organization_id
+        ):
+            names.setdefault(w.id, w.name)
+    except Exception as exc:  # noqa: BLE001 - names are a nicety
+        logger.warning("Decibyl could not list the agents' names: {}", exc)
+    return names
 
 
 def _reach_context(block: str) -> str:
