@@ -29,6 +29,21 @@ export const AUTH_COPY = {
       required: "Enter your invite code to continue.",
       toGoogle: "Continue to Google",
     },
+    /** Asking for a code without leaving the screen (the same request the
+     *  /early-access page sends). */
+    askCode: {
+      open: "Don't have a code? Ask for one",
+      emailLabel: "Email",
+      noteLabel: "What would you like Decibyl to help with? (optional)",
+      submit: "Ask for a code",
+      submitting: "Sending…",
+      cancel: "Cancel",
+      sent: "Thanks — we'll email you a code as soon as it's approved.",
+      invited: "We already sent a code to this address. Check your inbox, including spam.",
+      registered: "This address already has an account.",
+      signIn: "Sign in",
+      failed: "Your request was not sent. Check your connection and try again.",
+    },
     name: {
       title: "What should we call you?",
       hint: "Your name, as teammates will see it.",

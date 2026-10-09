@@ -16,6 +16,7 @@ import posthog from "posthog-js";
 import { type FormEvent, useState } from "react";
 
 import { signupApiV1AuthSignupPost } from "@/client/sdk.gen";
+import { AskForCode } from "@/components/auth/AskForCode";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 import { AUTH_COPY } from "@/components/auth/steps/copy";
 import { LegalLinks, PasswordInput } from "@/components/auth/steps/fields";
@@ -269,6 +270,9 @@ export function SignupFlow() {
             {toGoogle ? copy.invite.toGoogle : AUTH_COPY.continue}
           </StepAction>
         </form>
+        {/* No code is not a dead end: ask for one here (separate form, so
+            Enter in it never advances the sign-up). */}
+        <AskForCode initialEmail={values.email.trim()} className="mt-4" />
       </StepShell>
     );
   }
