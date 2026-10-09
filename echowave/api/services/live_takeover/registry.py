@@ -59,6 +59,13 @@ class Takeover:
     bridge: str
     needs_phone: bool
     recovery_seconds: float
+    #: The caller can hear a supervisor on this call (from the browser, or
+    #: by phone). False on a phone call while server-side mixing is held
+    #: back: taking over (silently) still works, barging in does not.
+    voice: bool = True
+    can_barge: bool = True
+    #: What the panel says about how this call can be joined, or None.
+    notice: str | None = None
 
     def as_dict(self) -> dict[str, Any]:
         return dict(self.__dict__)
@@ -101,6 +108,7 @@ async def describe(viewer: listen_access.Viewer, run_id: int) -> Takeover:
     if blocked is None and holder is not None and not mine:
         blocked = "taken"
     name = bridge.configured()
+    voice, notice = voice_for(call, name)
     return Takeover(
         run_id=run_id,
         mode=str(state.get("mode") or "ai"),
@@ -116,7 +124,21 @@ async def describe(viewer: listen_access.Viewer, run_id: int) -> Takeover:
         bridge=name,
         needs_phone=name == bridge.PLIVO_MPC,
         recovery_seconds=float(constants.LIVE_TAKEOVER_RECOVERY_SECONDS),
+        voice=voice,
+        can_barge=voice,
+        notice=notice,
     )
+
+
+def voice_for(call: Any, name: str) -> tuple[bool, str | None]:
+    """(whether the caller can hear a supervisor on this call, what the
+    panel says about it). The worker checks the same again (``bridge.make``)."""
+    if name == bridge.PLIVO_MPC:
+        return True, bridge.MPC_NOT_YET
+    web_call = getattr(call, "direction", None) == bridge.WEB
+    if bridge.browser_voice_allowed(web_call=web_call):
+        return True, None
+    return False, bridge.PSTN_VOICE_OFF
 
 
 async def _publish(run_id: int, command: dict[str, Any]) -> int:
@@ -141,6 +163,9 @@ async def join(
         raise Conflict("Choose barge or take over.")
     call = await _checked(viewer, run_id)
     name = bridge.configured()
+    voice, _notice = voice_for(call, name)
+    if mode == BARGE and not voice:
+        raise Conflict(bridge.PSTN_VOICE_OFF)
     if name == bridge.PLIVO_MPC and not phone:
         raise Conflict("A phone number to call you on is needed.")
     r = channels.redis()
@@ -158,6 +183,7 @@ async def join(
         "since": (state or {}).get("since"),
         "agent_answering": False,
         "bridge": name,
+        "voice": voice,
     }
     if switching:
         await r.set(key, json.dumps(claim), ex=channels.STATE_TTL_SECONDS, xx=True)
@@ -186,7 +212,12 @@ async def join(
         actor_user_id=viewer.user_id,
         actor=viewer.name,
         before={"mode": (state or {}).get("mode", "ai")},
-        after={"mode": mode, "bridge": name, "phone": _mask_phone(phone)},
+        after={
+            "mode": mode,
+            "bridge": name,
+            "phone": _mask_phone(phone),
+            "voice": voice,
+        },
     )
     return claim
 

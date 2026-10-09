@@ -14,6 +14,14 @@ One ``EscalationRuntime`` per call, built by ``run_pipeline`` when
   ring people with spoken updates, bridge on a person, or come back and say so;
 * writes the call's escalation outcome when the call ends.
 
+**A supervisor on the call comes first** (``live_takeover``). While somebody
+from the team has barged in or taken the call over, nothing here acts: no
+transfer is started, nobody is dialled, no hold audio or hold update plays,
+no repair note is added. A trigger that would have fired is recorded as held
+back ("suppressed: supervisor on call", ``set_supervision``) and shown to the
+supervisor -- "Caller asked for a manager" -- who is the person the caller
+was asking for in the first place.
+
 Nothing here runs with the flag off: ``for_run`` returns None and the engine
 behaves exactly as before.
 """
@@ -21,7 +29,9 @@ behaves exactly as before.
 from __future__ import annotations
 
 import asyncio
+import copy
 import time
+from collections import Counter
 from typing import Any, Mapping, Optional
 
 from loguru import logger
@@ -81,6 +91,38 @@ _HOLD_LINES = (
     "Still trying to reach them. It shouldn't be much longer.",
     "Thank you for waiting. I'm still on it.",
 )
+
+#: Why a held-back trigger was not acted on (the call's record and panel).
+SUPPRESSED_BECAUSE = "supervisor_on_call"
+#: One request reported twice within this long is shown once.
+SUPPRESSED_REPEAT_SECONDS = 15.0
+#: Who the caller asked for, in their words, for the supervisor's panel.
+_ASKED_FOR = (
+    ("manager", "a manager"),
+    ("supervisor", "a supervisor"),
+    ("senior", "someone senior"),
+    ("owner", "the owner"),
+    ("boss", "the boss"),
+)
+
+
+def suppressed_label(decision: Decision, said: str | None = None) -> str:
+    """One line for the supervisor: what the caller wanted that was held
+    back -- "Caller asked for a manager"."""
+    if decision.reason == ReasonCode.EXPLICIT_REQUEST:
+        lowered = (said or "").lower()
+        for word, who in _ASKED_FOR:
+            if word in lowered:
+                return f"Caller asked for {who}"
+        return "Caller asked for a person"
+    if decision.reason == ReasonCode.POLICY:
+        from api.services.escalation.policy import TOPIC_LABELS
+
+        topic = TOPIC_LABELS.get(decision.topic or "")
+        if topic:
+            return f"Caller raised a topic that goes to a person: {topic.lower()}"
+        return "Caller raised a topic that goes to a person"
+    return f"Would have handed over: {escalation.reason_label(decision.reason)}"
 
 
 def tool_schemas() -> list[dict]:
@@ -151,9 +193,18 @@ class EngineCallerLine:
         self._task: asyncio.Task | None = None
         self._spoken = 0
 
+    async def _play(self, frame: Frame) -> None:
+        """Hold audio goes to the transport directly, past the take-over
+        gates, so it checks for a supervisor itself, slice by slice."""
+        if self._runtime.supervisor_on_call:
+            return
+        await self._runtime.engine._transport_output.queue_frame(frame)
+
     async def start_hold(self) -> None:
         engine = self._runtime.engine
         if self._task is not None or engine._transport_output is None:
+            return
+        if self._runtime.supervisor_on_call:
             return
         from api.services.pipecat.audio_playback import play_audio_loop
 
@@ -167,7 +218,7 @@ class EngineCallerLine:
             play_audio_loop(
                 stop_event=self._stop,
                 sample_rate=sample_rate,
-                queue_frame=engine._transport_output.queue_frame,
+                queue_frame=self._play,
             )
         )
 
@@ -183,6 +234,9 @@ class EngineCallerLine:
         self._stop = None
 
     async def update(self, seconds_waited: int) -> None:
+        if self._runtime.supervisor_on_call:
+            await self.stop_hold()
+            return
         line = _HOLD_LINES[self._spoken % len(_HOLD_LINES)]
         self._spoken += 1
         await self.stop_hold()
@@ -233,6 +287,13 @@ class EscalationRuntime:
         self.outcome: dict[str, Any] = {"outcome": "resolved_by_ai"}
         self._started_at: float | None = None
         self._finalised = False
+        #: The call's take-over controller (``live_takeover``), when a
+        #: supervisor can join this call; see ``set_supervision``.
+        self.supervision: Any = None
+        #: Triggers held back while a supervisor had the call.
+        self.suppressed: list[dict[str, Any]] = []
+        self._notes: set[asyncio.Task] = set()
+        self._last_suppressed = 0.0
 
     # --- construction ------------------------------------------------------
 
@@ -281,6 +342,73 @@ class EscalationRuntime:
 
     def humans_available(self) -> bool:
         return humans_available(self.policy, self.agent_schedule)
+
+    # --- a supervisor on the call -------------------------------------------
+
+    def set_supervision(self, supervision: Any) -> None:
+        """The call's take-over controller: while it ``holds_the_call``,
+        nothing here acts, and held-back triggers go to its
+        ``note_escalation_suppressed``."""
+        self.supervision = supervision
+
+    @property
+    def supervisor_on_call(self) -> bool:
+        supervision = self.supervision
+        if supervision is None:
+            return False
+        try:
+            return bool(supervision.holds_the_call)
+        except Exception:  # noqa: BLE001 - unreadable reads as nobody there
+            return False
+
+    def _probe(self) -> EscalationEvaluator:
+        """A copy of the evaluator to read a trigger on without counting it."""
+        probe = copy.copy(self.evaluator)
+        probe.points = Counter(self.evaluator.points)
+        probe.step_failures = Counter(self.evaluator.step_failures)
+        return probe
+
+    def _suppress(
+        self, decision: Decision, *, trigger: str, said: str | None = None
+    ) -> None:
+        """Record a trigger that fired while a supervisor had the call, and
+        tell the supervisor. Acts on nothing."""
+        if self.evaluator.decided is decision:
+            # Decided, not acted on: the next request after the hand-back is
+            # a new one.
+            self.evaluator.rearm()
+        now = time.monotonic()
+        reason_code = decision.reason.value if decision.reason else None
+        last = self.suppressed[-1] if self.suppressed else None
+        if (
+            last is not None
+            and last["reason_code"] == reason_code
+            and now - self._last_suppressed < SUPPRESSED_REPEAT_SECONDS
+        ):
+            # The same request reaching here twice (the caller's words, then
+            # the model's report of them) is one thing held back, not two.
+            return
+        self._last_suppressed = now
+        entry = {
+            "label": suppressed_label(decision, said),
+            "reason_code": reason_code,
+            "topic": decision.topic,
+            "trigger": trigger,
+            "said": (said or "")[:200] or None,
+            "suppressed": SUPPRESSED_BECAUSE,
+        }
+        self.suppressed.append(entry)
+        logger.info(
+            "Escalation held back on run {}: {} (a supervisor is on the call)",
+            self.workflow_run_id,
+            entry["label"],
+        )
+        note = getattr(self.supervision, "note_escalation_suppressed", None)
+        if note is None:
+            return
+        task = asyncio.create_task(note(entry))
+        self._notes.add(task)
+        task.add_done_callback(self._notes.discard)
 
     # --- speaking ------------------------------------------------------------
 
@@ -352,13 +480,27 @@ class EscalationRuntime:
         """
         if self.row is not None and self.row.state in record.OPEN:
             return []
+        if self.supervisor_on_call:
+            # Read on a copy: what the caller says to the supervisor does
+            # not count towards anything after the hand-back.
+            decision = self._probe().observe_text(text)
+            if decision.escalates:
+                self._suppress(decision, trigger="caller", said=text)
+            return []
         decision = self.evaluator.observe_text(text)
         return self._act_now(decision)
 
     def on_idle(self) -> None:
+        if self.supervisor_on_call:
+            # A caller listening to a supervisor is not silent on the agent.
+            return
         self.evaluator.observe_quiet("no_input")
 
     def _act_now(self, decision: Decision, *, trigger: str = "auto") -> list[Frame]:
+        if self.supervisor_on_call:
+            if decision.escalates:
+                self._suppress(decision, trigger=trigger)
+            return []
         if decision.action == Action.REPAIR:
             return [
                 LLMMessagesAppendFrame(
@@ -379,6 +521,10 @@ class EscalationRuntime:
     ) -> None:
         if self._task is not None and not self._task.done():
             return
+        if self.supervisor_on_call:
+            self.engine.set_mute_pipeline(False)
+            self._suppress(decision, trigger=trigger)
+            return
         self._task = asyncio.create_task(
             self.escalate(decision, trigger=trigger, extra=extra)
         )
@@ -391,6 +537,23 @@ class EscalationRuntime:
 
     async def _signal_handler(self, params: Any) -> None:
         args = dict(getattr(params, "arguments", None) or {})
+        if self.supervisor_on_call:
+            decision = self._probe().observe_signal(
+                str(args.get("kind") or ""),
+                topic=args.get("topic"),
+                level=args.get("level"),
+                step=args.get("step"),
+            )
+            if decision.escalates:
+                self._suppress(decision, trigger="signal")
+            await params.result_callback(
+                {
+                    "status": "supervisor_on_call",
+                    "say": "Someone from the team is on this call; follow their lead.",
+                },
+                properties=FunctionCallResultProperties(run_llm=False),
+            )
+            return
         decision = self.evaluator.observe_signal(
             str(args.get("kind") or ""),
             topic=args.get("topic"),
@@ -432,6 +595,24 @@ class EscalationRuntime:
                 extra.append(TransferTarget(number=destination))
             except Exception:  # noqa: BLE001 - a template, not a number
                 pass
+        if self.supervisor_on_call:
+            reason = (
+                ReasonCode.EXPLICIT_REQUEST
+                if self.evaluator.weak_mentions
+                else ReasonCode.POLICY
+            )
+            self._suppress(
+                Decision(Action.TRANSFER, reason, "The agent's transfer tool"),
+                trigger="tool",
+            )
+            await params.result_callback(
+                {
+                    "status": "supervisor_on_call",
+                    "say": "Someone from the team is on this call; do not transfer.",
+                },
+                properties=FunctionCallResultProperties(run_llm=False),
+            )
+            return True
         if self.evaluator.decided is not None or (
             self.row is not None and self.row.state in record.OPEN
         ):
@@ -688,6 +869,19 @@ class EscalationRuntime:
         await self.say(self._pre_dial_line(targets[0]), wait=True)
         self.card = await card_task
         await self._post_card(row, self.card)
+        if self.supervisor_on_call:
+            # Somebody from the team joined while the caller was being told:
+            # they have the caller, so nobody is dialled.
+            await record.fail(
+                row, SUPPRESSED_BECAUSE, organization_id=self.organization_id
+            )
+            self.outcome.update(
+                transfer_result="failed", failure_reason=SUPPRESSED_BECAUSE
+            )
+            await self._refresh()
+            self.engine.set_mute_pipeline(False)
+            self._suppress(decision, trigger=trigger)
+            return
 
         from api.services.escalation.dialer import ProviderDialer
 

@@ -90,6 +90,14 @@ class TakeoverState(BaseModel):
     needs_phone: bool = False
     #: How long the agent waits for a supervisor who drops off.
     recovery_seconds: float
+    #: The caller can hear a supervisor on this call. False on a phone call
+    #: while mixing browser audio into phone calls is held back: take over
+    #: (the agent silent, you guide it by typing) still works.
+    voice: bool = True
+    #: Barging in (speaking with the agent on the line) is possible here.
+    can_barge: bool = True
+    #: Why joining works the way it does on this call, for the panel.
+    notice: str | None = None
 
 
 class JoinRequest(BaseModel):

@@ -17,8 +17,10 @@
  *
  * With live_takeover, the panel is also where a supervisor joins the call
  * (`TakeoverControls`): barge in or take over, speaking from this browser.
- * Who has the call, and each stretch of a supervisor speaking, appear in the
- * transcript in order with the words.
+ * Who has the call, and each stretch of a supervisor speaking (with their
+ * words once transcribed, under their name), appear in the transcript in
+ * order with the words; so does an escalation held back because a
+ * supervisor already has the call ("Caller asked for a manager").
  */
 
 import { Headphones, Lock, Mic, Send, Square, UserRound, VolumeX, X } from 'lucide-react';
@@ -237,11 +239,21 @@ function Entry({ entry }: { entry: TranscriptEntry }) {
         return (
             <li className="flex flex-col">
                 <span className="text-xs font-medium text-muted-foreground">{entry.by} (supervisor)</span>
-                <span className={cn('text-sm', !entry.final && 'text-muted-foreground')}>
-                    {entry.final
-                        ? `Spoke to the caller · ${duration(entry.seconds)} · not transcribed`
-                        : 'Speaking to the caller…'}
+                <span className={cn('break-words text-sm', !entry.final && 'text-muted-foreground')}>
+                    {entry.text
+                        ? entry.text
+                        : entry.final
+                          ? `Spoke to the caller · ${duration(entry.seconds)} · not transcribed`
+                          : 'Speaking to the caller…'}
                 </span>
+            </li>
+        );
+    }
+    if (entry.kind === 'escalation') {
+        return (
+            <li className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2">
+                <UserRound className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-700 dark:text-amber-300" aria-hidden />
+                <p className="min-w-0 break-words text-xs text-amber-800 dark:text-amber-200">{entry.text}</p>
             </li>
         );
     }

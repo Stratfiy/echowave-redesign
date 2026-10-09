@@ -1433,6 +1433,23 @@ async def _run_pipeline_impl(
     # Barge and take-over (services/live_takeover/). None, and nothing added
     # to the pipeline, unless the feature is on for this organisation.
     live_takeover = prepare_live_takeover(workflow_run=workflow_run, workflow=workflow)
+    if live_takeover is not None:
+        # Escalation stands down while a supervisor has the call, and says
+        # what it held back to the supervisor.
+        if escalation_runtime is not None:
+            escalation_runtime.set_supervision(live_takeover)
+        # The supervisor's words are transcribed by a copy of this call's own
+        # transcriber, made only if they speak.
+        if not is_realtime and audio_config is not None:
+            live_takeover.transcribe_with(
+                lambda: create_stt_service_with_backups(
+                    user_config,
+                    audio_config,
+                    keyterms=keyterms,
+                    correlation_id=mps_correlation_id,
+                )[0],
+                sample_rate=audio_config.transport_in_sample_rate,
+            )
 
     @user_context_aggregator.event_handler("on_user_turn_idle")
     async def on_user_turn_idle(aggregator):

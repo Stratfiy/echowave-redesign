@@ -24,7 +24,13 @@ from api import constants
 from api.services.live_supervision import channels as live_channels
 from api.services.live_takeover import access as join_access
 from api.services.live_takeover import bridge as bridges
-from api.services.live_takeover import channels, controller, plivo_mpc, registry
+from api.services.live_takeover import (
+    channels,
+    controller,
+    plivo_mpc,
+    registry,
+    speech,
+)
 from api.services.live_takeover.frames import SupervisorAudioFrame
 from api.services.live_takeover.gates import (
     AI,
@@ -39,12 +45,15 @@ from api.tests import test_live_supervision as listen
 from pipecat.frames.frames import (
     EndFrame,
     Frame,
+    InputAudioRawFrame,
+    InterimTranscriptionFrame,
     InterruptionFrame,
     LLMContextFrame,
     LLMMessagesAppendFrame,
     TranscriptionFrame,
     TTSAudioRawFrame,
     TTSTextFrame,
+    VADUserStoppedSpeakingFrame,
 )
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.worker import PipelineWorker
@@ -81,6 +90,10 @@ def flags(monkeypatch):
     monkeypatch.setattr(constants, "LIVE_SUPERVISION_ENABLED", True)
     monkeypatch.setattr(constants, "LIVE_TAKEOVER_ENABLED", True)
     monkeypatch.setattr(constants, "LIVE_TAKEOVER_BRIDGE", "pipeline")
+    # The call in these tests is on Plivo, and they are about the pipeline
+    # bridge carrying a voice; mixing into a phone call is held back by
+    # default, which ``TestPhoneCallsByDefault`` checks with this off.
+    monkeypatch.setattr(constants, "ALLOW_SERVER_MIXED_PSTN_BARGE", True)
 
 
 def _allow(state, *, listening: bool = True, joining: bool = True):
@@ -1080,3 +1093,397 @@ async def test_the_tap_labels_the_supervisor_as_their_own_side():
     )
     await tap.on_push_frame(listen._pushed(frame, destination=output))
     assert tap.audio.get_nowait()[1] == "s"
+
+
+# ---------------------------------------------------------------------------
+# Phone calls: no browser audio mixed in on our servers, by default
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def pstn_default(monkeypatch):
+    """The shipped default: mixing into phone calls held back."""
+    monkeypatch.setattr(constants, "ALLOW_SERVER_MIXED_PSTN_BARGE", False)
+
+
+def test_the_default_holds_server_mixing_into_phone_calls_back():
+    import ast
+    from pathlib import Path
+
+    # Read from the source, not the module: other tests switch it.
+    tree = ast.parse(Path(constants.__file__).read_text())
+    [value] = [
+        node.value
+        for node in tree.body
+        if isinstance(node, ast.Assign)
+        and any(
+            getattr(t, "id", None) == "ALLOW_SERVER_MIXED_PSTN_BARGE"
+            for t in node.targets
+        )
+    ]
+    assert isinstance(value, ast.Constant) and value.value is False
+
+
+@pytest.mark.asyncio
+class TestPhoneCallsByDefault:
+    async def test_barge_on_a_phone_call_is_refused_and_says_why(
+        self, http, flags, pstn_default, audit, redis_reset, run_id, fake_db
+    ):
+        _allow(fake_db)
+        async with Call(run_id, fake_db["run"]) as call:
+            base = f"/api/v1/live-calls/{run_id}"
+            state = (await _as(http, ADMIN_ID).get(f"{base}/takeover")).json()
+            assert state["bridge"] == "pipeline"
+            assert state["voice"] is False and state["can_barge"] is False
+            assert state["notice"] == bridges.PSTN_VOICE_OFF
+            assert state["can_join"] is True
+            response = await http.post(f"{base}/takeover", json={"mode": "barge"})
+            assert response.status_code == 409
+            assert response.json()["detail"] == bridges.PSTN_VOICE_OFF
+            # Nothing was claimed and the agent still has the call.
+            assert await registry.read_state(run_id) is None
+            assert call.takeover.state.mode == AI
+            assert not [r for r in audit if r["action"] == "call_barged"]
+
+    async def test_take_over_on_a_phone_call_is_silent_typed_and_handed_back(
+        self, http, flags, pstn_default, audit, redis_reset, run_id, fake_db
+    ):
+        _allow(fake_db)
+        async with Call(run_id, fake_db["run"]) as call:
+            base = f"/api/v1/live-calls/{run_id}"
+            client = _as(http, ADMIN_ID)
+            response = await client.post(f"{base}/takeover", json={"mode": "takeover"})
+            assert response.status_code == 200, response.text
+            assert await _until(lambda: call.takeover.state.mode == TAKEOVER)
+            assert call.takeover.bridge.browser_audio is False
+            # The browser's microphone is never played into the phone call.
+            for _ in range(3):
+                await registry.forward_mic(run_id, _mic(LOUD))
+            await asyncio.sleep(0.3)
+            assert call.speaker.of(SupervisorAudioFrame) == []
+            assert call.takeover.played_frames == 0
+            # The agent is silent, and the supervisor guides it by typing.
+            await call.caller_says("Hello?")
+            await asyncio.sleep(0.2)
+            assert call.model.replies == 0
+            response = await client.post(
+                f"{base}/whisper", json={"text": "Offer the 4pm slot", "urgent": False}
+            )
+            assert response.status_code == 200, response.text
+            assert await _until(lambda: call.live.whispers_applied == 1)
+            # No switching to a barge either.
+            response = await client.post(f"{base}/takeover", json={"mode": "barge"})
+            assert response.status_code == 409
+            assert response.json()["detail"] == bridges.PSTN_VOICE_OFF
+            assert call.takeover.state.mode == TAKEOVER
+            # Hand back: the agent picks the call up, the instruction in hand.
+            response = await client.post(f"{base}/hand-back")
+            assert response.status_code == 200
+            assert await _until(lambda: call.takeover.state.mode == AI)
+            assert await _until(lambda: len(call.speaker.agent_audio()) == 1)
+            contents = [m["content"] for m in call.context.get_messages()]
+            assert any("Offer the 4pm slot" in c for c in contents)
+            [joined] = [r for r in audit if r["action"] == "call_taken_over"]
+            assert joined["after"]["voice"] is False
+
+    async def test_the_worker_refuses_a_barge_on_a_phone_call_too(
+        self, flags, pstn_default, redis_reset, run_id, fake_db
+    ):
+        async with Call(run_id, fake_db["run"]) as call:
+            joined = await call.takeover.join(BARGE, by="Priya", by_user_id=ADMIN_ID)
+            assert joined is False
+            assert call.takeover.state.mode == AI
+            [failed] = call.events(controller.FAILED)
+            assert failed["detail"] == bridges.PSTN_VOICE_OFF
+            # A take-over is accepted, and a switch to barge is not.
+            assert await call.takeover.join(TAKEOVER, by="Priya", by_user_id=ADMIN_ID)
+            assert not await call.takeover.join(BARGE, by="Priya", by_user_id=ADMIN_ID)
+            assert call.takeover.state.mode == TAKEOVER
+
+    async def test_a_web_call_keeps_the_browser_voice(
+        self, http, flags, pstn_default, audit, redis_reset, run_id, fake_db
+    ):
+        _allow(fake_db)
+        fake_db["run"].mode = "webrtc"
+        async with Call(run_id, fake_db["run"]) as call:
+            call.live.direction = "web"
+            await call.live._beat()
+            base = f"/api/v1/live-calls/{run_id}"
+            state = (await _as(http, ADMIN_ID).get(f"{base}/takeover")).json()
+            assert state["voice"] is True and state["notice"] is None
+            response = await http.post(f"{base}/takeover", json={"mode": "barge"})
+            assert response.status_code == 200, response.text
+            assert await _until(lambda: call.takeover.state.mode == BARGE)
+            for _ in range(3):
+                await registry.forward_mic(run_id, _mic(LOUD))
+            assert await _until(lambda: len(call.speaker.of(SupervisorAudioFrame)) == 3)
+
+    async def test_the_phone_conference_says_it_cannot_reach_todays_calls(
+        self,
+        http,
+        flags,
+        pstn_default,
+        audit,
+        redis_reset,
+        run_id,
+        fake_db,
+        monkeypatch,
+    ):
+        monkeypatch.setattr(constants, "LIVE_TAKEOVER_BRIDGE", "plivo_mpc")
+        _allow(fake_db)
+        async with Call(run_id, fake_db["run"]):
+            base = f"/api/v1/live-calls/{run_id}"
+            state = (await _as(http, ADMIN_ID).get(f"{base}/takeover")).json()
+            assert state["needs_phone"] is True
+            assert state["notice"] == bridges.MPC_NOT_YET
+
+    async def test_make_gives_a_voiceless_pipeline_bridge_on_a_phone_call(
+        self, pstn_default
+    ):
+        async def made(mode: str):
+            return await bridges.make(
+                bridges.PIPELINE,
+                workflow_run=SimpleNamespace(mode=mode),
+                organization_id=ORG,
+            )
+
+        assert (await made("plivo")).browser_audio is False
+        assert (await made("smallwebrtc")).browser_audio is True
+        assert (await made("webrtc")).browser_audio is True
+        # A mode nobody listed counts as a phone call: held back, not mixed.
+        assert (await made("some-new-carrier")).browser_audio is False
+
+
+# ---------------------------------------------------------------------------
+# The supervisor's words: transcribed, labelled, and "speak when addressed"
+# ---------------------------------------------------------------------------
+
+
+class ScriptedSTT(FrameProcessor):
+    """Stands in for the call's transcriber: hears audio, and at the end of
+    each stretch of speech says the next scripted line (interim, then final)."""
+
+    def __init__(self, lines: list[str]):
+        super().__init__()
+        self.lines = list(lines)
+        self.audio = 0
+        self.rates: set[int] = set()
+
+    async def process_frame(self, frame: Frame, direction: FrameDirection):
+        await super().process_frame(frame, direction)
+        if isinstance(frame, InputAudioRawFrame):
+            self.audio += 1
+            self.rates.add(frame.sample_rate)
+            return
+        if isinstance(frame, VADUserStoppedSpeakingFrame) and self.lines:
+            line = self.lines.pop(0)
+            half = " ".join(line.split()[:2])
+            await self.push_frame(InterimTranscriptionFrame(half, "supervisor", "t"))
+            await self.push_frame(TranscriptionFrame(line, "supervisor", "t"))
+            return
+        await self.push_frame(frame, direction)
+
+
+class TestAddressed:
+    NAMES = ("asha front desk", "asha")
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "Asha, can you confirm the time?",
+            "Asha what's the refund window",
+            "What is the refund window, Asha?",
+            "Okay Asha, go ahead",
+            "AI, answer that please",
+            "Assistant, read the order back.",
+            "Can Asha check the refund?",
+        ],
+    )
+    def test_said_to_the_agent(self, line):
+        assert speech.addressed(line, self.NAMES)
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "I'll check with Asha later",
+            "Let me check your booking.",
+            "Sorry, the AI will call you back",
+            "Can you tell me your order number?",
+            "Thanks for waiting",
+            "",
+        ],
+    )
+    def test_said_to_the_caller(self, line):
+        assert not speech.addressed(line, self.NAMES)
+
+    def test_names(self):
+        assert speech.names_for("Asha Front Desk") == ("asha front desk", "asha")
+        # An ordinary first word is not listened for on its own.
+        assert speech.names_for("Front desk") == ("front desk",)
+        assert speech.names_for(None) == ()
+
+
+@pytest.mark.asyncio
+class TestSupervisorSpeech:
+    async def test_words_are_transcribed_labelled_and_answered_only_when_addressed(
+        self, http, flags, audit, redis_reset, run_id, fake_db, monkeypatch
+    ):
+        monkeypatch.setattr(controller, "SPEECH_HANGOVER_SECONDS", 0.3)
+        _allow(fake_db)
+        stt = ScriptedSTT(
+            ["Let me look at your booking.", "Asha, what time is the slot?"]
+        )
+        async with Call(run_id, fake_db["run"]) as call:
+            call.takeover.agent_names = speech.names_for("Asha Front Desk")
+            call.takeover.transcribe_with(lambda: stt, sample_rate=8000)
+            base = f"/api/v1/live-calls/{run_id}"
+            response = await _as(http, ADMIN_ID).post(
+                f"{base}/takeover", json={"mode": "barge"}
+            )
+            assert response.status_code == 200
+            assert await _until(lambda: call.takeover.state.mode == BARGE)
+
+            # First stretch: said to the caller. Transcribed under the
+            # supervisor's name, into the agent's context, and no reply.
+            for _ in range(3):
+                await registry.forward_mic(run_id, _mic(LOUD))
+            assert await _until(
+                lambda: any(
+                    "[supervisor-said]" in m["content"]
+                    for m in call.context.get_messages()
+                ),
+                timeout=4.0,
+            )
+            said = [
+                m["content"]
+                for m in call.context.get_messages()
+                if "[supervisor-said]" in m["content"]
+            ]
+            assert said == [
+                controller.said_message("user502", "Let me look at your booking.")[
+                    "content"
+                ]
+            ]
+            await asyncio.sleep(0.2)
+            assert call.model.replies == 0
+            assert call.takeover.state.ai_may_speak is False
+            # The transcriber got the call's rate, resampled from the mic's.
+            assert stt.rates == {8000} and stt.audio >= 3
+
+            # Its own segment in the call's record, labelled, with the words.
+            assert await _until(
+                lambda: any(
+                    e["type"] == controller.EVENT_SPEECH and e["payload"].get("text")
+                    for e in call.logs.events
+                )
+            )
+            spans = [
+                e["payload"]
+                for e in call.logs.events
+                if e["type"] == controller.EVENT_SPEECH and e["payload"].get("text")
+            ]
+            assert spans[-1]["speaker"] == "supervisor"
+            assert spans[-1]["by"] == "user502"
+            assert spans[-1]["transcribed"] is True
+            assert spans[-1]["text"] == "Let me look at your booking."
+            # And in the live transcript under their name.
+            backlog = await _backlog(run_id)
+            lines = [e for e in backlog if e["type"] == "supervisor" and e.get("text")]
+            assert lines and lines[-1]["by"] == "user502"
+            assert lines[-1]["text"] == "Let me look at your booking."
+
+            # Second stretch: addressed to the agent by name. It answers.
+            await asyncio.sleep(0.4)
+            for _ in range(3):
+                await registry.forward_mic(run_id, _mic(LOUD))
+            assert await _until(lambda: call.model.replies == 1, timeout=4.0)
+            assert await _until(lambda: len(call.speaker.agent_audio()) == 1)
+            assert call.takeover.state.ai_may_speak is True
+            asked = [
+                m["content"]
+                for m in call.context.get_messages()
+                if m["content"].startswith("[supervisor-answer]")
+            ]
+            assert asked and "Asha, what time is the slot?" in asked[-1]
+            [answering] = call.events(controller.AGENT_ANSWERING)
+            assert answering["addressed"] is True
+
+            # Hand back: the note no longer says their words were lost.
+            response = await http.post(f"{base}/hand-back")
+            assert response.status_code == 200
+            assert await _until(lambda: call.takeover.state.mode == AI)
+            note = call.context.get_messages()[-1]["content"]
+            assert note.startswith("[supervisor-handback]")
+            assert "What they said is above" in note
+            assert call.takeover.transcriber is None
+
+    async def test_take_over_words_go_to_context_and_never_start_a_reply(
+        self, flags, redis_reset, run_id, fake_db, monkeypatch
+    ):
+        monkeypatch.setattr(controller, "SPEECH_HANGOVER_SECONDS", 0.3)
+        stt = ScriptedSTT(["Asha, what time is the slot?"])
+        async with Call(run_id, fake_db["run"]) as call:
+            call.takeover.agent_names = speech.names_for("Asha Front Desk")
+            call.takeover.transcribe_with(lambda: stt)
+            await call.takeover.join(TAKEOVER, by="Priya", by_user_id=ADMIN_ID)
+            for _ in range(3):
+                await call.takeover.on_mic(_mic(LOUD))
+            assert await _until(
+                lambda: any(
+                    "[supervisor-said]" in m["content"]
+                    for m in call.context.get_messages()
+                ),
+                timeout=4.0,
+            )
+            await asyncio.sleep(0.2)
+            # In a take-over the agent says nothing, addressed or not.
+            assert call.model.replies == 0
+            assert call.events(controller.AGENT_ANSWERING) == []
+
+    async def test_without_a_transcriber_nothing_is_transcribed(
+        self, flags, redis_reset, run_id, fake_db, monkeypatch
+    ):
+        monkeypatch.setattr(controller, "SPEECH_HANGOVER_SECONDS", 0.2)
+        async with Call(run_id, fake_db["run"]) as call:
+            await call.takeover.join(BARGE, by="Priya", by_user_id=ADMIN_ID)
+            await call.takeover.on_mic(_mic(LOUD))
+            assert call.takeover.transcriber is None
+            assert await _until(
+                lambda: any(
+                    e["type"] == controller.EVENT_SPEECH for e in call.logs.events
+                )
+            )
+            [span] = [
+                e["payload"]
+                for e in call.logs.events
+                if e["type"] == controller.EVENT_SPEECH
+            ]
+            assert span["transcribed"] is False and "text" not in span
+
+
+# ---------------------------------------------------------------------------
+# Escalation held back while a supervisor has the call (the panel's side)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_a_held_back_escalation_is_recorded_and_shown_on_the_panel(
+    flags, redis_reset, run_id, fake_db
+):
+    async with Call(run_id, fake_db["run"]) as call:
+        await call.takeover.join(TAKEOVER, by="Priya", by_user_id=ADMIN_ID)
+        await call.takeover.note_escalation_suppressed(
+            {"label": "Caller asked for a manager", "reason_code": "explicit_request"}
+        )
+        [entry] = [
+            e["payload"]
+            for e in call.logs.events
+            if e["type"] == controller.EVENT_ESCALATION_SUPPRESSED
+        ]
+        assert entry["label"] == "Caller asked for a manager"
+        assert entry["status"] == "suppressed"
+        assert entry["because"] == "supervisor_on_call"
+        assert entry["supervisor"] == "Priya"
+        backlog = await _backlog(run_id)
+        shown = [e for e in backlog if e["type"] == "escalation"]
+        assert shown and shown[0]["label"] == "Caller asked for a manager"

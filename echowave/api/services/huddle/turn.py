@@ -8,6 +8,11 @@ go to the voice as they form. What was actually heard comes back through
 ``heard`` and is written to the transcript, marked when cut off -- the same
 rule Talk follows, so the next turn never assumes an answer it talked over.
 
+While the agent is on a live call, the huddle is that call's whisper
+channel (``live_call``): the person's line goes to the call as a whisper, is
+written to the transcript marked so, and the agent here says only that it
+was passed on.
+
 The tool loop is Decibyl's shape, smaller: reads run and feed the answer; a
 proposed edit ends the tool phase (propose it, say so, stop), and the last
 round is given no tools so a loop of reads cannot run all afternoon.
@@ -22,7 +27,7 @@ from typing import Any
 
 from loguru import logger
 
-from api.services.huddle import record, tools
+from api.services.huddle import live_call, record, tools
 
 #: Rounds of tool calls in one spoken turn.
 MAX_ROUNDS = 4
@@ -61,10 +66,23 @@ class HuddleState:
             payload=self.payload,
         )
 
-    async def line(self, who: str, text: str, *, interrupted: bool = False) -> None:
+    async def line(
+        self,
+        who: str,
+        text: str,
+        *,
+        interrupted: bool = False,
+        whisper_run_id: int | None = None,
+    ) -> None:
         async with self.lock:
             before = len(self.payload.get("turns") or [])
-            record.add_turn(self.payload, who, text, interrupted=interrupted)
+            record.add_turn(
+                self.payload,
+                who,
+                text,
+                interrupted=interrupted,
+                whisper_run_id=whisper_run_id,
+            )
             if len(self.payload.get("turns") or []) != before or interrupted:
                 await self._save()
 
@@ -89,6 +107,8 @@ class HuddleState:
         for entry in turns:
             role = "user" if entry.get("who") == YOU else "assistant"
             text = str(entry.get("text") or "")
+            if entry.get("whisper_run_id"):
+                text = f"(whispered to the live call) {text}"
             if entry.get("interrupted"):
                 text += " (interrupted)"
             if out and out[-1]["role"] == role:
@@ -113,8 +133,36 @@ class HuddleState:
     async def answer(self, ledger: Any, turn: Any, on_words) -> str:
         # Read before this line is written, so it is not sent twice.
         earlier = self.history()
+        sent = await self._whisper(turn.text)
+        if sent is not None:
+            await self.line(YOU, turn.text, whisper_run_id=sent["run_id"])
+            await self._tell({"type": "huddle-whisper", "payload": sent})
+            await on_words(live_call.SENT)
+            return live_call.SENT
         await self.line(YOU, turn.text)
         return await self._answer(turn, on_words, earlier)
+
+    async def _whisper(self, text: str) -> dict[str, Any] | None:
+        """The line, as a whisper to the agent's live call; None when the
+        agent has no single call to send it to (an ordinary huddle turn)."""
+        try:
+            sent = await live_call.whisper(
+                organization_id=self.organization_id,
+                user_id=self.user_id,
+                workflow_id=self.workflow_id,
+                text=text,
+            )
+        except live_call.NoLiveCall:
+            return None
+        except Exception as exc:  # noqa: BLE001 - the call ended, or refused
+            logger.info("Huddle line not whispered: {}", exc)
+            return None
+        return {
+            "run_id": sent["run_id"],
+            "id": sent.get("id"),
+            "text": sent.get("text"),
+            "label": live_call.THIS_CALL_ONLY,
+        }
 
     async def heard(self, ledger: Any, turn: Any) -> None:
         heard = turn.heard_text()

@@ -8,7 +8,7 @@ import { conversationItemsFromRealtimeFeedbackEvents } from '@/components/workfl
 
 import { LivePlayer, parsePacket } from '../liveAudio';
 import { downsample, encodeMic, levelOf, MIC_RATE } from '../talkAudio';
-import { AGENT_HAS_IT, applyAll, EMPTY, type LiveEvent,takeoverText } from '../transcript';
+import { AGENT_HAS_IT, applyAll, EMPTY, escalationText, type LiveEvent, takeoverText } from '../transcript';
 
 const takeover = (seq: number, action: string, over: Partial<LiveEvent> = {}): LiveEvent => ({
     type: 'takeover',
@@ -141,5 +141,76 @@ describe('audio', () => {
         expect(downsample(slice, 16000, 16000)).toBe(slice);
         expect(levelOf(new Float32Array(10))).toBe(0);
         expect(levelOf(new Float32Array(10).fill(0.5))).toBe(1);
+    });
+});
+
+describe('the supervisor’s words, and escalations held back', () => {
+    it('shows the supervisor’s transcribed words under their name, late words included', () => {
+        const state = applyAll(EMPTY, [
+            { type: 'supervisor', seq: 1, id: 'sp1', by: 'priya', final: false, seconds: 0 },
+            { type: 'supervisor', seq: 2, id: 'sp1', by: 'priya', final: false, seconds: 0, text: 'Let me' },
+            { type: 'supervisor', seq: 3, id: 'sp1', by: 'priya', final: true, seconds: 3 },
+            // The last words, after the stretch ended.
+            { type: 'supervisor', seq: 4, id: 'sp1', by: 'priya', final: true, seconds: 3, text: 'Let me check that.' },
+        ]);
+        expect(state.entries).toHaveLength(1);
+        const span = state.entries[0];
+        expect(span.kind === 'supervisor' && [span.by, span.text, span.final, span.seconds]).toEqual([
+            'priya',
+            'Let me check that.',
+            true,
+            3,
+        ]);
+    });
+
+    it('keeps words already heard when a later event has none', () => {
+        const state = applyAll(EMPTY, [
+            { type: 'supervisor', seq: 1, id: 'sp1', by: 'priya', final: false, seconds: 0, text: 'One moment' },
+            { type: 'supervisor', seq: 2, id: 'sp1', by: 'priya', final: true, seconds: 2 },
+        ]);
+        const span = state.entries[0];
+        expect(span.kind === 'supervisor' && span.text).toBe('One moment');
+    });
+
+    it('says what escalation held back while a supervisor had the call', () => {
+        const state = applyAll(EMPTY, [
+            { type: 'escalation', seq: 1, label: 'Caller asked for a manager', supervisor: 'priya' },
+        ]);
+        expect(state.entries).toEqual([
+            {
+                kind: 'escalation',
+                key: 'escalation-1',
+                seq: 1,
+                text: 'Caller asked for a manager. Not transferred: priya is on the call.',
+            },
+        ]);
+        expect(escalationText({})).toBe('The caller wanted a person. Not transferred: a supervisor is on the call.');
+    });
+
+    it('puts both on the call record: one item per stretch, and the held-back escalation', () => {
+        const items = conversationItemsFromRealtimeFeedbackEvents([
+            {
+                type: 'rtf-supervisor-speech',
+                payload: { id: 'sp1', by: 'priya', seconds: 4, transcribed: false },
+                timestamp: '2026-10-09T06:00:30Z',
+                turn: 2,
+            },
+            {
+                type: 'rtf-escalation-suppressed',
+                payload: { label: 'Caller asked for a manager', supervisor: 'priya' },
+                timestamp: '2026-10-09T06:00:31Z',
+                turn: 2,
+            },
+            {
+                type: 'rtf-supervisor-speech',
+                payload: { id: 'sp1', by: 'priya', seconds: 4, transcribed: true, text: 'I can help with that.' },
+                timestamp: '2026-10-09T06:00:32Z',
+                turn: 2,
+            },
+        ]);
+        expect(items.map((i) => (i.kind === 'notice' ? [i.title, i.text, i.tone] : i.kind))).toEqual([
+            ['priya (supervisor)', 'I can help with that.', 'info'],
+            ['Escalation held back', 'Caller asked for a manager. Not transferred: priya is on the call.', 'warning'],
+        ]);
     });
 });

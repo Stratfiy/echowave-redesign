@@ -13,6 +13,12 @@
  * admin turns it on here), somebody else already on the call (an admin can
  * still hand it back), the microphone refused. Nothing shows while
  * `live_takeover` is off.
+ *
+ * On a phone call, speaking from the browser is held back until telecom
+ * counsel clears mixing it into the call (`voice` false, with the reason in
+ * `notice`): Barge in is not offered, and Take over is silent -- the agent
+ * goes quiet, the supervisor guides it with whispers and hands the call
+ * back. No microphone is asked for.
  */
 
 import { Hand, Mic, MicOff, PhoneCall, Radio, UserRoundCheck } from 'lucide-react';
@@ -50,6 +56,13 @@ export const JOIN_COPY: Record<JoinMode, { title: string; body: string }> = {
 
 export const JOIN_WARNING =
     'The caller will hear you. Your voice is recorded with the call, and joining is recorded in the audit log. Use headphones so the caller does not hear themselves.';
+
+/** Taking over a call the browser cannot speak into (a phone call, for now). */
+export const SILENT_TAKEOVER_COPY = {
+    title: 'Take over',
+    body: 'The agent goes quiet and keeps following the conversation. The caller can’t hear you: guide the agent with a whisper below, then hand the call back.',
+    warning: 'Taking over is recorded in the audit log.',
+};
 
 export function TakeoverControls({
     runId,
@@ -94,6 +107,12 @@ export function TakeoverControls({
     // the state read from the API fills in until the first one arrives.
     const mode = (live.mode !== 'ai' ? live.mode : (state?.mode ?? 'ai')) as 'ai' | JoinMode;
     const mine = Boolean(state?.mine && mode !== 'ai');
+    // Whether the caller can hear a supervisor on this call, and whether a
+    // barge is possible here (not on a phone call while mixing is held back).
+    const voice = state?.voice ?? true;
+    const canBarge = state?.can_barge ?? true;
+    // Joined without a microphone: by phone, or silently.
+    const presenceOnly = Boolean(state?.needs_phone) || !voice;
     const speaking = mine && talkStatus === 'live';
     useEffect(() => {
         onSpeakingChange?.(speaking);
@@ -123,7 +142,7 @@ export function TakeoverControls({
         setBusy(true);
         setError(null);
         const byPhone = state.needs_phone;
-        if (!byPhone && !(await talk.openMic())) {
+        if (!presenceOnly && !(await talk.openMic())) {
             setBusy(false);
             return;
         }
@@ -137,7 +156,7 @@ export function TakeoverControls({
             setError(detailFromError(result.error, 'Could not join the call.'));
             return;
         }
-        await talk.connect({ presenceOnly: byPhone });
+        await talk.connect({ presenceOnly });
         setChoosing(null);
         setBusy(false);
         await load();
@@ -187,6 +206,38 @@ export function TakeoverControls({
     );
 
     // On the call: the banner and the controls.
+    if (mine && !voice) {
+        return (
+            <section aria-label="You have taken over the call" className="flex flex-col gap-2 border-t border-border pt-3">
+                <div
+                    role="status"
+                    aria-live="assertive"
+                    className="flex items-center gap-2 rounded-lg bg-muted px-3 py-2 text-sm font-medium text-foreground"
+                >
+                    <Radio className="h-4 w-4 shrink-0" aria-hidden />
+                    <span className="min-w-0 flex-1">
+                        You’ve taken over. The caller can’t hear you.
+                        <span className="block text-xs font-normal opacity-90">
+                            The agent is silent. Guide it with a whisper below, then hand the call back.
+                        </span>
+                    </span>
+                </div>
+                {state.notice && <p className="text-xs text-muted-foreground">{state.notice}</p>}
+                <div className="flex flex-wrap items-center gap-2">
+                    <Button size="sm" className="ml-auto" onClick={() => void handBack()} disabled={busy}>
+                        <UserRoundCheck className="mr-1.5 h-3.5 w-3.5" />
+                        Hand back to the agent
+                    </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                    If you close this page, the agent picks the call back up after {Math.round(state.recovery_seconds)}{' '}
+                    seconds.
+                </p>
+                {errorLine}
+            </section>
+        );
+    }
+
     if (mine) {
         const onAir = state.needs_phone || talkStatus === 'live';
         return (
@@ -245,14 +296,16 @@ export function TakeoverControls({
                             Let the agent answer
                         </Button>
                     )}
-                    <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => void switchTo(mode === 'barge' ? 'takeover' : 'barge')}
-                        disabled={busy}
-                    >
-                        {mode === 'barge' ? 'Take over fully' : 'Switch to barge'}
-                    </Button>
+                    {(mode === 'barge' || canBarge) && (
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => void switchTo(mode === 'barge' ? 'takeover' : 'barge')}
+                            disabled={busy}
+                        >
+                            {mode === 'barge' ? 'Take over fully' : 'Switch to barge'}
+                        </Button>
+                    )}
                     {!state.needs_phone && talkStatus !== 'live' && talkStatus !== 'connecting' && (
                         <Button
                             size="sm"
@@ -321,12 +374,13 @@ export function TakeoverControls({
     if (!state.can_join) return errorLine || null;
 
     if (choosing) {
-        const copy = JOIN_COPY[choosing];
+        const silent = choosing === 'takeover' && !voice;
+        const copy = silent ? SILENT_TAKEOVER_COPY : JOIN_COPY[choosing];
         return (
             <section aria-label={copy.title} className="flex flex-col gap-2 border-t border-border pt-3">
                 <p className="text-sm font-medium">{copy.title}</p>
                 <p className="text-sm">{copy.body}</p>
-                <p className="text-xs text-muted-foreground">{JOIN_WARNING}</p>
+                <p className="text-xs text-muted-foreground">{silent ? SILENT_TAKEOVER_COPY.warning : JOIN_WARNING}</p>
                 {state.needs_phone && (
                     <label className="flex flex-col gap-1 text-xs">
                         Your phone number — we’ll call you on it
@@ -345,8 +399,18 @@ export function TakeoverControls({
                         onClick={() => void join(choosing)}
                         disabled={busy || (state.needs_phone && !phone.trim())}
                     >
-                        {state.needs_phone ? <PhoneCall className="mr-1.5 h-3.5 w-3.5" /> : <Mic className="mr-1.5 h-3.5 w-3.5" />}
-                        {state.needs_phone ? 'Call me and join' : 'Turn on my microphone and join'}
+                        {state.needs_phone ? (
+                            <PhoneCall className="mr-1.5 h-3.5 w-3.5" />
+                        ) : silent ? (
+                            <UserRoundCheck className="mr-1.5 h-3.5 w-3.5" />
+                        ) : (
+                            <Mic className="mr-1.5 h-3.5 w-3.5" />
+                        )}
+                        {state.needs_phone
+                            ? 'Call me and join'
+                            : silent
+                              ? 'Take over the call'
+                              : 'Turn on my microphone and join'}
                     </Button>
                     <Button size="sm" variant="ghost" onClick={() => setChoosing(null)} disabled={busy}>
                         Cancel
@@ -360,16 +424,25 @@ export function TakeoverControls({
     return (
         <section aria-label="Join the call" className="flex flex-col gap-2 border-t border-border pt-3">
             <div className="flex flex-wrap items-center gap-2">
-                <Button size="sm" variant="outline" onClick={() => setChoosing('barge')}>
-                    <Hand className="mr-1.5 h-3.5 w-3.5" />
-                    Barge in
-                </Button>
+                {canBarge && (
+                    <Button size="sm" variant="outline" onClick={() => setChoosing('barge')}>
+                        <Hand className="mr-1.5 h-3.5 w-3.5" />
+                        Barge in
+                    </Button>
+                )}
                 <Button size="sm" variant="outline" onClick={() => setChoosing('takeover')}>
                     <UserRoundCheck className="mr-1.5 h-3.5 w-3.5" />
                     Take over
                 </Button>
-                <span className="text-xs text-muted-foreground">Speak to the caller yourself.</span>
+                <span className="text-xs text-muted-foreground">
+                    {voice ? 'Speak to the caller yourself.' : 'Silence the agent and guide it by typing.'}
+                </span>
             </div>
+            {state.notice && (
+                <p className="text-xs text-muted-foreground" data-testid="takeover-notice">
+                    {state.notice}
+                </p>
+            )}
             {errorLine}
         </section>
     );

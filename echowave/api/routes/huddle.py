@@ -17,7 +17,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from api.db.models import UserModel
 from api.services import features, member_preferences, quotas
 from api.services.auth.depends import get_user
-from api.services.huddle import FLAG, record
+from api.services.huddle import FLAG, live_call, record
 from api.services.huddle import session as huddle_session
 from api.services.voice import sessions
 
@@ -256,3 +256,90 @@ async def forget_huddle_notes(
         workflow_id=workflow_id,
     )
     return HuddleNotes(notes=[])
+
+
+# --- the huddle as a live call's whisper channel (with live_supervision) ----
+
+_LIVE = [Depends(features.require(live_call.FLAG, per_organization=True))]
+
+
+class HuddleLiveCall(BaseModel):
+    #: The agent is on one live call this person may whisper to: what they
+    #: say in the huddle goes to it.
+    live: bool
+    #: "This call only", while ``live``.
+    label: str | None = None
+    run_id: int | None = None
+    direction: str | None = None
+    caller: str | None = None
+    started_at: str | None = None
+    #: How many live calls the agent is on (several: none is chosen).
+    calls: int = 0
+
+
+class HuddleWhisper(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    text: str = Field(min_length=1, max_length=2000)
+
+
+class HuddleWhisperSent(BaseModel):
+    id: str
+    at: str
+    text: str
+    run_id: int
+    label: str
+
+
+@router.get(
+    "/{workflow_id}/live-call", response_model=HuddleLiveCall, dependencies=_LIVE
+)
+async def huddle_live_call(
+    workflow_id: int, user: Annotated[UserModel, Depends(get_user)]
+) -> HuddleLiveCall:
+    """Whether the huddle is this agent's live call's whisper channel now."""
+    await _agent(user, workflow_id)
+    target, count = await live_call.find(
+        organization_id=_organization_id(user),
+        user_id=user.id,
+        workflow_id=workflow_id,
+    )
+    if target is None:
+        return HuddleLiveCall(live=False, calls=count)
+    return HuddleLiveCall(live=True, calls=count, **target.as_dict())
+
+
+@router.post(
+    "/{workflow_id}/whisper", response_model=HuddleWhisperSent, dependencies=_LIVE
+)
+async def huddle_whisper(
+    workflow_id: int,
+    body: HuddleWhisper,
+    user: Annotated[UserModel, Depends(get_user)],
+) -> HuddleWhisperSent:
+    """A typed line from the huddle, to the agent's live call as a whisper.
+    409 when there is no single live call to send it to."""
+    from api.services.live_supervision import registry as live_registry
+
+    await _agent(user, workflow_id)
+    try:
+        sent = await live_call.whisper(
+            organization_id=_organization_id(user),
+            user_id=user.id,
+            workflow_id=workflow_id,
+            text=body.text,
+        )
+    except live_call.NoLiveCall as exc:
+        raise HTTPException(status_code=409, detail=exc.detail) from exc
+    except live_registry.NotLive as exc:
+        raise HTTPException(status_code=409, detail="This call has ended.") from exc
+    except (live_registry.NotFound, live_registry.Refused) as exc:
+        raise HTTPException(
+            status_code=409, detail="The agent isn't on a call you can whisper to."
+        ) from exc
+    return HuddleWhisperSent(
+        id=str(sent["id"]),
+        at=str(sent["at"]),
+        text=str(sent["text"]),
+        run_id=int(sent["run_id"]),
+        label=live_call.THIS_CALL_ONLY,
+    )

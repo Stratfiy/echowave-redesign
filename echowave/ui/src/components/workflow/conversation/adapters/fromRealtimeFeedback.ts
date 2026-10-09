@@ -1,4 +1,4 @@
-import { duration, takeoverText } from "@/components/live/transcript";
+import { duration, escalationText, takeoverText } from "@/components/live/transcript";
 
 import type {
     ConversationItem,
@@ -134,8 +134,8 @@ export function takeoverItem(event: RealtimeFeedbackEvent, id: string): Conversa
     };
 }
 
-/** One stretch of a supervisor speaking to the caller. Their words are not
- *  transcribed; the span says who, and for how long. */
+/** One stretch of a supervisor speaking to the caller: who, and their
+ *  words once transcribed -- or for how long, when they were not. */
 export function supervisorSpeechItem(event: RealtimeFeedbackEvent, id: string): ConversationItem {
     const by = event.payload.by || "A supervisor";
     return {
@@ -145,7 +145,22 @@ export function supervisorSpeechItem(event: RealtimeFeedbackEvent, id: string): 
         tone: "info",
         icon: "user",
         title: `${by} (supervisor)`,
-        text: `Spoke to the caller · ${duration(event.payload.seconds ?? 0)} · not transcribed`,
+        text: event.payload.text
+            ? event.payload.text
+            : `Spoke to the caller · ${duration(event.payload.seconds ?? 0)} · not transcribed`,
+    };
+}
+
+/** An escalation held back because a supervisor already had the call. */
+export function escalationSuppressedItem(event: RealtimeFeedbackEvent, id: string): ConversationItem {
+    return {
+        kind: "notice",
+        id,
+        timestamp: event.timestamp,
+        tone: "warning",
+        icon: "user",
+        title: "Escalation held back",
+        text: escalationText(event.payload),
     };
 }
 
@@ -179,6 +194,9 @@ export function conversationItemsFromLiveFeedback(messages: RealtimeFeedbackMess
 export function conversationItemsFromRealtimeFeedbackEvents(events: RealtimeFeedbackEvent[]) {
     const items: ConversationItem[] = [];
     const toolCallIndexById = new Map<string, number>();
+    // A stretch of a supervisor speaking is written again when its last
+    // words arrive after it ended: one item, the latest version.
+    const speechIndexById = new Map<string, number>();
     let pendingReasoningDurationMs: number | undefined;
     let currentBotItemIndex: number | null = null;
     let currentBotTurn: number | null = null;
@@ -328,7 +346,20 @@ export function conversationItemsFromRealtimeFeedbackEvents(events: RealtimeFeed
         }
 
         if (event.type === "rtf-supervisor-speech") {
-            items.push(supervisorSpeechItem(event, `supervisor-${event.turn}-${index}`));
+            const item = supervisorSpeechItem(event, `supervisor-${event.turn}-${index}`);
+            const spanId = event.payload.id;
+            const at = spanId ? speechIndexById.get(spanId) : undefined;
+            if (at !== undefined) {
+                items[at] = { ...item, id: items[at].id, timestamp: items[at].timestamp };
+                return;
+            }
+            if (spanId) speechIndexById.set(spanId, items.length);
+            items.push(item);
+            return;
+        }
+
+        if (event.type === "rtf-escalation-suppressed") {
+            items.push(escalationSuppressedItem(event, `escalation-${event.turn}-${index}`));
             return;
         }
 

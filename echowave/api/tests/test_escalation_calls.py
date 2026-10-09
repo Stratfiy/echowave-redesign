@@ -903,3 +903,153 @@ def test_the_caller_conference_carries_the_intro_only_for_an_escalation():
 
     plain = _asyncio.run(handle_plivo_transfer_caller("conf-1")).body.decode()
     assert "callbackUrl" not in plain
+
+
+# --- a supervisor on the call (live_takeover) ---------------------------------
+
+
+class Supervision:
+    """The take-over controller as escalation sees it: who has the call, and
+    where a held-back trigger is told."""
+
+    def __init__(self, holds: bool = True):
+        self.holds_the_call = holds
+        self.noted: list[dict] = []
+
+    async def note_escalation_suppressed(self, entry: dict) -> None:
+        self.noted.append(entry)
+
+
+class FakeOutput:
+    def __init__(self):
+        self.frames: list = []
+
+    async def queue_frame(self, frame):
+        self.frames.append(frame)
+
+
+def _params(**arguments):
+    params = SimpleNamespace(arguments=arguments, results=[])
+
+    async def result_callback(result, properties=None):
+        params.results.append(result)
+
+    params.result_callback = result_callback
+    return params
+
+
+@pytest.mark.asyncio
+async def test_while_a_supervisor_has_the_call_nothing_is_dialled_or_played(
+    call, monkeypatch, flag_on, quick
+):
+    provider = FakeProvider({FIRST: "human"})
+    _provider(monkeypatch, provider)
+    engine = FakeEngine()
+    runtime = _runtime(call, engine)
+    supervisor = Supervision()
+    runtime.set_supervision(supervisor)
+
+    # The caller asks the supervisor for a manager: no transfer, no mute,
+    # no repair note -- and the supervisor is told.
+    ahead = runtime.on_user_text("Can you put me through to your manager")
+    assert ahead == []
+    assert engine.muted == [] and runtime._task is None
+    await asyncio.sleep(0.05)
+    assert [n["label"] for n in supervisor.noted] == ["Caller asked for a manager"]
+    held = supervisor.noted[0]
+    assert held["reason_code"] == "explicit_request"
+    assert held["suppressed"] == runtime_module.SUPPRESSED_BECAUSE
+    assert held["trigger"] == "caller"
+    assert runtime.suppressed == [held]
+
+    # The model reporting the same request is the same thing held back.
+    signal = _params(kind="explicit_request")
+    await runtime._signal_handler(signal)
+    assert signal.results[-1]["status"] == "supervisor_on_call"
+    await asyncio.sleep(0.05)
+    assert len(supervisor.noted) == 1
+
+    # A policy topic is held back too, with its own line.
+    runtime.on_user_text("This is fraud, someone took money from my account")
+    await asyncio.sleep(0.05)
+    assert supervisor.noted[-1]["label"].startswith(
+        "Caller raised a topic that goes to a person"
+    )
+
+    # The agent's own transfer tool does not dial either.
+    tool = SimpleNamespace(definition={"config": {"destination": SECOND}})
+    transfer = _params()
+    assert await runtime.handle_transfer_tool(tool, transfer) is True
+    assert transfer.results[-1]["status"] == "supervisor_on_call"
+
+    # Silence while the caller listens to the supervisor counts for nothing.
+    runtime.on_idle()
+    assert sum(runtime.evaluator.points.values()) == 0
+
+    # No hold audio and no spoken hold update past the take-over gates.
+    engine._transport_output = FakeOutput()
+    line = runtime_module.EngineCallerLine(runtime)
+    await line.start_hold()
+    assert line._task is None
+    await line.update(25)
+    assert engine.spoken() == []
+    await line._play(object())
+    assert engine._transport_output.frames == []
+
+    assert provider.dialled == []
+    assert await _rows(call.people.org, call.run.id) == []
+
+    # Handed back: the next request is a new one, and it goes through.
+    supervisor.holds_the_call = False
+    runtime.on_user_text("Let me talk to a human")
+    assert engine.muted == [True]
+    await runtime._task
+    assert [d[0] for d in provider.dialled] == [FIRST]
+    [row] = await _rows(call.people.org, call.run.id)
+    assert row.state == record.BRIDGED
+
+
+@pytest.mark.asyncio
+async def test_a_supervisor_joining_before_the_dial_stops_it(
+    call, monkeypatch, flag_on, quick
+):
+    provider = FakeProvider({FIRST: "human"})
+    _provider(monkeypatch, provider)
+    engine = FakeEngine()
+    runtime = _runtime(call, engine)
+    supervisor = Supervision(holds=False)
+    runtime.set_supervision(supervisor)
+    said = runtime.say
+
+    async def say(text, *, wait=False):
+        # Somebody from the team joins while the caller hears who is coming.
+        supervisor.holds_the_call = True
+        await said(text, wait=wait)
+
+    monkeypatch.setattr(runtime, "say", say)
+    runtime.on_user_text("Let me talk to a human")
+    await runtime._task
+    assert provider.dialled == []
+    assert engine.muted == [True, False]
+    [row] = await _rows(call.people.org, call.run.id)
+    assert row.state == record.FAILED
+    assert row.failure_reason == runtime_module.SUPPRESSED_BECAUSE
+    await asyncio.sleep(0.05)
+    assert supervisor.noted and supervisor.noted[0]["trigger"] == "auto"
+
+
+@pytest.mark.asyncio
+async def test_without_a_supervisor_the_hold_audio_plays_as_before(
+    call, flag_on, quick
+):
+    engine = FakeEngine()
+    engine._transport_output = FakeOutput()
+    runtime = _runtime(call, engine)
+    runtime.set_supervision(Supervision(holds=False))
+    line = runtime_module.EngineCallerLine(runtime)
+    marker = object()
+    await line._play(marker)
+    assert engine._transport_output.frames == [marker]
+    assert runtime.supervisor_on_call is False
+    # And a runtime nobody can join behaves as it always did.
+    assert _runtime(call).supervisor_on_call is False

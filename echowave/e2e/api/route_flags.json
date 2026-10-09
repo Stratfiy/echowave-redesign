@@ -785,6 +785,12 @@
    "huddle"
   ]
  },
+ "/api/v1/huddle/{workflow_id}/live-call": {
+  "GET": [
+   "huddle",
+   "live_supervision"
+  ]
+ },
  "/api/v1/huddle/{workflow_id}/notes": {
   "DELETE": [
    "huddle"
@@ -796,6 +802,12 @@
  "/api/v1/huddle/{workflow_id}/sessions": {
   "POST": [
    "huddle"
+  ]
+ },
+ "/api/v1/huddle/{workflow_id}/whisper": {
+  "POST": [
+   "huddle",
+   "live_supervision"
   ]
  },
  "/api/v1/images/provider": {

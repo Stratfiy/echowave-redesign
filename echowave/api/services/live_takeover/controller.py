@@ -12,10 +12,22 @@ What it does, all of it off the caller's audio path:
   take-over), switch, let the agent answer, hand back, and the talking
   socket's presence ping.
 - **The supervisor's voice** arrives on ``live:call:<run>:mic`` and is played
-  into the call by the ``OutputGate``. Its loudness is read on the way past:
-  in a barge where the agent was let answer, the supervisor speaking cuts
-  the agent off again; and every stretch of the supervisor speaking is
-  recorded as one labelled span in the call's transcript.
+  into the call by the ``OutputGate`` -- on a web call, or on a phone call
+  only once server-side mixing is cleared (``bridge.PSTN_VOICE_OFF``). Its
+  loudness is read on the way past: in a barge where the agent was let
+  answer, the supervisor speaking cuts the agent off again; and every
+  stretch of the supervisor speaking is recorded as one labelled span in
+  the call's transcript.
+- **The supervisor's words** (``speech``): with a transcriber factory from
+  the pipeline (``transcribe_with``), their voice is transcribed by a copy
+  of the call's own speech-to-text, shown in the transcript under their
+  name, put into the agent's context as said by them, and read for the
+  agent's name -- in a barge, the agent answers when it is addressed, as
+  it does when "Let the agent answer" is clicked, and at no other time.
+- **Escalation** (``services/escalation``) stands down while a supervisor
+  has the call: a caller asking for a manager is not transferred away from
+  the person already with them. Each held-back trigger is recorded here
+  (``note_escalation_suppressed``) so the supervisor sees it.
 - **The watchdog**: a supervisor who has the call and stops being heard from
   (no ping, no audio) for ``recovery_seconds`` has dropped off. The agent
   takes the call back with a short line, so the caller is never left in
@@ -46,7 +58,7 @@ from api import constants
 from api.services import features
 from api.services.live_supervision import channels as live_channels
 from api.services.live_takeover import bridge as bridges
-from api.services.live_takeover import channels
+from api.services.live_takeover import channels, speech
 from api.services.live_takeover.frames import SupervisorAudioFrame
 from api.services.live_takeover.gates import (
     AI,
@@ -69,6 +81,8 @@ NOT_A_CALL = frozenset({"textchat", "CHAT"})
 EVENT_TAKEOVER = "rtf-supervisor-takeover"
 #: ...and one stretch of the supervisor speaking to the caller.
 EVENT_SPEECH = "rtf-supervisor-speech"
+#: An escalation trigger held back because a supervisor had the call.
+EVENT_ESCALATION_SUPPRESSED = "rtf-escalation-suppressed"
 
 #: Root-mean-square level (of 32768) above which a slice of the
 #: supervisor's microphone counts as speech. About -36 dBFS: well above a
@@ -108,17 +122,24 @@ def _who(name: str | None) -> str:
     return (name or "").strip() or "A member of the team"
 
 
-def handback_message(by: str | None, mode: str, seconds: int) -> dict[str, Any]:
+def handback_message(
+    by: str | None, mode: str, seconds: int, *, heard: bool = False
+) -> dict[str, Any]:
     joined = "took over" if mode == TAKEOVER else "joined"
+    words = (
+        "What they said is above, marked as theirs, with"
+        if heard
+        else "Their words were not transcribed;"
+    )
     return {
         "role": "system",
         "content": (
             f"[supervisor-handback] {_who(by)} from the team {joined} this call "
             f"for about {seconds} seconds and spoke with the caller directly. "
-            "Their words were not transcribed; anything the caller said "
-            "meanwhile is above. The call is yours again: pick up from where "
-            "the conversation now is, in one short sentence, without repeating "
-            "what was settled and without saying you were paused."
+            f"{words} anything the caller said meanwhile is above. The call is "
+            "yours again: pick up from where the conversation now is, in one "
+            "short sentence, without repeating what was settled and without "
+            "saying you were paused."
         ),
     }
 
@@ -136,13 +157,30 @@ def recovery_message(by: str | None) -> dict[str, Any]:
     }
 
 
-def answer_message(by: str | None) -> dict[str, Any]:
+def answer_message(by: str | None, asked: str | None = None) -> dict[str, Any]:
+    if asked:
+        content = (
+            f"[supervisor-answer] {_who(by)} from the team is on this call with "
+            f'you and the caller, and just said to you: "{asked}". Answer that '
+            "now, briefly, so the caller hears it too."
+        )
+    else:
+        content = (
+            f"[supervisor-answer] {_who(by)} from the team is on this call with "
+            "you and has asked you to answer the caller now. Reply to the "
+            "caller's last words."
+        )
+    return {"role": "system", "content": content}
+
+
+def said_message(by: str | None, text: str) -> dict[str, Any]:
+    """One line the supervisor said on the call, for the agent's context."""
     return {
         "role": "system",
         "content": (
-            f"[supervisor-answer] {_who(by)} from the team is on this call with "
-            "you and has asked you to answer the caller now. Reply to the "
-            "caller's last words. Their own words were not transcribed."
+            f"[supervisor-said] {_who(by)} from the team, on this call with you, "
+            f'said to the caller: "{text}". This is not the caller speaking and '
+            "not a request to you; do not answer it unless you are asked to."
         ),
     }
 
@@ -157,6 +195,7 @@ class TakeoverController:
         recovery_seconds: float | None = None,
         bridge_name: str | None = None,
         redis: Any = None,
+        agent_name: str | None = None,
     ):
         self.run_id = run_id
         self.organization_id = organization_id
@@ -184,6 +223,17 @@ class TakeoverController:
         self._lock = asyncio.Lock()
         self._errors = 0
         self.closed = False
+        #: What the agent answers to (``speech.addressed``).
+        self.agent_names = speech.names_for(agent_name)
+        self._make_stt: Any = None
+        self._stt_rate = speech.DEFAULT_SAMPLE_RATE
+        self.transcriber: speech.SupervisorTranscriber | None = None
+        #: The last stretch of speech that ended: late words belong to it.
+        self._last_span: dict[str, Any] | None = None
+        #: The supervisor's words reached the agent's context this hold.
+        self._heard = False
+        #: Escalation triggers held back while a supervisor had the call.
+        self.suppressed: list[dict[str, Any]] = []
 
     # -- plumbing -----------------------------------------------------------
 
@@ -195,6 +245,19 @@ class TakeoverController:
 
     def redis(self):
         return self._redis if self._redis is not None else live_channels.redis()
+
+    def transcribe_with(self, make_stt: Any, *, sample_rate: int | None = None) -> None:
+        """Transcribe the supervisor with a fresh copy of the call's own
+        speech-to-text (``make_stt()`` returns one). Without it their voice
+        is played and its stretches recorded, but not transcribed."""
+        self._make_stt = make_stt
+        if sample_rate:
+            self._stt_rate = int(sample_rate)
+
+    @staticmethod
+    def _speaks(bridge: bridges.SupervisorBridge | None) -> bool:
+        """Whether a supervisor on this bridge can be heard by the caller."""
+        return bridge is not None and (bridge.browser_audio or bridge.needs_phone)
 
     def _warn(self, what: str, exc: BaseException) -> None:
         self._errors += 1
@@ -245,6 +308,7 @@ class TakeoverController:
             await self._leave_bridge()
             self.state.mode = AI
             self.holder = None
+        await self._stop_transcribing()
         try:
             if self._pubsub is not None:
                 await self._pubsub.unsubscribe()
@@ -356,6 +420,10 @@ class TakeoverController:
                 workflow_run=self.workflow_run,
                 organization_id=self.organization_id,
             )
+            if mode == BARGE and not self._speaks(self.bridge):
+                # A phone call while server-side mixing is held back: the
+                # API refuses this first; this is the worker's own check.
+                raise bridges.BridgeUnavailable(bridges.PSTN_VOICE_OFF)
             await self.bridge.join(
                 mode,
                 bridges.SupervisorLeg(
@@ -385,6 +453,8 @@ class TakeoverController:
             "first_mode": mode,
         }
         self._last_seen = time.monotonic()
+        self._heard = False
+        self._last_span = None
         self.state.ai_may_speak = False
         self.state.mode = mode
         await self._cut_agent_off()
@@ -395,6 +465,13 @@ class TakeoverController:
     async def _switch(self, mode: str) -> bool:
         if mode == self.state.mode:
             return True
+        if mode == BARGE and not self._speaks(self.bridge):
+            logger.warning(
+                "Live take-over for run {}: no barge on this call ({})",
+                self.run_id,
+                bridges.PSTN_VOICE_OFF,
+            )
+            return False
         was_speaking = self.state.ai_may_speak
         self.state.mode = mode
         self.state.ai_may_speak = False
@@ -415,9 +492,12 @@ class TakeoverController:
         )
         return True
 
-    async def let_agent_answer(self, *, by_user_id: int | None) -> bool:
+    async def let_agent_answer(
+        self, *, by_user_id: int | None, asked: str | None = None
+    ) -> bool:
         """In a barge: the agent answers the caller, until the supervisor
-        next speaks."""
+        next speaks. ``asked``: what the supervisor said to it, when it was
+        addressed rather than clicked."""
         if (
             self.state.mode != BARGE
             or not self.holder
@@ -429,12 +509,17 @@ class TakeoverController:
         await self._task.queue_frames(
             [
                 LLMMessagesAppendFrame(
-                    messages=[answer_message(self.holder["by"])], run_llm=True
+                    messages=[answer_message(self.holder["by"], asked)], run_llm=True
                 )
             ]
         )
+        extra = {"addressed": True} if asked else {}
         await self._record(
-            AGENT_ANSWERING, mode=BARGE, by=self.holder["by"], by_user_id=by_user_id
+            AGENT_ANSWERING,
+            mode=BARGE,
+            by=self.holder["by"],
+            by_user_id=by_user_id,
+            **extra,
         )
         return True
 
@@ -453,6 +538,7 @@ class TakeoverController:
         mode = self.state.mode
         seconds = int(time.monotonic() - holder["started"])
         await self._end_speech()
+        await self._stop_transcribing()
         self.state.mode = AI
         self.state.ai_may_speak = False
         self.holder = None
@@ -460,7 +546,7 @@ class TakeoverController:
         message = (
             recovery_message(holder["by"])
             if action == RECOVERED
-            else handback_message(holder["by"], mode, seconds)
+            else handback_message(holder["by"], mode, seconds, heard=self._heard)
         )
         if self._task is not None and not self.closed:
             await self._task.queue_frames(
@@ -520,13 +606,7 @@ class TakeoverController:
                     by_user_id=holder.get("by_user_id"),
                 )
             if self.speech is None:
-                self.speech = {
-                    "id": uuid.uuid4().hex,
-                    "by": (self.holder or {}).get("by"),
-                    "at": _now(),
-                    "started": now,
-                    "last_voiced": now,
-                }
+                self.speech = self._new_span(now)
                 await self._publish(
                     "supervisor",
                     id=self.speech["id"],
@@ -534,30 +614,172 @@ class TakeoverController:
                     final=False,
                     seconds=0,
                 )
+                await self._transcriber_speaking(True)
             else:
                 self.speech["last_voiced"] = now
         frame = SupervisorAudioFrame(audio=pcm, sample_rate=rate, num_channels=chans)
         if await self.output_gate.inject(frame):
             self.played_frames += 1
+            await self._transcribe(pcm, rate, chans)
             return True
         return False
+
+    def _new_span(self, now: float) -> dict[str, Any]:
+        return {
+            "id": uuid.uuid4().hex,
+            "by": (self.holder or {}).get("by"),
+            "at": _now(),
+            "started": now,
+            "last_voiced": now,
+            "words": [],
+        }
+
+    # -- the supervisor's words ------------------------------------------------
+
+    async def _transcribe(self, pcm: bytes, rate: int, chans: int) -> None:
+        if self._make_stt is None:
+            return
+        try:
+            if self.transcriber is None:
+                self.transcriber = speech.SupervisorTranscriber(
+                    make_stt=self._make_stt,
+                    on_text=self.on_supervisor_text,
+                    sample_rate=self._stt_rate,
+                )
+            first = not self.transcriber.started
+            await self.transcriber.audio(pcm, rate, chans)
+            if first and self.speech is not None:
+                # Started by this slice: tell it a stretch is under way.
+                await self.transcriber.speaking(True)
+        except Exception as exc:  # noqa: BLE001 - heard, just not transcribed
+            self._warn("transcribe", exc)
+
+    async def _transcriber_speaking(self, started: bool) -> None:
+        if self.transcriber is None:
+            return
+        try:
+            await self.transcriber.speaking(started)
+        except Exception as exc:  # noqa: BLE001
+            self._warn("transcribe", exc)
+
+    async def _stop_transcribing(self) -> None:
+        transcriber, self.transcriber = self.transcriber, None
+        if transcriber is not None:
+            await transcriber.close()
+
+    async def on_supervisor_text(self, text: str, final: bool) -> None:
+        """Words from the supervisor's transcriber: into the transcript under
+        their name and, once final, into the agent's context -- or, said to
+        the agent in a barge, the agent answers them."""
+        text = " ".join(str(text or "").split())
+        if not text or not self.state.supervised or self.holder is None:
+            return
+        span = self.speech or self._last_span
+        ended = span is not None and span is not self.speech
+        if span is None:
+            # Words with no loud stretch around them (a quiet voice): a span
+            # of their own, already over.
+            span = self._new_span(time.monotonic())
+            span["seconds"] = 0
+            self._last_span = span
+            ended = True
+        if ended and not final:
+            return
+        words: list[str] = span.setdefault("words", [])
+        if final:
+            words.append(text)
+        shown = " ".join(words if final else [*words, text])
+        await self._publish(
+            "supervisor",
+            id=span["id"],
+            by=span["by"],
+            text=shown,
+            final=ended,
+            seconds=span.get("seconds", 0),
+        )
+        if not final:
+            return
+        if ended:
+            # The stretch was recorded before its last words arrived.
+            await self._append_record(
+                EVENT_SPEECH, {**self._span_record(span), "update": True}
+            )
+        async with self._lock:
+            await self._after_words(text)
+
+    async def _after_words(self, text: str) -> None:
+        holder = self.holder
+        if holder is None or self._task is None or self.closed:
+            return
+        self._heard = True
+        if (
+            self.state.mode == BARGE
+            and not self.state.ai_may_speak
+            and speech.addressed(text, self.agent_names)
+        ):
+            await self.let_agent_answer(by_user_id=holder["by_user_id"], asked=text)
+            return
+        await self._task.queue_frames(
+            [
+                LLMMessagesAppendFrame(
+                    messages=[said_message(holder["by"], text)], run_llm=False
+                )
+            ]
+        )
+
+    # -- escalation, held back -------------------------------------------------
+
+    async def note_escalation_suppressed(self, entry: dict[str, Any]) -> None:
+        """An escalation trigger that fired while a supervisor had the call,
+        and was not acted on: recorded, and shown to the people on the call.
+        Never raises."""
+        holder = self.holder or {}
+        payload = {
+            **entry,
+            "status": "suppressed",
+            "because": "supervisor_on_call",
+            "supervisor": holder.get("by"),
+            "at": _now(),
+        }
+        self.suppressed.append(payload)
+        await self._append_record(EVENT_ESCALATION_SUPPRESSED, payload)
+        await self._publish("escalation", **payload)
+
+    @staticmethod
+    def _span_record(span: dict[str, Any]) -> dict[str, Any]:
+        """One stretch of the supervisor speaking, as the call's record keeps
+        it: its own segment, labelled with who, with their words when the
+        transcriber heard them."""
+        words = " ".join(span.get("words") or [])
+        payload = {
+            "id": span["id"],
+            "by": span["by"],
+            "seconds": span.get("seconds", 0),
+            "started_at": span["at"],
+            "speaker": "supervisor",
+            "spoken": True,
+            "transcribed": bool(words),
+        }
+        if words:
+            payload["text"] = words
+        return payload
 
     async def _end_speech(self) -> None:
         span, self.speech = self.speech, None
         if span is None:
             return
-        seconds = max(1, round(span["last_voiced"] - span["started"]))
-        payload = {
-            "id": span["id"],
-            "by": span["by"],
-            "seconds": seconds,
-            "started_at": span["at"],
-            "spoken": True,
-            "transcribed": False,
-        }
-        await self._append_record(EVENT_SPEECH, payload)
+        span["seconds"] = max(1, round(span["last_voiced"] - span["started"]))
+        self._last_span = span
+        await self._transcriber_speaking(False)
+        await self._append_record(EVENT_SPEECH, self._span_record(span))
+        extra = {"text": " ".join(span["words"])} if span.get("words") else {}
         await self._publish(
-            "supervisor", id=span["id"], by=span["by"], final=True, seconds=seconds
+            "supervisor",
+            id=span["id"],
+            by=span["by"],
+            final=True,
+            seconds=span["seconds"],
+            **extra,
         )
 
     # -- effects ---------------------------------------------------------------
@@ -608,6 +830,7 @@ class TakeoverController:
                 "since": self.holder["since"],
                 "agent_answering": self.state.ai_may_speak,
                 "bridge": self.bridge.name if self.bridge else None,
+                "voice": self._speaks(self.bridge),
             }
             try:
                 await self.redis().set(
@@ -652,6 +875,7 @@ def prepare(*, workflow_run: Any, workflow: Any) -> TakeoverController | None:
             run_id=int(workflow_run.id),
             organization_id=int(organization_id),
             workflow_run=workflow_run,
+            agent_name=getattr(workflow, "name", None),
         )
     except Exception as exc:  # noqa: BLE001 - a take-over must not stop a call
         logger.warning("Live take-over not prepared for this call: {}", exc)

@@ -1088,6 +1088,15 @@ LIVE_TAKEOVER_RECOVERY_SECONDS = max(
 # supervisor's phone dialled into a Plivo Multi-Party Call; see
 # services/live_takeover/plivo_mpc.py for what is still unconfirmed).
 LIVE_TAKEOVER_BRIDGE = os.getenv("LIVE_TAKEOVER_BRIDGE", "pipeline").strip().lower()
+# Whether the "pipeline" bridge may mix a supervisor's browser audio into a
+# phone (PSTN) call on Decibyl's own servers. Off: mixing internet audio into
+# an Indian phone call raises the VoIP-PSTN interconnection question, and the
+# plan is to let the carrier's conference do the mixing until telecom counsel
+# says otherwise. A founder and counsel decision, so a constant and not an
+# environment switch. Web calls are unaffected, and taking a phone call over
+# without speaking (the agent silenced, instructions typed, then handed back)
+# stays available either way.
+ALLOW_SERVER_MIXED_PSTN_BARGE = False
 EXPO_PUSH_URL = os.getenv(
     "EXPO_PUSH_URL", "https://exp.host/--/api/v2/push/send"
 ).strip()

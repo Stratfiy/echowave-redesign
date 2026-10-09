@@ -26,6 +26,16 @@ caller in silence.
   browser through the call's own audio (``PipelineBridge``), or by phone
   through a Plivo Multi-Party Call (``plivo_mpc``, assumptions listed there).
 - ``channels`` -- the Redis names and the microphone's wire format.
+- ``speech`` -- the supervisor's words: transcribed by a copy of the call's
+  own speech-to-text, labelled with who spoke, and read for the agent's name
+  (in a barge it answers only when addressed or when "Let the agent answer"
+  is clicked).
+
+On a phone call the browser's voice is not mixed into the call
+(``constants.ALLOW_SERVER_MIXED_PSTN_BARGE``, off pending telecom counsel):
+barge is refused there and a take-over is silent. While a supervisor has
+the call, escalation (``services/escalation``) acts on nothing and records
+what it held back.
 
 Behind the ``live_takeover`` flag (``LIVE_TAKEOVER_ENABLED``), which needs
 ``live_supervision`` on as well.

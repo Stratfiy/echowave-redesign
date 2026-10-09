@@ -43,8 +43,9 @@ MAX_FRAMES_PER_PACKET = 10
 #: Run modes that are not a call.
 NOT_A_CALL = frozenset({"textchat", "CHAT"})
 #: Events a late listener is handed from the backlog: every whisper and
-#: every change of who has the call (``live_takeover``)...
-KEEP_ALWAYS = frozenset({"whisper", "takeover"})
+#: every change of who has the call (``live_takeover``), and every
+#: escalation held back while a supervisor had it...
+KEEP_ALWAYS = frozenset({"whisper", "takeover", "escalation"})
 #: ...and lines, and a supervisor's stretches of speech, once final.
 KEEP_FINAL = frozenset({"line", "supervisor"})
 #: The tap's side names, as the audio packet's first byte.

@@ -10,6 +10,9 @@
  *
  * One microphone at a time: switching to the customer test ends the huddle
  * first, and the test starts only when asked.
+ *
+ * While the agent is on a live call, the huddle is that call's whisper
+ * channel, marked "This call only" (`HuddleLiveCall`, with live_supervision).
  */
 
 import { Mic, MicOff, Phone, PhoneOff, RotateCcw } from "lucide-react";
@@ -25,6 +28,7 @@ import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 import { ACTIVE, FINAL, LABEL, type VoicePhase } from "@/lib/voice/sessionState";
 
+import { HuddleLiveCall } from "./HuddleLiveCall";
 import type { Huddle } from "./useHuddle";
 
 /** Phases where the microphone is capturing, so the meter is real. */
@@ -169,6 +173,8 @@ export function HuddlePanel({
                             {agentName} put a change on a card in the thread. Nothing changes until you publish it there.
                         </div>
                     )}
+
+                    <HuddleLiveCall workflowId={workflowId} active={live} />
 
                     <div className="min-h-0 flex-1 overflow-y-auto px-4" role="log" aria-label="Huddle transcript">
                         {state.captions.map((caption) => (

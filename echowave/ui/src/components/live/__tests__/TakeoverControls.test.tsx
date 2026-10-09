@@ -33,7 +33,7 @@ vi.mock('../talkAudio', async (original) => {
     return { ...real, Microphone: { open: openMic } };
 });
 
-import { JOIN_WARNING, TakeoverControls } from '../TakeoverControls';
+import { JOIN_WARNING, SILENT_TAKEOVER_COPY, TakeoverControls } from '../TakeoverControls';
 import { AGENT_HAS_IT, type TakeoverLive } from '../transcript';
 
 class FakeSocket {
@@ -274,5 +274,41 @@ describe('somebody else on the call', () => {
         expect(screen.queryByRole('button', { name: /Barge in/ })).toBeNull();
         fireEvent.click(screen.getByRole('button', { name: 'Hand back to the agent' }));
         await waitFor(() => expect(handBack).toHaveBeenCalled());
+    });
+});
+
+const PSTN_VOICE_OFF =
+    'Speaking into phone calls from the browser is off until it is cleared with telecom counsel. You can take the call over: the agent goes quiet, you guide it by typing, and then hand the call back.';
+
+describe('a phone call, while speaking into it from the browser is held back', () => {
+    it('offers no barge, says why, and takes over without asking for the microphone', async () => {
+        respond({ voice: false, can_barge: false, notice: PSTN_VOICE_OFF });
+        join.mockResolvedValue({ data: { mode: 'takeover', by: 'priya', by_user_id: 1 } });
+        show();
+        expect(await screen.findByText(PSTN_VOICE_OFF)).toBeTruthy();
+        expect(screen.queryByRole('button', { name: /Barge in/ })).toBeNull();
+        expect(screen.getByText('Silence the agent and guide it by typing.')).toBeTruthy();
+        fireEvent.click(screen.getByRole('button', { name: /Take over/ }));
+        expect(screen.getByText(SILENT_TAKEOVER_COPY.body)).toBeTruthy();
+        expect(screen.queryByText(JOIN_WARNING)).toBeNull();
+        respond({ voice: false, can_barge: false, notice: PSTN_VOICE_OFF, mode: 'takeover', by: 'priya', by_user_id: 1, mine: true });
+        fireEvent.click(screen.getByRole('button', { name: 'Take over the call' }));
+        await waitFor(() => expect(join).toHaveBeenCalledWith({ path: { run_id: 41 }, body: { mode: 'takeover' } }));
+        expect(openMic).not.toHaveBeenCalled();
+        // The talking socket still opens, to say the supervisor is there.
+        await waitFor(() => expect(FakeSocket.all).toHaveLength(1));
+        expect(await screen.findByText('You’ve taken over. The caller can’t hear you.')).toBeTruthy();
+        expect(screen.queryByRole('button', { name: 'Switch to barge' })).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Mute' })).toBeNull();
+        expect(screen.getByRole('button', { name: 'Hand back to the agent' })).toBeTruthy();
+    });
+
+    it('says when joining by phone cannot reach this call', async () => {
+        const note =
+            "Joining by phone works only for calls placed in a Plivo conference, and calls are not placed in one yet, so this call can't be joined by phone.";
+        respond({ bridge: 'plivo_mpc', needs_phone: true, notice: note });
+        show();
+        expect(await screen.findByText(note)).toBeTruthy();
+        expect(screen.getByRole('button', { name: /Barge in/ })).toBeTruthy();
     });
 });

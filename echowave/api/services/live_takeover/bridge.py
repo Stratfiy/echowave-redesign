@@ -17,6 +17,16 @@ for another is a setting (``LIVE_TAKEOVER_BRIDGE``), not a code change:
 
 A bridge is told about every change; one that has nothing to do for a change
 (the pipeline bridge, for all of them) does nothing.
+
+**Phone calls and the pipeline bridge.** Mixing a supervisor's browser audio
+into a phone (PSTN) call on Decibyl's servers is held back until telecom
+counsel confirms it (``constants.ALLOW_SERVER_MIXED_PSTN_BARGE``, off): on a
+phone call the pipeline bridge carries no voice, so barging in is refused
+with ``PSTN_VOICE_OFF`` and a take-over is silent -- the agent stops, the
+supervisor guides it by typing and hands the call back. Web calls are
+unaffected. The Plivo conference path is the way a voice will reach a phone
+call; it serves only calls already in a conference, and none are yet
+(``MPC_NOT_YET``).
 """
 
 from __future__ import annotations
@@ -30,6 +40,26 @@ from loguru import logger
 PIPELINE = "pipeline"
 PLIVO_MPC = "plivo_mpc"
 BRIDGES = (PIPELINE, PLIVO_MPC)
+
+#: Run modes that are a web call, not a phone call: the same two the live
+#: list shows as "web" (``live_supervision.session._direction``). Anything
+#: else counts as a phone call here, so a new telephony mode is held back
+#: rather than mixed into by default.
+WEB_MODES = frozenset({"webrtc", "smallwebrtc"})
+#: The live list's word for a web call (``LiveCall.direction``).
+WEB = "web"
+
+#: Said to a supervisor who tries to speak into a phone call from the browser.
+PSTN_VOICE_OFF = (
+    "Speaking into phone calls from the browser is off until it is cleared "
+    "with telecom counsel. You can take the call over: the agent goes quiet, "
+    "you guide it by typing, and then hand the call back."
+)
+#: Shown with the Plivo conference bridge, which cannot reach today's calls.
+MPC_NOT_YET = (
+    "Joining by phone works only for calls placed in a Plivo conference, and "
+    "calls are not placed in one yet, so this call can't be joined by phone."
+)
 
 
 class BridgeUnavailable(Exception):
@@ -70,10 +100,16 @@ class SupervisorBridge(ABC):
 
 class PipelineBridge(SupervisorBridge):
     """The browser's audio through the call's own output: the gates do it
-    all, so there is nothing to tell a telephony provider."""
+    all, so there is nothing to tell a telephony provider.
+
+    ``browser_audio`` is False on a phone call while server-side mixing is
+    held back (see the module docstring): the gates still silence the agent,
+    and the supervisor's microphone is not played."""
 
     name = PIPELINE
-    browser_audio = True
+
+    def __init__(self, *, browser_audio: bool = True):
+        self.browser_audio = bool(browser_audio)
 
     async def join(self, mode: str, leg: SupervisorLeg) -> None:
         return None
@@ -102,6 +138,17 @@ def configured() -> str:
     return name
 
 
+def is_web_call(workflow_run: Any) -> bool:
+    return str(getattr(workflow_run, "mode", "") or "") in WEB_MODES
+
+
+def browser_voice_allowed(*, web_call: bool) -> bool:
+    """Whether the pipeline bridge may play a browser's audio into this call."""
+    from api import constants
+
+    return web_call or bool(constants.ALLOW_SERVER_MIXED_PSTN_BARGE)
+
+
 async def make(
     name: str, *, workflow_run: Any, organization_id: int
 ) -> SupervisorBridge:
@@ -111,4 +158,6 @@ async def make(
         from api.services.live_takeover import plivo_mpc
 
         return await plivo_mpc.for_run(workflow_run, organization_id)
-    return PipelineBridge()
+    return PipelineBridge(
+        browser_audio=browser_voice_allowed(web_call=is_web_call(workflow_run))
+    )

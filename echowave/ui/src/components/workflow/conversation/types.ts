@@ -65,6 +65,12 @@ export interface RealtimeFeedbackEvent {
         supervisor?: string;
         /** ...and, for a stretch of them speaking, for how long. */
         seconds?: number;
+        /** A stretch of a supervisor speaking: its id, written again with
+         *  their words when those arrive after it ended. */
+        id?: string;
+        transcribed?: boolean;
+        /** An escalation held back while a supervisor had the call. */
+        label?: string;
     };
     timestamp: string;
     turn: number;

@@ -9373,6 +9373,40 @@ export type HttpTransferResolverConfig = {
 };
 
 /**
+ * HuddleLiveCall
+ */
+export type HuddleLiveCall = {
+    /**
+     * Live
+     */
+    live: boolean;
+    /**
+     * Label
+     */
+    label?: string | null;
+    /**
+     * Run Id
+     */
+    run_id?: number | null;
+    /**
+     * Direction
+     */
+    direction?: string | null;
+    /**
+     * Caller
+     */
+    caller?: string | null;
+    /**
+     * Started At
+     */
+    started_at?: string | null;
+    /**
+     * Calls
+     */
+    calls?: number;
+};
+
+/**
  * HuddleNotes
  */
 export type HuddleNotes = {
@@ -9446,6 +9480,42 @@ export type HuddleSession = {
      * Notes
      */
     notes?: Array<string>;
+};
+
+/**
+ * HuddleWhisper
+ */
+export type HuddleWhisper = {
+    /**
+     * Text
+     */
+    text: string;
+};
+
+/**
+ * HuddleWhisperSent
+ */
+export type HuddleWhisperSent = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * At
+     */
+    at: string;
+    /**
+     * Text
+     */
+    text: string;
+    /**
+     * Run Id
+     */
+    run_id: number;
+    /**
+     * Label
+     */
+    label: string;
 };
 
 /**
@@ -20597,6 +20667,18 @@ export type TakeoverState = {
      * Recovery Seconds
      */
     recovery_seconds: number;
+    /**
+     * Voice
+     */
+    voice?: boolean;
+    /**
+     * Can Barge
+     */
+    can_barge?: boolean;
+    /**
+     * Notice
+     */
+    notice?: string | null;
 };
 
 /**
@@ -50657,6 +50739,94 @@ export type HuddleNotesApiV1HuddleWorkflowIdNotesGetResponses = {
 };
 
 export type HuddleNotesApiV1HuddleWorkflowIdNotesGetResponse = HuddleNotesApiV1HuddleWorkflowIdNotesGetResponses[keyof HuddleNotesApiV1HuddleWorkflowIdNotesGetResponses];
+
+export type HuddleLiveCallApiV1HuddleWorkflowIdLiveCallGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+    };
+    query?: never;
+    url: '/api/v1/huddle/{workflow_id}/live-call';
+};
+
+export type HuddleLiveCallApiV1HuddleWorkflowIdLiveCallGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type HuddleLiveCallApiV1HuddleWorkflowIdLiveCallGetError = HuddleLiveCallApiV1HuddleWorkflowIdLiveCallGetErrors[keyof HuddleLiveCallApiV1HuddleWorkflowIdLiveCallGetErrors];
+
+export type HuddleLiveCallApiV1HuddleWorkflowIdLiveCallGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: HuddleLiveCall;
+};
+
+export type HuddleLiveCallApiV1HuddleWorkflowIdLiveCallGetResponse = HuddleLiveCallApiV1HuddleWorkflowIdLiveCallGetResponses[keyof HuddleLiveCallApiV1HuddleWorkflowIdLiveCallGetResponses];
+
+export type HuddleWhisperApiV1HuddleWorkflowIdWhisperPostData = {
+    body: HuddleWhisper;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+    };
+    query?: never;
+    url: '/api/v1/huddle/{workflow_id}/whisper';
+};
+
+export type HuddleWhisperApiV1HuddleWorkflowIdWhisperPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type HuddleWhisperApiV1HuddleWorkflowIdWhisperPostError = HuddleWhisperApiV1HuddleWorkflowIdWhisperPostErrors[keyof HuddleWhisperApiV1HuddleWorkflowIdWhisperPostErrors];
+
+export type HuddleWhisperApiV1HuddleWorkflowIdWhisperPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: HuddleWhisperSent;
+};
+
+export type HuddleWhisperApiV1HuddleWorkflowIdWhisperPostResponse = HuddleWhisperApiV1HuddleWorkflowIdWhisperPostResponses[keyof HuddleWhisperApiV1HuddleWorkflowIdWhisperPostResponses];
 
 export type OrganisationApiV1OrganisationGetData = {
     body?: never;

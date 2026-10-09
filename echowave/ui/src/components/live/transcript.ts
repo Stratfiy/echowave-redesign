@@ -11,9 +11,12 @@
  * With live_takeover, two more: `takeover` (somebody joined, switched, let
  * the agent answer, handed back, or dropped off and the agent took the call
  * back) and `supervisor` (one stretch of a supervisor speaking to the
- * caller, sent when it starts and again, final, when it ends). Both are
- * entries in the transcript, and `takeover` also keeps `state.takeover`:
- * who has the call now. See api/services/live_takeover/controller.py.
+ * caller, sent when it starts and again, final, when it ends -- with
+ * their words, once transcribed). Both are entries in the transcript, and
+ * `takeover` also keeps `state.takeover`: who has the call now. And
+ * `escalation`: something that would have handed the call to a person
+ * ("Caller asked for a manager"), held back because a supervisor already
+ * has it. See api/services/live_takeover/controller.py.
  */
 
 export type LiveEvent = {
@@ -38,6 +41,8 @@ export type LiveEvent = {
     supervisor?: string;
     /** `supervisor`: how long they spoke, once final. */
     seconds?: number;
+    /** `escalation`: what was held back, in one line. */
+    label?: string;
 };
 
 export type TakeoverMode = 'ai' | 'barge' | 'takeover';
@@ -63,7 +68,17 @@ export type TranscriptEntry =
       }
     | { kind: 'whisper'; key: string; seq: number; by: string; text: string; urgent: boolean }
     | { kind: 'takeover'; key: string; seq: number; text: string }
-    | { kind: 'supervisor'; key: string; seq: number; by: string; seconds: number; final: boolean };
+    | {
+          kind: 'supervisor';
+          key: string;
+          seq: number;
+          by: string;
+          seconds: number;
+          final: boolean;
+          /** Their words, once the transcriber has them. */
+          text: string;
+      }
+    | { kind: 'escalation'; key: string; seq: number; text: string };
 
 export type TranscriptState = {
     entries: TranscriptEntry[];
@@ -114,6 +129,13 @@ export function takeoverText(event: Pick<LiveEvent, 'action' | 'mode' | 'by' | '
         default:
             return `${by} changed who has the call.`;
     }
+}
+
+/** An escalation held back while a supervisor had the call, in one line. */
+export function escalationText(event: Pick<LiveEvent, 'label' | 'supervisor'>): string {
+    const what = event.label || 'The caller wanted a person';
+    const who = event.supervisor || 'a supervisor';
+    return `${what}. Not transferred: ${who} is on the call.`;
 }
 
 function nextTakeover(was: TakeoverLive, event: LiveEvent): TakeoverLive {
@@ -200,8 +222,9 @@ export function apply(state: TranscriptState, event: LiveEvent): TranscriptState
             };
         case 'supervisor': {
             const key = `supervisor-${event.id ?? order}`;
-            const existing = state.entries.find((e) => e.key === key);
-            if (existing && existing.kind === 'supervisor' && existing.final && !event.final) return { ...state, seen };
+            const found = state.entries.find((e) => e.key === key);
+            const existing = found && found.kind === 'supervisor' ? found : undefined;
+            if (existing && existing.final && !event.final) return { ...state, seen };
             return {
                 ...state,
                 seen,
@@ -210,11 +233,25 @@ export function apply(state: TranscriptState, event: LiveEvent): TranscriptState
                     key,
                     seq: order,
                     by: event.by || 'A supervisor',
-                    seconds: event.seconds ?? 0,
+                    seconds: event.seconds ?? existing?.seconds ?? 0,
                     final: Boolean(event.final),
+                    // Words arrive after the stretch they belong to; a later
+                    // event without them keeps what was already heard.
+                    text: event.text ?? existing?.text ?? '',
                 }),
             };
         }
+        case 'escalation':
+            return {
+                ...state,
+                seen,
+                entries: place(state.entries, {
+                    kind: 'escalation',
+                    key: `escalation-${order}`,
+                    seq: order,
+                    text: escalationText(event),
+                }),
+            };
         case 'step':
             return { ...state, seen, step: event.step ?? null };
         case 'interrupted':

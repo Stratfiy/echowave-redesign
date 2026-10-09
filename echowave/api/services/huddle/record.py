@@ -87,9 +87,15 @@ def new_payload(*, session_id: int, user_id: int) -> dict[str, Any]:
 
 
 def add_turn(
-    payload: dict[str, Any], who: str, text: str, *, interrupted: bool = False
+    payload: dict[str, Any],
+    who: str,
+    text: str,
+    *,
+    interrupted: bool = False,
+    whisper_run_id: int | None = None,
 ) -> None:
-    """Append a line, keeping the row bounded."""
+    """Append a line, keeping the row bounded. ``whisper_run_id``: the line
+    went to that live call as a whisper ("This call only")."""
     line = clip(text, MAX_LINE_CHARS)
     if not line:
         return
@@ -97,6 +103,8 @@ def add_turn(
     entry: dict[str, Any] = {"who": who, "text": line, "at": _now()}
     if interrupted:
         entry["interrupted"] = True
+    if whisper_run_id is not None:
+        entry["whisper_run_id"] = int(whisper_run_id)
     turns.append(entry)
     if len(turns) > MAX_TURNS:
         payload["dropped"] = int(payload.get("dropped") or 0) + len(turns) - MAX_TURNS
