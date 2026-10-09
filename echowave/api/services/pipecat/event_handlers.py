@@ -2,12 +2,6 @@ import asyncio
 from datetime import UTC, datetime
 
 from loguru import logger
-from pipecat.frames.frames import (
-    Frame,
-)
-from pipecat.pipeline.worker import PipelineWorker
-from pipecat.processors.audio.audio_buffer_processor import AudioBufferProcessor
-from pipecat.utils.enums import EndTaskReason
 
 from api.db import db_client
 from api.enums import PostHogEvent, WorkflowRunState
@@ -32,6 +26,12 @@ from api.services.workflow_run_artifacts import upload_workflow_run_artifacts
 from api.tasks.arq import enqueue_job
 from api.tasks.function_names import FunctionNames
 from api.utils.transcript import generate_transcript_text
+from pipecat.frames.frames import (
+    Frame,
+)
+from pipecat.pipeline.worker import PipelineWorker
+from pipecat.processors.audio.audio_buffer_processor import AudioBufferProcessor
+from pipecat.utils.enums import EndTaskReason
 
 #: How long a call may run with a broken component and a silent agent before we
 #: end it ourselves.
