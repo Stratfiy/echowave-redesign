@@ -27,7 +27,6 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from pipecat.processors.aggregators.llm_context import LLMContext
-from pipecat.tests import MockLLMService
 
 from api.db.care_models import CareMedicineModel
 from api.db.models import (
@@ -51,6 +50,7 @@ from api.services.workflow import (
 )
 from api.services.workflow.pipecat_engine import PipecatEngine
 from api.services.workflow.pipecat_engine_context_composer import caller_block
+from pipecat.tests import MockLLMService
 
 ON = {"today_reminders", "care_medicine_calls"}
 
