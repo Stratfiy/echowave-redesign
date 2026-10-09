@@ -233,7 +233,7 @@ SYSTEM = (
     "skipped and why, then end your reply.\n"
     "- run_script: a short Python script in the sandbox for a job over many "
     "rows or many records, with the connected apps reachable by name inside "
-    "it. Four credits a run; offered only on plans that have it.\n"
+    "it.\n"
     "- An identifier -- an id, a uuid, a page, a thread, an account -- is "
     "not something to infer. A true one comes from the context, from this "
     "thread, or from a read you just ran. Never carry one over from another "
@@ -2148,7 +2148,10 @@ async def _tool(
         from api.services.sandbox import code_mode
 
         if not await code_mode.allowed(organization_id):
-            return {"status": "unavailable", "reason": "scripts are not on this plan"}
+            return {
+                "status": "unavailable",
+                "reason": "scripts are not switched on for this workspace",
+            }
         return await code_mode.run_for_bot(
             organization_id=organization_id,
             code=str(arguments.get("code") or ""),

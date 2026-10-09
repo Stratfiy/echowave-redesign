@@ -108,8 +108,10 @@ never see.
 on 9 Oct 2026: no price, plan name, credit rate or upgrade prompt appears
 anywhere a user can see it (staff and admin cost screens excepted, and the
 checkout stays behind `free_mode`), and the positioning is "an intelligent
-agent that grows and evolves with you". `ui/src/lib/pricing.ts` holds the
-switch and `pricingGuard.test.ts` fails on new price copy. Any new price or
+agent that grows and evolves with you". That includes what a model says
+aloud. `ui/src/lib/pricing.ts` and `api/constants.py` (`PRICES_SHOWN`) hold
+the switch; `pricingGuard.test.ts` and `test_prompts_quote_no_prices.py` fail
+on new price copy in the UI and in the persona and builder prompts. Any new price or
 plan copy still needs the founder, as do the public site copy and the bot
 shelf.
 
