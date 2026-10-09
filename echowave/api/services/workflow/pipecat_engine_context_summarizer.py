@@ -96,6 +96,15 @@ class ContextSummarizationManager:
                 )
                 return
 
+            # A model call the run's receipt never sees (run_inference goes
+            # round the frame path). Counted in the cache measurement so a
+            # task's measured cost includes its summaries. Only once a summary
+            # came back: before that the usage on the service may be an older
+            # call's.
+            self._engine._record_side_call(
+                "summary", llm, getattr(llm, "last_inference_usage", None)
+            )
+
             # Trace the LLM call — mirror what _generate_summary sends to
             # run_inference: system prompt + formatted transcript as user msg.
             model_name = getattr(llm, "model_name", "unknown")

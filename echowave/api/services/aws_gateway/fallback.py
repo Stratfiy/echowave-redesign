@@ -185,6 +185,17 @@ async def answer(
         await model_usage.record(
             provider=config.USAGE_PROVIDER[config.BEDROCK], model=model, usage=usage
         )
+        # The same call in the cache measurement, as the second attempt it is.
+        from api.services.billing import cache_metrics, llm_usage
+
+        with cache_metrics.retrying():
+            await cache_metrics.record_direct(
+                provider=config.USAGE_PROVIDER[config.BEDROCK],
+                model=model,
+                usage=llm_usage.normalise(response.get("usage"), shape="bedrock"),
+                system=system,
+                tools=tools,
+            )
     # The note goes on at the surface a person reads (Decibyl's reply, the
     # builder and Studio), not here: this client also serves callers that
     # parse the text, and a sentence after their JSON would break them.

@@ -41,14 +41,14 @@ import json
 import re
 import time
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 import httpx
 from loguru import logger
 
 from api.services.aws_gateway import claude as aws_claude
-from api.services.billing import model_usage
+from api.services.billing import cache_metrics, llm_usage, model_usage
 
 #: Vendors this loop can drive. Values match the provider names used in the
 #: platform credential store, so the key an operator installs selects the
@@ -475,13 +475,64 @@ def _anthropic_request(
             }
             for t in tools
         ]
+    if _cache_v2():
+        _mark_conversation_tail(messages)
     return payload
+
+
+def _cache_v2() -> bool:
+    """Whether ``cache_v2`` is on for the account this call is for."""
+    from api.services import features
+
+    organization_id, _ = model_usage.current()
+    try:
+        return features.is_on("cache_v2", organization_id)
+    except Exception:  # noqa: BLE001 - unknown is off: the request as before
+        return False
+
+
+def _mark_conversation_tail(messages: list[dict[str, Any]]) -> None:
+    """A second cache breakpoint, on the last block of the last message
+    (``cache_v2``).
+
+    The system block's breakpoint caches the tools and the system prompt and
+    nothing after them. Decibyl's per-turn context rides in the latest user
+    message, and a turn that reads a connected app sends that same message
+    again on every round -- re-billed in full each time. A breakpoint at the
+    tail lets the next round read everything up to here from the cache. The
+    cost is a cache write on a turn that has no second round, which is why
+    this is behind a flag and measured before it is on anywhere.
+
+    The model sees exactly the same content; only the request is marked.
+    """
+    if not messages:
+        return
+    last = messages[-1]
+    content = last.get("content")
+    if isinstance(content, str):
+        if not content.strip():
+            return
+        last["content"] = [
+            {"type": "text", "text": content, "cache_control": {"type": "ephemeral"}}
+        ]
+        return
+    if isinstance(content, list) and content and isinstance(content[-1], dict):
+        block = content[-1]
+        if block.get("type") == "text" and not str(block.get("text") or "").strip():
+            return
+        # A new list: a user turn's list is the conversation's own object,
+        # and marking it there would carry the mark into the next request.
+        last["content"] = [
+            *content[:-1],
+            {**block, "cache_control": {"type": "ephemeral"}},
+        ]
 
 
 # --- usage ------------------------------------------------------------------
 #
-# Each vendor reports usage its own way. All three are read into the shape
-# the pipeline writes to ``usage_info["llm"]``, so the one vendor rule in
+# Each vendor reports usage its own way. All three are read through the one
+# normaliser (``billing.llm_usage``) and handed back in the shape the pipeline
+# writes to ``usage_info["llm"]``, so the one vendor rule in
 # ``billing.usage.llm_split_items`` -- Anthropic's input is net of its cache,
 # OpenAI's and Google's include it -- splits both the same way.
 
@@ -493,49 +544,62 @@ def _count(value: Any) -> int:
         return 0
 
 
-def _usage_shape(
-    prompt: Any, completion: Any, cache_read: Any = 0, cache_write: Any = 0
-) -> dict[str, int]:
-    out = {"prompt_tokens": _count(prompt), "completion_tokens": _count(completion)}
-    if _count(cache_read):
-        out["cache_read_input_tokens"] = _count(cache_read)
-    if _count(cache_write):
-        out["cache_creation_input_tokens"] = _count(cache_write)
-    return out
+def _usage_fields(usage: Any, shape: str) -> dict[str, int] | None:
+    if not isinstance(usage, dict):
+        return None
+    normalised = llm_usage.normalise(usage, shape=shape)
+    return normalised.as_usage_fields() if normalised is not None else None
 
 
 def _anthropic_usage(usage: Any) -> dict[str, int] | None:
-    if not isinstance(usage, dict):
-        return None
-    return _usage_shape(
-        usage.get("input_tokens"),
-        usage.get("output_tokens"),
-        usage.get("cache_read_input_tokens"),
-        usage.get("cache_creation_input_tokens"),
-    )
+    return _usage_fields(usage, "anthropic")
 
 
 def _openai_usage(usage: Any) -> dict[str, int] | None:
-    if not isinstance(usage, dict):
-        return None
-    details = usage.get("prompt_tokens_details") or {}
-    return _usage_shape(
-        usage.get("prompt_tokens"),
-        usage.get("completion_tokens"),
-        details.get("cached_tokens") if isinstance(details, dict) else 0,
-    )
+    return _usage_fields(usage, "openai")
 
 
 def _gemini_usage(usage: Any) -> dict[str, int] | None:
-    if not isinstance(usage, dict):
-        return None
     # Thinking is billed at the output rate and reported beside the
-    # candidates, not inside them.
-    return _usage_shape(
-        usage.get("promptTokenCount"),
-        _count(usage.get("candidatesTokenCount"))
-        + _count(usage.get("thoughtsTokenCount")),
-        usage.get("cachedContentTokenCount"),
+    # candidates, not inside them; the normaliser adds it to the output.
+    return _usage_fields(usage, "gemini")
+
+
+#: Where each vendor's reply body keeps its usage, and in which shape.
+_BODY_USAGE = {
+    ANTHROPIC: ("usage", "anthropic"),
+    OPENAI: ("usage", "openai"),
+    GOOGLE: ("usageMetadata", "gemini"),
+}
+
+
+def _normalised_from_body(provider: str, body: Any) -> llm_usage.NormalisedUsage | None:
+    key, shape = _BODY_USAGE.get(provider, ("usage", "auto"))
+    raw = body.get(key) if isinstance(body, dict) else None
+    return llm_usage.normalise(raw, shape=shape) if isinstance(raw, dict) else None
+
+
+async def _record_usage(
+    *,
+    provider: str,
+    model: str,
+    usage: dict[str, int] | None,
+    normalised: llm_usage.NormalisedUsage | None,
+    system: str,
+    tools: list[dict[str, Any]] | None,
+) -> None:
+    """Both records of one call: ``model_usage`` (what it used, as it always
+    has been) and ``llm_call_usage`` (what prompt it sent and what the cache
+    did with it). Neither ever raises."""
+    await model_usage.record(provider=provider, model=model, usage=usage)
+    if normalised is None and usage:
+        normalised = llm_usage.normalise(usage, shape="pipeline", provider=provider)
+    await cache_metrics.record_direct(
+        provider=provider,
+        model=model,
+        usage=normalised,
+        system=system,
+        tools=tools,
     )
 
 
@@ -905,11 +969,19 @@ async def _complete_once(
         raise BuilderClientError("The assistant hit an error. Try again in a moment.")
 
     try:
-        reply = parse(response.json())
+        body = response.json()
+        reply = parse(body)
     except (ValueError, KeyError, TypeError) as exc:
         logger.error("Agent builder could not parse the {} reply: {}", provider, exc)
         raise BuilderClientError("The assistant replied in a form we could not read.")
-    await model_usage.record(provider=provider, model=model, usage=reply.usage)
+    await _record_usage(
+        provider=provider,
+        model=model,
+        usage=reply.usage,
+        normalised=_normalised_from_body(provider, body),
+        system=system,
+        tools=tools,
+    )
     return reply
 
 
@@ -950,9 +1022,14 @@ class _StreamState:
         self.parts: list[str] = []
         self.calls: dict[int, dict[str, Any]] = {}
         self._usage: dict[str, int] | None = None
+        self._normalised: llm_usage.NormalisedUsage | None = None
 
     def usage(self) -> dict[str, int] | None:
         return self._usage
+
+    def normalised(self) -> llm_usage.NormalisedUsage | None:
+        """The same usage in one shape, with reasoning where reported."""
+        return self._normalised
 
     def text(self) -> str:
         return "".join(self.parts)
@@ -989,12 +1066,23 @@ class _StreamState:
         # Anthropic sends the input side when the message starts and the
         # output count, cumulative, on each message_delta.
         if kind == "message_start":
-            self._usage = _anthropic_usage((event.get("message") or {}).get("usage"))
+            raw = (event.get("message") or {}).get("usage")
+            self._usage = _anthropic_usage(raw)
+            self._normalised = (
+                llm_usage.normalise(raw, shape="anthropic")
+                if isinstance(raw, dict)
+                else None
+            )
             return False
         if kind == "message_delta" and isinstance(event.get("usage"), dict):
             base = dict(self._usage or {"prompt_tokens": 0})
             base["completion_tokens"] = _count(event["usage"].get("output_tokens"))
             self._usage = base
+            self._normalised = replace(
+                self._normalised
+                or llm_usage.NormalisedUsage(cache_outside_prompt=True),
+                output_tokens=base["completion_tokens"],
+            )
             return False
         if kind == "content_block_start":
             block = event.get("content_block") or {}
@@ -1018,6 +1106,7 @@ class _StreamState:
         # and an empty choices list.
         if isinstance(event.get("usage"), dict):
             self._usage = _openai_usage(event["usage"])
+            self._normalised = llm_usage.normalise(event["usage"], shape="openai")
         choices = event.get("choices") or []
         if not choices:
             return False
@@ -1158,7 +1247,14 @@ async def _stream_once(
             "The assistant could not be reached just now. Try again in a moment."
         ) from exc
     usage = state.usage()
-    await model_usage.record(provider=provider, model=model, usage=usage)
+    await _record_usage(
+        provider=provider,
+        model=model,
+        usage=usage,
+        normalised=state.normalised(),
+        system=system,
+        tools=tools,
+    )
     return ModelReply(
         text=state.text().strip(), tool_calls=state.tool_calls(), usage=usage
     )
@@ -1222,10 +1318,13 @@ async def _aws_complete_once(
         raise _aws_error(exc, payload["model"]) from exc
     body = message.model_dump() if hasattr(message, "model_dump") else dict(message)
     reply = _anthropic_parse(body)
-    await model_usage.record(
+    await _record_usage(
         provider=aws_claude.usage_provider(api_key),
         model=payload["model"],
         usage=reply.usage,
+        normalised=_normalised_from_body(ANTHROPIC, body),
+        system=system,
+        tools=tools,
     )
     return reply
 
@@ -1256,10 +1355,13 @@ async def _aws_stream_once(
     except Exception as exc:  # noqa: BLE001 - every SDK failure is mapped
         raise _aws_error(exc, payload["model"]) from exc
     usage = state.usage()
-    await model_usage.record(
+    await _record_usage(
         provider=aws_claude.usage_provider(api_key),
         model=payload["model"],
         usage=usage,
+        normalised=state.normalised(),
+        system=system,
+        tools=tools,
     )
     return ModelReply(
         text=state.text().strip(), tool_calls=state.tool_calls(), usage=usage
@@ -1423,14 +1525,15 @@ async def _complete(
         logger.warning(
             "{} is out of credit; answering this turn on {}", provider, other[0]
         )
-        return await _complete_once(
-            provider=other[0],
-            model=other[1],
-            api_key=other[2],
-            system=system,
-            conversation=conversation,
-            tools=tools,
-        )
+        with cache_metrics.retrying():
+            return await _complete_once(
+                provider=other[0],
+                model=other[1],
+                api_key=other[2],
+                system=system,
+                conversation=conversation,
+                tools=tools,
+            )
 
 
 async def stream(
@@ -1513,15 +1616,16 @@ async def _stream(
         logger.warning(
             "{} is out of credit; answering this turn on {}", provider, other[0]
         )
-        return await _stream_once(
-            provider=other[0],
-            model=other[1],
-            api_key=other[2],
-            system=system,
-            conversation=conversation,
-            on_text=on_text,
-            tools=tools,
-        )
+        with cache_metrics.retrying():
+            return await _stream_once(
+                provider=other[0],
+                model=other[1],
+                api_key=other[2],
+                system=system,
+                conversation=conversation,
+                on_text=on_text,
+                tools=tools,
+            )
 
 
 async def _after_rate_limit(
@@ -1537,7 +1641,21 @@ async def _after_rate_limit(
     this one do not queue behind it. With no other vendor able to answer, a
     limit that clears within RATE_LIMIT_LAST_WAIT_SECONDS is waited out once;
     otherwise the rate limit is raised.
+
+    Every call made from here is a second attempt, and is recorded as one
+    (``cache_metrics.retrying``) so the cost of a task counts it.
     """
+    with cache_metrics.retrying():
+        return await _retry_after_rate_limit(exc, provider, model, api_key, run)
+
+
+async def _retry_after_rate_limit(
+    exc: ProviderRateLimited,
+    provider: str,
+    model: str,
+    api_key: str,
+    run: Callable[[str, str, str], Awaitable[ModelReply]],
+) -> ModelReply:
     wait = exc.retry_after if exc.retry_after is not None else 3.0
     if wait <= RATE_LIMIT_WAIT_SECONDS:
         await asyncio.sleep(max(0.5, wait))

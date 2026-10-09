@@ -32,6 +32,7 @@ from pipecat.utils.run_context import set_current_org_id
 
 from api.db import db_client
 from api.enums import WorkflowRunMode, WorkflowRunState
+from api.services.billing import cache_metrics
 from api.services.pipecat.audio_config import create_audio_config
 from api.services.pipecat.pipeline_builder import create_pipeline_task
 from api.services.pipecat.pipeline_metrics_aggregator import (
@@ -735,6 +736,8 @@ async def execute_text_chat_pending_turn(
         capture_processor.note_error(message)
 
     engine.set_task(task)
+    # The prompt-cache measurement only; billing on a text run is unchanged.
+    engine.set_cache_listener(pipeline_metrics_aggregator)
     engine.set_audio_config(audio_config)
     engine.set_transport_output(_TaskQueueProxy(task.queue_frame))
     engine.set_fetch_recording_audio(
@@ -809,6 +812,11 @@ async def execute_text_chat_pending_turn(
     )
     assistant_created_at = datetime.now(UTC).isoformat()
     usage = pipeline_metrics_aggregator.get_all_usage_metrics_serialized()
+    # This turn's model calls and the prompt each sent, for the cache
+    # measurement. Best-effort: it never costs the turn its reply.
+    await cache_metrics.record_run(
+        pipeline_metrics_aggregator.take_llm_calls(), workflow_run_id
+    )
     current_node = getattr(engine, "_current_node", None)
     context_messages = context.get_messages()
     encoded_messages = _serialize_text_chat_checkpoint_messages(context_messages)
