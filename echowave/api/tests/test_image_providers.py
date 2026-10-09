@@ -326,7 +326,7 @@ class TestBedrock:
     async def test_the_real_boto3_client_is_built_with_one_attempt(self, monkeypatch):
         monkeypatch.setattr(bedrock, "_boto_client_factory", None)
         client = bedrock._boto_client()
-        assert client.meta.config.retries["max_attempts"] == 1
+        assert client.meta.config.retries["total_max_attempts"] == 1
 
     async def test_no_key_and_no_platform_role(self, monkeypatch):
         monkeypatch.setattr(constants, "IMAGE_BEDROCK_ENABLED", False)

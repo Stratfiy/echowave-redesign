@@ -128,7 +128,9 @@ def _boto_client():
         config=Config(
             read_timeout=constants.IMAGE_TIMEOUT_SECONDS,
             connect_timeout=10,
-            retries={"max_attempts": 1, "mode": "standard"},
+            # ``total_max_attempts`` counts the first try; ``max_attempts``
+            # counts retries, so 1 there would still mean two charges.
+            retries={"total_max_attempts": 1, "mode": "standard"},
         ),
     )
 
