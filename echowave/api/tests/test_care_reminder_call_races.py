@@ -140,6 +140,29 @@ class TestCancellationRaces:
         dial.assert_not_awaited()
         assert (await _doses(home.org))[0].state == calls.CANCELLED
 
+    async def test_i_took_it_while_the_dial_is_being_set_up_rings_nobody(
+        self, home, monkeypatch
+    ):
+        """ "I took it" lands after ``place`` re-read the dose but before the
+        provider is asked: recording the run is refused, so dial_workflow
+        stops before the provider."""
+        medicine_id = await _live(home, monkeypatch)
+        asked: list[int] = []
+
+        async def slow(med, dose, *, on_run_created=None):
+            await medicines.mark_taken(
+                home.org, home.amma.id, medicine_id, due_at=_at(8)
+            )
+            await on_run_created(999)
+            asked.append(dose.id)
+            return 999
+
+        monkeypatch.setattr(calls, "_dial", AsyncMock(side_effect=slow))
+        await calls.tick(_at(8, 1))
+        assert asked == []
+        assert (await _doses(home.org))[0].state == calls.TAKEN
+        assert await _alerts(home) == []
+
     async def test_i_took_it_after_the_claim_rings_nobody(
         self, home, dial, monkeypatch
     ):

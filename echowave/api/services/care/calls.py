@@ -237,10 +237,18 @@ async def place(dose_id: int) -> None:
         return
 
     async def link(run_id: int) -> None:
-        await _link_run(dose_id, med.organization_id, run_id)
+        # Only while the dose is still waiting on this call. If it was
+        # settled meanwhile ("I took it", or a sweep that found it never
+        # dialled), raising here stops dial_workflow before the provider is
+        # asked.
+        if not await _link_run(dose_id, med.organization_id, run_id, claimed=True):
+            raise _Superseded()
 
     try:
         run_id = await _dial(med, dose, on_run_created=link)
+    except _Superseded:
+        logger.info("Care call for dose {} settled before the dial", dose_id)
+        return
     except CallRefused as exc:
         # Refused before the provider was asked: nothing rang, and that is
         # what the family is told.
@@ -266,19 +274,31 @@ async def place(dose_id: int) -> None:
     await _link_run(dose_id, med.organization_id, run_id)
 
 
-async def _link_run(dose_id: int, organization_id: int, run_id: int) -> None:
+class _Superseded(Exception):
+    """The dose was settled before the provider was asked."""
+
+
+async def _link_run(
+    dose_id: int, organization_id: int, run_id: int, *, claimed: bool = False
+) -> bool:
     """Record the dose's run: before the provider is asked
-    (``dial_workflow``'s ``on_run_created``), and again after, harmlessly."""
+    (``dial_workflow``'s ``on_run_created``), and again after, harmlessly.
+    With ``claimed``, only while the dose is still ``calling``. Returns
+    whether a row was written."""
+    query = update(CareDoseCallModel).where(
+        CareDoseCallModel.id == dose_id,
+        CareDoseCallModel.organization_id == organization_id,
+    )
+    if claimed:
+        query = query.where(CareDoseCallModel.state == CALLING)
     async with db_client.async_session() as session:
-        await session.execute(
-            update(CareDoseCallModel)
-            .where(
-                CareDoseCallModel.id == dose_id,
-                CareDoseCallModel.organization_id == organization_id,
+        written = (
+            await session.execute(
+                query.values(workflow_run_id=run_id).returning(CareDoseCallModel.id)
             )
-            .values(workflow_run_id=run_id)
-        )
+        ).first()
         await session.commit()
+    return written is not None
 
 
 async def _remind_in_app(med: Any, dose: Any) -> None:

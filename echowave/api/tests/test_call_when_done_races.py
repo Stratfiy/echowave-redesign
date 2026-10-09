@@ -514,6 +514,34 @@ class TestUnknownOutcomes:
         said = " ".join(await _notices(home.org))
         assert "did not pick up" not in said and "couldn't call" not in said
 
+    async def test_a_slow_dial_taken_back_by_the_sweep_never_reaches_the_provider(
+        self, home
+    ):
+        """The sweep judged a slow claim never dialled and queued it again;
+        the old worker then reaches the point of recording its run. That
+        write is refused, so dial_workflow stops before the provider: one
+        call in all, from the next tick."""
+        asked: list[int] = []
+        later = home.clock["now"] + timedelta(hours=1)
+
+        async def slow(call, dialable, *, on_run_created=None):
+            if not asked and home.dial.await_count == 1:
+                await calls.sweep(later)  # meanwhile: re-queued
+            await on_run_created(4242)
+            asked.append(call.id)  # the provider is asked
+            return 4242
+
+        home.dial.side_effect = slow
+        await _confirm_number(home)
+        await _queued(home)
+        await calls.tick(home.clock["now"] + timedelta(minutes=2))
+        assert asked == []
+        call = (await _rows("done_calls", home.org))[0]
+        assert call["state"] == cwd.QUEUED and call["workflow_run_id"] is None
+        await calls.tick(later + timedelta(minutes=1))
+        assert len(asked) == 1
+        assert (await _rows("done_calls", home.org))[0]["state"] == cwd.CALLING
+
     async def test_an_error_before_any_run_is_retried_then_told(self, home):
         """A dial that keeps failing before a run exists is a verified
         non-dispatch each time: queued again, at most MAX_ATTEMPTS claims,

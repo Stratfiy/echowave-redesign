@@ -543,10 +543,17 @@ async def place(call_id: int, *, now: datetime | None = None) -> None:
         return
 
     async def link(run_id: int) -> None:
-        await _link_run(call_id, organization_id, run_id)
+        # Only while this worker still holds the claim. If the sweep has
+        # meanwhile judged it never dialled (and queued it again), raising
+        # here stops dial_workflow before the provider is asked: one call.
+        if not await _link_run(call_id, organization_id, run_id, claimed=True):
+            raise _Superseded()
 
     try:
         run_id = await _dial(call, dialable, on_run_created=link)
+    except _Superseded:
+        logger.warning("call_when_done: call {} was re-queued mid-dial", call_id)
+        return
     except _Refused as exc:
         # Refused before the provider was asked: nothing rang.
         await _not_placed(call_id, cwd.FAILED, exc.reason)
@@ -568,19 +575,31 @@ async def _not_placed(call_id: int, state: str, reason: str) -> None:
         await tell_in_app(call_id, reason)
 
 
-async def _link_run(call_id: int, organization_id: int, run_id: int) -> None:
+class _Superseded(Exception):
+    """The claim was taken back (re-queued) before the provider was asked."""
+
+
+async def _link_run(
+    call_id: int, organization_id: int, run_id: int, *, claimed: bool = False
+) -> bool:
     """Record which run this call is. Written before the provider is asked
-    (``dial_workflow``'s ``on_run_created``), and again after, harmlessly."""
+    (``dial_workflow``'s ``on_run_created``), and again after, harmlessly.
+    With ``claimed``, only while the call is still ``calling``. Returns
+    whether a row was written."""
+    query = update(DoneCallModel).where(
+        DoneCallModel.id == call_id,
+        DoneCallModel.organization_id == organization_id,
+    )
+    if claimed:
+        query = query.where(DoneCallModel.state == cwd.CALLING)
     async with db_client.async_session() as session:
-        await session.execute(
-            update(DoneCallModel)
-            .where(
-                DoneCallModel.id == call_id,
-                DoneCallModel.organization_id == organization_id,
+        written = (
+            await session.execute(
+                query.values(workflow_run_id=run_id).returning(DoneCallModel.id)
             )
-            .values(workflow_run_id=run_id)
-        )
+        ).first()
         await session.commit()
+    return written is not None
 
 
 async def _after_dial_error(call_id: int, now: datetime) -> None:
