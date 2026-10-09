@@ -15,8 +15,9 @@ would reuse it, and mark where it falls short of the contract:
   claim and dial is a verified "could not call"; an answer after the sweep
   is kept; delayed and duplicated reports alert once, with a correction only
   where the family was told something false (F3, fixed here);
-* "I took it" after a missed call overwrites the call's outcome (xfail: it
-  needs the separate delivery and task states).
+* "I took it" after a call was dialled keeps the call's outcome and records
+  the acknowledgement beside it, both shown (fixed: it overwrote the
+  outcome); a press racing the dial is ordered against it by a row lock.
 
 The clock is passed in; no call is placed: ``calls._dial`` or
 ``dial_workflow`` is replaced in every test that would reach a carrier.
@@ -30,6 +31,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from sqlalchemy import text
 
 from api import constants
 from api.db import db_client
@@ -255,6 +257,24 @@ def _later(**kw) -> datetime:
     return datetime.now(UTC) + timedelta(**kw)
 
 
+async def _wait_for_a_lock_wait(timeout: float = 10.0) -> None:
+    """Until some session in this database is waiting on a row lock."""
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + timeout
+    while loop.time() < deadline:
+        async with db_client.async_session() as session:
+            waiting = await session.scalar(
+                text(
+                    "SELECT count(*) FROM pg_stat_activity WHERE datname = "
+                    "current_database() AND wait_event_type = 'Lock'"
+                )
+            )
+        if waiting:
+            return
+        await asyncio.sleep(0.02)
+    raise AssertionError("nothing waited on the dose's row")
+
+
 class TestUnknownOutcomes:
     async def test_an_answer_that_arrives_after_the_sweep_is_kept(
         self, home, dial, monkeypatch
@@ -417,14 +437,6 @@ class TestUnknownOutcomes:
             await calls.record_run_outcome(123456)  # the dose's run is 999
         assert (await _doses(home.org))[0].state == calls.CALLING
 
-    @pytest.mark.xfail(
-        strict=True,
-        raises=AssertionError,
-        reason="Gap: 'I took it' overwrites the dose's single state, so a missed "
-        "call that was already reported becomes 'taken' and the call's own "
-        "outcome is gone. The contract keeps delivery state and task state "
-        "apart.",
-    )
     async def test_i_took_it_after_a_missed_call_keeps_the_calls_outcome(
         self, home, dial, monkeypatch
     ):
@@ -434,3 +446,129 @@ class TestUnknownOutcomes:
             await calls.sweep(datetime.now(UTC) + timedelta(hours=1))
         await medicines.mark_taken(home.org, home.amma.id, medicine_id, due_at=_at(8))
         assert (await _doses(home.org))[0].state == calls.NOT_ANSWERED
+
+
+class TestTakenBesideTheCall:
+    """ "I took it" is the person's acknowledgement; the call's outcome is the
+    delivery. Both are kept, both are shown, neither overwrites the other."""
+
+    async def _dose_view(self, h, medicine_id: int) -> dict:
+        mine = await medicines.list_mine(h.org, h.amma.id)
+        return next(m for m in mine if m["id"] == medicine_id)["doses"][0]
+
+    async def test_both_are_visible_to_the_person_and_the_family(
+        self, home, dial, monkeypatch
+    ):
+        medicine_id = await _live(home, monkeypatch)
+        await calls.tick(_at(8, 1))
+        with _runs(_evidence(**NO_ANSWER)):
+            await calls.sweep(datetime.now(UTC) + timedelta(hours=1))
+        told = await _alerts(home)
+        marked = await medicines.mark_taken(
+            home.org, home.amma.id, medicine_id, due_at=_at(8)
+        )
+        assert marked["state"] == calls.NOT_ANSWERED and marked["taken_in_app"]
+        view = await self._dose_view(home, medicine_id)
+        assert view["state"] == calls.NOT_ANSWERED and view["taken_in_app"]
+        # Ravi is the member who shares the medicine schedule.
+        family = (await circle.family_view(home.ravi.id))[0]
+        dose = family["medicines"][0]["doses"][0]
+        assert dose["state"] == calls.NOT_ANSWERED and dose["taken_in_app"]
+        # The history keeps the call's outcome and the acknowledgement.
+        history = (await _doses(home.org))[0].outcome_history
+        assert history[-1]["source"] == "person"
+        assert history[-1]["to"] == calls.NOT_ANSWERED
+        # Nothing new is said to the family by the press itself.
+        assert await _alerts(home) == told
+
+    async def test_i_took_it_twice_records_it_once(self, home, dial, monkeypatch):
+        medicine_id = await _live(home, monkeypatch)
+        await calls.tick(_at(8, 1))
+        with _runs(_evidence(**NO_ANSWER)):
+            await calls.sweep(datetime.now(UTC) + timedelta(hours=1))
+        for _ in range(2):
+            await medicines.mark_taken(
+                home.org, home.amma.id, medicine_id, due_at=_at(8)
+            )
+        history = (await _doses(home.org))[0].outcome_history
+        assert len([e for e in history if e["source"] == "person"]) == 1
+
+    async def test_i_took_it_while_the_call_rings_keeps_the_report_and_tells_nobody(
+        self, home, dial, monkeypatch
+    ):
+        """The call has been dialled (its run is recorded) when the person
+        taps "I took it". The later report still lands as the call's outcome;
+        the family is not told of a missed dose the person says they took."""
+        medicine_id = await _live(home, monkeypatch)
+        await calls.tick(_at(8, 1))
+        dose_id = (await _doses(home.org))[0].id
+        await medicines.mark_taken(home.org, home.amma.id, medicine_id, due_at=_at(8))
+        assert (await _doses(home.org))[0].state == calls.CALLING
+        await _report(home, _run(dose_id, None))
+        assert (await _doses(home.org))[0].state == calls.NOT_ANSWERED
+        assert (await self._dose_view(home, medicine_id))["taken_in_app"]
+        assert await _alerts(home) == []
+
+    async def test_i_took_it_before_any_call_is_taken_and_never_rings(
+        self, home, dial, monkeypatch
+    ):
+        """Pinned: with nothing rung yet there is no delivery to keep."""
+        medicine_id = await _live(home, monkeypatch)
+        await medicines.mark_taken(home.org, home.amma.id, medicine_id, due_at=_at(8))
+        await calls.tick(_at(8, 1))
+        dial.assert_not_awaited()
+        assert (await _doses(home.org))[0].state == calls.TAKEN
+
+    async def test_i_took_it_racing_the_run_link_is_ordered_against_it(
+        self, home, monkeypatch
+    ):
+        """Real concurrency: the dial holds the dose's row while it records
+        its run (uncommitted). "I took it" waits for it, then sees the call
+        was dialled and keeps the call's state beside the acknowledgement;
+        it never flips a dialled call to "taken"."""
+        medicine_id = await _live(home, monkeypatch)
+        med = await _medicine(medicine_id)
+        dose_id = await calls._claim(med, _at(8))
+        async with db_client.async_session() as linking:
+            await linking.execute(
+                text(
+                    "UPDATE care_dose_calls SET workflow_run_id = 999 "
+                    "WHERE id = :i AND state = 'calling'"
+                ),
+                {"i": dose_id},
+            )
+            press = asyncio.create_task(
+                medicines.mark_taken(home.org, home.amma.id, medicine_id, due_at=_at(8))
+            )
+            await _wait_for_a_lock_wait()
+            assert not press.done()
+            await linking.commit()
+        marked = await press
+        assert marked["state"] == calls.CALLING and marked["taken_in_app"]
+
+    async def test_i_took_it_racing_the_dial_never_both_rings_and_reads_taken(
+        self, home, monkeypatch
+    ):
+        """Press and dial at the same moment: either the press won (the dose
+        is ``taken`` and the provider was never asked) or the dial won (the
+        call keeps its state and the press sits beside it)."""
+        medicine_id = await _live(home, monkeypatch)
+        asked: list[int] = []
+
+        async def dial(med, dose, *, on_run_created=None):
+            await on_run_created(999)
+            asked.append(dose.id)
+            return 999
+
+        monkeypatch.setattr(calls, "_dial", AsyncMock(side_effect=dial))
+        await asyncio.gather(
+            calls.tick(_at(8, 1)),
+            medicines.mark_taken(home.org, home.amma.id, medicine_id, due_at=_at(8)),
+        )
+        dose = (await _doses(home.org))[0]
+        view = await self._dose_view(home, medicine_id)
+        assert view["taken_in_app"]
+        if asked:
+            assert dose.state == calls.CALLING and dose.workflow_run_id == 999
+        else:
+            assert dose.state == calls.TAKEN and dose.workflow_run_id is None

@@ -32,7 +32,7 @@ export function DueNow() {
         setDue(
             response.data.medicines.flatMap((m) =>
                 (m.doses ?? [])
-                    .filter((d) => d.state === "reminded" || d.state === "calling")
+                    .filter((d) => (d.state === "reminded" || d.state === "calling") && !d.taken_in_app)
                     .map((d) => ({ medicineId: m.id, label: m.label, dueAt: d.due_at, timezone: m.timezone })),
             ),
         );

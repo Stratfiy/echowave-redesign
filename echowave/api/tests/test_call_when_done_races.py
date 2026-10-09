@@ -18,7 +18,9 @@ where it falls short:
   run was recorded is ``unknown``, never re-dialled; a claim that never
   dialled is queued again; late and duplicated reports settle once, with a
   correction only where a line said something false (F3);
-* cancelling once the call is queued (xfail: needs a cancellable occurrence).
+* cancelling once the call is queued, or claimed but not yet dialled, stops
+  it; a cancel racing the tick either stops it or says there was nothing
+  left to stop, never both (fixed).
 
 No call is placed: ``calls._dial`` is replaced, and the line is a stand-in.
 Run evidence is a stand-in run shaped as the status webhook leaves it.
@@ -615,20 +617,144 @@ class TestUnknownOutcomes:
         assert (await _call(call_id))["state"] == cwd.CALLING
 
 
+async def _wait_for_a_lock_wait(timeout: float = 10.0) -> None:
+    """Until some session in this database is waiting on a row lock."""
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + timeout
+    while loop.time() < deadline:
+        async with db_client.async_session() as session:
+            waiting = await session.scalar(
+                text(
+                    "SELECT count(*) FROM pg_stat_activity WHERE datname = "
+                    "current_database() AND wait_event_type = 'Lock'"
+                )
+            )
+        if waiting:
+            return
+        await asyncio.sleep(0.02)
+    raise AssertionError("nothing waited on the call's row")
+
+
 class TestCancellation:
-    @pytest.mark.xfail(
-        strict=True,
-        raises=AssertionError,
-        reason="Gap: once the finish has queued the call (for example overnight "
-        "until 09:00), 'cancel' only moves pending callbacks, so the person "
-        "cannot stop the call. The contract makes each occurrence cancellable "
-        "and rechecks cancellation right before the dial.",
-    )
     async def test_cancelling_a_queued_call_stops_it(self, home):
         await _confirm_number(home)
         home.clock["now"] = _ist(22, 30)
         await _queued(home)
         callback = (await _rows("done_callbacks", home.org))[0]
-        await optin.cancel(home.org, home.asha.id, callback["id"])
+        assert await optin.cancel(home.org, home.asha.id, callback["id"])
         await calls.tick(_ist(9, 0, days=1) + timedelta(seconds=5))
         home.dial.assert_not_awaited()
+        call = (await _rows("done_calls", home.org))[0]
+        assert call["state"] == cwd.CANCELLED
+        assert (await _rows("done_callbacks", home.org))[0]["state"] == cwd.CANCELLED
+        # The person sees it: the thread says so, in one line.
+        assert (await _notices(home.org))[-1] == (
+            "Cancelled. I won't call you about “Deploy the site”."
+        )
+
+    async def test_a_cancel_after_the_claim_before_the_dial_never_rings(self, home):
+        """The tick has claimed the call and is at its checks (the slot is
+        reserved) when the person cancels. The run is never linked, so the
+        provider is never asked, and the slot goes back."""
+        asked: list[int] = []
+
+        async def cancelled_meanwhile(call, dialable, *, on_run_created=None):
+            callback = (await _rows("done_callbacks", home.org))[0]
+            assert await optin.cancel(home.org, home.asha.id, callback["id"])
+            await on_run_created(4242)
+            asked.append(call.id)  # the provider would be asked here
+            return 4242
+
+        home.dial.side_effect = cancelled_meanwhile
+        await _confirm_number(home)
+        await _queued(home)
+        now = home.clock["now"] + timedelta(minutes=2)
+        await calls.tick(now)
+        assert asked == []
+        call = (await _rows("done_calls", home.org))[0]
+        assert call["state"] == cwd.CANCELLED and call["workflow_run_id"] is None
+        assert call["allowance_day"] is None
+        assert await allowance.used(home.asha.id, "Asia/Kolkata", now) == 0
+
+    async def test_a_cancel_in_flight_when_the_tick_claims_wins(self, home):
+        """Real concurrency: the cancel holds the call's row (uncommitted)
+        while the tick claims. The claim waits, re-reads, finds it cancelled,
+        and nothing is dialled."""
+        await _confirm_number(home)
+        await _queued(home)
+        call_id = (await _rows("done_calls", home.org))[0]["id"]
+        async with db_client.async_session() as cancelling:
+            await cancelling.execute(
+                text("UPDATE done_calls SET state = :c WHERE id = :i"),
+                {"c": cwd.CANCELLED, "i": call_id},
+            )
+            tick = asyncio.create_task(
+                calls.tick(home.clock["now"] + timedelta(minutes=2))
+            )
+            await _wait_for_a_lock_wait()
+            assert not tick.done()
+            await cancelling.commit()
+        assert await tick == 0
+        home.dial.assert_not_awaited()
+        assert (await _call(call_id))["state"] == cwd.CANCELLED
+
+    async def test_cancel_racing_the_tick_either_stops_it_or_says_it_cannot(self, home):
+        """Cancel and tick at the same moment, again and again: the call is
+        either cancelled and never dialled, or dialled and the cancel says
+        there was nothing left to stop. Never both."""
+
+        asked: list[int] = []
+
+        async def dial(call, dialable, *, on_run_created=None):
+            await on_run_created(4242)
+            asked.append(call.id)  # past this point the provider is asked
+            return 4242
+
+        home.dial.side_effect = dial
+        await _confirm_number(home)
+        for n in range(6):
+            await _queued(home, title=f"Job {n}")
+            callback = (await _rows("done_callbacks", home.org))[-1]
+            call_id = callback["call_id"]
+            _, stopped = await asyncio.gather(
+                calls.tick(home.clock["now"] + timedelta(minutes=2)),
+                optin.cancel(home.org, home.asha.id, callback["id"]),
+            )
+            rang = call_id in asked
+            state = (await _call(call_id))["state"]
+            if stopped:
+                assert state == cwd.CANCELLED and not rang
+            else:
+                assert state == cwd.CALLING and rang
+            # Clear the person's slot for the next round.
+            await allowance.release(call_id)
+
+    async def test_once_the_dial_has_started_cancel_says_so(self, home):
+        await _confirm_number(home)
+        await _queued(home)
+        await calls.tick(home.clock["now"] + timedelta(minutes=2))
+        callback = (await _rows("done_callbacks", home.org))[0]
+        assert not await optin.cancel(home.org, home.asha.id, callback["id"])
+        assert (await _rows("done_calls", home.org))[0]["state"] == cwd.CALLING
+
+    async def test_cancelling_one_of_two_tasks_rings_about_the_other(self, home):
+        await _confirm_number(home)
+        await _queued(home, title="Deploy the site")
+        await _queued(home, title="Send the invoices")
+        callbacks = await _rows("done_callbacks", home.org)
+        assert callbacks[0]["call_id"] == callbacks[1]["call_id"]
+        assert await optin.cancel(home.org, home.asha.id, callbacks[0]["id"])
+        call_id = callbacks[0]["call_id"]
+        assert (await _call(call_id))["state"] == cwd.QUEUED
+        said = [i["title"] for i in await calls.items_of_call(home.org, call_id)]
+        assert said == ["Send the invoices"]
+        await calls.tick(home.clock["now"] + timedelta(minutes=2))
+        home.dial.assert_awaited_once()
+
+    async def test_another_persons_callback_is_not_theirs_to_cancel(self, home):
+        await _confirm_number(home)
+        await _queued(home)
+        callback = (await _rows("done_callbacks", home.org))[0]
+        assert not await optin.cancel(home.org, home.colleague.id, callback["id"])
+        assert not await optin.cancel(home.other_org, home.asha.id, callback["id"])
+        assert (await _rows("done_calls", home.org))[0]["state"] == cwd.QUEUED

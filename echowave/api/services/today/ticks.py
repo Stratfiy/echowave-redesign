@@ -46,10 +46,16 @@ async def _advance(
     row: TodayReminderModel, *, delivered: bool, missed: bool, now: datetime
 ) -> None:
     """Move a reminder past the occurrence it was read at -- only if nobody
-    else has (the ``remind_at`` it was read with is the guard)."""
+    else has (the ``remind_at`` it was read with is the guard).
+
+    A one-off is ``done`` only when its delivery reached the person (sent,
+    or accepted by the provider). One that reached nobody -- the channel
+    needs setting up, the send failed, or its outcome is unknown -- is
+    ``missed``: still on the person's list, with its delivery row saying
+    why, never shown as finished."""
     values: dict[str, Any] = {"updated_at": now}
     if row.recurrence == "once":
-        values["status"] = "missed" if missed else "done"
+        values["status"] = "done" if delivered and not missed else "missed"
     else:
         values["remind_at"] = next_recurring(
             recurrence=row.recurrence,
@@ -75,6 +81,29 @@ async def _advance(
             .values(**values)
         )
         await session.commit()
+
+
+def _still_due(row: TodayReminderModel):
+    """The claim's re-check: the reminder is still active at the time it was
+    read. It locks the row, so a cancel, pause or edit made at the same
+    moment is ordered against the claim: before it (nothing is sent) or
+    after it (this occurrence was already going out; the next is not)."""
+
+    async def check(session: Any) -> bool:
+        current = await session.scalar(
+            select(TodayReminderModel.id)
+            .where(
+                and_(
+                    TodayReminderModel.id == row.id,
+                    TodayReminderModel.status == "active",
+                    TodayReminderModel.remind_at == row.remind_at,
+                )
+            )
+            .with_for_update()
+        )
+        return current is not None
+
+    return check
 
 
 async def deliver_due_reminders(now: datetime | None = None) -> dict[str, int]:
@@ -128,7 +157,12 @@ async def deliver_due_reminders(now: datetime | None = None) -> dict[str, int]:
                 occurrence_key=row.remind_at.isoformat(),
                 channel=row.channel,
                 text=await _reminder_text(row),
+                still_due=_still_due(row),
             )
+            if result.get("withdrawn"):
+                # Cancelled, paused or moved since the read: not sent, and
+                # the reminder is left as the person set it.
+                continue
             await _advance(
                 row,
                 delivered=result.get("status") in ("sent", "accepted"),
