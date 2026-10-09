@@ -47,6 +47,7 @@ export const DOSE_WORDS: Record<string, string> = {
     not_answered: "Not answered",
     unclear: "Answered, not sure",
     failed: "Could not call",
+    cancelled: "Stopped before the call",
 };
 
 export const MEDICINE_STATE_WORDS: Record<string, string> = {
