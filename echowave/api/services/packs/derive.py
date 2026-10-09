@@ -282,9 +282,8 @@ def _voice_steps(pack: AgentPack) -> list[dict[str, Any]]:
             "key": STEP_VOICE_AND_BRAIN,
             "title": "Pick its voice and how sharp it is",
             "detail": (
-                "Four presets, each with one price a minute. Standard suits "
-                "most lines; Smart is for calls that use tools or go off "
-                "script."
+                "Four presets. Standard suits most lines; Smart is for "
+                "calls that use tools or go off script."
             ),
             # The chips come from model_presets, which already prices each one
             # and marks the ones we hold no key for. Named here rather than

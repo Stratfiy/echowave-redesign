@@ -1,8 +1,10 @@
 # Decibyl
 
-Build production voice agents with a visual workflow builder — a real-time
-speech pipeline with telephony and WebRTC, a drag-and-drop builder, and an MCP
-surface so coding assistants can design and edit agents directly.
+Decibyl is an intelligent agent that grows and evolves with you: one personal
+assistant for life and work. Talk in your language, give it a task, and let it
+help you follow through. Voice is one channel, not the product — under it sit a
+real-time speech pipeline with telephony and WebRTC, a workflow builder, and an
+MCP surface so coding assistants can design and edit agents directly.
 
 **This repository is private. Decibyl is a commercial product, not open source.**
 
@@ -82,7 +84,11 @@ Each subtree has an `AGENTS.md` with the conventions that apply inside it.
 - **[`CONTRIBUTING.md`](CONTRIBUTING.md)** — branching, tests, and where to
   report things.
 
-## Pricing model
+## Metering and billing (internal)
+
+No price, plan or credit rate is shown to users (founder decision, 9 Oct 2026;
+see `AGENTS.md`). What follows is how the metering engine underneath works, for
+the people who maintain it.
 
 A platform fee plus provider costs passed through **at cost, with no markup** —
 enforced by the schema rather than by convention: provider cost and platform fee

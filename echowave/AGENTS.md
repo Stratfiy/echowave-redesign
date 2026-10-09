@@ -1,9 +1,12 @@
 # Decibyl - Project Overview
 
-Decibyl is an **agent platform for Indian businesses**. A business hires a bot
-for a job — answering the phone, confirming orders, chasing payments, answering
-staff questions from its own documents, filing a reminder every morning — and
-the bot does that job on whatever channel the job needs.
+**Decibyl is an intelligent agent that grows and evolves with you.** That is
+the founder's sentence and the anchor for every product string. It is one
+personal assistant for life and work: talk in your language, give it a task,
+and let it help you follow through. It learns your preferences and, with your
+approval, gets better at your work over time. Agents — assigned jobs that
+answer the phone, confirm orders, answer from your documents or run every
+morning — are how it follows through, on whatever channel the job needs.
 
 **Voice is one channel, not the product.** It was the first one and it is still
 the hardest, which is why so much of this codebase is telephony and pipelines.
@@ -97,12 +100,18 @@ way Grok does it — a person should be able to keep going by tapping, not by
 composing. The home screen has them (`home_openers.py`, rendered by
 `HomeAboveTheFold`); the thread is where they matter most.
 
-**Every feature must work on Free/Everyday with no phone number.** A feature
-that only exists once somebody has bought a number is a feature most trials
+**Every feature must work on the lowest tier with no phone number.** A feature
+that only exists once somebody has bought a number is a feature most people
 never see.
 
-**No new plan, price or positioning string without asking.** Pricing, the
-public site copy and the bot shelf are the founder's to decide.
+**No pricing shown to users; the positioning is fixed.** The founder decided
+on 9 Oct 2026: no price, plan name, credit rate or upgrade prompt appears
+anywhere a user can see it (staff and admin cost screens excepted, and the
+checkout stays behind `free_mode`), and the positioning is "an intelligent
+agent that grows and evolves with you". `ui/src/lib/pricing.ts` holds the
+switch and `pricingGuard.test.ts` fails on new price copy. Any new price or
+plan copy still needs the founder, as do the public site copy and the bot
+shelf.
 
 **Verify against a running instance before saying something works.** Three
 bugs in one afternoon were invisible from the source and obvious from one

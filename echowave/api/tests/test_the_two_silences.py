@@ -71,15 +71,22 @@ class TestTheWelcome:
         assert "Welcome, Sunrise Clinic." in notice.body
 
     def test_it_says_what_to_do_first_and_links_it(self):
-        """Three things, because those three decide whether the account is ever
-        used: what to do first, what it costs, and where the keys live."""
+        """What to do first and where the keys live -- and no price: the
+        founder decided on 9 Oct 2026 that no pricing is shown to users."""
         notice = welcome_email.compose(
             account_name=None, app_url="https://app.decibyl.ai/"
         )
 
-        assert "https://app.decibyl.ai/start" in notice.body
-        assert "https://app.decibyl.ai/billing" in notice.body
+        assert "https://app.decibyl.ai/overview" in notice.body
         assert "https://app.decibyl.ai/provider-keys" in notice.body
+        assert "https://app.decibyl.ai/billing" not in notice.body
+        lowered = notice.body.lower()
+        for word in ("₹", "a minute", "balance", "plan", "pricing", "upgrade"):
+            assert word not in lowered, word
+
+    def test_it_leads_with_the_positioning(self):
+        notice = welcome_email.compose(account_name=None, app_url="https://x.test")
+        assert "intelligent agent that grows and evolves with you" in notice.body
         # The trailing slash on the base must not survive into the links.
         assert "decibyl.ai//" not in notice.body
 
