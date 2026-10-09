@@ -103,6 +103,21 @@ function liveFeedbackItem(message: RealtimeFeedbackMessage, reasoningDurationMs?
     return null;
 }
 
+/** A supervisor's whisper on the call's record: shown where it happened,
+ *  marked as never spoken to the caller. */
+export function whisperItem(event: RealtimeFeedbackEvent, id: string): ConversationItem {
+    const by = event.payload.by || "a supervisor";
+    return {
+        kind: "notice",
+        id,
+        timestamp: event.timestamp,
+        tone: "info",
+        icon: "lock",
+        title: `Whisper from ${by}${event.payload.urgent ? " (urgent)" : ""} · not spoken to the caller`,
+        text: feedbackEventText(event),
+    };
+}
+
 export function conversationItemsFromLiveFeedback(messages: RealtimeFeedbackMessage[]) {
     const items: ConversationItem[] = [];
     let pendingReasoningDurationMs: number | undefined;
@@ -268,6 +283,11 @@ export function conversationItemsFromRealtimeFeedbackEvents(events: RealtimeFeed
                 linkHref: "https://docs.decibyl.ai/configurations/interruption",
                 linkLabel: "Learn more",
             });
+            return;
+        }
+
+        if (event.type === "rtf-supervisor-whisper") {
+            items.push(whisperItem(event, `whisper-${event.turn}-${index}`));
             return;
         }
 

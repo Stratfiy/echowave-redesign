@@ -4544,6 +4544,20 @@ export type ConnectorResponse = {
 };
 
 /**
+ * ConsentNotice
+ */
+export type ConsentNotice = {
+    /**
+     * Mentions Monitoring
+     */
+    mentions_monitoring: boolean;
+    /**
+     * Warning
+     */
+    warning?: string | null;
+};
+
+/**
  * ConsentView
  */
 export type ConsentView = {
@@ -11315,6 +11329,112 @@ export type ListResponse = {
      * Entries
      */
     entries: Array<DoNotCallEntry>;
+};
+
+/**
+ * LiveCallDetail
+ */
+export type LiveCallDetail = {
+    call: LiveCallItem;
+    /**
+     * Transcript
+     */
+    transcript: Array<{
+        [key: string]: unknown;
+    }>;
+    consent: ConsentNotice;
+};
+
+/**
+ * LiveCallItem
+ */
+export type LiveCallItem = {
+    /**
+     * Run Id
+     */
+    run_id: number;
+    /**
+     * Workflow Id
+     */
+    workflow_id: number;
+    /**
+     * Agent Name
+     */
+    agent_name: string;
+    /**
+     * Direction
+     */
+    direction: string;
+    /**
+     * Started At
+     */
+    started_at: string;
+    /**
+     * Duration Seconds
+     */
+    duration_seconds: number;
+    /**
+     * Step
+     */
+    step?: string | null;
+    /**
+     * Caller
+     */
+    caller?: string | null;
+    /**
+     * Caller Masked
+     */
+    caller_masked?: boolean;
+    /**
+     * Can Listen
+     */
+    can_listen: boolean;
+    /**
+     * Blocked
+     */
+    blocked?: string | null;
+};
+
+/**
+ * LiveCallsResponse
+ */
+export type LiveCallsResponse = {
+    /**
+     * Calls
+     */
+    calls: Array<LiveCallItem>;
+    /**
+     * Allow Listening
+     */
+    allow_listening: boolean;
+    /**
+     * Can Change Setting
+     */
+    can_change_setting: boolean;
+    /**
+     * More
+     */
+    more?: boolean;
+};
+
+/**
+ * LiveSettingsRequest
+ */
+export type LiveSettingsRequest = {
+    /**
+     * Allow Listening
+     */
+    allow_listening: boolean;
+};
+
+/**
+ * LiveSettingsResponse
+ */
+export type LiveSettingsResponse = {
+    /**
+     * Allow Listening
+     */
+    allow_listening: boolean;
 };
 
 /**
@@ -23283,6 +23403,42 @@ export type WebToolDefinition = {
  * Webhook credential authentication types
  */
 export type WebhookCredentialType = 'none' | 'api_key' | 'bearer_token' | 'basic_auth' | 'custom_header' | 'oauth2';
+
+/**
+ * WhisperRequest
+ */
+export type WhisperRequest = {
+    /**
+     * Text
+     */
+    text: string;
+    /**
+     * Urgent
+     */
+    urgent?: boolean;
+};
+
+/**
+ * WhisperResponse
+ */
+export type WhisperResponse = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * At
+     */
+    at: string;
+    /**
+     * Urgent
+     */
+    urgent: boolean;
+    /**
+     * Text
+     */
+    text: string;
+};
 
 /**
  * WhoOwesMeResponse
@@ -58636,6 +58792,221 @@ export type LearningSuggestionsApiV1LearningSuggestionsGetResponses = {
 };
 
 export type LearningSuggestionsApiV1LearningSuggestionsGetResponse = LearningSuggestionsApiV1LearningSuggestionsGetResponses[keyof LearningSuggestionsApiV1LearningSuggestionsGetResponses];
+
+export type ListLiveCallsApiV1LiveCallsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Workflow Id
+         */
+        workflow_id?: number | null;
+    };
+    url: '/api/v1/live-calls';
+};
+
+export type ListLiveCallsApiV1LiveCallsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListLiveCallsApiV1LiveCallsGetError = ListLiveCallsApiV1LiveCallsGetErrors[keyof ListLiveCallsApiV1LiveCallsGetErrors];
+
+export type ListLiveCallsApiV1LiveCallsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: LiveCallsResponse;
+};
+
+export type ListLiveCallsApiV1LiveCallsGetResponse = ListLiveCallsApiV1LiveCallsGetResponses[keyof ListLiveCallsApiV1LiveCallsGetResponses];
+
+export type SetLiveSettingsApiV1LiveCallsSettingsPutData = {
+    body: LiveSettingsRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/live-calls/settings';
+};
+
+export type SetLiveSettingsApiV1LiveCallsSettingsPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SetLiveSettingsApiV1LiveCallsSettingsPutError = SetLiveSettingsApiV1LiveCallsSettingsPutErrors[keyof SetLiveSettingsApiV1LiveCallsSettingsPutErrors];
+
+export type SetLiveSettingsApiV1LiveCallsSettingsPutResponses = {
+    /**
+     * Successful Response
+     */
+    200: LiveSettingsResponse;
+};
+
+export type SetLiveSettingsApiV1LiveCallsSettingsPutResponse = SetLiveSettingsApiV1LiveCallsSettingsPutResponses[keyof SetLiveSettingsApiV1LiveCallsSettingsPutResponses];
+
+export type LiveCallDetailApiV1LiveCallsRunIdGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Run Id
+         */
+        run_id: number;
+    };
+    query?: never;
+    url: '/api/v1/live-calls/{run_id}';
+};
+
+export type LiveCallDetailApiV1LiveCallsRunIdGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type LiveCallDetailApiV1LiveCallsRunIdGetError = LiveCallDetailApiV1LiveCallsRunIdGetErrors[keyof LiveCallDetailApiV1LiveCallsRunIdGetErrors];
+
+export type LiveCallDetailApiV1LiveCallsRunIdGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: LiveCallDetail;
+};
+
+export type LiveCallDetailApiV1LiveCallsRunIdGetResponse = LiveCallDetailApiV1LiveCallsRunIdGetResponses[keyof LiveCallDetailApiV1LiveCallsRunIdGetResponses];
+
+export type WhisperToCallApiV1LiveCallsRunIdWhisperPostData = {
+    body: WhisperRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Run Id
+         */
+        run_id: number;
+    };
+    query?: never;
+    url: '/api/v1/live-calls/{run_id}/whisper';
+};
+
+export type WhisperToCallApiV1LiveCallsRunIdWhisperPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type WhisperToCallApiV1LiveCallsRunIdWhisperPostError = WhisperToCallApiV1LiveCallsRunIdWhisperPostErrors[keyof WhisperToCallApiV1LiveCallsRunIdWhisperPostErrors];
+
+export type WhisperToCallApiV1LiveCallsRunIdWhisperPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: WhisperResponse;
+};
+
+export type WhisperToCallApiV1LiveCallsRunIdWhisperPostResponse = WhisperToCallApiV1LiveCallsRunIdWhisperPostResponses[keyof WhisperToCallApiV1LiveCallsRunIdWhisperPostResponses];
+
+export type ProposeConsentFixApiV1LiveCallsRunIdConsentFixPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Run Id
+         */
+        run_id: number;
+    };
+    query?: never;
+    url: '/api/v1/live-calls/{run_id}/consent-fix';
+};
+
+export type ProposeConsentFixApiV1LiveCallsRunIdConsentFixPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ProposeConsentFixApiV1LiveCallsRunIdConsentFixPostError = ProposeConsentFixApiV1LiveCallsRunIdConsentFixPostErrors[keyof ProposeConsentFixApiV1LiveCallsRunIdConsentFixPostErrors];
+
+export type ProposeConsentFixApiV1LiveCallsRunIdConsentFixPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: TimelineEvent;
+};
+
+export type ProposeConsentFixApiV1LiveCallsRunIdConsentFixPostResponse = ProposeConsentFixApiV1LiveCallsRunIdConsentFixPostResponses[keyof ProposeConsentFixApiV1LiveCallsRunIdConsentFixPostResponses];
 
 export type MeetingCapabilitiesApiV1MeetingsCapabilitiesGetData = {
     body?: never;
