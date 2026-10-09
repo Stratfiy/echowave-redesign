@@ -144,6 +144,8 @@ export type Feature =
     | "deepfilternet_filter"
     // Listen in on a live call and whisper to its agent.
     | "live_supervision"
+    // Skills that learn from corrections, evaluated and approved first.
+    | "evolve_skills"
     // Posters and ad creatives: images on a provider chosen in the thread.
     | "image_generation";
 
