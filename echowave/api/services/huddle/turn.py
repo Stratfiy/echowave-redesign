@@ -166,7 +166,7 @@ class HuddleState:
                 system=self.system,
                 conversation=conversation,
                 on_text=on_text,
-                tools=tools.schemas() if offer else None,
+                tools=tools.schemas(self.organization_id) if offer else None,
             )
 
     async def _answer(self, turn: Any, on_words, earlier: list[dict[str, str]]) -> str:

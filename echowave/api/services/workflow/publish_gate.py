@@ -43,6 +43,9 @@ from api.services.workflow.workflow_graph import WorkflowGraph
 #: Where a publish came from, written on its audit row.
 VIA_EDITOR = "editor"
 VIA_EDIT_CARD = "edit_card"
+#: An edit card's Undo: the card's own change taken back out of the live
+#: version, through this same gate (editing_v2).
+VIA_EDIT_CARD_UNDO = "edit_card_undo"
 
 
 async def validate_definition(
@@ -405,6 +408,9 @@ async def publish_definition(
     based_on_definition_id: int,
     via: str = VIA_EDIT_CARD,
     refuse_on_findings: bool = True,
+    workflow_configurations: dict | None = None,
+    rewrite_draft=None,
+    audit_after: dict | None = None,
 ) -> Published:
     """Validate, screen, publish and record one graph, leaving the draft a draft.
 
@@ -416,6 +422,11 @@ async def publish_definition(
 
     ``based_on_definition_id`` is the live version ``workflow_json`` was
     built from; a publish that got in first raises ``LiveMoved``.
+
+    ``workflow_configurations`` replaces the live configurations as well
+    (hours changed from a card); ``rewrite_draft`` carries the change into a
+    waiting draft under the same lock (see ``db_client.publish_workflow_json``).
+    ``audit_after`` is added to the audit row's ``after``.
     """
     workflow = await db_client.get_workflow(
         workflow_id, organization_id=organization_id
@@ -436,6 +447,8 @@ async def publish_definition(
             workflow_id,
             workflow_json=workflow_json,
             based_on_definition_id=based_on_definition_id,
+            workflow_configurations=workflow_configurations,
+            rewrite_draft=rewrite_draft,
         )
     except ValueError as exc:
         raise LiveMoved(str(exc)) from exc
@@ -447,6 +460,10 @@ async def publish_definition(
         subject_id=workflow_id,
         subject=getattr(workflow, "name", None),
         actor_user_id=user_id,
-        after={"version_number": published.version_number, "via": via},
+        after={
+            **(audit_after or {}),
+            "version_number": published.version_number,
+            "via": via,
+        },
     )
     return Published(definition=published, workflow=workflow, findings=findings)

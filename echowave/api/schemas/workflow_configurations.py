@@ -223,6 +223,17 @@ class AgentScheduleSlot(BaseModel):
     end_time: str = Field(pattern=r"^([01]\d|2[0-4]):[0-5]\d$")
 
 
+class AgentScheduleClosure(BaseModel):
+    """One day the agent is shut although its week says open: a holiday.
+
+    A date rather than a recurring rule. Diwali moves every year, and a rule
+    that guessed it would close the wrong day with nothing to show for it.
+    """
+
+    date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+    reason: Optional[str] = Field(default=None, max_length=80)
+
+
 class AgentSchedule(BaseModel):
     """The hours an agent keeps, as something the platform can enforce.
 
@@ -243,6 +254,9 @@ class AgentSchedule(BaseModel):
     #: kind of default nobody checks until a caller is turned away at nine.
     timezone: str = "Asia/Kolkata"
     slots: list[AgentScheduleSlot] = Field(default_factory=list, max_length=50)
+    #: Whole days shut, local to ``timezone``. Read only while ``enabled``,
+    #: like the slots; empty for every schedule written before it existed.
+    closures: list[AgentScheduleClosure] = Field(default_factory=list, max_length=60)
 
 
 class WorkflowConfigurationDefaults(BaseModel):

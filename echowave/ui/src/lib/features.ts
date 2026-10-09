@@ -135,6 +135,9 @@ export type Feature =
     | "call_when_done"
     // The huddle: talk to an agent as a teammate, in its thread.
     | "huddle"
+    // Agent editing follow-ups: one draft per card, hours and files by chat,
+    // undo, and who may publish.
+    | "editing_v2"
     // People: synced contacts with context (PEOPLE.md).
     | "people"
     // Voice isolation: background voices on calls (VOICE.md).

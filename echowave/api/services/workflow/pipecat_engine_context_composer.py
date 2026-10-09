@@ -325,6 +325,7 @@ async def compose_functions_for_node(
     can_edit_self: bool = False,
     can_run_scripts: bool = False,
     can_make_images: bool = False,
+    organization_id: Optional[int] = None,
 ) -> list[dict]:
     """Compose the function/tool schemas for a workflow node.
 
@@ -451,8 +452,8 @@ async def compose_functions_for_node(
         functions.append(
             get_function_schema(
                 self_edit.TOOL_NAME,
-                self_edit.DESCRIPTION,
-                properties=self_edit.tool_properties(),
+                self_edit.description(organization_id),
+                properties=self_edit.tool_properties(organization_id),
                 required=["why"],
             )
         )

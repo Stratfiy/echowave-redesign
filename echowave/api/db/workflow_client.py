@@ -1,3 +1,4 @@
+import copy
 from datetime import UTC, datetime
 from typing import Optional
 
@@ -374,6 +375,8 @@ class WorkflowClient(BaseDBClient):
         *,
         workflow_json: dict,
         based_on_definition_id: int,
+        workflow_configurations: dict | None = None,
+        rewrite_draft=None,
     ) -> WorkflowDefinitionModel:
         """Publish a graph on its own, leaving the draft a draft.
 
@@ -386,6 +389,13 @@ class WorkflowClient(BaseDBClient):
         ``based_on_definition_id`` is the live version the caller built
         ``workflow_json`` from; if another publish got in first, this raises
         ``ValueError`` rather than overwrite it.
+
+        ``workflow_configurations``, when given, replaces the live
+        configurations too (an edit card that changes an agent's hours).
+        ``rewrite_draft`` -- a plain function from ``(graph, configurations)``
+        to the new pair -- is applied to a waiting draft under the same lock,
+        so a change put live is carried into the draft and the next Publish
+        from the editor does not quietly take it back out.
         """
         async with self.async_session() as session:
             workflow = (
@@ -415,7 +425,11 @@ class WorkflowClient(BaseDBClient):
             published = WorkflowDefinitionModel(
                 workflow_id=workflow_id,
                 workflow_json=workflow_json,
-                workflow_configurations=live.workflow_configurations or {},
+                workflow_configurations=(
+                    workflow_configurations
+                    if workflow_configurations is not None
+                    else live.workflow_configurations or {}
+                ),
                 template_context_variables=live.template_context_variables or {},
                 call_disposition_codes=live.call_disposition_codes or {},
                 status="published",
@@ -429,13 +443,22 @@ class WorkflowClient(BaseDBClient):
 
             draft = (
                 await session.execute(
-                    select(WorkflowDefinitionModel).where(
+                    select(WorkflowDefinitionModel)
+                    .where(
                         WorkflowDefinitionModel.workflow_id == workflow_id,
                         WorkflowDefinitionModel.status == "draft",
                     )
+                    .with_for_update()
                 )
             ).scalar_one_or_none()
             source = published
+            if draft is not None and rewrite_draft is not None:
+                draft_json, draft_configurations = rewrite_draft(
+                    copy.deepcopy(draft.workflow_json or {}),
+                    copy.deepcopy(draft.workflow_configurations or {}),
+                )
+                draft.workflow_json = draft_json
+                draft.workflow_configurations = draft_configurations
             if draft is not None:
                 if self._draft_matches(draft, published):
                     await session.delete(draft)

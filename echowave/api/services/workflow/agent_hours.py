@@ -19,7 +19,7 @@ behave exactly as today.
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Any, Mapping, Optional
 from zoneinfo import ZoneInfo
 
@@ -88,12 +88,56 @@ def _tail_of_yesterday(slot: Mapping[str, Any], weekday: int, minute: int) -> bo
     return minute < end
 
 
+def closed_on(schedule: Any, day: date) -> Optional[str]:
+    """The closure that shuts ``day``, as its reason ('' when none was
+    given), or None when the day is not closed.
+
+    Only an enabled schedule closes anything, and only a closure whose date
+    reads as a date counts: an unreadable one closes nothing, for the same
+    reason an unreadable slot opens nothing -- a typo must not take a number
+    off the air.
+    """
+    if not isinstance(schedule, Mapping) or not schedule.get("enabled", False):
+        return None
+    closures = schedule.get("closures")
+    if not isinstance(closures, list):
+        return None
+    wanted = day.isoformat()
+    for closure in closures:
+        if not isinstance(closure, Mapping):
+            continue
+        raw = closure.get("date")
+        if not isinstance(raw, str):
+            continue
+        try:
+            parsed = date.fromisoformat(raw.strip())
+        except ValueError:
+            continue
+        if parsed.isoformat() == wanted:
+            return str(closure.get("reason") or "").strip()
+    return None
+
+
+def _zone(schedule: Mapping[str, Any]) -> Optional[ZoneInfo]:
+    try:
+        return ZoneInfo(schedule.get("timezone") or "Asia/Kolkata")
+    except Exception:  # noqa: BLE001 - read as no schedule
+        return None
+
+
 def is_open(schedule: Any, now: Optional[datetime] = None) -> bool:
     """Is this agent open? Open whenever the question cannot be answered."""
     if not isinstance(schedule, Mapping):
         return True
     if not schedule.get("enabled", False):
         return True
+
+    if schedule.get("closures"):
+        zone = _zone(schedule)
+        if zone is not None:
+            today = (now or datetime.now(zone)).astimezone(zone).date()
+            if closed_on(schedule, today) is not None:
+                return False
 
     slots = schedule.get("slots")
     if not isinstance(slots, list) or not slots:
@@ -192,6 +236,9 @@ def open_windows(schedule: Any, day: date) -> list[tuple[int, int]]:
     if not isinstance(schedule, Mapping) or not schedule.get("enabled", False):
         return [DAY]
 
+    if closed_on(schedule, day) is not None:
+        return []
+
     slots = schedule.get("slots")
     if not isinstance(slots, list) or not slots:
         return [DAY]
@@ -240,3 +287,104 @@ def _merge(spans: list[tuple[int, int]]) -> list[tuple[int, int]]:
         else:
             merged.append((start, end))
     return merged
+
+
+#: How far ahead ``next_open`` looks. Two weeks covers a long holiday; a
+#: schedule shut for longer than that is not one the agent should promise.
+LOOKAHEAD_DAYS = 14
+
+
+def next_open(schedule: Any, now: Optional[datetime] = None) -> Optional[datetime]:
+    """When the agent next opens, local to its schedule, or None when it is
+    open now, keeps no hours, or does not open within ``LOOKAHEAD_DAYS``."""
+    if not isinstance(schedule, Mapping) or not schedule.get("enabled", False):
+        return None
+    zone = _zone(schedule)
+    if zone is None:
+        return None
+    moment = (now or datetime.now(zone)).astimezone(zone)
+    if is_open(schedule, moment):
+        return None
+    readable = [
+        slot
+        for slot in schedule.get("slots") or []
+        if isinstance(slot, Mapping)
+        and _minutes(slot.get("start_time")) is not None
+        and _minutes(slot.get("end_time")) is not None
+    ]
+    if not readable:
+        # Shut only by a closure, with no week to reopen into: open_windows
+        # would answer "all day" tomorrow, which is not a time worth naming.
+        return None
+    minute_now = moment.hour * 60 + moment.minute
+    for offset in range(LOOKAHEAD_DAYS + 1):
+        day = moment.date() + timedelta(days=offset)
+        for start, _end in open_windows(schedule, day):
+            if offset == 0 and start <= minute_now:
+                continue
+            return datetime(
+                day.year, day.month, day.day, start // 60, start % 60, tzinfo=zone
+            )
+    return None
+
+
+def _when(moment: datetime, now: datetime) -> str:
+    from api.services.workflow.setup_fields import _spoken_time
+
+    clock = _spoken_time(f"{moment.hour:02d}:{moment.minute:02d}")
+    if moment.date() == now.date():
+        return f"today at {clock}"
+    if moment.date() == now.date() + timedelta(days=1):
+        return f"tomorrow at {clock}"
+    return f"{moment.strftime('%A')} {moment.day} {moment.strftime('%B')} at {clock}"
+
+
+def hours_line(schedule: Any, now: Optional[datetime] = None) -> str:
+    """What the agent is told about its own hours, so it can say them and
+    say when it is next open. Empty when it keeps none.
+
+    The platform already refuses an inbound call while the agent is shut
+    (routes/telephony.py); this is for every conversation that still
+    reaches it -- a chat, a message, a test -- so "are you open?" is
+    answered from the hours the platform keeps rather than a guess.
+    """
+    from api.services.workflow.setup_fields import hours_sentence
+
+    if not isinstance(schedule, Mapping) or not schedule.get("enabled", False):
+        return ""
+    zone = _zone(schedule)
+    if zone is None:
+        return ""
+    moment = (now or datetime.now(zone)).astimezone(zone)
+    sentence = hours_sentence(schedule)
+    parts = []
+    if sentence:
+        parts.append(f"Your opening hours: {sentence}")
+    upcoming = []
+    for closure in schedule.get("closures") or []:
+        if not isinstance(closure, Mapping):
+            continue
+        try:
+            day = date.fromisoformat(str(closure.get("date") or "").strip())
+        except ValueError:
+            continue
+        if day < moment.date():
+            continue
+        reason = str(closure.get("reason") or "").strip()
+        upcoming.append(
+            f"{day.strftime('%A')} {day.day} {day.strftime('%B')}"
+            + (f" ({reason})" if reason else "")
+        )
+    if upcoming:
+        parts.append("Closed on " + ", ".join(upcoming[:10]) + ".")
+    if not parts:
+        return ""
+    if not is_open(schedule, moment):
+        opens = next_open(schedule, moment)
+        parts.append(
+            "You are closed right now"
+            + (f"; you open again {_when(opens, moment)}." if opens else ".")
+            + " If someone asks for something that needs the business open, "
+            "say when it opens."
+        )
+    return " ".join(parts)

@@ -226,6 +226,53 @@ class KnowledgeBaseClient(BaseDBClient):
             rows = result.scalars().all()
             return rows[0] if len(rows) == 1 else None
 
+    async def find_documents_by_name(
+        self, name: str, *, organization_id: int, limit: int = 5
+    ) -> list[KnowledgeBaseDocumentModel]:
+        """This organisation's files a person could mean by ``name``: the one
+        with that uuid, else those whose filename is exactly it (any case),
+        else those whose filename contains it. Several back means ambiguous;
+        the caller says so rather than picking one."""
+        import re
+
+        from sqlalchemy import and_
+
+        wanted = (name or "").strip()
+        if not wanted:
+            return []
+
+        def contains(text: str):
+            escaped = text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            return KnowledgeBaseDocumentModel.filename.ilike(
+                f"%{escaped}%", escape="\\"
+            )
+
+        # "the price list" for price-list-2026.pdf: every word, any order.
+        words = [w for w in re.split(r"[^0-9A-Za-z]+", wanted) if len(w) > 1]
+        base = select(KnowledgeBaseDocumentModel).where(
+            KnowledgeBaseDocumentModel.organization_id == organization_id,
+            KnowledgeBaseDocumentModel.is_active == True,
+        )
+        clauses = [
+            KnowledgeBaseDocumentModel.document_uuid == wanted.lower(),
+            func.lower(KnowledgeBaseDocumentModel.filename) == wanted.lower(),
+            contains(wanted),
+        ]
+        if words:
+            clauses.append(and_(*(contains(w) for w in words)))
+        async with self.async_session() as session:
+            for clause in clauses:
+                rows = (
+                    await session.scalars(
+                        base.where(clause)
+                        .order_by(KnowledgeBaseDocumentModel.created_at.desc())
+                        .limit(limit)
+                    )
+                ).all()
+                if rows:
+                    return list(rows)
+        return []
+
     async def get_document_by_hash(
         self,
         file_hash: str,

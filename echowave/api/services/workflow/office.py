@@ -429,10 +429,10 @@ async def post_check_result(result: Any) -> None:
 # --- the edit verb ----------------------------------------------------------
 
 
-def edit_tool_schema() -> dict[str, Any]:
+def edit_tool_schema(organization_id: int | None = None) -> dict[str, Any]:
     """self_edit's tool, plus the bot it is for: Decibyl edits colleagues,
     not itself."""
-    properties = dict(self_edit.tool_properties())
+    properties = dict(self_edit.tool_properties(organization_id))
     properties["bot"] = {
         "type": "string",
         "description": "The agent to change, by @handle or name.",
@@ -450,6 +450,14 @@ def edit_tool_schema() -> dict[str, Any]:
             "shortened one. Say in one line why. It becomes a draft with a "
             "diff card on this thread; a person publishes it. Say you have "
             "proposed it and end your reply."
+        )
+        + (
+            " To change the agent's opening hours or holiday closures, give "
+            "`hours`. To make it start or stop reading a workspace file, give "
+            "`attach_files` or `detach_files` with the file's name. For 'undo "
+            "that', give `undo`: its last published change is proposed back."
+            if self_edit.v2(organization_id)
+            else ""
         ),
         "parameters": {
             "type": "object",
