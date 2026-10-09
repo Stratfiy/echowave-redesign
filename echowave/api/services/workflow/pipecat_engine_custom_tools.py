@@ -1436,6 +1436,24 @@ class CustomToolManager:
                 f"argument_keys={list((function_call_params.arguments or {}).keys())}"
             )
 
+            # Escalation v2: the policy decides, and the transfer goes through
+            # the escalation record, card and ladder. False means this tool is
+            # one it does not take over, and the handler below runs as before.
+            escalation_runtime = getattr(self._engine, "_escalation", None)
+            if escalation_runtime is not None:
+                from api.services.escalation.runtime import EscalationRuntime
+
+                if not isinstance(escalation_runtime, EscalationRuntime):
+                    escalation_runtime = None
+            if escalation_runtime is not None:
+                try:
+                    if await escalation_runtime.handle_transfer_tool(
+                        tool, function_call_params
+                    ):
+                        return
+                except Exception as e:
+                    logger.error(f"Escalation transfer failed, falling back: {e}")
+
             try:
                 # Get the transfer call configuration
                 config = tool.definition.get("config", {})
