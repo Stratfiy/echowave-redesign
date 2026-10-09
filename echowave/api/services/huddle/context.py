@@ -55,30 +55,18 @@ HOW_YOU_WORK_CHAT = "You answer in writing (chat, messages), not on the phone."
 HOW_YOU_WORK_PHONE = "You talk to people on calls."
 
 #: Bounds on what is read in, so a huddle's prompt stays a huddle's.
-MAX_ROUTINES = 8
 MAX_SKILLS = 12
 MAX_FACTS = 25
 
 
 async def schedules_block(organization_id: int, workflow_id: int) -> str:
-    from api.services.workflow import routines
+    """The agent's routines, as its own prompt reads them
+    (``standing_context.agent_routines``), so the huddle and a call never
+    describe the schedule differently."""
+    from api.services.workflow import standing_context
 
-    rows = await db_client.routines_for_workflow(
-        workflow_id, organization_id=organization_id
-    )
-    if not rows:
-        return "## Your schedule\nNothing runs you on a schedule."
-    lines = ["## Your schedule"]
-    for row in list(rows)[:MAX_ROUTINES]:
-        try:
-            when = routines.describe(routines.spec_from_model(row))
-        except Exception:  # noqa: BLE001 - an unreadable cadence is said, not hidden
-            when = "a schedule I cannot read"
-        state = "on" if getattr(row, "is_active", False) else "off"
-        lines.append(f"- {row.name}: {when} ({state})")
-    if len(rows) > MAX_ROUTINES:
-        lines.append(f"({len(rows) - MAX_ROUTINES} more not shown)")
-    return "\n".join(lines)
+    block = await standing_context.agent_routines(organization_id, workflow_id)
+    return block or "## Your schedule\nNothing runs you on a schedule."
 
 
 async def memory_block(organization_id: int, workflow_id: int) -> str:
@@ -141,17 +129,21 @@ async def _reading(name: str, coroutine) -> str:
 
 
 async def system_prompt(
-    *, organization_id: int, workflow: Any, notes: list[str]
+    *,
+    organization_id: int,
+    workflow: Any,
+    notes: list[str],
+    user_id: int | None = None,
 ) -> str:
     """The whole prompt for one huddle, read once when it connects."""
-    from api.services.workflow.pipecat_engine_context_composer import (
-        compose_today_line,
-    )
+    from api.services.workflow import standing_context
 
     name = getattr(workflow, "name", None) or "this agent"
+    # The date in the person's own zone, as Decibyl's turns have it.
+    zone = await standing_context.zone_for(organization_id, user_id)
     parts = [
         PERSONA.format(name=name),
-        compose_today_line(),
+        standing_context.now_line(zone),
         f"## Your job\n{how_you_work(workflow)}",
         self_edit.steps_block(getattr(workflow, "workflow_definition", None))
         or "## Your steps\n(none written yet)",

@@ -645,6 +645,7 @@ class TestTeammateMemory:
         assert "You are Front desk" in prompt
         assert "not talking to a customer" in prompt.lower()
         assert "### Start" in prompt
+        assert "Nothing runs you on a schedule" in prompt
         # The customer-facing prompt is the agent's steps and confirmed
         # memory; neither holds the note.
         assert "Priya" not in str(await _published(people.agent.id))

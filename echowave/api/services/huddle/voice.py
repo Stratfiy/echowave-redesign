@@ -37,7 +37,7 @@ async def prepare(
         organization_id=organization_id, user_id=user_id, workflow_id=workflow_id
     )
     system = await context.system_prompt(
-        organization_id=organization_id, workflow=workflow, notes=notes
+        organization_id=organization_id, workflow=workflow, notes=notes, user_id=user_id
     )
     found = await record.find(
         organization_id=organization_id,
