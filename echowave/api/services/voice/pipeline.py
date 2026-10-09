@@ -107,7 +107,7 @@ async def run_decibyl_voice(
             language=session.get("language"),
             send=ws_sender,
         )
-        await _run(webrtc_connection, session, ledger)
+        await run_connection(webrtc_connection, session, ledger)
     except Exception as exc:  # noqa: BLE001 - the session record must still move
         logger.error("Decibyl voice session {} failed: {}", session_id, exc)
         if ledger is not None:
@@ -126,9 +126,16 @@ async def run_decibyl_voice(
             await ledger.drain()
 
 
-async def _run(
-    webrtc_connection: Any, session: dict[str, Any], ledger: TurnLedger
+async def run_connection(
+    webrtc_connection: Any,
+    session: dict[str, Any],
+    ledger: TurnLedger,
+    brain: Any | None = None,
 ) -> None:
+    """One connection's pipeline. ``brain`` is the processor where the LLM
+    would sit; None is Decibyl's own. A huddle (services/huddle/voice.py)
+    passes the agent's, and everything else -- transport, speech, turns,
+    captions, minutes -- is this one."""
     from pipecat.audio.vad.silero import SileroVADAnalyzer
     from pipecat.pipeline.pipeline import Pipeline
     from pipecat.processors.aggregators.llm_context import LLMContext
@@ -215,7 +222,7 @@ async def _run(
         vad_analyzer=SileroVADAnalyzer(params=vad_sensitivity.params(turn_config)),
     )
     aggregators = LLMContextAggregatorPair(LLMContext(), user_params=user_params)
-    brain = DecibylVoiceBrain(ledger)
+    brain = brain if brain is not None else DecibylVoiceBrain(ledger)
     tracker = HeardTracker(ledger)
     pipeline = Pipeline(
         [

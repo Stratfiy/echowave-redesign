@@ -39,6 +39,7 @@ from api.routes.extraction_library import router as extraction_library_router
 from api.routes.feature_admin import router as feature_admin_router
 from api.routes.folder import router as folder_router
 from api.routes.helpers import router as helpers_router
+from api.routes.huddle import router as huddle_router
 from api.routes.identity import router as identity_router
 from api.routes.images import router as images_router
 from api.routes.impersonation import router as impersonation_router
@@ -194,6 +195,7 @@ router.include_router(staff_console_router)
 router.include_router(settings_router)
 router.include_router(voice_router)
 router.include_router(voice_admin_router)
+router.include_router(huddle_router)
 router.include_router(organisation_router)
 router.include_router(organisation_memory_router)
 router.include_router(packs_router)

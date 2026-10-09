@@ -21,7 +21,7 @@ from api.db.models import UserModel
 from api.enums import ORGANIZATION_ROLE_RANK, OrganizationRole
 from api.services import features, member_preferences, quotas
 from api.services.auth.depends import get_staff, get_user
-from api.services.voice import appointments, catalogue, latency, readiness, sessions
+from api.services.voice import appointments, latency, readiness, sessions
 
 router = APIRouter(prefix="/voice", tags=["voice"])
 admin_router = APIRouter(
@@ -182,21 +182,7 @@ async def start_session(
         ) from exc
     voice = prefs.get("voice")
     language = state.config.get("language")
-    config = {
-        **state.config,
-        "speed": prefs.get("speaking_speed"),
-        "captions": prefs.get("captions") is not False,
-        # The person's voice (Settings -> Voice and language) applies only if
-        # the workspace's voice model has that speaker and speaks the
-        # session's language; it is never silently swapped for another.
-        "voice_compatible": (
-            catalogue.compatible(
-                voice, language, (state.config.get("tts") or {}).get("model")
-            )
-            if voice
-            else None
-        ),
-    }
+    config = sessions.config_for(state.config, prefs)
     try:
         session = await sessions.start(
             organization_id=organization_id,

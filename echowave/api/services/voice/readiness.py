@@ -90,10 +90,18 @@ async def _brain_ready(organization_id: int) -> str | None:
 
 
 async def live_voice(
-    *, organization_id: int, user_id: int, language: str | None = None
+    *,
+    organization_id: int,
+    user_id: int,
+    language: str | None = None,
+    flag: str = "decibyl_voice",
 ) -> Readiness:
-    """Whether this person can talk with Decibyl now."""
-    if not features.is_on("decibyl_voice", organization_id):
+    """Whether this person can talk with Decibyl now.
+
+    ``flag`` is the switch the conversation sits behind: Talk is
+    ``decibyl_voice``; a huddle with an agent (services/huddle) is
+    ``huddle`` and runs on the same speech and brain checks."""
+    if not features.is_on(flag, organization_id):
         return Readiness(
             DISABLED_BY_POLICY,
             reason="Live voice is switched off for this workspace.",

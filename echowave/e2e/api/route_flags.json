@@ -732,6 +732,39 @@
    "launch_helpers"
   ]
  },
+ "/api/v1/huddle/sessions/{session_id}": {
+  "GET": [
+   "huddle"
+  ]
+ },
+ "/api/v1/huddle/sessions/{session_id}/end": {
+  "POST": [
+   "huddle"
+  ]
+ },
+ "/api/v1/huddle/sessions/{session_id}/heartbeat": {
+  "POST": [
+   "huddle"
+  ]
+ },
+ "/api/v1/huddle/sessions/{session_id}/move": {
+  "POST": [
+   "huddle"
+  ]
+ },
+ "/api/v1/huddle/{workflow_id}/notes": {
+  "DELETE": [
+   "huddle"
+  ],
+  "GET": [
+   "huddle"
+  ]
+ },
+ "/api/v1/huddle/{workflow_id}/sessions": {
+  "POST": [
+   "huddle"
+  ]
+ },
  "/api/v1/images/provider": {
   "PUT": [
    "image_generation"

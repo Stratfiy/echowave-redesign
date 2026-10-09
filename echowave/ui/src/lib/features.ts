@@ -133,6 +133,8 @@ export type Feature =
     | "call_appointment"
     // "Call me when it's done": a phone call when a task finishes.
     | "call_when_done"
+    // The huddle: talk to an agent as a teammate, in its thread.
+    | "huddle"
     // People: synced contacts with context (PEOPLE.md).
     | "people"
     // Voice isolation: background voices on calls (VOICE.md).

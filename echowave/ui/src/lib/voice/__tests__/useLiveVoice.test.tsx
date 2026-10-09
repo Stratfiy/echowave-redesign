@@ -257,3 +257,37 @@ describe("in a session", () => {
         expect(api.record).not.toHaveBeenCalled();
     });
 });
+
+describe("another kind of session (a huddle)", () => {
+    it("starts, connects and ends on the routes it is given, and hands on what it does not handle", async () => {
+        const routes = {
+            start: vi.fn(async () => ({ data: { id: 9, state: "connecting", state_version: 1 } })),
+            get: vi.fn(async () => ({ data: { id: 9, state: "live", state_version: 2 } })),
+            move: vi.fn(async () => ({ data: { id: 9, state: "live", state_version: 3 } })),
+            heartbeat: vi.fn(async () => ({ data: {} })),
+            end: vi.fn(async () => ({ data: {} })),
+            socketPath: (id: number) => `/api/v1/ws/huddle/${id}`,
+        };
+        const events: Array<[string, Record<string, unknown>]> = [];
+        const { result } = renderHook(() =>
+            useLiveVoice({
+                getAccessToken: async () => "tok",
+                measureLatency: false,
+                api: routes,
+                onServerEvent: (type, payload) => events.push([type, payload]),
+            }),
+        );
+        await act(() => result.current.start({ threadId: null, draft: "" }));
+        expect(routes.start).toHaveBeenCalled();
+        expect(api.start).not.toHaveBeenCalled();
+        await waitFor(() => expect(sockets[0]?.sent).toHaveLength(1));
+        expect(sockets[0].url).toBe("ws://api.test/api/v1/ws/huddle/9");
+        await act(async () => {
+            sockets[0].receive({ type: "huddle-card", payload: { event_id: 77 } });
+        });
+        expect(events).toEqual([["huddle-card", { event_id: 77 }]]);
+        await act(() => result.current.end());
+        expect(routes.end).toHaveBeenCalledWith(9, "user_ended");
+        expect(api.end).not.toHaveBeenCalled();
+    });
+});
