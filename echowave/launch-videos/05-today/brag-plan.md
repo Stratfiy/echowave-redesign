@@ -18,8 +18,8 @@ started. You drink your chai, approve three things, and the day's admin is done.
   being approved.
 
 ## Outro / punchline
-"Nothing due in Decibyl." (the real empty-state copy) over a sunrise-coloured brand
-gradient. "Your day, started."
+"Nothing due in Decibyl." (the real empty-state copy) on white, with the three pastel
+blob faces around it. "Your day, started."
 
 ## User flow worth showing
 Ask for a morning summary → Today lists approvals and what's done → tap to approve.
@@ -33,7 +33,7 @@ Ask for a morning summary → Today lists approvals and what's done → tap to a
 ## Duration: 18s
 
 ## Visual identity (from the project)
-Shared identity. The brand gradient (`#e6e6b6` → `#c4d0da`) used once, in the outro.
+Shared identity. The outro uses the white end frame with the three pastel blobs.
 
 ## Share copy (draft)
 Most dashboards give you charts. Decibyl gives you a list it has already started: three
@@ -65,7 +65,7 @@ Sequential/interaction: yes, simulated taps; each card fully readable before the
 Transition mood: soft → Scene 4
 
 ### Scene 4 — Outro — 4s
-"Nothing due in Decibyl." over the brand gradient. "Your day, started." Wordmark.
+"Nothing due in Decibyl." on white with the pastel blobs. "Your day, started." Wordmark.
 Transition mood: end
 
 Total: 3 + 4 + 7 + 4 = **18s**

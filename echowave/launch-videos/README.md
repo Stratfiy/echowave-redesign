@@ -57,13 +57,15 @@ From `ui/src/app/globals.css`, `ui/src/app/layout.tsx` and `ui/src/components/br
 | Ink: text and primary buttons | `#0d0d0d` (`--foreground`, `--primary`) |
 | Body text | `#5d5d5d` (`--brand-body`) |
 | Chips | `#f0f0f0` fill, `#e5e5e6` border |
-| Brand gradient | `linear-gradient(to bottom, #e6e6b6, #c4d0da)` (`--brand-gradient`) |
 | Agent blob faces | pastels `#F7B5E3`, `#FFD66B`, `#CDEB7A`; eyes `#0d0d0d` |
 | Warm accent | `#df8e1d` (`--brand-amber`), used sparingly for "waiting for your approval" |
 | Type | Lato, the app's self-hosted font |
 
 The look is calm: white, ink, one pastel blob, lots of space. The product's personality
 comes from the blob faces and the plain copy, not from gradients or glow.
+
+**End frames:** white background, with the three pastel blob faces (pink, yellow, green)
+popping in one by one and floating gently around the line. No brand gradient anywhere.
 
 ## Rules every video follows
 
