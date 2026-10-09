@@ -107,6 +107,8 @@ async def start(
         scope=getattr(source, "scope", "library"),
         folder_id=getattr(source, "folder_id", None),
         workflow_id=getattr(source, "workflow_id", None),
+        # Beside the original on the Files page, not at the top level.
+        file_folder_id=source.file_folder_id,
     )
     await enqueue_job(
         FunctionNames.TRANSLATE_KNOWLEDGE_BASE_DOCUMENT,

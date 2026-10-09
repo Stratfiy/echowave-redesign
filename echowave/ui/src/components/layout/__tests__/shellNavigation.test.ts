@@ -53,7 +53,7 @@ describe("the navigation", () => {
 
     it("reaches every page the rail used to hold, through Settings", () => {
         const urls = new Set(shellUrls());
-        for (const url of ["/settings/company", "/settings/knowledge", "/settings/channels", "/settings/team", "/settings"]) {
+        for (const url of ["/settings/company", "/settings/channels", "/settings/team", "/settings"]) {
             expect(urls.has(url), url).toBe(true);
         }
     });

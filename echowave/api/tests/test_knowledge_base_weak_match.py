@@ -115,6 +115,7 @@ class TestTheFloor:
             full_text = "The whole policy document."
             filename = "policy.pdf"
             document_uuid = "uuid-1"
+            file_folder_id = None
 
         with (
             patch.object(

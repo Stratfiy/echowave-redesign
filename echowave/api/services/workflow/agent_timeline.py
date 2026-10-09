@@ -200,6 +200,24 @@ async def record(
         workflow_id=workflow_id,
     )
 
+    # "Call me when it's done" (services/call_when_done). Every job that
+    # finishes later writes its finish here, so this is the one place a
+    # finish is heard -- a job type added later is heard without being
+    # wired. After the row, and guarded inside: it never raises, leaves at
+    # once for kinds that cannot be a finish, and does nothing while off.
+    from api.services.call_when_done import completion as finished_work
+
+    await finished_work.on_recorded(
+        organization_id=organization_id,
+        kind=kind,
+        summary=summary,
+        payload=payload,
+        workflow_id=workflow_id,
+        workflow_run_id=workflow_run_id,
+        thread_id=thread,
+        event_id=event_id,
+    )
+
     # And out to whatever the operator wired this bot to. After the row and
     # after the bell, in its own guard, for the same reason the bell is: a
     # receiver that is down must not be able to undo something that happened.
@@ -478,3 +496,31 @@ def read_passages_line(result: Any) -> Optional[str]:
     if len(names) == 1:
         return f"Read {what} from {names[0]}"
     return f"Read {what} from Company knowledge"
+
+
+def passages_sources(result: Any) -> list[dict[str, Any]]:
+    """The sources entry for a knowledge lookup, for the thread's Sources
+    panel: each file read, once, as its citation (file, folder, and page or
+    sheet). Empty when nothing was read."""
+    chunks = result.get("chunks") if isinstance(result, dict) else None
+    if not chunks:
+        return []
+    cited: list[str] = []
+    for chunk in chunks:
+        if not isinstance(chunk, dict):
+            continue
+        label = (
+            chunk.get("citation") or chunk.get("document_name") or chunk.get("filename")
+        )
+        if label and label not in cited:
+            cited.append(str(label))
+    count = len(chunks)
+    return [
+        {
+            "kind": "knowledge",
+            "label": "Files",
+            "status": "read",
+            "detail": f"{count} passage{'s' if count != 1 else ''}",
+            "documents": cited,
+        }
+    ]

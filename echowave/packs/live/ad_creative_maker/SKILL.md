@@ -34,7 +34,7 @@ decibyl:
     name: Ad creative maker
     vertical: Businesses that advertise on Instagram, Facebook and WhatsApp
     industry: Any business
-    function: Make posters and ads
+    function: Make content
     direction: message
     summary: Makes Instagram, Facebook and WhatsApp ad creatives in the sizes each needs,
       with your logo or product photo, 2-4 options and edits on request -- every claim and

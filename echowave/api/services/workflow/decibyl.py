@@ -61,6 +61,7 @@ from api.services.workflow import (
     document_fields,
     documents,
     draft_requests,
+    files_search,
     filing,
     office,
     prospects,
@@ -158,8 +159,10 @@ SYSTEM = (
     "the context, forget a confirmed fact by its key, or create_bot from a "
     "template in the context. For create_bot, ask for every answer the "
     "template needs before proposing; never invent an answer.\n"
-    "- propose_edit: change one step of a named agent. Use the agent's steps in "
-    "the context; give the complete new prompt.\n"
+    "- propose_edit: change a named agent. A name, word or phrase that should "
+    "read differently everywhere (who it signs as, a company, a price) is "
+    "find + replace_with, never a rewrite. To rewrite one step, use the "
+    "agent's steps in the context and give the complete new prompt.\n"
     "- test_bot: offer to hear (a call) or try (text) a named agent.\n"
     "- check_bot: a scripted caller plays a scenario and a judge grades it; "
     "the verdict comes back to this thread as a card. Offer it before an "
@@ -254,6 +257,12 @@ SYSTEM = (
     "confirm_document with the document_uuid from the context and only the "
     "corrected fields; then say what is now remembered and which reminders "
     "were set.\n"
+    "- Files: search_files searches the workspace's Files (documents, "
+    "spreadsheets, PDFs, pictures) and returns passages with a citation. Use "
+    "it when the passages under 'From the knowledge base' do not answer, or "
+    "to look again with the words a file would use. When an answer comes "
+    "from a file, say which, as its citation gives it: the file, its folder, "
+    "and the page or sheet.\n"
     "- Memory: recall asks what was said or done on calls, on this thread "
     "and in documents that arrived on a channel, by whom and when. Use it "
     "for a question about a person, a supplier, a promise, a decision or a "
@@ -314,6 +323,7 @@ def system_prompt(organization_id: int | None = None) -> str:
         # none were set or the switches are off.
         + settings_profile.turn_block()
         + (call_for_me.RULES if call_for_me.enabled(organization_id) else "")
+        + (_done_calls().RULES if _done_calls_on(organization_id) else "")
         + (_outreach().RULES if _outreach().enabled(organization_id) else "")
         + (_booking().RULES if _booking().enabled(organization_id) else "")
     )
@@ -459,6 +469,30 @@ async def ask(
     if await turn_refused(
         organization_id=organization_id, user_id=user_id, thread_id=thread_id
     ):
+        return []
+
+    # "Call me when it's done", said on its own (or the chip's own words):
+    # answered here, with no model, so the ask cannot be misread. A longer
+    # line that only contains it goes to the model, which has the tool.
+    if (
+        not handed_to
+        and _done_calls_on(organization_id)
+        and _done_calls().is_the_ask(text)
+    ):
+        from api.services.call_when_done import CallWhenDoneError
+
+        try:
+            await _done_calls().opt_in(organization_id, user_id, thread_id=thread_id)
+        except CallWhenDoneError as exc:
+            await agent_timeline.record(
+                organization_id=organization_id,
+                kind=AgentEventKind.MESSAGE.value,
+                actor=AgentEventActor.AGENT.value,
+                summary=str(exc)[:500],
+                payload={"body": str(exc), "from": NAME},
+                in_channel=False,
+                thread_id=thread_id,
+            )
         return []
 
     from api.tasks.arq import enqueue_job
@@ -711,44 +745,31 @@ def knowledge_block(result: dict[str, Any], contacts: list[Any] | None = None) -
     chunks = result.get("chunks") or []
     for c in chunks[:KNOWLEDGE_CHUNKS]:
         text = str(c.get("text") or c.get("content") or "").strip()
-        name = c.get("document_name") or c.get("filename") or "document"
+        # The citation names the file as it is called now, its folder, and
+        # the page or sheet: what the model repeats when it says where an
+        # answer came from.
+        name = (
+            c.get("citation")
+            or c.get("document_name")
+            or c.get("filename")
+            or "document"
+        )
         if text:
             out.append(f"- ({name}) {text[:600]}")
     return "\n".join(out) if out else "Nothing in the knowledge base matches that."
 
 
 async def _knowledge(organization_id: int, question: str) -> dict[str, Any]:
-    """The knowledge base, on the account's own embeddings key. Unavailable
-    is an answer, not an error: a workspace with no embeddings set up gets
-    "no passage" rather than a broken assistant."""
-    try:
-        from api.services.configuration.ai_model_configuration import (
-            apply_managed_embeddings_base_url,
-            get_effective_ai_model_configuration_for_organization,
-        )
-        from api.services.workflow.tools.knowledge_base import (
-            retrieve_from_knowledge_base,
-        )
+    """The workspace's Files that bear on the question, as cited passages.
 
-        config = await get_effective_ai_model_configuration_for_organization(
-            organization_id
-        )
-        embeddings = getattr(config, "embeddings", None)
-        if not embeddings:
-            return {"status": "unavailable", "chunks": []}
-        provider = getattr(embeddings, "provider", None)
-        return await retrieve_from_knowledge_base(
-            query=question,
-            organization_id=organization_id,
-            limit=KNOWLEDGE_CHUNKS,
-            embeddings_api_key=embeddings.api_key,
-            embeddings_model=embeddings.model,
-            embeddings_base_url=apply_managed_embeddings_base_url(
-                provider=provider, base_url=getattr(embeddings, "base_url", None)
-            ),
-            embeddings_provider=provider,
-            embeddings_endpoint=getattr(embeddings, "endpoint", None),
-            embeddings_api_version=getattr(embeddings, "api_version", None),
+    Searched by meaning on the account's own embeddings key when it has one
+    and by words always, so a workspace with no embeddings set up still
+    gets the passage that names the thing it asked about. Unavailable is an
+    answer, not an error: knowledge is one reading of several.
+    """
+    try:
+        return await files_search.search(
+            organization_id, question, limit=KNOWLEDGE_CHUNKS
         )
     except Exception as exc:  # noqa: BLE001 - knowledge is one reading of four
         logger.warning("Decibyl could not read the knowledge base: {}", exc)
@@ -956,11 +977,9 @@ def sources_read(
     up, and a panel that lists only what worked hides that it was missing.
     """
     chunks = knowledge.get("chunks") or []
-    documents: list[str] = []
-    for chunk in chunks[:KNOWLEDGE_CHUNKS]:
-        name = chunk.get("document_name") or chunk.get("filename")
-        if name and name not in documents:
-            documents.append(str(name))
+    # Each file read, as its citation (file, folder, page or sheet), so the
+    # thread shows which file an answer used and where in it.
+    documents = files_search.citations_of({"chunks": chunks[:KNOWLEDGE_CHUNKS]})
     knowledge_ok = knowledge.get("status") != "unavailable"
     return [
         {
@@ -1671,6 +1690,7 @@ def office_tools(organization_id: int | None = None) -> list[dict[str, Any]]:
         bot_from_brief.tool_schema(),
         documents.find_tool_schema(),
         documents.send_tool_schema(),
+        files_search.tool_schema(),
         document_fields.tool_schema(),
         filing.tool_schema(),
         recall.tool_schema(),
@@ -1705,6 +1725,7 @@ def office_tools(organization_id: int | None = None) -> list[dict[str, Any]]:
             if _call_for_me().enabled(organization_id)
             else ()
         ),
+        *((_done_calls().tool_schema(),) if _done_calls_on(organization_id) else ()),
     ]
 
 
@@ -1718,6 +1739,19 @@ def _call_for_me():
     from api.services.voice import call_for_me
 
     return call_for_me
+
+
+def _done_calls():
+    """ "Call me when it's done" (services/call_when_done/optin.py)."""
+    from api.services.call_when_done import optin
+
+    return optin
+
+
+def _done_calls_on(organization_id: int | None) -> bool:
+    from api.services import call_when_done
+
+    return call_when_done.enabled(organization_id)
 
 
 #: The old name, kept for anything that imported it.
@@ -1834,6 +1868,7 @@ def _was_a_read(call: Any, result: Any) -> bool:
             or name
             in (
                 documents.FIND_TOOL_NAME,
+                files_search.TOOL_NAME,
                 recall.TOOL_NAME,
                 connected_tools.LOAD_TOOL_NAME,
                 web_tools.SEARCH_TOOL_NAME,
@@ -2004,6 +2039,8 @@ async def _tool(
             arguments,
             ref_id=f"decibyl:{organization_id}:{call.id or call.name}",
         )
+    if call.name == files_search.TOOL_NAME:
+        return await files_search.for_thread(organization_id, arguments)
     if call.name == document_fields.TOOL_NAME:
         return await document_fields.confirm_for_thread(organization_id, arguments)
     if call.name == filing.TOOL_NAME:
@@ -2125,6 +2162,10 @@ async def _tool(
             workflow_run_id=None,
             arguments={**arguments, "action": actions.PLACE_CALL},
             in_channel=False,
+        )
+    if call.name == _done_calls().TOOL_NAME and _done_calls_on(organization_id):
+        return await _done_calls().run_tool(
+            organization_id, arguments, user_id=author_id, thread_id=thread_id
         )
     if call.name == documents.SEND_TOOL_NAME:
         return await documents.send_for_thread(

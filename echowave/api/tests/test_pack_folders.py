@@ -65,9 +65,10 @@ class TestLiveFoldersEqualTheCatalogue:
         # Nine written in code; four chat desks, ten back-office desks and
         # the report generator and the telecaller coach promoted from the
         # drafts on 22 Sept 2026; the four procurement desks (Step 2) and
-        # the maturity assessor (E-2); the poster designer and the ad
-        # creative maker (image generation).
-        assert len(pairs) == 32
+        # the maturity assessor (E-2); Daily Check-in, promoted from the
+        # daily wellness check-in draft for the seniors' shelf (8 Oct 2026);
+        # the poster designer and the ad creative maker (image generation).
+        assert len(pairs) == 33
         assert check_drift(pairs, LIVE_DIR) == [], (
             "packs/live has drifted from the catalogue; "
             "run: python -m scripts.export_pack_folders"
@@ -99,8 +100,9 @@ class TestLiveFoldersEqualTheCatalogue:
 class TestDraftFolders:
     def test_the_prompt_pack_loaded_as_drafts(self):
         drafts = draft_folders()
-        # 26 imported; sixteen promoted on 22 Sept 2026 (test_promoted_roles_meet_their_own_tests).
-        assert len(drafts) == 10
+        # 26 imported; sixteen promoted on 22 Sept 2026 and Daily Check-in on
+        # 8 Oct 2026 (test_promoted_roles_meet_their_own_tests).
+        assert len(drafts) == 9
         for draft in drafts:
             assert draft.draft is True
             assert draft.pack.listed is False

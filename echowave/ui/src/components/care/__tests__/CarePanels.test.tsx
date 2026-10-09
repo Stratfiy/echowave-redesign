@@ -23,6 +23,8 @@ const sdk = vi.hoisted(() => ({
     myCircleApiV1CareCircleGet: vi.fn(),
     pauseMedicineApiV1CareMedicinesMedicineIdPausePost: vi.fn(),
     resumeMedicineApiV1CareMedicinesMedicineIdResumePost: vi.fn(),
+    editMedicineApiV1CareMedicinesMedicineIdPatch: vi.fn(),
+    removeMedicineApiV1CareMedicinesMedicineIdDelete: vi.fn(),
     familyApiV1CareFamilyGet: vi.fn(),
     acceptInviteApiV1CareFamilyAcceptPost: vi.fn(),
     readAlertApiV1CareFamilyAlertsAlertIdReadPost: vi.fn(),
@@ -231,6 +233,88 @@ describe("My medicine reminders", () => {
         expect(screen.getByRole("button", { name: "Pause the calls" })).toBeTruthy();
         fireEvent.click(screen.getByRole("button", { name: /Add a reminder/ }));
         expect(screen.getByText(/never gives advice about doses/)).toBeTruthy();
+    });
+});
+
+function pausedReminder(state = "paused") {
+    return {
+        id: 4,
+        label: "BP Tablet",
+        times: ["08:00"],
+        timezone: "Asia/Kolkata",
+        language: "hi-IN",
+        language_name: "Hindi",
+        channel: "call",
+        phone_masked: "the number ending 1878",
+        alert_member_ids: [],
+        state,
+        card_event_id: null,
+        doses: [],
+    };
+}
+
+function listing(state = "paused") {
+    return {
+        data: {
+            medicines: [pausedReminder(state)],
+            calls: { state: "ready", reason: "" },
+            app: { state: "ready", reason: "Reminders show in Decibyl." },
+            languages: { "hi-IN": "Hindi", "ta-IN": "Tamil" },
+        },
+    };
+}
+
+describe("Changing a reminder", () => {
+    it("edits the name, times and language, and never the number", async () => {
+        sdk.myMedicinesApiV1CareMedicinesGet.mockResolvedValue(listing());
+        sdk.editMedicineApiV1CareMedicinesMedicineIdPatch.mockResolvedValue({
+            data: { medicine: { ...pausedReminder(), times: ["09:30"] }, card: null },
+        });
+        render(<MedicinesPanel />);
+        fireEvent.click(await screen.findByRole("button", { name: /Edit/ }));
+        const form = screen.getByTestId("medicine-edit");
+        expect(form.querySelector('input[type="tel"]')).toBeNull();
+        fireEvent.change(screen.getByLabelText("Time 1"), { target: { value: "09:30" } });
+        fireEvent.change(screen.getByDisplayValue("Hindi"), { target: { value: "ta-IN" } });
+        fireEvent.click(screen.getByRole("button", { name: "Save" }));
+        await waitFor(() => expect(sdk.editMedicineApiV1CareMedicinesMedicineIdPatch).toHaveBeenCalled());
+        expect(sdk.editMedicineApiV1CareMedicinesMedicineIdPatch.mock.calls[0][0]).toEqual({
+            path: { medicine_id: 4 },
+            body: { label: "BP Tablet", times: ["09:30"], language: "ta-IN" },
+        });
+    });
+
+    it("says a running reminder stops until the new details are confirmed", async () => {
+        sdk.myMedicinesApiV1CareMedicinesGet.mockResolvedValue(listing("active"));
+        render(<MedicinesPanel />);
+        fireEvent.click(await screen.findByRole("button", { name: /Edit/ }));
+        expect(screen.getByText(/calls stop until you confirm the new details/)).toBeTruthy();
+        expect(screen.getByRole("button", { name: "Save and review" })).toBeTruthy();
+    });
+
+    it("shows the error instead of closing when the change is refused", async () => {
+        sdk.myMedicinesApiV1CareMedicinesGet.mockResolvedValue(listing());
+        sdk.editMedicineApiV1CareMedicinesMedicineIdPatch.mockResolvedValue({
+            error: { detail: "Decibyl only reminds; it cannot decide how much to take." },
+        });
+        render(<MedicinesPanel />);
+        fireEvent.click(await screen.findByRole("button", { name: /Edit/ }));
+        fireEvent.click(screen.getByRole("button", { name: "Save" }));
+        expect(await screen.findByText(/cannot decide how much to take/)).toBeTruthy();
+        expect(screen.getByTestId("medicine-edit")).toBeTruthy();
+    });
+
+    it("removes only after asking", async () => {
+        sdk.myMedicinesApiV1CareMedicinesGet.mockResolvedValue(listing());
+        sdk.removeMedicineApiV1CareMedicinesMedicineIdDelete.mockResolvedValue({ data: undefined });
+        render(<MedicinesPanel />);
+        fireEvent.click(await screen.findByRole("button", { name: /Remove/ }));
+        expect(sdk.removeMedicineApiV1CareMedicinesMedicineIdDelete).not.toHaveBeenCalled();
+        expect(screen.getByText(/Remove BP Tablet\?/)).toBeTruthy();
+        fireEvent.click(screen.getByRole("button", { name: "Yes, remove" }));
+        await waitFor(() =>
+            expect(sdk.removeMedicineApiV1CareMedicinesMedicineIdDelete).toHaveBeenCalledWith({ path: { medicine_id: 4 } }),
+        );
     });
 });
 

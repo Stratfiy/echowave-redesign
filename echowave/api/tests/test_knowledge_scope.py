@@ -96,6 +96,7 @@ class TestTheScopeIsChecked:
                 scope=body.get("scope", "library"),
                 folder_id=body.get("folder_id"),
                 workflow_id=body.get("workflow_id"),
+                file_folder_id=None,
                 is_active=True,
                 organization_id=7,
             )

@@ -159,6 +159,9 @@ class MemberPreferencesModel(Base):
     #: NULL reads as on.
     captions = Column(Boolean, nullable=True)
     auto_detect_language = Column(Boolean, nullable=True)
+    #: "Call me when long tasks finish" (services/call_when_done). NULL is
+    #: off; read only while ``call_when_done`` is on.
+    call_when_done = Column(Boolean, nullable=True)
     #: When the onboarding answers (``user_onboarding``) were read in.
     onboarding_absorbed_at = Column(DateTime(timezone=True), nullable=True)
     revision = Column(Integer, nullable=False, default=0, server_default=text("0"))

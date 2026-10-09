@@ -224,11 +224,63 @@ BOT_FUNCTIONS: frozenset[str] = frozenset(
         # comparing them and placing the order is buying, not paperwork
         # after the fact.
         "Sourcing and purchasing",
-        # The poster designer and the ad creative maker (services/images/):
-        # making the images a business posts and advertises with.
-        "Make posters and ads",
+        # The life-stage roles (8 Oct 2026): jobs a person has for
+        # themselves rather than for a business -- looking after their
+        # day, studying, making content -- which none of the above is.
+        "Everyday help",
+        "Study and prepare",
+        "Make content",
     }
 )
+
+
+#: The life stages the shelf is grouped by, in the order the founder chose
+#: to show them (8 Oct 2026), with the heading each is shown under. A
+#: template names one of these keys or none; a key not here is refused
+#: rather than filed under a heading nobody can find.
+LIFE_STAGES: dict[str, str] = {
+    "small_business": "Small business",
+    "seniors": "Seniors (60+)",
+    "college_students": "College students",
+    "creators": "Creators",
+}
+
+#: Where a phone line is set up. The care screens send people to the same
+#: place (``MedicinesPanel``), so a role and care name one door.
+PHONE_LINE_HREF = "/settings/phone-number"
+
+
+class CallStep(BaseModel):
+    """One step of a role that is not a phone agent but rings somebody when
+    it can: Money Chaser's last polite call, the seniors' reminder and
+    check-in calls.
+
+    The role itself needs no number -- it works in messages and on a
+    routine -- so it is never priced or badged as a calling agent. The step
+    says what the call is and what the role does instead while the
+    workspace has no line, the pattern care uses: "needs a phone line",
+    with the way past right there.
+    """
+
+    #: The call, in a few words: "a polite reminder call".
+    what: str
+    #: What it does with no line, in a few words: "a WhatsApp reminder".
+    instead: str
+
+    model_config = ConfigDict(extra="forbid")
+
+    @property
+    def needs(self) -> str:
+        return "a phone line"
+
+    def as_card(self) -> dict[str, str]:
+        """What the shelf card says about it, from one place."""
+        return {
+            "what": self.what,
+            "needs": self.needs,
+            "instead": self.instead,
+            "href": PHONE_LINE_HREF,
+        }
 
 
 class AgentTemplate(BaseModel):
@@ -298,6 +350,17 @@ class AgentTemplate(BaseModel):
     #: while ``image_generation`` is on; while it is off the template is off
     #: the gallery and its pack off the shelf.
     needs_images: bool = False
+    #: The life stage the shelf files it under (``LIFE_STAGES``), or none
+    #: for a role that is only filed by industry and function.
+    life_stage: str = ""
+    #: Decibyl's own tools this role's job is done with when it is asked for
+    #: in Chat, by name (``services/helpers/catalogue``, ``care/tools``,
+    #: ``outreach/tools``). The home starters send it there. A hired copy
+    #: runs as an agent of its own and is given what ``equip`` gives it --
+    #: the web, connected apps, approval cards -- not these.
+    uses: list[str] = Field(default_factory=list)
+    #: A non-calling role's one step that rings somebody when a line exists.
+    call_step: CallStep | None = None
 
     model_config = ConfigDict(extra="forbid")
 
@@ -361,7 +424,21 @@ class AgentTemplate(BaseModel):
             raise ValueError(
                 f"template {self.id!r} is scheduled and needs a schedule_shape"
             )
+        if self.life_stage and self.life_stage not in LIFE_STAGES:
+            raise ValueError(
+                f"template {self.id!r} names life stage {self.life_stage!r}, "
+                f"which is not one of {', '.join(LIFE_STAGES)}"
+            )
+        if calling and self.call_step is not None:
+            raise ValueError(
+                f"template {self.id!r} is a phone agent already; a call_step "
+                "is for a role that works without a number"
+            )
         return self
+
+    @property
+    def life_stage_label(self) -> str:
+        return LIFE_STAGES.get(self.life_stage, "")
 
     @property
     def speaks(self) -> bool:

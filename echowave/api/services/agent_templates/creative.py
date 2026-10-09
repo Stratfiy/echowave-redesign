@@ -112,7 +112,7 @@ def templates() -> tuple[AgentTemplate, ...]:
             name="Poster designer",
             vertical="Shops, restaurants, clinics, tutors and events",
             industry="Any business",
-            function="Make posters and ads",
+            function="Make content",
             summary=(
                 "Designs posters, WhatsApp status images and Instagram posts "
                 "from what you tell it, in your language, with 2-4 options to "
@@ -172,7 +172,7 @@ def templates() -> tuple[AgentTemplate, ...]:
             name="Ad creative maker",
             vertical="Businesses that advertise on Instagram, Facebook and WhatsApp",
             industry="Any business",
-            function="Make posters and ads",
+            function="Make content",
             summary=(
                 "Makes Instagram, Facebook and WhatsApp ad creatives in the "
                 "sizes each needs, with your logo or product photo, 2-4 "

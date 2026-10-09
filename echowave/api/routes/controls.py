@@ -77,6 +77,9 @@ class MemberPreferences(BaseModel):
     #: Simple mode (stream `care`). Always null while ``care_simple_mode``
     #: is off, so a screen that reads it changes nothing until it is on.
     simple_mode: bool | None = None
+    #: "Call me when long tasks finish". Always null while ``call_when_done``
+    #: is off.
+    call_when_done: bool | None = None
     revision: int
     updated_at: str | None = None
     #: The languages a person can choose from.
@@ -93,6 +96,8 @@ class MemberPreferencesWrite(BaseModel):
     summary_time: str | None = Field(default=None, max_length=5)
     #: Refused (422) while ``care_simple_mode`` is off.
     simple_mode: bool | None = None
+    #: Refused (422) while ``call_when_done`` is off.
+    call_when_done: bool | None = None
     revision: int = Field(ge=0)
 
     model_config = ConfigDict(extra="forbid")
@@ -106,6 +111,11 @@ def _prefs(
         simple_mode=(
             row.get("simple_mode")
             if member_preferences.simple_mode_offered(organization_id)
+            else None
+        ),
+        call_when_done=(
+            row.get("call_when_done")
+            if features.is_on("call_when_done", organization_id)
             else None
         ),
         revision=row["revision"],
@@ -140,6 +150,12 @@ async def save_my_preferences(
         and not member_preferences.simple_mode_offered(organization_id)
     ):
         raise HTTPException(status_code=422, detail="Simple mode is not offered yet.")
+    if member_preferences.CALL_WHEN_DONE in changes and not features.is_on(
+        "call_when_done", organization_id
+    ):
+        raise HTTPException(
+            status_code=422, detail="Calls when tasks finish are not offered yet."
+        )
     try:
         row = await member_preferences.save(user.id, changes, revision=revision)
     except member_preferences.PreferenceInvalid as exc:

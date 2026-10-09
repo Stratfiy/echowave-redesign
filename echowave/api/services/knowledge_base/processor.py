@@ -27,6 +27,7 @@ the first place.
 
 from __future__ import annotations
 
+import os
 from typing import Any
 
 from loguru import logger
@@ -34,7 +35,11 @@ from loguru import logger
 from api.constants import KB_DOCUMENT_PROCESSOR, MPS_API_URL
 from api.services.knowledge_base.chunking import chunk_blocks
 from api.services.knowledge_base.errors import EmptyDocumentError, KnowledgeBaseError
-from api.services.knowledge_base.extraction import extract_document
+from api.services.knowledge_base.extraction import (
+    IMAGE_EXTENSIONS,
+    ExtractedDocument,
+    extract_document,
+)
 
 LOCAL_BACKEND = "local"
 MPS_BACKEND = "mps"
@@ -86,6 +91,33 @@ def process_document_locally(
     agent knows nothing from it.
     """
     extracted = extract_document(file_path, filename, content_type)
+    return shape(
+        extracted,
+        filename=filename,
+        retrieval_mode=retrieval_mode,
+        max_tokens=max_tokens,
+        chunk_overlap_tokens=chunk_overlap_tokens,
+        merge_peers=merge_peers,
+    )
+
+
+def shape(
+    extracted: ExtractedDocument,
+    *,
+    filename: str,
+    retrieval_mode: str = CHUNKED,
+    max_tokens: int = 128,
+    chunk_overlap_tokens: int = 0,
+    merge_peers: bool = True,
+) -> dict[str, Any]:
+    """What was extracted, as the result the ingestion task stores.
+
+    In ``full_document`` mode the whole text is what an agent is handed, and
+    the result also carries ``passages``: the same chunks the chunked mode
+    makes, with their pages and sheets, stored without embeddings so the
+    file can still be searched by its words and cited by page or sheet.
+    ``chunks`` stays empty there, as MPS returns it.
+    """
     metadata = dict(extracted.metadata)
     metadata["retrieval_mode"] = retrieval_mode
 
@@ -99,11 +131,19 @@ def process_document_locally(
                     "nothing for the agent to answer from."
                 ),
             )
+        passages = chunk_blocks(
+            extracted.blocks,
+            max_tokens=max_tokens,
+            overlap_tokens=chunk_overlap_tokens,
+            merge_peers=merge_peers,
+            source_name=filename,
+        )
         return {
             "mode": FULL_DOCUMENT,
             "docling_metadata": metadata,
             "full_text": full_text,
             "chunks": [],
+            "passages": [chunk.as_mps_chunk() for chunk in passages],
         }
 
     chunks = chunk_blocks(
@@ -150,6 +190,23 @@ async def process_document(
     backend: str | None = None,
 ) -> dict[str, Any]:
     """Convert and chunk ``file_path`` using whichever backend applies."""
+    if os.path.splitext(filename)[1].lower() in IMAGE_EXTENSIONS:
+        # A picture is read by a model that can look at it, here, whatever
+        # the backend: MPS has never read pictures.
+        from api.services.knowledge_base import vision
+
+        extracted = await vision.read_image(
+            file_path, filename, organization_id=organization_id
+        )
+        return shape(
+            extracted,
+            filename=filename,
+            retrieval_mode=retrieval_mode,
+            max_tokens=max_tokens,
+            chunk_overlap_tokens=chunk_overlap_tokens,
+            merge_peers=merge_peers,
+        )
+
     chosen = resolve_backend(backend)
 
     if chosen == LOCAL_BACKEND:

@@ -416,6 +416,21 @@
    "decibyl_browser"
   ]
  },
+ "/api/v1/call-when-done": {
+  "POST": [
+   "call_when_done"
+  ]
+ },
+ "/api/v1/call-when-done/status": {
+  "GET": [
+   "call_when_done"
+  ]
+ },
+ "/api/v1/call-when-done/{callback_id}": {
+  "DELETE": [
+   "call_when_done"
+  ]
+ },
  "/api/v1/care/circle": {
   "GET": [
    "care_family_circle"
@@ -479,6 +494,14 @@
    "care_medicine_calls"
   ],
   "POST": [
+   "care_medicine_calls"
+  ]
+ },
+ "/api/v1/care/medicines/{medicine_id}": {
+  "DELETE": [
+   "care_medicine_calls"
+  ],
+  "PATCH": [
    "care_medicine_calls"
   ]
  },

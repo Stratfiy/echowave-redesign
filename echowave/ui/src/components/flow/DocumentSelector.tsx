@@ -71,7 +71,7 @@ export const DocumentSelector = ({
                     </div>
                     <div className="flex justify-center">
                         <Button variant="outline" size="sm" asChild>
-                            <Link href="/settings/knowledge" target="_blank">
+                            <Link href="/files" target="_blank">
                                 <ExternalLink className="h-4 w-4 mr-2" />
                                 Upload Documents
                             </Link>
@@ -133,7 +133,7 @@ export const DocumentSelector = ({
                 </div>
                 <div className="p-2 bg-muted/30">
                     <Link
-                        href="/settings/knowledge"
+                        href="/files"
                         target="_blank"
                         className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
                     >

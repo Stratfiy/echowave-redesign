@@ -134,6 +134,69 @@ describe("the agent shelf", () => {
         expect(screen.queryByText("Clinic front desk")).toBeNull();
         expect(screen.getByText("Loan payment reminder")).toBeTruthy();
     });
+
+    it("files the life-stage roles by stage, and says a call needs a line", async () => {
+        api.get.mockResolvedValue({
+            data: {
+                templates: [
+                    ...TEMPLATES.templates,
+                    {
+                        id: "money_chaser",
+                        name: "Money Chaser",
+                        vertical: "Small businesses waiting on money",
+                        industry: "Any business",
+                        function: "Collect payments",
+                        direction: "message",
+                        summary: "Keeps the list of who owes you what.",
+                        languages: ["English"],
+                        life_stage: "small_business",
+                        life_stage_label: "Small business",
+                        call_step: {
+                            what: "a polite reminder call",
+                            needs: "a phone line",
+                            instead: "a reminder on WhatsApp or email",
+                            href: "/settings/phone-number",
+                        },
+                    },
+                    {
+                        id: "scam_shield",
+                        name: "Scam Shield",
+                        vertical: "Older people",
+                        industry: "Personal",
+                        function: "Everyday help",
+                        direction: "message",
+                        summary: "Says plainly whether a message looks like a scam.",
+                        languages: ["English"],
+                        life_stage: "seniors",
+                        life_stage_label: "Seniors (60+)",
+                        call_step: null,
+                    },
+                ],
+            },
+        });
+        render(<MarketplaceScreen kind="bots" />);
+        await screen.findByText("Money Chaser");
+        expect(screen.getByRole("heading", { name: "By life stage" })).toBeTruthy();
+        const seniors = screen.getByRole("button", { name: /^Seniors \(60\+\)\s*1$/ });
+        fireEvent.click(seniors);
+        expect(screen.queryByText("Money Chaser")).toBeNull();
+        expect(screen.queryByText("Clinic front desk")).toBeNull();
+        expect(screen.getByText("Scam Shield")).toBeTruthy();
+        fireEvent.click(seniors);
+
+        const note = screen.getByTestId("call-step");
+        expect(note.textContent).toContain("A polite reminder call needs a phone line.");
+        expect(note.textContent).toContain("Until then it sends a reminder on WhatsApp or email.");
+        expect(
+            screen.getByRole("link", { name: "Set up a phone line" }).getAttribute("href"),
+        ).toBe("/settings/phone-number");
+    });
+
+    it("draws no life-stage section when no role has a stage", async () => {
+        render(<MarketplaceScreen kind="bots" />);
+        await screen.findByText("Clinic front desk");
+        expect(screen.queryByRole("heading", { name: "By life stage" })).toBeNull();
+    });
 });
 
 const LIBRARY = {

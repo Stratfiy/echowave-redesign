@@ -25,9 +25,10 @@ call rejected for exceeding the model's context.
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from functools import lru_cache
-from typing import Any, Iterable
+from typing import Any
 
 from api.services.knowledge_base.extraction import TextBlock
 
@@ -205,15 +206,24 @@ def chunk_blocks(
     pending_texts: list[str] = []
     pending_heading: tuple[str, ...] = ()
     pending_pages: list[int] = []
+    # Where a spreadsheet passage came from: its sheet and row numbers. A
+    # sheet is always its own heading (see extraction._blocks_from_rows), so
+    # one chunk never spans two.
+    pending_sheet: str | None = None
+    pending_rows: list[int] = []
 
     def flush() -> None:
-        nonlocal pending_texts, pending_pages
+        nonlocal pending_texts, pending_pages, pending_sheet, pending_rows
         if not pending_texts:
             return
         text = " ".join(pending_texts).strip()
         pending_texts = []
         pages = sorted(set(pending_pages))
         pending_pages = []
+        sheet = pending_sheet
+        rows = sorted(set(pending_rows))
+        pending_sheet = None
+        pending_rows = []
         if not text:
             return
 
@@ -236,6 +246,10 @@ def chunk_blocks(
             previous.metadata["pages"] = sorted(
                 set(previous.metadata.get("pages", []) + pages)
             )
+            if rows:
+                previous.metadata["rows"] = sorted(
+                    set(previous.metadata.get("rows", []) + rows)
+                )
             return
 
         prefix = ""
@@ -245,18 +259,23 @@ def chunk_blocks(
 
         body = f"{prefix} {text}".strip() if prefix else text
         contextualized = _contextualize(body, pending_heading, source_name)
+        metadata: dict[str, Any] = {
+            "headings": list(pending_heading),
+            "pages": pages,
+            "source": source_name,
+            "overlap_prefix_tokens": count_tokens(prefix) if prefix else 0,
+        }
+        if sheet:
+            metadata["sheet"] = sheet
+        if rows:
+            metadata["rows"] = rows
         chunks.append(
             Chunk(
                 text=body,
                 contextualized_text=contextualized,
                 index=len(chunks),
                 token_count=count_tokens(contextualized),
-                metadata={
-                    "headings": list(pending_heading),
-                    "pages": pages,
-                    "source": source_name,
-                    "overlap_prefix_tokens": count_tokens(prefix) if prefix else 0,
-                },
+                metadata=metadata,
             )
         )
 
@@ -279,6 +298,10 @@ def chunk_blocks(
                 pending_texts.append(piece)
                 if block.page_number is not None:
                     pending_pages.append(block.page_number)
+                if block.sheet:
+                    pending_sheet = block.sheet
+                if block.row is not None:
+                    pending_rows.append(block.row)
 
     flush()
 

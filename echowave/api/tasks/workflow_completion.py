@@ -63,4 +63,11 @@ async def process_workflow_completion(
 
     await care_calls.record_run_outcome(workflow_run_id)
 
+    # A "call me when it's done" call (services/call_when_done) settles as
+    # answered or not answered; not answered tells the person in the app.
+    # Never raises; any other run is left alone.
+    from api.services.call_when_done import calls as done_calls
+
+    await done_calls.record_run_outcome(workflow_run_id)
+
     logger.info(f"Completed workflow completion processing for run {workflow_run_id}")

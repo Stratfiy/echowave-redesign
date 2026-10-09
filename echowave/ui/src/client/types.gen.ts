@@ -2803,6 +2803,96 @@ export type CallOutcomeResponse = {
 export type CallType = 'inbound' | 'outbound';
 
 /**
+ * CallWhenDoneRequest
+ */
+export type CallWhenDoneRequest = {
+    /**
+     * Thread Id
+     */
+    thread_id?: string | null;
+    /**
+     * Task Id
+     */
+    task_id?: number | null;
+    /**
+     * Workflow Id
+     */
+    workflow_id?: number | null;
+    /**
+     * Phone
+     */
+    phone?: string | null;
+};
+
+/**
+ * CallWhenDoneResponse
+ */
+export type CallWhenDoneResponse = {
+    /**
+     * Callback Id
+     */
+    callback_id: number;
+    /**
+     * Subject
+     */
+    subject: string;
+    /**
+     * State
+     */
+    state: string;
+    /**
+     * Line
+     */
+    line: string;
+    /**
+     * Can Call
+     */
+    can_call: boolean;
+    /**
+     * Reason
+     */
+    reason?: string | null;
+    /**
+     * Number
+     */
+    number?: string | null;
+    /**
+     * Card Event Id
+     */
+    card_event_id?: number | null;
+};
+
+/**
+ * CallWhenDoneStatus
+ */
+export type CallWhenDoneStatus = {
+    /**
+     * Pending
+     */
+    pending: Array<PendingCallback>;
+    /**
+     * Number
+     */
+    number?: string | null;
+    /**
+     * Can Call
+     */
+    can_call: boolean;
+    /**
+     * Reason
+     */
+    reason?: string | null;
+    /**
+     * Offer
+     */
+    offer: boolean;
+    /**
+     * In Flight
+     */
+    in_flight?: string | null;
+};
+
+/**
  * Camb.ai
  */
 export type CambTtsConfiguration = {
@@ -3393,6 +3483,32 @@ export type CerebrasLlmConfiguration = {
      * How long a reasoning model may think before answering. Only models that accept it are sent it. Thinking time is dead air on a phone call, but too little of it and the model answers in words where it should have called a tool -- which, in a workflow, means never moving off the first step. One of: minimal, low, medium, high.
      */
     reasoning_effort?: string | null;
+};
+
+/**
+ * ChangesResponseSchema
+ *
+ * Files and folders changed since a cursor, for a client keeping a local
+ * copy in step. Send ``cursor`` back next time; fetch again straight away
+ * while ``has_more``.
+ */
+export type ChangesResponseSchema = {
+    /**
+     * Files
+     */
+    files: Array<SyncFileSchema>;
+    /**
+     * Folders
+     */
+    folders: Array<SyncFolderSchema>;
+    /**
+     * Cursor
+     */
+    cursor: string;
+    /**
+     * Has More
+     */
+    has_more: boolean;
 };
 
 /**
@@ -6248,6 +6364,10 @@ export type DocumentResponseSchema = {
      */
     workflow_id?: number | null;
     /**
+     * File Folder Id
+     */
+    file_folder_id?: number | null;
+    /**
      * Created At
      */
     created_at: string;
@@ -6267,6 +6387,39 @@ export type DocumentResponseSchema = {
      * Is Active
      */
     is_active: boolean;
+    /**
+     * Version
+     */
+    version?: number;
+    /**
+     * Versions
+     */
+    versions?: Array<DocumentVersionSchema>;
+    /**
+     * State
+     */
+    state?: string;
+    /**
+     * State Detail
+     */
+    state_detail?: string | null;
+};
+
+/**
+ * DocumentUpdateSchema
+ *
+ * Rename and/or move a file. ``file_folder_id: null`` moves it to the
+ * top level; leaving it out leaves it where it is.
+ */
+export type DocumentUpdateSchema = {
+    /**
+     * Filename
+     */
+    filename?: string | null;
+    /**
+     * File Folder Id
+     */
+    file_folder_id?: number | null;
 };
 
 /**
@@ -6321,6 +6474,34 @@ export type DocumentUploadResponseSchema = {
      * S3 key where file should be uploaded
      */
     s3_key: string;
+};
+
+/**
+ * DocumentVersionSchema
+ *
+ * One upload of a file. The newest is the one agents read.
+ */
+export type DocumentVersionSchema = {
+    /**
+     * Version
+     */
+    version: number;
+    /**
+     * Uploaded At
+     */
+    uploaded_at?: string | null;
+    /**
+     * Uploaded By
+     */
+    uploaded_by?: number | null;
+    /**
+     * File Size Bytes
+     */
+    file_size_bytes?: number | null;
+    /**
+     * Current
+     */
+    current?: boolean;
 };
 
 /**
@@ -7341,6 +7522,135 @@ export type FileDescriptor = {
      * File size in bytes (max 5MB)
      */
     file_size: number;
+};
+
+/**
+ * FileFolderCreateSchema
+ */
+export type FileFolderCreateSchema = {
+    /**
+     * Name
+     *
+     * The folder's name
+     */
+    name: string;
+    /**
+     * Parent Id
+     *
+     * The folder to create it in; none: the top level
+     */
+    parent_id?: number | null;
+};
+
+/**
+ * FileFolderDeleteResponseSchema
+ */
+export type FileFolderDeleteResponseSchema = {
+    /**
+     * Files Moved
+     */
+    files_moved?: number;
+    /**
+     * Folders Moved
+     */
+    folders_moved?: number;
+    /**
+     * Files Deleted
+     */
+    files_deleted?: number;
+    /**
+     * Folders Deleted
+     */
+    folders_deleted?: number;
+};
+
+/**
+ * FileFolderEnsureSchema
+ *
+ * A path of folders to find or create, for a dropped desktop folder.
+ */
+export type FileFolderEnsureSchema = {
+    /**
+     * Parent Id
+     */
+    parent_id?: number | null;
+    /**
+     * Path
+     *
+     * e.g. ["Contracts", "2026"]
+     */
+    path: Array<string>;
+};
+
+/**
+ * FileFolderListResponseSchema
+ */
+export type FileFolderListResponseSchema = {
+    /**
+     * Folders
+     */
+    folders: Array<FileFolderSchema>;
+};
+
+/**
+ * FileFolderSchema
+ *
+ * A folder on the Files page. Organises files; never a channel.
+ */
+export type FileFolderSchema = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Folder Uuid
+     */
+    folder_uuid: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Parent Id
+     */
+    parent_id?: number | null;
+    /**
+     * Path
+     */
+    path: string;
+    /**
+     * File Count
+     */
+    file_count?: number;
+    /**
+     * Folder Count
+     */
+    folder_count?: number;
+    /**
+     * Created At
+     */
+    created_at?: string | null;
+    /**
+     * Updated At
+     */
+    updated_at?: string | null;
+};
+
+/**
+ * FileFolderUpdateSchema
+ *
+ * Rename and/or move. Sending ``parent_id: null`` moves it to the top
+ * level; leaving ``parent_id`` out leaves it where it is.
+ */
+export type FileFolderUpdateSchema = {
+    /**
+     * Name
+     */
+    name?: string | null;
+    /**
+     * Parent Id
+     */
+    parent_id?: number | null;
 };
 
 /**
@@ -10765,6 +11075,24 @@ export type Medicine = {
 };
 
 /**
+ * MedicineEdit
+ */
+export type MedicineEdit = {
+    /**
+     * Label
+     */
+    label?: string | null;
+    /**
+     * Times
+     */
+    times?: Array<string> | null;
+    /**
+     * Language
+     */
+    language?: string | null;
+};
+
+/**
  * MedicineList
  */
 export type MedicineList = {
@@ -11200,6 +11528,10 @@ export type MemberPreferences = {
      */
     simple_mode?: boolean | null;
     /**
+     * Call When Done
+     */
+    call_when_done?: boolean | null;
+    /**
      * Revision
      */
     revision: number;
@@ -11240,6 +11572,10 @@ export type MemberPreferencesWrite = {
      * Simple Mode
      */
     simple_mode?: boolean | null;
+    /**
+     * Call When Done
+     */
+    call_when_done?: boolean | null;
     /**
      * Revision
      */
@@ -13103,6 +13439,18 @@ export type Opener = {
      * Text
      */
     text: string;
+    /**
+     * Helper
+     */
+    helper?: string | null;
+    /**
+     * Helper Name
+     */
+    helper_name?: string | null;
+    /**
+     * Template
+     */
+    template?: string | null;
 };
 
 /**
@@ -13677,6 +14025,24 @@ export type PaymentPolicy = {
      * Steps
      */
     steps: Array<string>;
+};
+
+/**
+ * PendingCallback
+ */
+export type PendingCallback = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Subject
+     */
+    subject: string;
+    /**
+     * Title
+     */
+    title?: string | null;
 };
 
 /**
@@ -14801,6 +15167,12 @@ export type ProcessDocumentRequestSchema = {
      * For scope=agent.
      */
     workflow_id?: number | null;
+    /**
+     * File Folder Id
+     *
+     * The Files-page folder to put the file in (none: the top level). Organises only; it does not change who reads the file.
+     */
+    file_folder_id?: number | null;
     /**
      * Document Uuid
      *
@@ -19165,6 +19537,168 @@ export type SwitchOrganizationRequest = {
      * Organization Id
      */
     organization_id: number;
+};
+
+/**
+ * SyncFileSchema
+ *
+ * A file as the "changed since" listing reports it.
+ */
+export type SyncFileSchema = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Document Uuid
+     */
+    document_uuid: string;
+    /**
+     * Filename
+     */
+    filename: string;
+    /**
+     * File Size Bytes
+     */
+    file_size_bytes: number;
+    /**
+     * File Hash
+     */
+    file_hash: string;
+    /**
+     * Mime Type
+     */
+    mime_type: string;
+    /**
+     * Processing Status
+     */
+    processing_status: string;
+    /**
+     * Processing Error
+     */
+    processing_error?: string | null;
+    /**
+     * Needs Reingest
+     */
+    needs_reingest?: boolean;
+    /**
+     * Total Chunks
+     */
+    total_chunks: number;
+    /**
+     * Retrieval Mode
+     */
+    retrieval_mode?: string;
+    /**
+     * Custom Metadata
+     */
+    custom_metadata: {
+        [key: string]: unknown;
+    };
+    /**
+     * Docling Metadata
+     */
+    docling_metadata: {
+        [key: string]: unknown;
+    };
+    /**
+     * Source Url
+     */
+    source_url?: string | null;
+    /**
+     * Scope
+     */
+    scope?: string;
+    /**
+     * Folder Id
+     */
+    folder_id?: number | null;
+    /**
+     * Workflow Id
+     */
+    workflow_id?: number | null;
+    /**
+     * File Folder Id
+     */
+    file_folder_id?: number | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+    /**
+     * Organization Id
+     */
+    organization_id: number;
+    /**
+     * Created By
+     */
+    created_by: number;
+    /**
+     * Is Active
+     */
+    is_active: boolean;
+    /**
+     * Version
+     */
+    version?: number;
+    /**
+     * Versions
+     */
+    versions?: Array<DocumentVersionSchema>;
+    /**
+     * State
+     */
+    state?: string;
+    /**
+     * State Detail
+     */
+    state_detail?: string | null;
+    /**
+     * Folder Path
+     */
+    folder_path?: string;
+    /**
+     * Deleted
+     */
+    deleted?: boolean;
+};
+
+/**
+ * SyncFolderSchema
+ */
+export type SyncFolderSchema = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Folder Uuid
+     */
+    folder_uuid: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Parent Id
+     */
+    parent_id?: number | null;
+    /**
+     * Path
+     */
+    path?: string;
+    /**
+     * Deleted
+     */
+    deleted?: boolean;
+    /**
+     * Updated At
+     */
+    updated_at?: string | null;
 };
 
 /**
@@ -42988,6 +43522,94 @@ export type ResumeMedicineApiV1CareMedicinesMedicineIdResumePostResponses = {
 
 export type ResumeMedicineApiV1CareMedicinesMedicineIdResumePostResponse = ResumeMedicineApiV1CareMedicinesMedicineIdResumePostResponses[keyof ResumeMedicineApiV1CareMedicinesMedicineIdResumePostResponses];
 
+export type RemoveMedicineApiV1CareMedicinesMedicineIdDeleteData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Medicine Id
+         */
+        medicine_id: number;
+    };
+    query?: never;
+    url: '/api/v1/care/medicines/{medicine_id}';
+};
+
+export type RemoveMedicineApiV1CareMedicinesMedicineIdDeleteErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RemoveMedicineApiV1CareMedicinesMedicineIdDeleteError = RemoveMedicineApiV1CareMedicinesMedicineIdDeleteErrors[keyof RemoveMedicineApiV1CareMedicinesMedicineIdDeleteErrors];
+
+export type RemoveMedicineApiV1CareMedicinesMedicineIdDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type RemoveMedicineApiV1CareMedicinesMedicineIdDeleteResponse = RemoveMedicineApiV1CareMedicinesMedicineIdDeleteResponses[keyof RemoveMedicineApiV1CareMedicinesMedicineIdDeleteResponses];
+
+export type EditMedicineApiV1CareMedicinesMedicineIdPatchData = {
+    body: MedicineEdit;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Medicine Id
+         */
+        medicine_id: number;
+    };
+    query?: never;
+    url: '/api/v1/care/medicines/{medicine_id}';
+};
+
+export type EditMedicineApiV1CareMedicinesMedicineIdPatchErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type EditMedicineApiV1CareMedicinesMedicineIdPatchError = EditMedicineApiV1CareMedicinesMedicineIdPatchErrors[keyof EditMedicineApiV1CareMedicinesMedicineIdPatchErrors];
+
+export type EditMedicineApiV1CareMedicinesMedicineIdPatchResponses = {
+    /**
+     * Successful Response
+     */
+    200: MedicineProposed;
+};
+
+export type EditMedicineApiV1CareMedicinesMedicineIdPatchResponse = EditMedicineApiV1CareMedicinesMedicineIdPatchResponses[keyof EditMedicineApiV1CareMedicinesMedicineIdPatchResponses];
+
 export type MarkTakenApiV1CareMedicinesMedicineIdTakenPostData = {
     body: MarkTaken;
     headers?: {
@@ -43275,6 +43897,133 @@ export type AnswerHelpApiV1CareHelpSessionsSessionIdAnswerPostResponses = {
 };
 
 export type AnswerHelpApiV1CareHelpSessionsSessionIdAnswerPostResponse = AnswerHelpApiV1CareHelpSessionsSessionIdAnswerPostResponses[keyof AnswerHelpApiV1CareHelpSessionsSessionIdAnswerPostResponses];
+
+export type CallWhenDoneStatusApiV1CallWhenDoneStatusGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Thread Id
+         */
+        thread_id?: string | null;
+    };
+    url: '/api/v1/call-when-done/status';
+};
+
+export type CallWhenDoneStatusApiV1CallWhenDoneStatusGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CallWhenDoneStatusApiV1CallWhenDoneStatusGetError = CallWhenDoneStatusApiV1CallWhenDoneStatusGetErrors[keyof CallWhenDoneStatusApiV1CallWhenDoneStatusGetErrors];
+
+export type CallWhenDoneStatusApiV1CallWhenDoneStatusGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: CallWhenDoneStatus;
+};
+
+export type CallWhenDoneStatusApiV1CallWhenDoneStatusGetResponse = CallWhenDoneStatusApiV1CallWhenDoneStatusGetResponses[keyof CallWhenDoneStatusApiV1CallWhenDoneStatusGetResponses];
+
+export type AskToBeCalledApiV1CallWhenDonePostData = {
+    body: CallWhenDoneRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/call-when-done';
+};
+
+export type AskToBeCalledApiV1CallWhenDonePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AskToBeCalledApiV1CallWhenDonePostError = AskToBeCalledApiV1CallWhenDonePostErrors[keyof AskToBeCalledApiV1CallWhenDonePostErrors];
+
+export type AskToBeCalledApiV1CallWhenDonePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: CallWhenDoneResponse;
+};
+
+export type AskToBeCalledApiV1CallWhenDonePostResponse = AskToBeCalledApiV1CallWhenDonePostResponses[keyof AskToBeCalledApiV1CallWhenDonePostResponses];
+
+export type StopWaitingApiV1CallWhenDoneCallbackIdDeleteData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Callback Id
+         */
+        callback_id: number;
+    };
+    query?: never;
+    url: '/api/v1/call-when-done/{callback_id}';
+};
+
+export type StopWaitingApiV1CallWhenDoneCallbackIdDeleteErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type StopWaitingApiV1CallWhenDoneCallbackIdDeleteError = StopWaitingApiV1CallWhenDoneCallbackIdDeleteErrors[keyof StopWaitingApiV1CallWhenDoneCallbackIdDeleteErrors];
+
+export type StopWaitingApiV1CallWhenDoneCallbackIdDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type StopWaitingApiV1CallWhenDoneCallbackIdDeleteResponse = StopWaitingApiV1CallWhenDoneCallbackIdDeleteResponses[keyof StopWaitingApiV1CallWhenDoneCallbackIdDeleteResponses];
 
 export type CapabilityChecklistApiV1AdminControlsCapabilitiesGetData = {
     body?: never;
@@ -60207,6 +60956,18 @@ export type ListDocumentsApiV1KnowledgeBaseDocumentsGetData = {
          * Offset
          */
         offset?: number;
+        /**
+         * File Folder Id
+         *
+         * Only the files in this Files-page folder
+         */
+        file_folder_id?: number | null;
+        /**
+         * Top Level
+         *
+         * Only the files in no Files-page folder
+         */
+        top_level?: boolean;
     };
     url: '/api/v1/knowledge-base/documents';
 };
@@ -60319,6 +61080,50 @@ export type GetDocumentApiV1KnowledgeBaseDocumentsDocumentUuidGetResponses = {
 
 export type GetDocumentApiV1KnowledgeBaseDocumentsDocumentUuidGetResponse = GetDocumentApiV1KnowledgeBaseDocumentsDocumentUuidGetResponses[keyof GetDocumentApiV1KnowledgeBaseDocumentsDocumentUuidGetResponses];
 
+export type UpdateDocumentApiV1KnowledgeBaseDocumentsDocumentUuidPatchData = {
+    body: DocumentUpdateSchema;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Document Uuid
+         */
+        document_uuid: string;
+    };
+    query?: never;
+    url: '/api/v1/knowledge-base/documents/{document_uuid}';
+};
+
+export type UpdateDocumentApiV1KnowledgeBaseDocumentsDocumentUuidPatchErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateDocumentApiV1KnowledgeBaseDocumentsDocumentUuidPatchError = UpdateDocumentApiV1KnowledgeBaseDocumentsDocumentUuidPatchErrors[keyof UpdateDocumentApiV1KnowledgeBaseDocumentsDocumentUuidPatchErrors];
+
+export type UpdateDocumentApiV1KnowledgeBaseDocumentsDocumentUuidPatchResponses = {
+    /**
+     * Successful Response
+     */
+    200: DocumentResponseSchema;
+};
+
+export type UpdateDocumentApiV1KnowledgeBaseDocumentsDocumentUuidPatchResponse = UpdateDocumentApiV1KnowledgeBaseDocumentsDocumentUuidPatchResponses[keyof UpdateDocumentApiV1KnowledgeBaseDocumentsDocumentUuidPatchResponses];
+
 export type SearchChunksApiV1KnowledgeBaseSearchPostData = {
     body: ChunkSearchRequestSchema;
     headers?: {
@@ -60401,6 +61206,274 @@ export type TranslateDocumentRouteApiV1KnowledgeBaseDocumentsDocumentUuidTransla
 };
 
 export type TranslateDocumentRouteApiV1KnowledgeBaseDocumentsDocumentUuidTranslatePostResponse = TranslateDocumentRouteApiV1KnowledgeBaseDocumentsDocumentUuidTranslatePostResponses[keyof TranslateDocumentRouteApiV1KnowledgeBaseDocumentsDocumentUuidTranslatePostResponses];
+
+export type ListFileFoldersApiV1KnowledgeBaseFileFoldersGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/knowledge-base/file-folders';
+};
+
+export type ListFileFoldersApiV1KnowledgeBaseFileFoldersGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListFileFoldersApiV1KnowledgeBaseFileFoldersGetError = ListFileFoldersApiV1KnowledgeBaseFileFoldersGetErrors[keyof ListFileFoldersApiV1KnowledgeBaseFileFoldersGetErrors];
+
+export type ListFileFoldersApiV1KnowledgeBaseFileFoldersGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: FileFolderListResponseSchema;
+};
+
+export type ListFileFoldersApiV1KnowledgeBaseFileFoldersGetResponse = ListFileFoldersApiV1KnowledgeBaseFileFoldersGetResponses[keyof ListFileFoldersApiV1KnowledgeBaseFileFoldersGetResponses];
+
+export type CreateFileFolderApiV1KnowledgeBaseFileFoldersPostData = {
+    body: FileFolderCreateSchema;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/knowledge-base/file-folders';
+};
+
+export type CreateFileFolderApiV1KnowledgeBaseFileFoldersPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateFileFolderApiV1KnowledgeBaseFileFoldersPostError = CreateFileFolderApiV1KnowledgeBaseFileFoldersPostErrors[keyof CreateFileFolderApiV1KnowledgeBaseFileFoldersPostErrors];
+
+export type CreateFileFolderApiV1KnowledgeBaseFileFoldersPostResponses = {
+    /**
+     * Successful Response
+     */
+    201: FileFolderSchema;
+};
+
+export type CreateFileFolderApiV1KnowledgeBaseFileFoldersPostResponse = CreateFileFolderApiV1KnowledgeBaseFileFoldersPostResponses[keyof CreateFileFolderApiV1KnowledgeBaseFileFoldersPostResponses];
+
+export type EnsureFileFolderPathApiV1KnowledgeBaseFileFoldersEnsurePostData = {
+    body: FileFolderEnsureSchema;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/knowledge-base/file-folders/ensure';
+};
+
+export type EnsureFileFolderPathApiV1KnowledgeBaseFileFoldersEnsurePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type EnsureFileFolderPathApiV1KnowledgeBaseFileFoldersEnsurePostError = EnsureFileFolderPathApiV1KnowledgeBaseFileFoldersEnsurePostErrors[keyof EnsureFileFolderPathApiV1KnowledgeBaseFileFoldersEnsurePostErrors];
+
+export type EnsureFileFolderPathApiV1KnowledgeBaseFileFoldersEnsurePostResponses = {
+    /**
+     * Response Ensure File Folder Path Api V1 Knowledge Base File Folders Ensure Post
+     *
+     * Successful Response
+     */
+    200: FileFolderSchema | null;
+};
+
+export type EnsureFileFolderPathApiV1KnowledgeBaseFileFoldersEnsurePostResponse = EnsureFileFolderPathApiV1KnowledgeBaseFileFoldersEnsurePostResponses[keyof EnsureFileFolderPathApiV1KnowledgeBaseFileFoldersEnsurePostResponses];
+
+export type DeleteFileFolderApiV1KnowledgeBaseFileFoldersFolderIdDeleteData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Folder Id
+         */
+        folder_id: number;
+    };
+    query?: {
+        /**
+         * Contents
+         *
+         * For a folder that is not empty: move_to_parent puts its files and folders one level up; delete removes them with it. Without it, a folder that is not empty is refused with 409.
+         */
+        contents?: string | null;
+    };
+    url: '/api/v1/knowledge-base/file-folders/{folder_id}';
+};
+
+export type DeleteFileFolderApiV1KnowledgeBaseFileFoldersFolderIdDeleteErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Not empty; say what to do with its contents
+     */
+    409: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteFileFolderApiV1KnowledgeBaseFileFoldersFolderIdDeleteError = DeleteFileFolderApiV1KnowledgeBaseFileFoldersFolderIdDeleteErrors[keyof DeleteFileFolderApiV1KnowledgeBaseFileFoldersFolderIdDeleteErrors];
+
+export type DeleteFileFolderApiV1KnowledgeBaseFileFoldersFolderIdDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    200: FileFolderDeleteResponseSchema;
+};
+
+export type DeleteFileFolderApiV1KnowledgeBaseFileFoldersFolderIdDeleteResponse = DeleteFileFolderApiV1KnowledgeBaseFileFoldersFolderIdDeleteResponses[keyof DeleteFileFolderApiV1KnowledgeBaseFileFoldersFolderIdDeleteResponses];
+
+export type UpdateFileFolderApiV1KnowledgeBaseFileFoldersFolderIdPatchData = {
+    body: FileFolderUpdateSchema;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Folder Id
+         */
+        folder_id: number;
+    };
+    query?: never;
+    url: '/api/v1/knowledge-base/file-folders/{folder_id}';
+};
+
+export type UpdateFileFolderApiV1KnowledgeBaseFileFoldersFolderIdPatchErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateFileFolderApiV1KnowledgeBaseFileFoldersFolderIdPatchError = UpdateFileFolderApiV1KnowledgeBaseFileFoldersFolderIdPatchErrors[keyof UpdateFileFolderApiV1KnowledgeBaseFileFoldersFolderIdPatchErrors];
+
+export type UpdateFileFolderApiV1KnowledgeBaseFileFoldersFolderIdPatchResponses = {
+    /**
+     * Successful Response
+     */
+    200: FileFolderSchema;
+};
+
+export type UpdateFileFolderApiV1KnowledgeBaseFileFoldersFolderIdPatchResponse = UpdateFileFolderApiV1KnowledgeBaseFileFoldersFolderIdPatchResponses[keyof UpdateFileFolderApiV1KnowledgeBaseFileFoldersFolderIdPatchResponses];
+
+export type ListChangesApiV1KnowledgeBaseChangesGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Cursor
+         *
+         * The cursor from the last answer; none for everything
+         */
+        cursor?: string | null;
+        /**
+         * Limit
+         */
+        limit?: number;
+    };
+    url: '/api/v1/knowledge-base/changes';
+};
+
+export type ListChangesApiV1KnowledgeBaseChangesGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListChangesApiV1KnowledgeBaseChangesGetError = ListChangesApiV1KnowledgeBaseChangesGetErrors[keyof ListChangesApiV1KnowledgeBaseChangesGetErrors];
+
+export type ListChangesApiV1KnowledgeBaseChangesGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: ChangesResponseSchema;
+};
+
+export type ListChangesApiV1KnowledgeBaseChangesGetResponse = ListChangesApiV1KnowledgeBaseChangesGetResponses[keyof ListChangesApiV1KnowledgeBaseChangesGetResponses];
 
 export type GetUploadUrlsApiV1WorkflowRecordingsUploadUrlPostData = {
     body: BatchRecordingUploadRequestSchema;

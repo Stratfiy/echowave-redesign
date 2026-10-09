@@ -729,6 +729,75 @@ async def catalogue_options(
     return out
 
 
+def _vendor_voice_label(voice) -> str | None:
+    """A vendor voice's short second half, "Hindi" in "Priya · Hindi": its
+    language by name, else its accent. Never the vendor's free-text
+    description, which is a paragraph somebody wrote for a marketplace."""
+    from api.services.pipecat.language_follower import language_name
+
+    language = (getattr(voice, "language", None) or "").strip()
+    if language:
+        return language_name(language.split("-")[0].lower())
+    accent = (getattr(voice, "accent", None) or "").strip()
+    return accent.title() or None
+
+
+async def voice_options_for(
+    provider: str, model: str, current_voice: str | None
+) -> list[dict]:
+    """The voices the agent's voice slot can pick from, named.
+
+    The local catalogue first. When the agent's own voice is not in it -- an
+    ElevenLabs library or cloned voice, which lives in an account rather than
+    in our code -- the vendor is asked (cached; see ``vendor_voices``) for
+    that voice's name, from the same list the Settings voice picker shows. The
+    agent panel used to print the raw provider id ("HBlqQDCBvQxsEK8OFtEZ")
+    because it only ever looked in the local list.
+
+    Never raises and never drops the local list: a vendor that cannot be asked
+    leaves the voice unnamed, and the screen says "Custom voice".
+    """
+    options = [
+        {
+            "voice_id": v.voice_id,
+            "name": v.name,
+            "gender": v.gender,
+            "description": v.description,
+            "is_default": i == 0,
+        }
+        for i, v in enumerate(
+            voice_catalogue.for_provider(provider, model=model).voices
+        )
+    ]
+    if not current_voice or any(o["voice_id"] == current_voice for o in options):
+        return options
+
+    from api.services.configuration import vendor_voices
+
+    if not vendor_voices.can_fetch(provider):
+        return options
+    try:
+        fetched = await vendor_voices.fetch(provider) or []
+    except Exception as exc:  # noqa: BLE001 - a name is a nicety, not a dependency
+        logger.warning("Could not name {} voice {}: {}", provider, current_voice, exc)
+        return options
+    for voice in fetched:
+        # A vendor with no name for it echoes the id back as the name; that
+        # is not a name, and the screen's "Custom voice" says more.
+        if voice.voice_id == current_voice and voice.name != voice.voice_id:
+            options.append(
+                {
+                    "voice_id": voice.voice_id,
+                    "name": voice.name,
+                    "gender": voice.gender,
+                    "description": _vendor_voice_label(voice),
+                    "is_default": False,
+                }
+            )
+            break
+    return options
+
+
 async def model_row(
     session: AsyncSession,
     *,
@@ -876,18 +945,9 @@ async def model_row(
     # under a Rumik agent is a picker full of names the call will not use.
     tts_pair = by_component.get("tts")
     voice_options = (
-        [
-            {
-                "voice_id": v.voice_id,
-                "name": v.name,
-                "gender": v.gender,
-                "description": v.description,
-                "is_default": i == 0,
-            }
-            for i, v in enumerate(
-                voice_catalogue.for_provider(tts_pair[0], model=tts_pair[1]).voices
-            )
-        ]
+        await voice_options_for(
+            tts_pair[0], tts_pair[1], getattr(effective.tts, "voice", None)
+        )
         if tts_pair
         else []
     )

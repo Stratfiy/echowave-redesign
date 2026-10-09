@@ -433,6 +433,18 @@ class MedicineWrite(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class MedicineEdit(BaseModel):
+    #: Only what is sent changes. The phone is not here: a different number
+    #: is a new reminder, with its own card.
+    label: str | None = Field(default=None, min_length=1, max_length=80)
+    times: list[str] | None = Field(
+        default=None, min_length=1, max_length=medicines.MAX_TIMES
+    )
+    language: str | None = Field(default=None, max_length=16)
+
+    model_config = ConfigDict(extra="forbid")
+
+
 class MedicineProposed(BaseModel):
     medicine: Medicine
     card: TimelineEvent | None = None
@@ -517,6 +529,49 @@ async def resume_medicine(
         medicine=Medicine(**made["medicine"]),
         card=await _card(organization_id, made["event_id"]),
     )
+
+
+@router.patch(
+    "/medicines/{medicine_id}",
+    response_model=MedicineProposed,
+    dependencies=[_medicine_flag],
+)
+async def edit_medicine(
+    medicine_id: int,
+    body: MedicineEdit,
+    user: Annotated[UserModel, Depends(get_user)],
+) -> MedicineProposed:
+    """Change the name, times or language. A running reminder stops until the
+    card with the new details is confirmed."""
+    organization_id = _organization_id(user)
+    try:
+        made = await medicines.edit(
+            organization_id,
+            user.id,
+            medicine_id,
+            label=body.label,
+            times=body.times,
+            language=body.language,
+        )
+    except CareError as exc:
+        raise _refusal(exc) from exc
+    return MedicineProposed(
+        medicine=Medicine(**made["medicine"]),
+        card=await _card(organization_id, made["event_id"]),
+    )
+
+
+@router.delete(
+    "/medicines/{medicine_id}", status_code=204, dependencies=[_medicine_flag]
+)
+async def remove_medicine(
+    medicine_id: int, user: Annotated[UserModel, Depends(get_user)]
+) -> None:
+    """Take a reminder off the list; it stops at once."""
+    try:
+        await medicines.remove(_organization_id(user), user.id, medicine_id)
+    except CareError as exc:
+        raise _refusal(exc) from exc
 
 
 @router.post(

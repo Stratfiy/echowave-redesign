@@ -133,16 +133,34 @@ export type SourceRead = {
     documents?: string[];
 };
 
-/** The sources a reply was read from: the `sources` on the readings row of
- *  the same turn (written by services/workflow/decibyl.sources_read). */
+/** The sources a reply was read from: every `sources` on the activity rows
+ *  of the same turn, in the order they were read -- the readings row
+ *  (services/workflow/decibyl.sources_read) and any file search after it
+ *  (search_files, an agent's knowledge lookup). A source named twice is one
+ *  entry, with the files of both, so a file read by the second search is
+ *  not hidden behind the first. */
 export function sourcesForReply(rows: readonly Row[], replyId: number): SourceRead[] {
     const index = rows.findIndex((row) => row.id === replyId);
     if (index < 0) return [];
+    const found: SourceRead[][] = [];
     for (let i = index - 1; i >= 0; i -= 1) {
         const row = rows[i];
         if (row.actor === "human") break;
         const sources = payload(row).sources;
-        if (row.kind === "activity" && Array.isArray(sources)) return sources as SourceRead[];
+        if (row.kind === "activity" && Array.isArray(sources)) found.unshift(sources as SourceRead[]);
     }
-    return [];
+    const merged: SourceRead[] = [];
+    for (const source of found.flat()) {
+        const same = merged.find((s) => s.kind === source.kind && s.label === source.label);
+        if (!same) {
+            merged.push({ ...source, documents: source.documents ? [...source.documents] : undefined });
+            continue;
+        }
+        if (source.status === "read") same.status = "read";
+        for (const doc of source.documents ?? []) {
+            same.documents = same.documents ?? [];
+            if (!same.documents.includes(doc)) same.documents.push(doc);
+        }
+    }
+    return merged;
 }

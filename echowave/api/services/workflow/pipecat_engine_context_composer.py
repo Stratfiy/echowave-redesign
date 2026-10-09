@@ -397,7 +397,7 @@ async def compose_functions_for_node(
                 self_edit.TOOL_NAME,
                 self_edit.DESCRIPTION,
                 properties=self_edit.tool_properties(),
-                required=["step", "new_prompt", "why"],
+                required=["why"],
             )
         )
 

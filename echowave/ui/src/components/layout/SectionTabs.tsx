@@ -56,7 +56,7 @@ export const CALLS_TABS: PageTab[] = [
 ];
 
 export const KNOWLEDGE_TABS: PageTab[] = [
-  { href: "/settings/knowledge", label: "Documents", prefix: true },
+  { href: "/files", label: "Files", prefix: true },
   { href: "/recordings", label: "Audio clips", prefix: true },
 ];
 
