@@ -11076,6 +11076,57 @@ export type ListResponse = {
 };
 
 /**
+ * LiveVoiceRequest
+ *
+ * The About panel's voice row: the voice slot, and the voice's own
+ * settings from the panel behind its pencil, put live together.
+ *
+ * ``settings`` takes only what the voice panel edits. Anything else is
+ * refused rather than dropped: a key that vanished on save would be a
+ * setting somebody changed and nobody kept.
+ */
+export type LiveVoiceRequest = {
+    /**
+     * Component
+     */
+    component: 'tts' | 'realtime';
+    /**
+     * Provider
+     */
+    provider: string;
+    /**
+     * Model
+     */
+    model: string;
+    /**
+     * Voice
+     */
+    voice?: string | null;
+    /**
+     * Temperature
+     */
+    temperature?: number | null;
+    /**
+     * Max Tokens
+     */
+    max_tokens?: number | null;
+    /**
+     * Speed
+     */
+    speed?: number | null;
+    /**
+     * Language
+     */
+    language?: string | null;
+    /**
+     * Settings
+     */
+    settings?: {
+        [key: string]: unknown;
+    } | null;
+};
+
+/**
  * LoginRequest
  */
 export type LoginRequest = {
@@ -37523,6 +37574,54 @@ export type SetModelSlotApiV1WorkflowWorkflowIdModelSlotPutResponses = {
 };
 
 export type SetModelSlotApiV1WorkflowWorkflowIdModelSlotPutResponse = SetModelSlotApiV1WorkflowWorkflowIdModelSlotPutResponses[keyof SetModelSlotApiV1WorkflowWorkflowIdModelSlotPutResponses];
+
+export type SetVoiceLiveApiV1WorkflowWorkflowIdVoiceLivePutData = {
+    body: LiveVoiceRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+    };
+    query?: never;
+    url: '/api/v1/workflow/{workflow_id}/voice/live';
+};
+
+export type SetVoiceLiveApiV1WorkflowWorkflowIdVoiceLivePutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SetVoiceLiveApiV1WorkflowWorkflowIdVoiceLivePutError = SetVoiceLiveApiV1WorkflowWorkflowIdVoiceLivePutErrors[keyof SetVoiceLiveApiV1WorkflowWorkflowIdVoiceLivePutErrors];
+
+export type SetVoiceLiveApiV1WorkflowWorkflowIdVoiceLivePutResponses = {
+    /**
+     * Response Set Voice Live Api V1 Workflow  Workflow Id  Voice Live Put
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type SetVoiceLiveApiV1WorkflowWorkflowIdVoiceLivePutResponse = SetVoiceLiveApiV1WorkflowWorkflowIdVoiceLivePutResponses[keyof SetVoiceLiveApiV1WorkflowWorkflowIdVoiceLivePutResponses];
 
 export type GetWorkflowVersionsApiV1WorkflowWorkflowIdVersionsGetData = {
     body?: never;

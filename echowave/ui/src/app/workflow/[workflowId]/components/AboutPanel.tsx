@@ -6,14 +6,17 @@
  * skills and its memory. Models, quality, triggers and the rest stay on
  * the agent's advanced setup, behind the menu in the header. Owns its data
  * so the chat page does not have to.
+ *
+ * All three take effect when saved. Skills and memory always did; the voice
+ * used to be saved into the agent's draft, which nothing on this page
+ * publishes, so it waited silently and went live later with somebody's
+ * unrelated edit. The voice row now puts its change live on its own
+ * (`PUT /workflow/{id}/voice/live`) and says so.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import {
-    getWorkflowApiV1WorkflowFetchWorkflowIdGet,
-    updateWorkflowApiV1WorkflowWorkflowIdPut,
-} from '@/client/sdk.gen';
+import { getWorkflowApiV1WorkflowFetchWorkflowIdGet } from '@/client/sdk.gen';
 import { AgentMemory } from '@/components/agent/AgentMemory';
 import { AgentSkills } from '@/components/agent/AgentSkills';
 import { type Avatar } from '@/components/avatar/avatar';
@@ -35,36 +38,18 @@ export function AboutPanel({
     const [configurations, setConfigurations] = useState<WorkflowConfigurations | null>(null);
     const [avatar, setAvatar] = useState<Partial<Avatar> | null>(null);
 
+    const fetchAgent = useCallback(async () => {
+        const response = await getWorkflowApiV1WorkflowFetchWorkflowIdGet({ path: { workflow_id: workflowId } });
+        if (response.error || !response.data) return;
+        setConfigurations((response.data.workflow_configurations ?? null) as WorkflowConfigurations | null);
+        setAvatar((response.data as { avatar?: Partial<Avatar> | null }).avatar ?? null);
+    }, [workflowId]);
+
     useEffect(() => {
         if (authLoading || !user || fetched.current) return;
         fetched.current = true;
-        void (async () => {
-            const response = await getWorkflowApiV1WorkflowFetchWorkflowIdGet({ path: { workflow_id: workflowId } });
-            if (response.error || !response.data) return;
-            setConfigurations((response.data.workflow_configurations ?? null) as WorkflowConfigurations | null);
-            setAvatar((response.data as { avatar?: Partial<Avatar> | null }).avatar ?? null);
-        })();
-    }, [authLoading, user, workflowId]);
-
-    const save = useCallback(
-        async (patch: Partial<WorkflowConfigurations>) => {
-            const merged = { ...(configurations ?? {}), ...patch } as WorkflowConfigurations;
-            const response = await updateWorkflowApiV1WorkflowWorkflowIdPut({
-                path: { workflow_id: workflowId },
-                body: {
-                    name,
-                    workflow_definition: null,
-                    workflow_configurations: merged as Record<string, unknown>,
-                },
-            });
-            if (response.error) {
-                const detail = (response.error as { detail?: unknown }).detail;
-                throw new Error(typeof detail === 'string' ? detail : 'Could not save these settings');
-            }
-            setConfigurations(merged);
-        },
-        [configurations, name, workflowId],
-    );
+        void fetchAgent();
+    }, [authLoading, user, fetchAgent]);
 
     return (
         <div className="flex h-full flex-col gap-6 overflow-y-auto px-1 pb-6" data-testid="about-agent">
@@ -81,7 +66,10 @@ export function AboutPanel({
                     editable
                     voiceOnly
                     configurations={configurations}
-                    onSaveConfigurations={save}
+                    // The voice's own settings (pronunciations, background
+                    // sound) went live with it; re-read so the panel opens on
+                    // them next time.
+                    onVoiceApplied={() => void fetchAgent()}
                 />
             </section>
             <AgentSkills workflowId={workflowId} agentName={name} />

@@ -314,3 +314,46 @@ describe("the settings behind the pencil", () => {
         expect(screen.getByRole("dialog")).toBeTruthy();
     });
 });
+
+describe("applying the voice now (the About panel)", () => {
+    it("puts the voice live in one request and never touches the draft", async () => {
+        const onSaved = vi.fn();
+        const onAppliedNow = vi.fn();
+        const onSaveConfigurations = vi.fn();
+        api.put.mockResolvedValue({ data: { version_number: 5, draft_kept: true }, error: undefined });
+        api.get.mockResolvedValue({ data: { voices: BULBUL_VOICES }, error: undefined });
+        render(editor(voiceSlot({ onSaved, onAppliedNow, onSaveConfigurations, applyNow: true })));
+        fireEvent.click(screen.getByRole("button", { name: "Change voice" }));
+
+        fireEvent.click(await screen.findByText("Abhilash"));
+        fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+        await waitFor(() => expect(onAppliedNow).toHaveBeenCalledWith({ version_number: 5, draft_kept: true }));
+        expect(onSaved).toHaveBeenCalled();
+        expect(api.put).toHaveBeenCalledTimes(1);
+        expect(api.put.mock.calls[0][0].url).toBe("/api/v1/workflow/7/voice/live");
+        expect(api.put.mock.calls[0][0].body).toEqual({
+            component: "tts",
+            provider: "sarvam",
+            model: "bulbul:v3",
+            voice: "abhilash",
+            settings: undefined,
+        });
+        // The old path wrote the draft through this callback; it must not run.
+        expect(onSaveConfigurations).not.toHaveBeenCalled();
+    });
+
+    it("stays open with the reason when going live is refused", async () => {
+        const onAppliedNow = vi.fn();
+        api.put.mockResolvedValue({ data: undefined, error: { detail: "Not on offer for this slot." } });
+        api.get.mockResolvedValue({ data: { voices: BULBUL_VOICES }, error: undefined });
+        render(editor(voiceSlot({ onAppliedNow, applyNow: true })));
+        fireEvent.click(screen.getByRole("button", { name: "Change voice" }));
+        fireEvent.click(await screen.findByText("Abhilash"));
+        fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+        expect(await screen.findByText("Not on offer for this slot.")).toBeTruthy();
+        expect(screen.getByRole("dialog")).toBeTruthy();
+        expect(onAppliedNow).not.toHaveBeenCalled();
+    });
+});
