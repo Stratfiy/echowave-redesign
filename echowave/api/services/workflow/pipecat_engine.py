@@ -288,6 +288,10 @@ class PipecatEngine:
         self._context_summarization_manager: Optional[ContextSummarizationManager] = (
             None
         )
+        #: Escalation v2 (services/escalation/runtime.py), set by run_pipeline
+        #: when the policy covers this call. None means transfers behave
+        #: exactly as they did before it existed.
+        self._escalation = None
 
     async def _get_organization_id(self) -> Optional[int]:
         """Get and cache the organization ID from workflow run."""
@@ -1060,6 +1064,7 @@ class PipecatEngine:
             can_run_scripts=can_run_scripts,
             can_make_images=can_make_images,
             organization_id=await self._get_organization_id(),
+            escalation_tools=self._escalation is not None,
         )
         await self._update_llm_context(system_prompt, functions)
 
@@ -1147,6 +1152,11 @@ class PipecatEngine:
                     self._make_images_handler,
                     timeout_secs=300.0,
                 )
+
+        # Escalation v2: the model's signal and fallback tools, on every node
+        # of a call the policy covers (services/escalation/runtime.py).
+        if self._escalation is not None:
+            self._escalation.register(self.llm)
 
         # Register custom tool handlers for this node
         if node.tool_uuids and self._custom_tool_manager:
@@ -1501,6 +1511,11 @@ class PipecatEngine:
         the caller if they stay silent for ``caller_first_wait_secs``, and a
         caller who speaks sooner cancels it and gets an answer instead.
         """
+        # A caller handed back by a person is mid-conversation: the agent says
+        # it is back, not hello (escalation v2).
+        if self._escalation is not None and await self._escalation.announce_handback():
+            self._opening_queued = True
+            return
         if not self.caller_speaks_first():
             await self._queue_start_opening()
             return
@@ -1565,6 +1580,8 @@ class PipecatEngine:
         Returns whether the greeting was queued.
         """
         if self._opening_queued or self._early_opening_queued or self.task is None:
+            return False
+        if self._escalation is not None and self._escalation.resuming:
             return False
         line = self.static_opening_line()
         if not line:
@@ -2359,6 +2376,10 @@ class PipecatEngine:
         """
         self._transport_output = transport_output
 
+    def set_escalation(self, runtime) -> None:
+        """Attach the call's EscalationRuntime (or None)."""
+        self._escalation = runtime
+
     def set_fetch_dynamic_greeting(self, fetch_fn) -> None:
         """Install the opening-line fetcher. See ``services/pipecat/dynamic_greeting``."""
         self._fetch_dynamic_greeting = fetch_fn
@@ -2493,3 +2514,11 @@ class PipecatEngine:
         # Cancel any in-flight background summarization.
         if self._context_summarization_manager:
             await self._context_summarization_manager.cleanup()
+
+        # Escalation v2: a caller left on hold gets a callback, and the call's
+        # escalation outcome is written.
+        if self._escalation is not None:
+            try:
+                await self._escalation.finalise()
+            except Exception as exc:  # noqa: BLE001 - cleanup must finish
+                logger.warning(f"Escalation finalise failed: {exc}")

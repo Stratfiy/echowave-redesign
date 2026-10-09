@@ -16,7 +16,9 @@
  * a clause -- the card keeps the reasons and stays open. A card acts on its
  * own change only; when that step was edited elsewhere since, Publish is
  * refused (``conflict``) and the card points at the editor rather than
- * guessing which version is meant.
+ * guessing which version is meant. A card made before cards recorded their
+ * own change, whose change cannot be rebuilt exactly, says so (``legacy``):
+ * it cannot be published on its own, and Discard still settles it.
  */
 
 import { Check, GitBranch, Undo2 } from 'lucide-react';
@@ -36,7 +38,7 @@ import { cn } from '@/lib/utils';
 export type GreetingChange = { step?: string; node_id?: string; old?: string; new?: string };
 export type FileRef = { uuid?: string; name?: string };
 export type EditAction = 'publish' | 'discard' | 'undo';
-type Refusal = { kind?: 'invalid' | 'acceptable_use' | 'conflict'; reasons?: string[]; at?: string };
+type Refusal = { kind?: 'invalid' | 'acceptable_use' | 'conflict' | 'legacy'; reasons?: string[]; at?: string };
 
 export type EditPayload = {
     workflow_id?: number;
@@ -173,6 +175,7 @@ export function EditCard({
     };
 
     const decided = edit.decided;
+    const legacy = edit.refused?.kind === 'legacy';
     const workflowId = event.workflow_id ?? edit.workflow_id;
     const publisher = usePublisher(workflowId, v2);
     const canUndo = v2 && decided?.action === 'publish' && !edit.undone && publisher.can_publish;
@@ -268,9 +271,17 @@ export function EditCard({
                     {editorLink}
                 </p>
             )}
+            {!decided && !error && legacy && (
+                <p className="mt-2 text-sm text-destructive" role="alert" data-testid="edit-refused">
+                    This card was made before an update and can&apos;t be applied on its own — open the editor to
+                    review it.
+                    {editorLink}
+                </p>
+            )}
             {!decided &&
                 !error &&
                 edit.refused?.kind !== 'conflict' &&
+                !legacy &&
                 edit.refused?.reasons &&
                 edit.refused.reasons.length > 0 && (
                 <div className="mt-2 text-sm text-destructive" role="alert" data-testid="edit-refused">
@@ -321,9 +332,11 @@ export function EditCard({
                             {publisher.waiting || 'Waiting for a workspace admin to publish.'}
                         </p>
                     ) : (
-                        <Button size="sm" disabled={saving !== null} onClick={() => void settle('publish')}>
-                            {saving === 'publish' ? 'Publishing…' : 'Publish'}
-                        </Button>
+                        !legacy && (
+                            <Button size="sm" disabled={saving !== null} onClick={() => void settle('publish')}>
+                                {saving === 'publish' ? 'Publishing…' : 'Publish'}
+                            </Button>
+                        )
                     )}
                     <Button
                         size="sm"

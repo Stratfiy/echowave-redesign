@@ -326,6 +326,7 @@ async def compose_functions_for_node(
     can_run_scripts: bool = False,
     can_make_images: bool = False,
     organization_id: Optional[int] = None,
+    escalation_tools: bool = False,
 ) -> list[dict]:
     """Compose the function/tool schemas for a workflow node.
 
@@ -471,6 +472,14 @@ async def compose_functions_for_node(
                 required=["code", "why"],
             )
         )
+
+    # Escalation v2: what the model noticed, and what the caller chose once
+    # nobody could be reached. Only on calls the policy covers; the engine
+    # registers the handlers on the same answer.
+    if escalation_tools:
+        from api.services.escalation import runtime as escalation_runtime
+
+        functions.extend(escalation_runtime.tool_schemas())
 
     if agent_can_end_call:
         functions.append(

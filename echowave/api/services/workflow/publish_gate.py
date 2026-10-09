@@ -411,6 +411,8 @@ async def publish_definition(
     workflow_configurations: dict | None = None,
     rewrite_draft=None,
     audit_after: dict | None = None,
+    rewrite_draft_configurations=None,
+    check_graph: bool = True,
 ) -> Published:
     """Validate, screen, publish and record one graph, leaving the draft a draft.
 
@@ -423,10 +425,13 @@ async def publish_definition(
     ``based_on_definition_id`` is the live version ``workflow_json`` was
     built from; a publish that got in first raises ``LiveMoved``.
 
-    ``workflow_configurations`` replaces the live configurations as well
-    (hours changed from a card); ``rewrite_draft`` carries the change into a
-    waiting draft under the same lock (see ``db_client.publish_workflow_json``).
-    ``audit_after`` is added to the audit row's ``after``.
+    ``workflow_configurations`` replaces the live configurations as well (a
+    card that changed hours or the escalation policy); ``rewrite_draft``
+    carries the change into a waiting draft's graph and configurations, and
+    ``rewrite_draft_configurations`` into its configurations only, under the
+    same lock (see ``db_client.publish_workflow_json``). ``check_graph=False``
+    is for a configuration-only change that puts the live graph back as it
+    is. ``audit_after`` is added to the audit row's ``after``.
     """
     workflow = await db_client.get_workflow(
         workflow_id, organization_id=organization_id
@@ -434,12 +439,19 @@ async def publish_definition(
     if workflow is None:
         raise WorkflowNotFound(f"Workflow with id {workflow_id} not found")
 
-    findings = await _check(
-        workflow_json,
-        workflow_id=workflow_id,
-        organization_id=organization_id,
-        via=via,
-        refuse_on_findings=refuse_on_findings,
+    # A configuration-only change puts the live graph back live unchanged:
+    # checking it again would refuse the change for a graph it did not
+    # touch (one published before a newer validation rule, say).
+    findings = (
+        await _check(
+            workflow_json,
+            workflow_id=workflow_id,
+            organization_id=organization_id,
+            via=via,
+            refuse_on_findings=refuse_on_findings,
+        )
+        if check_graph
+        else []
     )
 
     try:
@@ -449,6 +461,7 @@ async def publish_definition(
             based_on_definition_id=based_on_definition_id,
             workflow_configurations=workflow_configurations,
             rewrite_draft=rewrite_draft,
+            rewrite_draft_configurations=rewrite_draft_configurations,
         )
     except ValueError as exc:
         raise LiveMoved(str(exc)) from exc

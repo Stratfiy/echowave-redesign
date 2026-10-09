@@ -122,6 +122,10 @@ class UserIdleHandler:
 
         self._retry_count += 1
         logger.debug(f"Handling user_idle, attempt: {self._retry_count}")
+        # Escalation v2 counts a silence loop; it never transfers on one.
+        escalation = getattr(self._engine, "_escalation", None)
+        if escalation is not None:
+            escalation.on_idle()
 
         if self._retry_count <= NUDGES_BEFORE_HANGING_UP:
             # Two nudges before goodbye, not one. A person who has gone quiet

@@ -598,6 +598,123 @@ class TestWhoMayPublish:
         reached.assert_awaited_once()
 
 
+# --- the escalation policy (#579) under editing_v2 ---------------------------
+
+
+ESCALATION = {
+    "refund_limit": 2000,
+    "always_transfer_topics": ["emergency", "refund_over_limit"],
+}
+
+
+@pytest.fixture
+def escalation_on(monkeypatch):
+    monkeypatch.setattr(constants, "ESCALATION_V2_ENABLED", True)
+
+
+def _policy(definition) -> dict | None:
+    return (definition.workflow_configurations or {}).get(self_edit.ESCALATION_POLICY)
+
+
+@pytest.mark.asyncio
+class TestAnEscalationCardUnderV2:
+    """An escalation-policy card is a card like any other with the flag on:
+    its own draft, published, discarded and undone on its own."""
+
+    async def test_it_is_its_own_draft(self, bot, v2_on, escalation_on):
+        card = await bot.propose({"why": "Refunds", "escalation": ESCALATION})
+        payload = await bot.card(card)
+        assert payload[self_edit.OWN_DRAFT] is True
+        [change] = payload["changes"]
+        assert change["config"] == self_edit.ESCALATION_POLICY
+        assert change["old"] is None and change["new"]["refund_limit"] == 2000
+        assert await bot.draft() is None, "the card wrote the shared draft"
+        assert _policy(await bot.live()) is None
+
+    async def test_publish_puts_only_the_policy_live(self, bot, v2_on, escalation_on):
+        card = await bot.propose({"escalation": ESCALATION})
+        step = await bot.propose({"step": "Start", "new_prompt": PROPOSED})
+        await bot.editor_saves("2", "Thank them by name.")
+
+        payload = await bot.settle(card, "publish")
+
+        assert payload["decided"]["action"] == "publish"
+        live = await bot.live()
+        assert _policy(live)["refund_limit"] == 2000
+        assert _node(live.workflow_json, "1")["prompt"] == START, "another card"
+        assert _node(live.workflow_json, "2")["prompt"] == "Bye", "the editor's"
+        # Carried into the waiting draft, so its Publish does not revert it.
+        assert _policy(await bot.draft())["refund_limit"] == 2000
+        # The other card still publishes on its own afterwards.
+        await bot.settle(step, "publish")
+        live = await bot.live()
+        assert _node(live.workflow_json, "1")["prompt"] == PROPOSED
+        assert _policy(live)["refund_limit"] == 2000
+        assert [a.after["via"] for a in await bot.audits()] == [
+            publish_gate.VIA_EDIT_CARD,
+            publish_gate.VIA_EDIT_CARD,
+        ]
+
+    async def test_discard_touches_nothing(self, bot, v2_on, escalation_on):
+        await bot.editor_saves("2", "Thank them by name.")
+        card = await bot.propose({"escalation": ESCALATION})
+
+        payload = await bot.settle(card, "discard")
+
+        assert payload["decided"]["action"] == "discard"
+        assert _policy(await bot.live()) is None
+        draft = await bot.draft()
+        assert _policy(draft) is None
+        assert _node(draft.workflow_json, "2")["prompt"] == "Thank them by name."
+        assert await bot.audits() == []
+
+    async def test_undo_puts_the_old_policy_back(self, bot, v2_on, escalation_on):
+        card = await bot.propose({"escalation": ESCALATION})
+        await bot.settle(card, "publish")
+
+        payload = await bot.settle(card, "undo")
+
+        assert payload["undone"]["by"] == bot.owner.id
+        assert _policy(await bot.live()) is None
+        vias = [a.after.get("via") for a in await bot.audits()]
+        assert vias == [publish_gate.VIA_EDIT_CARD, publish_gate.VIA_EDIT_CARD_UNDO]
+
+    async def test_undo_is_refused_when_the_policy_moved_since(
+        self, bot, v2_on, escalation_on
+    ):
+        first = await bot.propose({"escalation": ESCALATION})
+        await bot.settle(first, "publish")
+        second = await bot.propose({"escalation": {"refund_limit": 5000}})
+        await bot.settle(second, "publish")
+
+        with pytest.raises(self_edit.EditError, match="edited elsewhere since"):
+            await bot.settle(first, "undo")
+        assert (await bot.card(first))["undo_refused"]["kind"] == "conflict"
+        assert _policy(await bot.live())["refund_limit"] == 5000
+
+    async def test_undo_that_by_chat_draws_the_policy(self, bot, v2_on, escalation_on):
+        card = await bot.propose({"escalation": ESCALATION})
+        await bot.settle(card, "publish")
+
+        undo_card = await bot.propose({"undo": True, "why": "undo that"})
+        payload = await bot.card(undo_card)
+        assert payload["undo_of"] == card
+        assert payload["step"] == self_edit.ESCALATION_LABEL
+        assert payload["old"] and payload["new"] and payload["diff"]
+        assert "hours" not in payload, "drawn as opening hours"
+        assert _policy(await bot.live())["refund_limit"] == 2000
+
+        await bot.settle(undo_card, "publish")
+        assert _policy(await bot.live()) is None
+        assert (await bot.card(card))["undone"]["by_card"] == undo_card
+
+    async def test_a_member_proposes_and_waits(self, bot, v2_on, escalation_on):
+        card = await bot.propose({"escalation": ESCALATION})
+        with pytest.raises(self_edit.EditForbidden):
+            await bot.settle(card, "publish", user=bot.member)
+        assert _policy(await bot.live()) is None
+
+
 # --- isolation and the flag off ---------------------------------------------
 
 

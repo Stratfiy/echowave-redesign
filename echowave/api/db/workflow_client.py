@@ -377,6 +377,7 @@ class WorkflowClient(BaseDBClient):
         based_on_definition_id: int,
         workflow_configurations: dict | None = None,
         rewrite_draft=None,
+        rewrite_draft_configurations=None,
     ) -> WorkflowDefinitionModel:
         """Publish a graph on its own, leaving the draft a draft.
 
@@ -391,11 +392,13 @@ class WorkflowClient(BaseDBClient):
         ``ValueError`` rather than overwrite it.
 
         ``workflow_configurations``, when given, replaces the live
-        configurations too (an edit card that changes an agent's hours).
-        ``rewrite_draft`` -- a plain function from ``(graph, configurations)``
-        to the new pair -- is applied to a waiting draft under the same lock,
-        so a change put live is carried into the draft and the next Publish
-        from the editor does not quietly take it back out.
+        configurations too (an edit card that changes an agent's hours or
+        its escalation policy). ``rewrite_draft`` -- a plain function from
+        ``(graph, configurations)`` to the new pair -- and
+        ``rewrite_draft_configurations`` -- a plain function from the draft's
+        configurations to new ones -- are applied to a waiting draft under the
+        same lock, so a change put live is carried into the draft and the next
+        Publish from the editor does not quietly take it back out.
         """
         async with self.async_session() as session:
             workflow = (
@@ -459,6 +462,10 @@ class WorkflowClient(BaseDBClient):
                 )
                 draft.workflow_json = draft_json
                 draft.workflow_configurations = draft_configurations
+            if draft is not None and rewrite_draft_configurations is not None:
+                draft.workflow_configurations = rewrite_draft_configurations(
+                    dict(draft.workflow_configurations or {})
+                )
             if draft is not None:
                 if self._draft_matches(draft, published):
                     await session.delete(draft)
@@ -482,12 +489,15 @@ class WorkflowClient(BaseDBClient):
         self,
         workflow_id: int,
         rewrite,
+        *,
+        rewrite_configurations=None,
     ) -> bool:
         """Change the draft's graph in place with ``rewrite`` -- a plain
         function from the graph to the new graph -- under a row lock, so an
         editor save landing at the same moment is not overwritten with a
-        stale copy. A draft left holding nothing the live version does not
-        is dropped.
+        stale copy. ``rewrite_configurations`` does the same for the draft's
+        configurations. A draft left holding nothing the live version does
+        not is dropped.
 
         Returns False when there is no draft to rewrite.
         """
@@ -512,6 +522,10 @@ class WorkflowClient(BaseDBClient):
             if workflow is None or draft is None:
                 return False
             draft.workflow_json = rewrite(draft.workflow_json or {})
+            if rewrite_configurations is not None:
+                draft.workflow_configurations = rewrite_configurations(
+                    dict(draft.workflow_configurations or {})
+                )
             live = (
                 await session.get(
                     WorkflowDefinitionModel, workflow.released_definition_id

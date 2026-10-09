@@ -81,9 +81,15 @@ GREETING = "greeting"
 #: "Knowledge Base Documents" picker writes on each node.
 DOCUMENTS = "document_uuids"
 FIELDS = (PROMPT, GREETING, DOCUMENTS)
-#: The agent's configurations a card may change (editing_v2), as
-#: ``{"config": key, "old", "new"}`` rather than a node's field.
-CONFIGS = (agent_hours.CONFIG_KEY,)
+#: The escalation policy (escalation v2), changed by chat. Same as
+#: ``escalation.policy.CONFIG_KEY``.
+ESCALATION_POLICY = "escalation_policy"
+#: The agent's configurations a card may change, as
+#: ``{"config": key, "old", "new"}`` rather than a node's field: the
+#: escalation policy, and the opening hours (editing_v2).
+CONFIGS = (agent_hours.CONFIG_KEY, ESCALATION_POLICY)
+#: The step an escalation card names.
+ESCALATION_LABEL = "Escalation"
 
 #: Set on a card that is its own draft (editing_v2): its change lives in the
 #: card and nowhere else until Publish, so cards and the editor's draft never
@@ -95,6 +101,13 @@ MAX_FILES = 10
 
 #: What the card says when its change cannot be applied as it was proposed.
 CONFLICT = "This change was edited elsewhere since \u2014 open the editor."
+#: What a card made before cards recorded their change says when its change
+#: cannot be rebuilt exactly. Publishing the whole draft instead is what the
+#: card-scope fix exists to stop, so it is never the fallback.
+LEGACY = (
+    "This card was made before an update and can't be applied on its own "
+    "\u2014 open the editor to review it."
+)
 
 
 #: Told to the model alongside DESCRIPTION while editing_v2 is on.
@@ -193,9 +206,46 @@ def _v2_properties() -> dict[str, Any]:
 
 def tool_properties(organization_id: int | None = None) -> dict[str, Any]:
     properties = _base_properties()
+    properties.update(_escalation_property())
     if v2(organization_id):
         properties.update(_v2_properties())
     return properties
+
+
+def _escalation_property() -> dict[str, Any]:
+    """Escalation v2: who takes over a call and when, changed by chat. Only
+    offered while the switch is on, so the tool is unchanged without it."""
+    from api.services import features
+
+    if not features.is_on("escalation_v2"):
+        return {}
+    from api.services.escalation.policy import TOPICS
+
+    return {
+        "escalation": {
+            "type": "object",
+            "description": (
+                "Change who takes over your phone calls and when, instead of "
+                "a step: only the fields to change. transfer_numbers is a list "
+                "of {number, name}; transfer_hours is {enabled, timezone, "
+                "slots:[{day_of_week 0-6 Monday first, start_time HH:MM, "
+                "end_time HH:MM}]}; always_transfer_topics is a list of "
+                f"{', '.join(TOPICS)}; custom_topics is a list of phrases; "
+                "refund_limit is rupees; max_ai_attempts is 1-5."
+            ),
+            "properties": {
+                "transfer_numbers": {"type": "array", "items": {"type": "object"}},
+                "transfer_hours": {"type": "object"},
+                "always_transfer_topics": {
+                    "type": "array",
+                    "items": {"type": "string", "enum": list(TOPICS)},
+                },
+                "custom_topics": {"type": "array", "items": {"type": "string"}},
+                "refund_limit": {"type": "integer"},
+                "max_ai_attempts": {"type": "integer"},
+            },
+        }
+    }
 
 
 def _base_properties() -> dict[str, Any]:
@@ -415,6 +465,23 @@ async def propose(
     )
     why = str(arguments.get("why") or "").strip()[:MAX_WHY_CHARS]
     find = str(arguments.get("find") or "")[:MAX_FIND_CHARS]
+    escalation_changes = arguments.get("escalation")
+    if (
+        isinstance(escalation_changes, dict)
+        and escalation_changes
+        and workflow_id is not None
+    ):
+        from api.services import escalation
+
+        if escalation.enabled(organization_id):
+            return await _propose_escalation(
+                organization_id=organization_id,
+                workflow_id=workflow_id,
+                workflow_run_id=workflow_run_id,
+                changes=escalation_changes,
+                why=why,
+                on_assistant_thread=on_assistant_thread,
+            )
     if find.strip() and workflow_id is not None:
         return await _propose_replace(
             organization_id=organization_id,
@@ -654,6 +721,119 @@ async def _propose_replace(
     }
 
 
+async def _propose_escalation(
+    *,
+    organization_id: int | None,
+    workflow_id: int,
+    workflow_run_id: int | None,
+    changes: dict[str, Any],
+    why: str,
+    on_assistant_thread: bool,
+) -> dict[str, Any]:
+    """The escalation policy, changed by chat: a card showing the policy
+    before and after in plain lines. Publish on the card puts exactly that
+    policy on live calls through the same gate as any other edit card.
+
+    Proposed against the *live* policy and never written into the shared
+    draft: a policy waiting in the draft went live with the next unrelated
+    publish, and a card whose change lived only in the draft could not be
+    published on its own. The card records ``changes`` --
+    ``{"config": "escalation_policy", "old", "new"}`` -- and ``settle`` acts
+    on that alone. With editing_v2 on it is marked its own draft like every
+    other card then, so it stacks, publishes and undoes the same way."""
+    from pydantic import ValidationError
+
+    from api.services.escalation import policy as escalation_policy
+    from api.services.escalation import settings as escalation_settings
+
+    workflow = await db_client.get_workflow_by_id(workflow_id)
+    if workflow is None or (
+        organization_id is not None
+        and getattr(workflow, "organization_id", None) != organization_id
+    ):
+        return {"status": "not_proposed", "reason": "This agent could not be found."}
+    live = await db_client.get_published_definition(
+        workflow_id, workflow.organization_id
+    )
+    if live is None:
+        return {
+            "status": "not_proposed",
+            "reason": "This agent has no live version to change yet.",
+        }
+    configurations = dict(live.workflow_configurations or {})
+    current = escalation_policy.from_configurations(configurations)
+    try:
+        proposed = escalation_policy.validate_changes(
+            escalation_settings.merged(current, changes)
+        )
+    except ValidationError as exc:
+        return {
+            "status": "not_proposed",
+            "reason": escalation_settings._message(exc),
+        }
+    old = "\n".join(escalation_policy.summary_lines(current))
+    new = "\n".join(escalation_policy.summary_lines(proposed))
+    if proposed == current:
+        return {"status": "not_proposed", "reason": "That is already the policy."}
+    label = ESCALATION_LABEL
+    payload = {
+        "workflow_id": workflow_id,
+        "bot_name": getattr(workflow, "name", None),
+        "step": label,
+        "node_id": None,
+        "why": why,
+        "old": old,
+        "new": new,
+        "diff": unified_diff(old + "\n", new + "\n", name=label),
+        "greetings": [],
+        "escalation": proposed.model_dump(mode="json"),
+        "changes": [
+            {
+                "config": escalation_policy.CONFIG_KEY,
+                # Exactly what live holds, absent included: Publish checks
+                # live still holds it before putting ``new`` in its place.
+                "old": copy.deepcopy(configurations.get(escalation_policy.CONFIG_KEY)),
+                "new": proposed.model_dump(mode="json"),
+            }
+        ],
+    }
+    if v2(organization_id):
+        payload[OWN_DRAFT] = True
+    summary = (
+        f"Proposed a change to {getattr(workflow, 'name', 'the bot')}'s escalation"
+        if on_assistant_thread
+        else "Proposed a change to when calls go to a person"
+    ) + (f": {why}" if why else "")
+    await agent_timeline.record(
+        organization_id=organization_id,
+        kind=AgentEventKind.EDIT_PROPOSED.value,
+        summary=summary,
+        workflow_id=None if on_assistant_thread else workflow_id,
+        workflow_run_id=workflow_run_id,
+        payload=payload,
+        in_channel=not on_assistant_thread,
+    )
+    return {
+        "status": "proposed",
+        "note": (
+            "The new escalation policy is proposed on a card now. A person has "
+            "to publish it from the card on this thread. Tell them, then end "
+            "your reply."
+        ),
+    }
+
+
+def _escalation_text(value: Any) -> str:
+    """A stored escalation policy (or its absence) as the card's lines."""
+    from api.services.escalation import policy as escalation_policy
+
+    return "\n".join(
+        escalation_policy.summary_lines(
+            escalation_policy.from_configurations({ESCALATION_POLICY: value})
+        )
+    )
+
+
 # --- editing_v2: hours, files and undo by chat ------------------------------
 
 
@@ -883,6 +1063,12 @@ def _display(
     removed: dict[str, str] = {}
     out: dict[str, Any] = {}
     for change in changes:
+        if change.get("config") == ESCALATION_POLICY:
+            # As ``_propose_escalation`` draws it: the policy in plain lines.
+            old, new = _escalation_text(change["old"]), _escalation_text(change["new"])
+            out["old"], out["new"] = old, new
+            diff += unified_diff(old + "\n", new + "\n", name=ESCALATION_LABEL)
+            continue
         if "config" in change:
             out["hours"] = {
                 "before": hours_lines(change["old"]),
@@ -1181,7 +1367,7 @@ async def _propose_undo(
             + "."
         )
     original = dict(target.payload or {})
-    changes = _changes_of(original)
+    changes = _changes_of(original, live.workflow_json or {})
     if changes is None:
         raise _Refused("That change was made before cards recorded it exactly.")
     pending = _pending(
@@ -1240,29 +1426,99 @@ class EditForbidden(EditError):
     """The person may propose but not publish; the message says who can."""
 
 
-def _changes_of(payload: dict[str, Any]) -> list[dict[str, Any]] | None:
+def _replace_changes(
+    payload: dict[str, Any], live: dict[str, Any] | None
+) -> list[dict[str, Any]] | None:
+    """A find-and-replace card from before ``changes``, rebuilt from live.
+
+    Such a card joined its steps' old and new text into one, so it cannot be
+    split back from the payload. It can be rebuilt by running its own find
+    and replace on the live version -- and the result is the card's change
+    exactly when it reproduces everything the card showed: the same steps,
+    the same joined old and new text, the same greetings. Anything else (the
+    live text moved on, or an older card that changed greetings it never
+    showed) is None: not guessed at.
+    """
+    find = payload.get("find")
+    replace_with = payload.get("replace_with")
+    if not isinstance(find, str) or not find or not isinstance(replace_with, str):
+        return None
+    changes: list[dict[str, Any]] = []
+    olds: list[str] = []
+    news: list[str] = []
+    greetings: list[tuple[str, str, str]] = []
+    labels: list[str] = []
+    for node in editable_nodes(copy.deepcopy(live or {})):
+        data = node.get("data") or {}
+        hit = False
+        old = data.get("prompt")
+        if isinstance(old, str) and find in old:
+            new = old.replace(find, replace_with)
+            olds.append(old)
+            news.append(new)
+            changes.append(_change(node, PROMPT, old, new))
+            hit = True
+        greeting = data.get("greeting")
+        if _has_greeting(node) and isinstance(greeting, str) and find in greeting:
+            new = greeting.replace(find, replace_with)
+            greetings.append((str(node.get("id")), greeting, new))
+            changes.append(_change(node, GREETING, greeting, new))
+            hit = True
+        if hit:
+            labels.append(_label(node))
+    shown = [
+        (str(g.get("node_id")), g.get("old"), g.get("new"))
+        for g in payload.get("greetings") or []
+        if isinstance(g, dict)
+    ]
+    if (
+        not changes
+        or "\n\n".join(olds) != (payload.get("old") or "")
+        or "\n\n".join(news) != (payload.get("new") or "")
+        or greetings != shown
+        or (payload.get("steps") is not None and list(payload["steps"]) != labels)
+    ):
+        return None
+    return changes
+
+
+def _changes_of(
+    payload: dict[str, Any], live: dict[str, Any] | None = None
+) -> list[dict[str, Any]] | None:
     """The card's change, field by field, or None when it cannot be known.
+
+    A change is ``{"node_id", "field", "old", "new"}`` for a step's prompt,
+    greeting or files, or ``{"config", "old", "new"}`` for a key of the
+    agent's configurations (the escalation policy, the opening hours).
 
     A card written before ``changes`` was recorded is rebuilt when it can be
     exactly: a whole-step card names its node and carries the step's old and
-    new text in full. A find-and-replace card from then joined its steps'
-    text into one, and is not guessed at -- None, and Publish refuses.
+    new text in full; a find-and-replace card is rebuilt from ``live`` (see
+    ``_replace_changes``). An escalation card from then wrote its policy
+    into the shared draft and kept no record of the policy it replaced, so
+    it is None. None means Publish refuses with ``LEGACY`` -- never a
+    whole-draft publish.
     """
     raw = payload.get("changes")
-    if raw is None and not payload.get("find") and payload.get("node_id"):
-        raw = []
-        if payload.get("new"):
-            raw.append(
-                {
-                    "node_id": payload["node_id"],
-                    "field": PROMPT,
-                    "old": payload.get("old"),
-                    "new": payload.get("new"),
-                }
-            )
-        for greeting in payload.get("greetings") or []:
-            if isinstance(greeting, dict):
-                raw.append({**greeting, "field": GREETING})
+    if raw is None:
+        if payload.get("escalation") is not None:
+            return None
+        if payload.get("find"):
+            raw = _replace_changes(payload, live)
+        elif payload.get("node_id"):
+            raw = []
+            if payload.get("new"):
+                raw.append(
+                    {
+                        "node_id": payload["node_id"],
+                        "field": PROMPT,
+                        "old": payload.get("old"),
+                        "new": payload.get("new"),
+                    }
+                )
+            for greeting in payload.get("greetings") or []:
+                if isinstance(greeting, dict):
+                    raw.append({**greeting, "field": GREETING})
     if not isinstance(raw, list) or not raw:
         return None
     changes = []
@@ -1299,6 +1555,55 @@ def _changes_of(payload: dict[str, Any]) -> list[dict[str, Any]] | None:
 
 def _uuids(value: Any) -> list[str]:
     return [str(u) for u in value if u] if isinstance(value, list) else []
+
+
+def _graph(changes: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [c for c in changes if "config" not in c]
+
+
+def _configs(changes: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [c for c in changes if "config" in c]
+
+
+def _swapped(
+    configurations: dict[str, Any],
+    changes: list[dict[str, Any]],
+    *,
+    frm: str,
+    to: str,
+) -> dict[str, Any]:
+    """A copy of ``configurations`` with each change's key moved from its
+    ``frm`` value to its ``to`` value -- only where it still holds ``frm``.
+    A key somebody else set since is theirs and is left alone."""
+    out = dict(configurations)
+    for change in changes:
+        key = change["config"]
+        if out.get(key) != change[frm]:
+            continue
+        if change[to] is None:
+            out.pop(key, None)
+        else:
+            out[key] = copy.deepcopy(change[to])
+    return out
+
+
+def _invalid_config(changes: list[dict[str, Any]]) -> list[str]:
+    """Validation for a configuration change, the counterpart of the
+    graph's: the escalation policy is checked again as it goes live. A
+    policy taken away (``new`` None, an Undo back to none) is the default."""
+    from pydantic import ValidationError
+
+    from api.services.escalation import policy as escalation_policy
+    from api.services.escalation import settings as escalation_settings
+
+    reasons = []
+    for change in changes:
+        if change.get("config") == ESCALATION_POLICY and change["new"] is not None:
+            try:
+                escalation_policy.validate_changes(change["new"])
+            except ValidationError as exc:
+                reasons.append(escalation_settings._message(exc))
+    return reasons
 
 
 def _node_in(definition: dict[str, Any] | None, node_id: str) -> dict | None:
@@ -1521,6 +1826,29 @@ async def _refuse_conflict(
     return EditError(CONFLICT)
 
 
+async def _refuse_legacy(
+    *,
+    organization_id: int,
+    event: Any,
+    payload: dict[str, Any],
+    key: str = "refused",
+    verb: str = "publish",
+) -> EditError:
+    """A card from before ``changes`` whose change cannot be rebuilt
+    exactly. Not "edited elsewhere": nothing may have been. Discard still
+    works and touches nothing."""
+    await _note_refusal(
+        organization_id=organization_id,
+        event=event,
+        payload=payload,
+        kind="legacy",
+        reasons=[LEGACY],
+        key=key,
+        verb=verb,
+    )
+    return EditError(LEGACY)
+
+
 async def _through_gate(
     *,
     organization_id: int,
@@ -1543,10 +1871,28 @@ async def _through_gate(
     puts back what was live before and only warns, as the editor does: it
     is a person's earlier text, and a revert that could be refused is a
     change nobody can take back.
+
+    A configuration change (hours, the escalation policy) puts the live
+    graph back live unchanged, so the graph is not checked again -- that
+    would refuse the change for a graph it did not touch (one published
+    before a newer validation rule, say); the escalation policy is
+    validated again instead (``_invalid_config``).
     """
     key, verb = ("undo_refused", "undo") if undo else ("refused", "publish")
+    invalid = _invalid_config(_configs(pending))
+    if invalid:
+        await _note_refusal(
+            organization_id=organization_id,
+            event=event,
+            payload=payload,
+            kind="invalid",
+            reasons=invalid,
+            key=key,
+            verb=verb,
+        )
+        raise EditError("This change cannot go live yet: " + "; ".join(invalid))
     live_json = live.workflow_json or {}
-    touches_configs = any("config" in c for c in pending)
+    touches_configs = bool(_configs(pending))
     live_configs = (live.workflow_configurations or {}) if touches_configs else {}
     graph, configs = _apply(live_json, live_configs, pending)
     try:
@@ -1558,6 +1904,7 @@ async def _through_gate(
             based_on_definition_id=live.id,
             via=publish_gate.VIA_EDIT_CARD_UNDO if undo else publish_gate.VIA_EDIT_CARD,
             refuse_on_findings=not undo,
+            check_graph=bool(_graph(pending)),
             workflow_configurations=configs if touches_configs else None,
             rewrite_draft=_carry(pending) if carry else None,
             # Which card, so an Undo can be traced to what it took back.
@@ -1608,30 +1955,45 @@ async def _publish(
 ) -> bool:
     """Put the card's change live, on top of the live version, and nothing
     else. Returns False when it was already live and nothing was published.
+
+    A configuration change (hours, the escalation policy) never wrote the
+    shared draft, with or without editing_v2: only live has to still hold
+    the card's ``old``, and the change is carried into a waiting draft that
+    still holds it too, so publishing that draft later does not quietly
+    undo this.
     """
-    changes = _changes_of(payload)
     live = await db_client.get_published_definition(workflow_id, organization_id)
-    if changes is None or live is None:
+    if live is None:
         raise await _refuse_conflict(
             organization_id=organization_id, event=event, payload=payload
         )
     live_json = live.workflow_json or {}
+    changes = _changes_of(payload, live_json)
+    if changes is None:
+        raise await _refuse_legacy(
+            organization_id=organization_id, event=event, payload=payload
+        )
+    graph = _graph(changes)
     own_draft = bool(payload.get(OWN_DRAFT))
-    if own_draft:
+    pending: list[dict[str, Any]] | None = []
+    if graph and own_draft:
         # The card is the draft: only the live version has to still read
         # as the card's ``old``. The shared draft is not consulted, and the
         # change is carried into it afterwards (``_carry``).
-        pending = _pending(live_json, live.workflow_configurations or {}, changes)
-    else:
+        pending = _pending(live_json, {}, graph)
+    elif graph:
         draft = await db_client.get_draft_version(workflow_id)
         pending = _to_publish(
-            live_json, None if draft is None else draft.workflow_json, changes
+            live_json, None if draft is None else draft.workflow_json, graph
         )
-    if pending is None:
+    configs: list[dict[str, Any]] | None = []
+    if _configs(changes):
+        configs = _pending({}, live.workflow_configurations or {}, _configs(changes))
+    if pending is None or configs is None:
         raise await _refuse_conflict(
             organization_id=organization_id, event=event, payload=payload
         )
-    if not pending:
+    if not pending and not configs:
         return False
 
     await _through_gate(
@@ -1641,8 +2003,8 @@ async def _publish(
         event=event,
         payload=payload,
         live=live,
-        pending=pending,
-        carry=own_draft,
+        pending=pending + configs,
+        carry=own_draft or bool(configs),
     )
     return True
 
@@ -1653,18 +2015,45 @@ async def _discard(
     """Take the card's change out of the draft, and nothing else.
 
     A card whose change cannot be known, or whose fields have all moved on,
-    is only marked discarded: the draft is somebody's work.
+    is only marked discarded: the draft is somebody's work. A configuration
+    card never wrote the draft, so there is nothing of it there to take out
+    -- except an escalation card from before ``changes``, which wrote its
+    policy into the shared draft: that is taken back out where the draft
+    still holds exactly the policy the card wrote, so it cannot go live
+    with the next unrelated publish.
     """
     if payload.get(OWN_DRAFT):
         # The change never left the card; there is nothing to take out.
         return
-    changes = _changes_of(payload)
-    if changes is None:
-        return
     live = await db_client.get_published_definition(workflow_id, organization_id)
     live_json = (live.workflow_json if live is not None else None) or {}
+    changes = _changes_of(payload, live_json)
+    if changes is None:
+        legacy_policy = payload.get("escalation")
+        if payload.get("changes") is None and isinstance(legacy_policy, dict):
+            live_configurations = (
+                live.workflow_configurations if live is not None else None
+            ) or {}
+            restore = [
+                {
+                    "config": ESCALATION_POLICY,
+                    "old": live_configurations.get(ESCALATION_POLICY),
+                    "new": legacy_policy,
+                }
+            ]
+            await db_client.rewrite_draft_json(
+                workflow_id,
+                lambda draft: draft,
+                rewrite_configurations=lambda cfg: _swapped(
+                    cfg, restore, frm="new", to="old"
+                ),
+            )
+        return
+    graph = _graph(changes)
+    if not graph:
+        return
     await db_client.rewrite_draft_json(
-        workflow_id, lambda draft: _taken_out(draft, live_json, changes)
+        workflow_id, lambda draft: _taken_out(draft, live_json, graph)
     )
 
 
@@ -1682,7 +2071,9 @@ async def settle(
     change the owner had saved in the editor; Publish would have put every
     waiting edit live behind a card that showed one. A card now acts on the
     fields it recorded in ``changes``. When one of them was edited since,
-    Publish is refused on the card (``CONFLICT``) rather than guessed at.
+    Publish is refused on the card (``CONFLICT``) rather than guessed at; a
+    card from before ``changes`` whose change cannot be rebuilt exactly is
+    refused with ``LEGACY``. Neither ever falls back to the whole draft.
     """
     if action not in ACTIONS or (action == "undo" and not v2(organization_id)):
         raise EditError("Publish or discard.")
@@ -1824,10 +2215,18 @@ async def _undo(
         raise EditError("Only a published change can be undone.")
     if payload.get("undone"):
         raise EditError("Already undone.")
-    changes = _changes_of(payload)
     live = await db_client.get_published_definition(workflow_id, organization_id)
-    if changes is None or live is None:
+    if live is None:
         raise await _refuse_conflict(
+            organization_id=organization_id,
+            event=event,
+            payload=payload,
+            key="undo_refused",
+            verb="undo",
+        )
+    changes = _changes_of(payload, live.workflow_json or {})
+    if changes is None:
+        raise await _refuse_legacy(
             organization_id=organization_id,
             event=event,
             payload=payload,
