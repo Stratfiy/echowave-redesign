@@ -154,6 +154,31 @@ describe('the card', () => {
         expect(screen.getByTestId('open-editor').getAttribute('href')).toBe('/workflow/3');
     });
 
+    it('a card from before the update says so honestly, and can still be discarded', () => {
+        render(
+            <EditCard
+                event={event({
+                    payload: {
+                        step: 'Find a slot',
+                        diff: DIFF,
+                        refused: {
+                            kind: 'legacy',
+                            reasons: [
+                                "This card was made before an update and can't be applied on its own — open the editor to review it.",
+                            ],
+                        },
+                    },
+                })}
+            />,
+        );
+        const refused = screen.getByTestId('edit-refused');
+        expect(refused.textContent).toContain("made before an update and can't be applied on its own");
+        expect(refused.textContent).not.toContain('edited elsewhere');
+        expect(screen.getByTestId('open-editor').getAttribute('href')).toBe('/workflow/3');
+        expect(screen.queryByRole('button', { name: 'Publish' })).toBeNull();
+        expect(screen.getByRole('button', { name: 'Discard' })).toBeTruthy();
+    });
+
     it('a refused publish says why', async () => {
         settle.mockResolvedValue({
             error: { detail: 'This change cannot go live yet: Field required (position on node 1)' },

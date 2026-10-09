@@ -16,7 +16,9 @@
  * a clause -- the card keeps the reasons and stays open. A card acts on its
  * own change only; when that step was edited elsewhere since, Publish is
  * refused (``conflict``) and the card points at the editor rather than
- * guessing which version is meant.
+ * guessing which version is meant. A card made before cards recorded their
+ * own change, whose change cannot be rebuilt exactly, says so (``legacy``):
+ * it cannot be published on its own, and Discard still settles it.
  */
 
 import { Check, GitBranch } from 'lucide-react';
@@ -40,7 +42,7 @@ export type EditPayload = {
     diff?: string;
     greetings?: GreetingChange[];
     decided?: { action?: 'publish' | 'discard'; by?: number; at?: string };
-    refused?: { kind?: 'invalid' | 'acceptable_use' | 'conflict'; reasons?: string[]; at?: string };
+    refused?: { kind?: 'invalid' | 'acceptable_use' | 'conflict' | 'legacy'; reasons?: string[]; at?: string };
 };
 
 export function editOf(event: TimelineEvent): EditPayload {
@@ -88,6 +90,7 @@ export function EditCard({
     };
 
     const decided = edit.decided;
+    const legacy = edit.refused?.kind === 'legacy';
     const workflowId = event.workflow_id ?? edit.workflow_id;
     const editorLink = workflowId ? (
         <Link href={`/workflow/${workflowId}`} className="ml-1 underline underline-offset-4" data-testid="open-editor">
@@ -146,9 +149,17 @@ export function EditCard({
                     {editorLink}
                 </p>
             )}
+            {!decided && !error && legacy && (
+                <p className="mt-2 text-sm text-destructive" role="alert" data-testid="edit-refused">
+                    This card was made before an update and can&apos;t be applied on its own — open the editor to
+                    review it.
+                    {editorLink}
+                </p>
+            )}
             {!decided &&
                 !error &&
                 edit.refused?.kind !== 'conflict' &&
+                !legacy &&
                 edit.refused?.reasons &&
                 edit.refused.reasons.length > 0 && (
                 <div className="mt-2 text-sm text-destructive" role="alert" data-testid="edit-refused">
@@ -178,9 +189,11 @@ export function EditCard({
                 </p>
             ) : (
                 <div className="mt-3 flex gap-2">
-                    <Button size="sm" disabled={saving !== null} onClick={() => void settle('publish')}>
-                        {saving === 'publish' ? 'Publishing…' : 'Publish'}
-                    </Button>
+                    {!legacy && (
+                        <Button size="sm" disabled={saving !== null} onClick={() => void settle('publish')}>
+                            {saving === 'publish' ? 'Publishing…' : 'Publish'}
+                        </Button>
+                    )}
                     <Button
                         size="sm"
                         variant="outline"
