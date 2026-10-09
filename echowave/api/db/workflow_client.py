@@ -255,6 +255,105 @@ class WorkflowClient(BaseDBClient):
             await session.refresh(draft)
         return draft
 
+    async def publish_configurations(
+        self,
+        workflow_id: int,
+        *,
+        published_configurations: dict,
+        draft_configurations: dict | None = None,
+    ) -> WorkflowDefinitionModel | None:
+        """Publish a configuration change on its own, leaving the draft a draft.
+
+        A new published version is made from the live one -- same graph,
+        same variables, same disposition codes -- with only its
+        configurations replaced, and the live one is archived. The draft, if
+        there is one, is not published: it gets ``draft_configurations``
+        (the same change applied to its own copy) so that publishing it
+        later does not quietly undo this, and is renumbered to stay the
+        newest version.
+
+        Returns the new published version, or None when the workflow has no
+        published version to start from.
+        """
+        async with self.async_session() as session:
+            workflow = (
+                await session.execute(
+                    select(WorkflowModel)
+                    .where(WorkflowModel.id == workflow_id)
+                    .with_for_update()
+                )
+            ).scalar_one_or_none()
+            if workflow is None:
+                return None
+            live = None
+            if workflow.released_definition_id:
+                live = await session.get(
+                    WorkflowDefinitionModel, workflow.released_definition_id
+                )
+            if live is None:
+                live = (
+                    await session.execute(
+                        select(WorkflowDefinitionModel).where(
+                            WorkflowDefinitionModel.workflow_id == workflow_id,
+                            WorkflowDefinitionModel.status == "published",
+                        )
+                    )
+                ).scalar_one_or_none()
+            if live is None:
+                return None
+
+            next_version = await self._next_version_number(session, workflow_id)
+            await session.execute(
+                update(WorkflowDefinitionModel)
+                .where(
+                    WorkflowDefinitionModel.workflow_id == workflow_id,
+                    WorkflowDefinitionModel.status == "published",
+                )
+                .values(status="archived", is_current=False)
+            )
+            published = WorkflowDefinitionModel(
+                workflow_id=workflow_id,
+                workflow_json=live.workflow_json,
+                workflow_configurations=published_configurations,
+                template_context_variables=live.template_context_variables or {},
+                call_disposition_codes=live.call_disposition_codes or {},
+                status="published",
+                version_number=next_version,
+                published_at=datetime.now(UTC),
+                is_current=True,
+            )
+            session.add(published)
+            await session.flush()
+            workflow.released_definition_id = published.id
+
+            draft = (
+                await session.execute(
+                    select(WorkflowDefinitionModel).where(
+                        WorkflowDefinitionModel.workflow_id == workflow_id,
+                        WorkflowDefinitionModel.status == "draft",
+                    )
+                )
+            ).scalar_one_or_none()
+            if draft is not None:
+                if draft_configurations is not None:
+                    draft.workflow_configurations = draft_configurations
+                draft.version_number = next_version + 1
+                # The legacy columns track the draft while there is one.
+                source = draft
+            else:
+                source = published
+            workflow.workflow_definition = source.workflow_json
+            workflow.workflow_configurations = source.workflow_configurations
+            workflow.template_context_variables = source.template_context_variables
+
+            try:
+                await session.commit()
+            except Exception as e:
+                await session.rollback()
+                raise e
+            await session.refresh(published)
+        return published
+
     async def discard_workflow_draft(
         self,
         workflow_id: int,

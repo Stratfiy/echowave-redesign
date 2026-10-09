@@ -103,6 +103,8 @@ export function ModelSlotEditor({
     configurations,
     onSaveConfigurations,
     onSaved,
+    applyNow = false,
+    onAppliedNow,
 }: {
     workflowId: number;
     component: SlotComponent;
@@ -120,6 +122,14 @@ export function ModelSlotEditor({
     configurations?: WorkflowConfigurations | null;
     onSaveConfigurations?: (patch: Partial<WorkflowConfigurations>) => Promise<void>;
     onSaved: () => Promise<void> | void;
+    /**
+     * Put the change live at once instead of into the draft: the voice row
+     * in the agent's About panel, where nothing publishes a draft. The slot
+     * and the voice's own settings go in one request, as a version of their
+     * own; anything else waiting in the draft stays a draft.
+     */
+    applyNow?: boolean;
+    onAppliedNow?: (result: { draft_kept?: boolean }) => void;
 }) {
     const [open, setOpen] = useState(false);
     const [choice, setChoice] = useState<CatalogueOption | null>(null);
@@ -221,6 +231,28 @@ export function ModelSlotEditor({
         if (!choice) return;
         setSaving(true);
         setError(null);
+        if (applyNow) {
+            const result = await client.put({
+                url: `/api/v1/workflow/${workflowId}/voice/live`,
+                body: {
+                    component,
+                    provider: choice.provider,
+                    model: choice.model,
+                    voice: component === "tts" && voice ? voice : undefined,
+                    ...draftTuning,
+                    settings: configDirty ? draft : undefined,
+                },
+            });
+            setSaving(false);
+            if (result.error) {
+                setError(detailFromResult(result, "Could not change the voice."));
+                return;
+            }
+            setOpen(false);
+            onAppliedNow?.((result.data ?? {}) as { draft_kept?: boolean });
+            await onSaved();
+            return;
+        }
         // The slot first: a model the catalogue refuses should stop the
         // whole save, not land a half of it.
         if (slotDirty) {

@@ -20,7 +20,7 @@ touched: ``{{initial_context.phone_number}}`` and
 are filled from the call and neither is anybody's to answer beforehand.
 
 **Where it bites.** At publish, and in the editor's own validate call, both
-of which run ``_validate_workflow_definition``. Not on every keystroke: a
+of which run ``publish_gate.validate_definition``. Not on every keystroke: a
 half-written prompt with a placeholder in it is a normal thing to be holding
 at save time, and refusing it would make the editor unusable.
 

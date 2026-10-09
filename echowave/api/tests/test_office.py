@@ -297,7 +297,7 @@ class TestTheEditCard:
                 new=AsyncMock(return_value=event),
             ),
             patch(
-                "api.services.workflow.self_edit.db_client.publish_workflow_draft",
+                "api.services.workflow.self_edit.publish_gate.publish_draft",
                 new=AsyncMock(),
             ) as publish,
             patch(
@@ -311,7 +311,10 @@ class TestTheEditCard:
             payload = await self_edit.settle(
                 organization_id=7, event_id=55, action="publish", user_id=42
             )
-        publish.assert_awaited_once_with(3)
+        # Through the publish gate, which fetches the bot scoped to this
+        # account -- a payload's workflow id is not trusted on its own.
+        assert publish.await_args.kwargs["workflow_id"] == 3
+        assert publish.await_args.kwargs["organization_id"] == 7
         assert payload["decided"]["action"] == "publish"
 
     async def test_an_unknown_bot_is_said_not_guessed(self):

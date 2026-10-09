@@ -53,7 +53,9 @@ class TestTheStepsBlock:
             < block.index("### Confirm")
         )
         assert "Ask for a date." in block
-        assert "### Start" not in block  # no prompt, nothing to edit
+        # No prompt, but a start step can carry a greeting, so it is listed
+        # with the greeting it has (none yet).
+        assert "### Start\n(empty)\nGreeting: (none)" in block
 
     def test_nothing_for_no_steps(self):
         assert self_edit.steps_block({}) == ""
@@ -165,7 +167,7 @@ class TestSettling:
                 new=AsyncMock(return_value=event),
             ),
             patch(
-                "api.services.workflow.self_edit.db_client.publish_workflow_draft",
+                "api.services.workflow.self_edit.publish_gate.publish_draft",
                 new=publish,
             ),
             patch(
@@ -187,7 +189,12 @@ class TestSettling:
 
     async def test_publish_puts_the_draft_live_and_stamps_the_card(self):
         payload, publish, discard, stamp, record = await self._settle("publish")
-        publish.assert_awaited_once_with(3)
+        # Through the editor's own gate, scoped to the card's account and
+        # refusing on an acceptable-use finding.
+        kwargs = publish.await_args.kwargs
+        assert kwargs["workflow_id"] == 3 and kwargs["organization_id"] == 7
+        assert kwargs["user_id"] == 42 and kwargs["refuse_on_findings"] is True
+        assert kwargs["via"] == "edit_card"
         assert not discard.await_count
         assert (
             payload["decided"]["action"] == "publish" and payload["decided"]["by"] == 42
@@ -212,7 +219,9 @@ class TestSettling:
             await self._settle(
                 "publish",
                 publish=AsyncMock(
-                    side_effect=ValueError("No draft exists for workflow 3")
+                    side_effect=self_edit.publish_gate.NoDraft(
+                        "No draft exists for workflow 3"
+                    )
                 ),
             )
 

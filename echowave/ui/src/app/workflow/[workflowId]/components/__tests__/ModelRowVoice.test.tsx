@@ -3,13 +3,31 @@
  * Voice: "HBlqQDCBvQxsEK8OFtEZ" -- the provider's id for a library voice the
  * row could not find in its list, printed as if it were a name.
  */
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const get = vi.hoisted(() => vi.fn());
 vi.mock('@/client/client.gen', () => ({ client: { get, post: vi.fn() } }));
 vi.mock('@/lib/auth', () => ({ useAuth: () => ({ user: { id: 1 }, loading: false }) }));
+
+type EditorProps = {
+    applyNow?: boolean;
+    onAppliedNow?: (result: { draft_kept?: boolean }) => void;
+};
+const editorProps = vi.hoisted(() => [] as EditorProps[]);
+// The pencil's own behaviour is tested in ModelSlotEditor.test.tsx; here it
+// only has to report that it went live.
+vi.mock('../ModelSlotEditor', () => ({
+    ModelSlotEditor: (props: EditorProps) => {
+        editorProps.push(props);
+        return (
+            <button type="button" onClick={() => props.onAppliedNow?.({ draft_kept: true })}>
+                Apply
+            </button>
+        );
+    },
+}));
 
 import { ModelRow, voiceLabel } from '../ModelRow';
 
@@ -60,6 +78,22 @@ describe('the voice row', () => {
         render(<ModelRow workflowId={46} voiceOnly />);
         const voice = await screen.findByTestId('voice-row');
         expect(voice.textContent).toBe('Custom voice');
+    });
+
+    it('puts a change live and says the next call uses it', async () => {
+        get.mockResolvedValue(row([{ voice_id: LIBRARY_ID, name: 'Priya', description: 'Hindi' }]));
+        const onVoiceApplied = vi.fn();
+        render(<ModelRow workflowId={46} voiceOnly editable onVoiceApplied={onVoiceApplied} />);
+        await screen.findByTestId('voice-row');
+        expect(editorProps.at(-1)?.applyNow).toBe(true);
+        expect(screen.queryByTestId('voice-applied')).toBeNull();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Apply' }));
+
+        const status = await screen.findByTestId('voice-applied');
+        expect(status.textContent).toContain('Saved — next call uses this voice.');
+        expect(status.textContent).toContain('still a draft');
+        expect(onVoiceApplied).toHaveBeenCalled();
     });
 });
 

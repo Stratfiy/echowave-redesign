@@ -8,6 +8,12 @@
  * has to read before it goes live. Once settled the card says what was done,
  * for everyone who opens the thread afterwards (see
  * services/workflow/self_edit.py: the action is written into the row).
+ *
+ * A greeting is shown as its own before and after, labelled: it is the
+ * first thing a caller hears, and a card that changed it without showing it
+ * asked somebody to approve a change they could not see. When Publish is
+ * refused -- the draft fails validation, or the acceptable-use screen names
+ * a clause -- the card keeps the reasons and stays open.
  */
 
 import { Check, GitBranch } from 'lucide-react';
@@ -19,13 +25,17 @@ import { Button } from '@/components/ui/button';
 import { detailFromError } from '@/lib/apiError';
 import { cn } from '@/lib/utils';
 
+export type GreetingChange = { step?: string; node_id?: string; old?: string; new?: string };
+
 export type EditPayload = {
     step?: string;
     why?: string;
     old?: string;
     new?: string;
     diff?: string;
+    greetings?: GreetingChange[];
     decided?: { action?: 'publish' | 'discard'; by?: number; at?: string };
+    refused?: { kind?: 'invalid' | 'acceptable_use'; reasons?: string[]; at?: string };
 };
 
 export function editOf(event: TimelineEvent): EditPayload {
@@ -56,6 +66,7 @@ export function EditCard({
     const [saving, setSaving] = useState<'publish' | 'discard' | null>(null);
     const [error, setError] = useState<string | null>(null);
     const lines = diffLines(edit.diff);
+    const greetings = (edit.greetings ?? []).filter((g) => (g.old ?? '') !== (g.new ?? ''));
 
     const settle = async (action: 'publish' | 'discard') => {
         setSaving(action);
@@ -100,6 +111,37 @@ export function EditCard({
                         </div>
                     ))}
                 </pre>
+            )}
+            {greetings.map((greeting, i) => (
+                <div
+                    key={`${greeting.node_id ?? greeting.step ?? ''}-${i}`}
+                    className="mt-2 rounded-md border border-border bg-background p-2 text-xs leading-relaxed"
+                    data-testid="greeting-change"
+                >
+                    <p className="mb-1 font-medium text-muted-foreground">
+                        Greeting{greeting.step ? ` · ${greeting.step}` : ''}
+                    </p>
+                    <div className="whitespace-pre-wrap bg-red-500/15 px-1 text-red-900 line-through dark:text-red-200">
+                        − {greeting.old || '(no greeting)'}
+                    </div>
+                    <div className="whitespace-pre-wrap bg-emerald-500/15 px-1 text-emerald-900 dark:text-emerald-200">
+                        + {greeting.new || '(no greeting)'}
+                    </div>
+                </div>
+            ))}
+            {!decided && !error && edit.refused?.reasons && edit.refused.reasons.length > 0 && (
+                <div className="mt-2 text-sm text-destructive" role="alert" data-testid="edit-refused">
+                    <p>
+                        {edit.refused.kind === 'acceptable_use'
+                            ? 'Not published: this may breach the acceptable use policy.'
+                            : 'Not published: this change cannot go live yet.'}
+                    </p>
+                    <ul className="mt-1 list-disc pl-5">
+                        {edit.refused.reasons.map((reason, i) => (
+                            <li key={i}>{reason}</li>
+                        ))}
+                    </ul>
+                </div>
             )}
             {error && (
                 <p className="mt-2 text-sm text-destructive" role="alert">

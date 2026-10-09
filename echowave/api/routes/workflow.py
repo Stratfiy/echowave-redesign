@@ -34,7 +34,7 @@ from api.schemas.workflow_configurations import (
 from api.sdk_expose import sdk_expose
 from api.services import features
 from api.services.auth.depends import get_user, require_organization_role
-from api.services.compliance import acceptable_use, ai_disclosure
+from api.services.compliance import ai_disclosure
 from api.services.configuration import model_presets
 from api.services.configuration.agent_options import managed_stack_override
 from api.services.configuration.ai_model_configuration import (
@@ -64,8 +64,8 @@ from api.services.storage import storage_fs
 from api.services.workflow import (
     audit_log,
     bot_notices,
+    publish_gate,
     setup_progress,
-    unfilled,
     visibility,
 )
 from api.services.workflow.agent_brief import (
@@ -75,18 +75,13 @@ from api.services.workflow.agent_brief import (
     workflow_name,
 )
 from api.services.workflow.disposition import merge_taxonomies
-from api.services.workflow.dto import ReactFlowDTO, sanitize_workflow_definition
+from api.services.workflow.dto import sanitize_workflow_definition
 from api.services.workflow.duplicate import duplicate_workflow
 from api.services.workflow.errors import ItemKind, WorkflowError
 from api.services.workflow.outcome_board import WINDOWS, board
 from api.services.workflow.run_usage_response import (
     format_public_cost_info,
     format_public_usage_info,
-)
-from api.services.workflow.squad import SquadError, has_handoffs
-from api.services.workflow.squad_loader import (
-    assemble_for_run,
-    validate_for_organization,
 )
 from api.services.workflow.template_generation import generate_workflow_definition
 from api.services.workflow.trigger_paths import (
@@ -98,7 +93,6 @@ from api.services.workflow.trigger_paths import (
     validate_trigger_paths,
 )
 from api.services.workflow.workflow_graph import (
-    WorkflowGraph,
     validate_node_instance_constraints,
 )
 from api.utils.artifacts import artifact_url
@@ -158,157 +152,6 @@ def _trigger_path_validation_http_exception(
         status_code=422,
         detail=ValidateWorkflowResponse(is_valid=False, errors=errors).model_dump(),
     )
-
-
-async def _validate_workflow_definition(
-    workflow_definition: Optional[dict],
-    exclude_workflow_id: Optional[int] = None,
-    organization_id: Optional[int] = None,
-) -> list[WorkflowError]:
-    """Run DTO + graph + trigger-conflict checks on a workflow definition.
-
-    Returns the list of errors (empty if the definition is valid). This is
-    the single source of truth for "is this workflow valid?" — used by the
-    /validate route (read-only audit) and the /publish route (gate).
-    """
-    errors: list[WorkflowError] = []
-    if not workflow_definition:
-        return errors
-
-    # ----------- DTO Validation ------------
-    dto: Optional[ReactFlowDTO] = None
-    try:
-        dto = ReactFlowDTO.model_validate(workflow_definition)
-    except ValidationError as exc:
-        errors.extend(_transform_schema_errors(exc, workflow_definition))
-
-    # ----------- Graph Validation if DTO is valid ------------
-    try:
-        if dto:
-            WorkflowGraph(dto)
-    except ValueError as e:
-        errors.extend(e.args[0])
-
-    # ----------- Squad Assembly Check ------------
-    # A handoff is replaced by the agent it names when the call starts, so the
-    # graph that actually runs is not the one validated above. Assembling it
-    # here turns "the squad is a circle" and "that agent was deleted" into
-    # errors at save, rather than a call that fails while somebody is on the
-    # line — which is the only time anyone would otherwise find out.
-    # Bound before the branch: the assembly check below reads it, and a
-    # workflow with no handoffs never enters the block that fills it.
-    squad_problems: list = []
-    if dto and organization_id is not None and has_handoffs(workflow_definition):
-        # Ask what is wrong before asking it to be built. `assemble_for_run`
-        # raises on the first problem and has nowhere to attach it, so a squad
-        # with three broken handoffs reported one of them as a banner about the
-        # workflow and left the reader to find which step it meant. The
-        # validator answers the same five questions, in the same words, for
-        # every handoff, and names the node each belongs to.
-        squad_problems = await validate_for_organization(
-            workflow_definition, organization_id=organization_id
-        )
-        errors.extend(
-            WorkflowError(
-                kind=ItemKind.node if problem.node_id else ItemKind.workflow,
-                id=problem.node_id,
-                field=None,
-                message=problem.message,
-            )
-            for problem in squad_problems
-        )
-
-    # Assembly is only worth attempting on a squad the validator passed:
-    # otherwise it would raise the first of the problems just reported, as a
-    # duplicate with less information attached. What it still catches is the
-    # case the validator cannot — two agents that are each valid alone and do
-    # not fit together once spliced.
-    if (
-        dto
-        and organization_id is not None
-        and has_handoffs(workflow_definition)
-        and not squad_problems
-    ):
-        try:
-            assembled = await assemble_for_run(
-                workflow_definition, organization_id=organization_id
-            )
-            WorkflowGraph(ReactFlowDTO.model_validate(assembled))
-        except SquadError as exc:
-            # A safety net now rather than the main path: reaching this means
-            # the splicer refused something the validator did not predict.
-            errors.append(
-                WorkflowError(
-                    kind=ItemKind.workflow,
-                    id=None,
-                    field=None,
-                    message=str(exc),
-                )
-            )
-        except ValidationError as exc:
-            errors.extend(_transform_schema_errors(exc, workflow_definition))
-        except ValueError as exc:
-            # The assembled graph broke a rule the parts kept on their own —
-            # two agents that are each fine and do not fit together.
-            errors.extend(
-                exc.args[0]
-                if exc.args and isinstance(exc.args[0], list)
-                else [
-                    WorkflowError(
-                        kind=ItemKind.workflow,
-                        id=None,
-                        field=None,
-                        message=str(exc),
-                    )
-                ]
-            )
-
-    # ----------- Trigger Path Format Check ------------
-    for issue in validate_trigger_paths(workflow_definition):
-        errors.append(
-            WorkflowError(
-                kind=ItemKind.node,
-                id=issue.node_id,
-                field="data.trigger_path",
-                message=issue.message,
-            )
-        )
-
-    # ----------- AI-identity line (FD-1) ------------
-    # May be switched off only with the acknowledgement; a draft that has it
-    # off and unacknowledged does not publish.
-    errors.extend(ai_disclosure.problems(workflow_definition))
-
-    # ----------- Unanswered placeholders ------------
-    # A caller heard "Namaste, ." on 20 Sept because {{clinic_name}} was never
-    # answered. The template already called these "values the operator must
-    # supply before going live"; nobody was checking.
-    errors.extend(unfilled.problems(workflow_definition))
-
-    # ----------- Trigger Path Conflict Check ------------
-    trigger_paths = extract_trigger_paths(workflow_definition)
-    if trigger_paths:
-        conflicts = await db_client.check_trigger_path_conflicts(
-            trigger_paths=trigger_paths,
-            exclude_workflow_id=exclude_workflow_id,
-        )
-        if conflicts:
-            path_to_node = trigger_path_to_node_id(workflow_definition)
-            for conflicting_path in conflicts:
-                errors.append(
-                    WorkflowError(
-                        kind=ItemKind.node,
-                        id=path_to_node.get(conflicting_path),
-                        field="data.trigger_path",
-                        message=(
-                            "Trigger path is already in use. Please choose "
-                            "another one or leave empty to use a unique one "
-                            "generated by the server."
-                        ),
-                    )
-                )
-
-    return errors
 
 
 def _validation_errors_http_exception(
@@ -620,7 +463,7 @@ async def validate_workflow(
         draft.workflow_json if draft else workflow.released_definition.workflow_json
     )
 
-    errors = await _validate_workflow_definition(
+    errors = await publish_gate.validate_definition(
         workflow_definition,
         exclude_workflow_id=workflow_id,
         organization_id=user.selected_organization_id,
@@ -630,28 +473,6 @@ async def validate_workflow(
         raise _validation_errors_http_exception(errors)
 
     return ValidateWorkflowResponse(is_valid=True, errors=[])
-
-
-def _transform_schema_errors(
-    exc: ValidationError, workflow_definition: dict
-) -> list[WorkflowError]:
-    out: list[WorkflowError] = []
-
-    for err in exc.errors():
-        loc = err["loc"]
-        idx = workflow_definition[loc[0]][loc[1]]["id"]
-
-        kind: ItemKind = ItemKind.node if loc[0] == "nodes" else ItemKind.edge
-
-        out.append(
-            WorkflowError(
-                kind=kind,
-                id=idx,
-                field=".".join(str(p) for p in err["loc"][2:]) or None,
-                message=err["msg"].capitalize(),
-            )
-        )
-    return out
 
 
 @router.post(
@@ -1336,6 +1157,14 @@ class ModelSlotRequest(BaseModel):
     speed: float | None = Field(default=None, ge=0.5, le=2.0)
     language: str | None = Field(default=None, max_length=16)
 
+    def tuning(self) -> dict[str, Any]:
+        return {
+            "temperature": self.temperature,
+            "max_tokens": self.max_tokens,
+            "speed": self.speed,
+            "language": self.language,
+        }
+
 
 @router.put("/{workflow_id}/model-slot")
 async def set_model_slot(
@@ -1343,26 +1172,18 @@ async def set_model_slot(
     request: ModelSlotRequest,
     user: UserModel = Depends(get_user),
 ) -> dict:
-    """Point one slot of this agent at a managed catalogue model.
+    """Point one slot of this agent at a managed catalogue model, in its draft.
 
     The Advanced tiles' pencil. The rest of the stack is carried over
     untouched — the agent's own override if it has one, else what it inherits
     from the workspace — so changing the voice never changes the brain.
     Only models on the sellable catalogue are accepted: anything else is what
-    the per-slot editor and the customer's own keys are for.
+    the per-slot editor and the customer's own keys are for. The voice row in
+    the agent's About panel uses ``PUT /{workflow_id}/voice/live`` instead,
+    which puts the change live at once.
     """
-    from api.services.configuration import model_catalogue
-    from api.services.configuration.agent_options import (
-        SelectionError,
-        model_row,
-        stack_from_configurations,
-        with_model_slot,
-    )
-    from api.services.configuration.ai_model_configuration import (
-        compile_workflow_model_configuration_override,
-        get_resolved_ai_model_configuration,
-    )
-    from api.services.configuration.resolve import resolve_effective_config
+    from api.services.configuration import model_slot
+    from api.services.configuration.agent_options import model_row
 
     workflow = await db_client.get_workflow(
         workflow_id, organization_id=user.selected_organization_id
@@ -1370,77 +1191,30 @@ async def set_model_slot(
     if workflow is None:
         raise HTTPException(status_code=404, detail="Workflow not found")
 
-    async with db_client.async_session() as session:
-        offered = await model_catalogue.sellable(session, component=request.component)
-    if not any(
-        e.provider == request.provider and e.model == request.model for e in offered
-    ):
-        raise HTTPException(
-            status_code=422,
-            detail=(
-                f"{request.provider} {request.model} is not on offer for this slot. "
-                "Use the per-slot editor to run a model on your own key."
-            ),
-        )
-
     draft = await db_client.get_draft_version(workflow_id)
     source = draft or workflow.released_definition
-    existing = dict((source.workflow_configurations if source else None) or {})
-    current_override = existing.get(WORKFLOW_MODEL_CONFIGURATION_V2_OVERRIDE_KEY)
-
-    if isinstance(current_override, dict) and isinstance(
-        current_override.get("stack"), dict
-    ):
-        base = dict(current_override["stack"])
-    elif current_override:
-        base = stack_from_configurations(
-            compile_workflow_model_configuration_override(current_override)
-        )
-    else:
-        resolved = await get_resolved_ai_model_configuration(
-            organization_id=user.selected_organization_id
-        )
-        base = stack_from_configurations(
-            resolve_effective_config(
-                resolved.effective, existing.get("model_overrides")
-            )
-        )
-
     try:
-        stack = with_model_slot(
-            base,
+        await model_slot.ensure_sellable(
+            component=request.component,
+            provider=request.provider,
+            model=request.model,
+        )
+        existing, before = await model_slot.with_slot(
+            (source.workflow_configurations if source else None) or {},
+            organization_id=user.selected_organization_id,
             component=request.component,
             provider=request.provider,
             model=request.model,
             voice=request.voice,
-            tuning={
-                "temperature": request.temperature,
-                "max_tokens": request.max_tokens,
-                "speed": request.speed,
-                "language": request.language,
-            },
+            tuning=request.tuning(),
         )
-    except SelectionError as exc:
+    except model_slot.SlotRefused as exc:
         raise HTTPException(status_code=422, detail=str(exc))
 
-    # Compiled before it is stored: a stack that cannot run is refused here
-    # rather than on the first call.
-    try:
-        compile_workflow_model_configuration_override({"version": 3, "stack": stack})
-    except (ValueError, ValidationError) as exc:
-        raise HTTPException(status_code=422, detail=str(exc))
-
-    existing.pop("model_overrides", None)
-    existing[WORKFLOW_MODEL_CONFIGURATION_V2_OVERRIDE_KEY] = {
-        "version": 3,
-        "stack": stack,
-    }
     await db_client.save_workflow_draft(workflow_id, workflow_configurations=existing)
 
     # Who trades which slot for what. Without the before and after there is
     # no telling whether the rate card pushes people to cheaper voices.
-    before = base.get(request.component) if isinstance(base, dict) else None
-    before = before if isinstance(before, dict) else {}
     capture_event(
         distinct_id=str(user.provider_id),
         event=PostHogEvent.MODEL_SLOT_CHANGED,
@@ -1463,6 +1237,73 @@ async def set_model_slot(
             workflow_id=workflow_id,
             workflow_configurations=existing,
         )
+
+
+class LiveVoiceRequest(ModelSlotRequest):
+    """The About panel's voice row: the voice slot, and the voice's own
+    settings from the panel behind its pencil, put live together.
+
+    ``settings`` takes only what the voice panel edits. Anything else is
+    refused rather than dropped: a key that vanished on save would be a
+    setting somebody changed and nobody kept.
+    """
+
+    component: Literal["tts", "realtime"]
+    settings: dict[str, Any] | None = None
+
+
+@router.put("/{workflow_id}/voice/live")
+async def set_voice_live(
+    workflow_id: int,
+    request: LiveVoiceRequest,
+    user: UserModel = Depends(get_user),
+) -> dict:
+    """Change this agent's voice and put it live now, without its draft.
+
+    Publishes a new version that is the live one with only the voice
+    changed; unrelated work waiting in the draft stays a draft, and is given
+    the same voice so publishing it later does not undo this.
+    """
+    from api.services.configuration import model_slot
+    from api.services.workflow import live_voice
+
+    try:
+        published = await live_voice.apply_voice_now(
+            workflow_id=workflow_id,
+            organization_id=user.selected_organization_id,
+            user_id=user.id,
+            component=request.component,
+            provider=request.provider,
+            model=request.model,
+            voice=request.voice,
+            tuning=request.tuning(),
+            settings=request.settings,
+        )
+    except live_voice.AgentNotFound as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except (model_slot.SlotRefused, live_voice.SettingsRefused) as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+    capture_event(
+        distinct_id=str(user.provider_id),
+        event=PostHogEvent.MODEL_SLOT_CHANGED,
+        properties={
+            "organization_id": user.selected_organization_id,
+            "workflow_id": workflow_id,
+            "component": request.component,
+            "from_provider": published.before.get("provider"),
+            "from_model": published.before.get("model"),
+            "to_provider": request.provider,
+            "to_model": request.model,
+            "voice": request.voice,
+            "live": True,
+        },
+    )
+    return {
+        "version_number": published.version_number,
+        "published_at": published.published_at,
+        "draft_kept": published.draft_kept,
+    }
 
 
 @router.get("/{workflow_id}/versions")
@@ -1514,58 +1355,27 @@ async def publish_workflow(
     """Publish the current draft version of a workflow.
 
     Drafts are allowed to be incomplete (so the editor can save mid-edit),
-    but a published version is what runtime executes — so this is the gate
-    where the full DTO + graph + trigger-conflict checks must pass.
+    but a published version is what runtime executes -- so this goes through
+    ``publish_gate.publish_draft``: the full DTO + graph + trigger-conflict
+    checks, the acceptable-use screen (which warns here and never refuses),
+    and the audit row. The Publish button on a card a bot proposed in a
+    thread goes through the same gate.
     """
-    workflow = await db_client.get_workflow(
-        workflow_id, organization_id=user.selected_organization_id
-    )
-    if workflow is None:
-        raise HTTPException(
-            status_code=404, detail=f"Workflow with id {workflow_id} not found"
-        )
-
-    draft = await db_client.get_draft_version(workflow_id)
-    if draft is None:
-        raise HTTPException(status_code=400, detail="No draft to publish")
-
-    errors = await _validate_workflow_definition(
-        draft.workflow_json,
-        exclude_workflow_id=workflow_id,
-        organization_id=user.selected_organization_id,
-    )
-    if errors:
-        raise _validation_errors_http_exception(errors)
-
-    # Read the instructions against the acceptable use policy.
-    #
-    # Here rather than on every save: a draft is work in progress and a
-    # warning on each keystroke is a warning nobody reads, while publishing is
-    # the moment this becomes the thing that answers the phone -- the same
-    # reason this route already carries the DTO, graph and trigger checks.
-    #
-    # It warns and never refuses, per the policy's own enforcement model: the
-    # terms carry a suspension power exercised by a person, and a language
-    # model reading prose is not the right thing to stand between a paying
-    # customer and their own bot. `screen` cannot raise.
-    async with db_client.async_session() as session:
-        findings = await acceptable_use.screen(
-            session,
-            instructions=acceptable_use.instructions_in(draft.workflow_json),
-        )
-    if findings:
-        logger.warning(
-            "Acceptable-use findings on workflow {} for org {}: {}",
-            workflow_id,
-            user.selected_organization_id,
-            [f.clause for f in findings],
-        )
-
     try:
-        published = await db_client.publish_workflow_draft(workflow_id)
-    except ValueError as e:
+        result = await publish_gate.publish_draft(
+            workflow_id=workflow_id,
+            organization_id=user.selected_organization_id,
+            user_id=user.id,
+            via=publish_gate.VIA_EDITOR,
+        )
+    except publish_gate.WorkflowNotFound as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except publish_gate.DraftInvalid as e:
+        raise _validation_errors_http_exception(e.errors)
+    except publish_gate.PublishError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+    published = result.definition
     capture_event(
         distinct_id=str(user.provider_id),
         event=PostHogEvent.WORKFLOW_PUBLISHED,
@@ -1575,15 +1385,6 @@ async def publish_workflow(
             "organization_id": user.selected_organization_id,
         },
     )
-    await audit_log.record(
-        user.selected_organization_id,
-        action=audit_log.AGENT_PUBLISHED,
-        subject_kind="agent",
-        subject_id=workflow_id,
-        subject=getattr(workflow, "name", None),
-        actor_user_id=user.id,
-        after={"version_number": published.version_number},
-    )
 
     return {
         "id": published.id,
@@ -1592,7 +1393,7 @@ async def publish_workflow(
         "published_at": published.published_at,
         # Empty for almost every bot. Present so the screen can name the
         # clause rather than say "something is wrong with your prompt".
-        "acceptable_use_findings": [f.as_dict() for f in findings],
+        "acceptable_use_findings": [f.as_dict() for f in result.findings],
     }
 
 

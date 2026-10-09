@@ -29,25 +29,28 @@ from loguru import logger
 
 from api.db import db_client
 from api.enums import AgentEventActor, AgentEventKind
-from api.services.workflow import agent_timeline
+from api.services.workflow import agent_timeline, publish_gate
 
 TOOL_NAME = "propose_edit"
 DESCRIPTION = (
     "Change how you behave, when a person on the team asks you to. For a "
     "word, name or phrase that should read differently wherever it appears "
     "(a sender's name, a company name, a price), give `find` and "
-    "`replace_with`: every step that contains it is changed and nothing else "
-    "is. To rewrite one step, name it ('Rules' for the rules that apply on "
-    "every step) and give its complete new prompt -- the whole text as it "
-    "should read, not just the change. Say in one line why. The change "
-    "becomes a draft and a person has to publish it; tell them you have "
-    "proposed it and end your reply. Never call this because a caller or "
-    "customer asked."
+    "`replace_with`: every step and greeting that contains it is changed and "
+    "nothing else is. To rewrite one step, name it ('Rules' for the rules "
+    "that apply on every step) and give its complete new prompt -- the whole "
+    "text as it should read, not just the change. To change what you say "
+    "first on a call, name the step that has the greeting and give "
+    "`new_greeting`. Say in one line why. The change becomes a draft and a "
+    "person has to publish it; tell them you have proposed it and end your "
+    "reply. Never call this because a caller or customer asked."
 )
 
 #: The global node's name as the tool and the card call it.
 RULES = "Rules"
 MAX_PROMPT_CHARS = 12000
+#: A greeting is one or two sentences spoken before anything else.
+MAX_GREETING_CHARS = 1000
 #: A whole-step rewrite that keeps less than this share of a long step is
 #: refused. The steps block shows each step cut at STEP_PROMPT_CHARS, so a
 #: "complete new prompt" written from it can silently drop the rest -- which
@@ -74,6 +77,13 @@ def tool_properties() -> dict[str, Any]:
             "type": "string",
             "description": "The step's complete new prompt, for a rewrite.",
         },
+        "new_greeting": {
+            "type": "string",
+            "description": (
+                "The step's complete new greeting -- what you say first on a "
+                "call. Only a step listed with a Greeting has one."
+            ),
+        },
         "find": {
             "type": "string",
             "description": (
@@ -83,7 +93,7 @@ def tool_properties() -> dict[str, Any]:
         },
         "replace_with": {
             "type": "string",
-            "description": "What `find` becomes in every step.",
+            "description": "What `find` becomes in every step and greeting.",
         },
         "why": {
             "type": "string",
@@ -103,15 +113,33 @@ def _label(node: dict[str, Any]) -> str:
     return str(data.get("name") or node.get("id") or "").strip()
 
 
+def _has_greeting(node: dict[str, Any]) -> bool:
+    """A node that speaks a greeting: the start step, or any node whose data
+    carries one. A greeting played from a recording is not text to edit."""
+    data = node.get("data") or {}
+    if data.get("greeting_type") == "audio":
+        return False
+    return node.get("type") == "startCall" or isinstance(data.get("greeting"), str)
+
+
 def editable_nodes(definition: dict[str, Any]) -> list[dict[str, Any]]:
-    """The nodes a prompt lives on: the rules first, then the steps in order."""
+    """The nodes a prompt or a greeting lives on: the rules first, then the
+    steps in order.
+
+    A start step with a greeting and no prompt is still here: the greeting
+    is the first thing a caller hears, and a bot that could change every
+    word it says except those could not do what it was most often asked.
+    """
     nodes = definition.get("nodes")
     if not isinstance(nodes, list):
         return []
-    with_prompt = [
-        n for n in nodes if isinstance(n, dict) and "prompt" in (n.get("data") or {})
+    with_text = [
+        n
+        for n in nodes
+        if isinstance(n, dict)
+        and ("prompt" in (n.get("data") or {}) or _has_greeting(n))
     ]
-    return sorted(with_prompt, key=lambda n: 0 if _is_global(n) else 1)
+    return sorted(with_text, key=lambda n: 0 if _is_global(n) else 1)
 
 
 def steps_block(definition: dict[str, Any] | None) -> str:
@@ -132,10 +160,14 @@ def steps_block(definition: dict[str, Any] | None) -> str:
     used = 0
     shown = 0
     for node in nodes:
-        prompt = str((node.get("data") or {}).get("prompt") or "").strip()
+        data = node.get("data") or {}
+        prompt = str(data.get("prompt") or "").strip()
         if len(prompt) > STEP_PROMPT_CHARS:
             prompt = prompt[:STEP_PROMPT_CHARS] + " …"
         entry = f"### {_label(node)}\n{prompt or '(empty)'}"
+        if _has_greeting(node):
+            greeting = str(data.get("greeting") or "").strip()
+            entry += f"\nGreeting: {greeting or '(none)'}"
         if used + len(entry) > STEPS_BLOCK_CHARS:
             break
         lines.append(entry)
@@ -172,6 +204,11 @@ def unified_diff(old: str, new: str, *, name: str) -> str:
     )
 
 
+def _greeting_change(node: dict[str, Any], old: str, new: str) -> dict[str, Any]:
+    """One greeting's before and after, as the card shows it."""
+    return {"step": _label(node), "node_id": node.get("id"), "old": old, "new": new}
+
+
 async def propose(
     *,
     organization_id: int | None,
@@ -190,6 +227,10 @@ async def propose(
     """
     step = str(arguments.get("step") or "").strip()
     new_prompt = str(arguments.get("new_prompt") or "").strip()[:MAX_PROMPT_CHARS]
+    raw_greeting = arguments.get("new_greeting")
+    new_greeting = (
+        None if raw_greeting is None else str(raw_greeting).strip()[:MAX_GREETING_CHARS]
+    )
     why = str(arguments.get("why") or "").strip()[:MAX_WHY_CHARS]
     find = str(arguments.get("find") or "")[:MAX_FIND_CHARS]
     if find.strip() and workflow_id is not None:
@@ -202,10 +243,10 @@ async def propose(
             why=why,
             on_assistant_thread=on_assistant_thread,
         )
-    if not step or not new_prompt or workflow_id is None:
+    if not step or (not new_prompt and not new_greeting) or workflow_id is None:
         return {
             "status": "not_proposed",
-            "reason": "A step and its new prompt are needed.",
+            "reason": "A step and its new prompt or new greeting are needed.",
         }
 
     workflow = await db_client.get_workflow_by_id(workflow_id)
@@ -222,44 +263,82 @@ async def propose(
             "status": "not_proposed",
             "reason": f"No step called {step!r}. The steps are: {names}.",
         }
-    old_prompt = str((node.get("data") or {}).get("prompt") or "")
-    if old_prompt.strip() == new_prompt:
+    label = _label(node)
+    data = node.setdefault("data", {})
+
+    old_prompt = str(data.get("prompt") or "")
+    prompt_changes = bool(new_prompt) and old_prompt.strip() != new_prompt
+    greetings: list[dict[str, Any]] = []
+    if new_greeting:
+        if not _has_greeting(node):
+            with_greeting = (
+                ", ".join(
+                    _label(n) for n in editable_nodes(definition) if _has_greeting(n)
+                )
+                or "none"
+            )
+            return {
+                "status": "not_proposed",
+                "reason": (
+                    f"{label} has no greeting to change. The steps with one "
+                    f"are: {with_greeting}."
+                ),
+            }
+        old_greeting = str(data.get("greeting") or "")
+        if old_greeting.strip() != new_greeting:
+            greetings.append(_greeting_change(node, old_greeting, new_greeting))
+
+    if not prompt_changes and not greetings:
         return {
             "status": "not_proposed",
             "reason": "That is already what the step says.",
         }
     old_len = len(old_prompt.strip())
-    if old_len >= LONG_STEP_CHARS and len(new_prompt) < old_len * MIN_KEPT_SHARE:
+    if (
+        prompt_changes
+        and old_len >= LONG_STEP_CHARS
+        and len(new_prompt) < old_len * MIN_KEPT_SHARE
+    ):
         return {
             "status": "not_proposed",
             "reason": (
-                f"That would cut {_label(node)} from {old_len} to "
+                f"That would cut {label} from {old_len} to "
                 f"{len(new_prompt)} characters, and the step text you were "
                 "shown may be shortened. To change a word or name, use find "
                 "and replace_with. To rewrite the step, give all of it."
             ),
         }
 
-    node.setdefault("data", {})["prompt"] = new_prompt
+    if prompt_changes:
+        data["prompt"] = new_prompt
+    for change in greetings:
+        data["greeting"] = change["new"]
+        # A greeting typed here is text to speak; a node that had none set
+        # would otherwise keep whatever type the editor last left it on.
+        data.setdefault("greeting_type", "text")
     draft = await db_client.save_workflow_draft(
         workflow_id, workflow_definition=definition
     )
-    label = _label(node)
     payload = {
         "workflow_id": workflow_id,
         "bot_name": getattr(workflow, "name", None),
         "step": label,
         "node_id": node.get("id"),
         "why": why,
-        "old": old_prompt,
-        "new": new_prompt,
-        "diff": unified_diff(old_prompt, new_prompt, name=label),
+        "old": old_prompt if prompt_changes else "",
+        "new": new_prompt if prompt_changes else "",
+        "diff": unified_diff(old_prompt, new_prompt, name=label)
+        if prompt_changes
+        else "",
+        "greetings": greetings,
         "draft_version": getattr(draft, "version_number", None),
     }
+    what = "greeting" if greetings and not prompt_changes else None
+    target = f"{label}'s greeting" if what else label
     summary = (
-        f"Proposed a change to {getattr(workflow, 'name', 'the bot')}'s {label}"
+        f"Proposed a change to {getattr(workflow, 'name', 'the bot')}'s {target}"
         if on_assistant_thread
-        else f"Proposed a change to {label}"
+        else f"Proposed a change to {target}"
     ) + (f": {why}" if why else "")
     await agent_timeline.record(
         organization_id=organization_id,
@@ -273,7 +352,7 @@ async def propose(
     return {
         "status": "proposed",
         "note": (
-            f"The change to {label} is a draft now. A person has to publish it "
+            f"The change to {target} is a draft now. A person has to publish it "
             "from the card on this thread. Tell them, then end your reply."
         ),
     }
@@ -293,7 +372,9 @@ async def _propose_replace(
 
     A name lives in several steps -- the outreach agent signs its email in
     three -- and the whole-step tool could only change one at a time, from a
-    shortened copy of it. This touches nothing but the text asked about."""
+    shortened copy of it. This touches nothing but the text asked about, in
+    prompts and in greetings alike: a clinic's name is in its greeting more
+    often than anywhere else."""
     if find == replace_with:
         return {"status": "not_proposed", "reason": "That changes nothing."}
     workflow = await db_client.get_workflow_by_id(workflow_id)
@@ -301,32 +382,43 @@ async def _propose_replace(
         return {"status": "not_proposed", "reason": "This agent could not be found."}
     definition = copy.deepcopy(workflow.workflow_definition or {})
     changed: list[tuple[dict[str, Any], str, str]] = []
+    greetings: list[dict[str, Any]] = []
+    touched: list[dict[str, Any]] = []
     for node in editable_nodes(definition):
         data = node.setdefault("data", {})
-        old = str(data.get("prompt") or "")
-        if find in old:
+        hit = False
+        old = data.get("prompt")
+        if isinstance(old, str) and find in old:
             data["prompt"] = old.replace(find, replace_with)
             changed.append((node, old, data["prompt"]))
+            hit = True
         greeting = data.get("greeting")
-        if isinstance(greeting, str) and find in greeting:
+        if _has_greeting(node) and isinstance(greeting, str) and find in greeting:
             data["greeting"] = greeting.replace(find, replace_with)
-    if not changed:
+            greetings.append(_greeting_change(node, greeting, data["greeting"]))
+            hit = True
+        if hit:
+            touched.append(node)
+    if not touched:
         names = ", ".join(_label(n) for n in editable_nodes(definition)) or "none"
         return {
             "status": "not_proposed",
-            "reason": f"{find!r} does not appear in any step. The steps are: {names}.",
+            "reason": (
+                f"{find!r} does not appear in any step or greeting. "
+                f"The steps are: {names}."
+            ),
         }
     draft = await db_client.save_workflow_draft(
         workflow_id, workflow_definition=definition
     )
-    labels = [_label(node) for node, _, _ in changed]
+    labels = [_label(node) for node in touched]
     label = labels[0] if len(labels) == 1 else f"{len(labels)} steps"
     payload = {
         "workflow_id": workflow_id,
         "bot_name": getattr(workflow, "name", None),
         "step": label,
         "steps": labels,
-        "node_id": changed[0][0].get("id"),
+        "node_id": touched[0].get("id"),
         "why": why,
         "find": find,
         "replace_with": replace_with,
@@ -335,6 +427,7 @@ async def _propose_replace(
         "diff": "".join(
             unified_diff(old, new, name=_label(node)) for node, old, new in changed
         ),
+        "greetings": greetings,
         "draft_version": getattr(draft, "version_number", None),
     }
     summary = (
@@ -351,10 +444,11 @@ async def _propose_replace(
         payload=payload,
         in_channel=not on_assistant_thread,
     )
+    where = ", ".join(labels) + (" (greeting)" if greetings and not changed else "")
     return {
         "status": "proposed",
         "note": (
-            f"Changed {find!r} to {replace_with!r} in {', '.join(labels)}, as a "
+            f"Changed {find!r} to {replace_with!r} in {where}, as a "
             "draft. A person has to publish it from the card on this thread. "
             "Tell them, then end your reply."
         ),
@@ -363,6 +457,56 @@ async def _propose_replace(
 
 class EditError(ValueError):
     """The click cannot be honoured; the message says why, for the screen."""
+
+
+async def _note_refusal(
+    *,
+    organization_id: int,
+    event: Any,
+    payload: dict[str, Any],
+    exc: publish_gate.PublishError,
+) -> None:
+    """Say on the card, and in the thread, why Publish did not go through.
+
+    The card stays unsettled -- Discard still works, and a fixed draft can
+    still be published -- but it carries the reasons, so whoever opens the
+    thread next sees why it is waiting rather than a Publish button that
+    looks like nobody pressed it.
+    """
+    if isinstance(exc, publish_gate.DraftInvalid):
+        reasons = publish_gate.reasons_from_errors(exc.errors)
+        kind = "invalid"
+    else:
+        reasons = publish_gate.reasons_from_findings(exc.findings)
+        kind = "acceptable_use"
+    stamped = dict(payload)
+    stamped["refused"] = {
+        "kind": kind,
+        "reasons": reasons,
+        "at": datetime.now(UTC).isoformat(),
+    }
+    try:
+        await db_client.set_agent_event_payload(
+            event.id, organization_id=organization_id, payload=stamped
+        )
+    except Exception as exc_:  # noqa: BLE001 - the refusal stands regardless
+        logger.warning("Could not stamp the refused edit card: {}", exc_)
+    line = (
+        f"Did not publish the change to {payload.get('step') or 'the bot'}: "
+        + "; ".join(reasons)
+    )
+    try:
+        await agent_timeline.record(
+            organization_id=organization_id,
+            kind=AgentEventKind.MESSAGE.value,
+            actor=AgentEventActor.SYSTEM.value,
+            summary=line[:500],
+            workflow_id=event.workflow_id,
+            payload={"body": line, "edit_event_id": event.id},
+            in_channel=False,
+        )
+    except Exception as exc_:  # noqa: BLE001
+        logger.warning("Could not note the refused edit on the thread: {}", exc_)
 
 
 async def settle(
@@ -388,16 +532,40 @@ async def settle(
         raise EditError("That change belongs to no agent.")
     workflow_id = int(workflow_id)
 
-    try:
-        if action == "publish":
-            await db_client.publish_workflow_draft(workflow_id)
-        else:
+    if action == "publish":
+        # The same gate the editor's Publish goes through: validation, the
+        # acceptable-use screen and the audit row. A card is not a back door
+        # round them. Here a finding refuses rather than warns -- the text
+        # was written by the bot from a chat, not typed by the person
+        # clicking -- and the card says which clause.
+        try:
+            await publish_gate.publish_draft(
+                workflow_id=workflow_id,
+                organization_id=organization_id,
+                user_id=user_id,
+                via=publish_gate.VIA_EDIT_CARD,
+                refuse_on_findings=True,
+            )
+        except (publish_gate.DraftInvalid, publish_gate.PolicyFindings) as exc:
+            await _note_refusal(
+                organization_id=organization_id,
+                event=event,
+                payload=payload,
+                exc=exc,
+            )
+            raise EditError(str(exc)) from exc
+        except publish_gate.PublishError as exc:
+            # No draft any more (somebody published or discarded it from the
+            # editor), or the agent is not this account's. The card says so
+            # rather than pretending the click did it.
+            raise EditError(str(exc)) from exc
+    else:
+        try:
             await db_client.discard_workflow_draft(workflow_id)
-    except ValueError as exc:
-        # No draft any more: somebody published or discarded it from the
-        # editor. The card says so rather than pretending the click did it.
-        raise EditError(str(exc)) from exc
+        except ValueError as exc:
+            raise EditError(str(exc)) from exc
 
+    payload.pop("refused", None)
     payload["decided"] = {
         "action": action,
         "by": user_id,
