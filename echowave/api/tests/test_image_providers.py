@@ -83,7 +83,9 @@ class TestGemini:
                 {"type": "thought", "content": [{"type": "image", "data": "eA=="}]},
                 {
                     "type": "model_output",
-                    "content": [{"type": "image", "mime_type": "image/png", "data": B64}],
+                    "content": [
+                        {"type": "image", "mime_type": "image/png", "data": B64}
+                    ],
                 },
             ],
             "usage": {"total_output_tokens": 1120},
@@ -113,7 +115,14 @@ class TestGemini:
         recorder = http(
             httpx.Response(
                 200,
-                json={"steps": [{"type": "model_output", "content": [{"type": "image", "data": B64}]}]},
+                json={
+                    "steps": [
+                        {
+                            "type": "model_output",
+                            "content": [{"type": "image", "data": B64}],
+                        }
+                    ]
+                },
             )
         )
         await GeminiImages().generate(
@@ -127,7 +136,12 @@ class TestGemini:
         recorder = http(
             httpx.Response(
                 400,
-                json={"error": {"message": "API key not valid. AIzaSECRETkey123", "status": "INVALID_ARGUMENT"}},
+                json={
+                    "error": {
+                        "message": "API key not valid. AIzaSECRETkey123",
+                        "status": "INVALID_ARGUMENT",
+                    }
+                },
             )
         )
         with pytest.raises(ImageProviderError) as raised:
@@ -153,7 +167,14 @@ class TestGemini:
         http(
             httpx.Response(
                 200,
-                json={"steps": [{"type": "model_output", "content": [{"type": "text", "text": "I can't draw that."}]}]},
+                json={
+                    "steps": [
+                        {
+                            "type": "model_output",
+                            "content": [{"type": "text", "text": "I can't draw that."}],
+                        }
+                    ]
+                },
             )
         )
         with pytest.raises(ImageProviderError) as raised:
@@ -216,7 +237,11 @@ class TestOpenAI:
         http(
             httpx.Response(
                 401,
-                json={"error": {"message": "Incorrect API key provided: sk-test-****6789."}},
+                json={
+                    "error": {
+                        "message": "Incorrect API key provided: sk-test-****6789."
+                    }
+                },
             )
         )
         with pytest.raises(ImageProviderError) as raised:
@@ -237,7 +262,11 @@ class TestOpenAI:
         http(
             httpx.Response(
                 400,
-                json={"error": {"message": "Your request was rejected by the safety system."}},
+                json={
+                    "error": {
+                        "message": "Your request was rejected by the safety system."
+                    }
+                },
             )
         )
         with pytest.raises(ImageProviderError) as raised:
@@ -293,7 +322,8 @@ class TestBedrock:
     async def test_fewer_images_than_asked_says_why(self, http):
         http(
             httpx.Response(
-                200, json={"images": [B64], "error": "1 image blocked by content filters"}
+                200,
+                json={"images": [B64], "error": "1 image blocked by content filters"},
             )
         )
         result = await BedrockImages().generate(
@@ -386,7 +416,18 @@ def test_every_format_fits_every_providers_rules():
         assert 320 <= nova_w <= 4096 and 320 <= nova_h <= 4096
         assert nova_w * nova_h < 4_194_304
         assert 1 / 4 <= nova_w / nova_h <= 4
-        assert fmt.aspect in {"1:1", "3:2", "2:3", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"}
+        assert fmt.aspect in {
+            "1:1",
+            "3:2",
+            "2:3",
+            "3:4",
+            "4:3",
+            "4:5",
+            "5:4",
+            "9:16",
+            "16:9",
+            "21:9",
+        }
     assert formats.resolve("A4 poster")[0].key == "a4_poster"
     fmt, known = formats.resolve("billboard")
     assert fmt.key == formats.DEFAULT_FORMAT and not known

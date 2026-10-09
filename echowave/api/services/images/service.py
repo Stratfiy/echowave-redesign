@@ -200,8 +200,22 @@ async def generate(
             }
         for row in rows:
             data = await store.read_bytes(row)
-            if data:
-                references.append(InputImage(data=data, mime_type=row.mime_type))
+            if not data:
+                # Said, not dropped: a poster made without the logo the
+                # person attached looks like the logo was ignored.
+                logger.error(
+                    "Reference image {} for org {} could not be read",
+                    row.image_uuid,
+                    organization_id,
+                )
+                return {
+                    "status": "error",
+                    "error": (
+                        f"The attached image {row.filename or row.image_uuid} "
+                        "could not be read. Ask them to attach it again."
+                    ),
+                }
+            references.append(InputImage(data=data, mime_type=row.mime_type))
     base_input = None
     if base_row is not None:
         data = await store.read_bytes(base_row)
@@ -295,6 +309,15 @@ async def generate(
             "status": "error",
             "error": "The images were made but could not be saved. Try again.",
         }
+    lost = len(result.images) - len(saved)
+    if lost:
+        # Made and paid for, then lost on the way to storage: said on the
+        # card and to the model, never a grid quietly one short.
+        result.note = (
+            f"{result.note} {lost} could not be saved.".strip()
+            if result.note
+            else f"{lost} of {len(result.images)} could not be saved."
+        )
 
     info = registry.INFO[resolved.provider]
     noun = "edit" if base_row is not None else "option"

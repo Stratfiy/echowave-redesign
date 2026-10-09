@@ -2184,9 +2184,12 @@ OPS_SIGNAL_STALE_SECONDS = int(os.getenv("OPS_SIGNAL_STALE_SECONDS", "900"))
 # provider shows as ready without one.
 # ---------------------------------------------------------------------------
 IMAGE_GENERATION_ENABLED = _flag("IMAGE_GENERATION_ENABLED")
-#: Platform keys. Unset (the default) means the workspace brings its own.
-IMAGE_GEMINI_API_KEY = (os.getenv("GEMINI_API_KEY") or "").strip()
-IMAGE_OPENAI_API_KEY = (os.getenv("OPENAI_API_KEY") or "").strip()
+#: Platform keys for images. Unset (the default) means every workspace
+#: brings its own. Deliberately not ``GEMINI_API_KEY`` / ``OPENAI_API_KEY``:
+#: a deployment that holds those for its models would otherwise make images
+#: on the platform's account for everybody without anyone deciding so.
+IMAGE_GEMINI_API_KEY = (os.getenv("IMAGE_GEMINI_API_KEY") or "").strip()
+IMAGE_OPENAI_API_KEY = (os.getenv("IMAGE_OPENAI_API_KEY") or "").strip()
 #: Nova Canvas on the box's own AWS role, no key needed. Off unless said.
 IMAGE_BEDROCK_ENABLED = _flag("IMAGE_BEDROCK_ENABLED")
 #: Nova Canvas is served in a few regions only (us-east-1, eu-west-1 and

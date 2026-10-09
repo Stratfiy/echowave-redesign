@@ -40,6 +40,7 @@ from api.routes.feature_admin import router as feature_admin_router
 from api.routes.folder import router as folder_router
 from api.routes.helpers import router as helpers_router
 from api.routes.identity import router as identity_router
+from api.routes.images import router as images_router
 from api.routes.impersonation import router as impersonation_router
 from api.routes.knowledge_base import router as knowledge_base_router
 from api.routes.kyc import router as kyc_router
@@ -62,7 +63,6 @@ from api.routes.packs import router as packs_router
 from api.routes.partner_admin import router as partner_admin_router
 from api.routes.partners import router as partners_router
 from api.routes.payments import router as payments_router
-from api.routes.images import router as images_router
 from api.routes.people import router as people_router
 from api.routes.platform_credentials import router as platform_credentials_router
 from api.routes.privacy import router as privacy_router

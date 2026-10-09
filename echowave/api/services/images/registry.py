@@ -1,9 +1,11 @@
 """Which image providers exist, and which the platform itself can run.
 
 The three are listed in the order the card shows them. A provider the
-platform holds credentials for (``GEMINI_API_KEY``, ``OPENAI_API_KEY``, or
-Bedrock on the box's own role with ``IMAGE_BEDROCK_ENABLED``) is ready for
-every workspace without a key; any other needs the workspace's own.
+platform holds credentials for (``IMAGE_GEMINI_API_KEY``,
+``IMAGE_OPENAI_API_KEY``, or Bedrock on the box's own role with
+``IMAGE_BEDROCK_ENABLED``) is ready for every workspace without a key; any
+other needs the workspace's own. All three are unset by default: bring your
+own key.
 """
 
 from __future__ import annotations
