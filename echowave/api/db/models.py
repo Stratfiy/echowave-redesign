@@ -6943,6 +6943,10 @@ from api.db.controls_models import (  # noqa: E402,F401
     OutputFeedbackModel,
     QuotaAllowanceModel,
 )
+from api.db.escalation_models import (  # noqa: E402,F401
+    CallEscalationOutcomeModel,
+    EscalationModel,
+)
 from api.db.feature_override_models import (  # noqa: E402,F401
     FeatureOverrideModel,
 )

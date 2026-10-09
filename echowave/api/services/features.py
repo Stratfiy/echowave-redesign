@@ -181,6 +181,11 @@ FLAGS: dict[str, str] = {
     "call_for_me": "CALL_FOR_ME_ENABLED",
     "call_appointment": "CALL_APPOINTMENT_ENABLED",
     "call_when_done": "CALL_WHEN_DONE_ENABLED",
+    # Escalation rules, handoff card and the no-answer ladder on calls.
+    "escalation_v2": "ESCALATION_V2_ENABLED",
+    # The huddle: talk to an agent as a teammate, in its thread
+    # (services/huddle/).
+    "huddle": "HUDDLE_ENABLED",
     # Outreach: leads from a lead-data provider, drafts as send cards.
     "outreach": "OUTREACH_ENABLED",
     # The native app for iOS and Android (MOBILE.md).
@@ -313,6 +318,7 @@ DESCRIPTIONS: dict[str, str] = {
     "call_for_me": "Call it for me: Decibyl places one approved phone call for a person and announces itself first.",
     "call_appointment": "Call and Appointment: booking policy, open slots, booking within policy, verification and escalation on calls.",
     "call_when_done": "Call me when it's done: Decibyl phones the person when a task they handed over finishes, within calling hours; an app notice where it cannot call.",
+    "huddle": "Huddle: the call button on an agent's thread opens a voice conversation with the agent as a teammate; it answers about its own work and proposes changes as cards, never applying them by voice.",
     "outreach": "Outreach: find leads from a lead-data provider (Apollo), draft one email card per lead on the person's own mailbox, Confirm all.",
     "mobile_push": "Push to the iOS and Android app through Expo: replies, approvals, reminders and calls, on the person's notification settings.",
     "people": "People: a person's own contacts synced from Google and Outlook or imported, each with a brief and the last few interactions; private to them.",
@@ -321,6 +327,7 @@ DESCRIPTIONS: dict[str, str] = {
     "live_supervision": "Live calls: listen in on a customer call (transcript and audio) and whisper instructions the caller never hears.",
     "live_takeover": "Live calls: a supervisor joins a call from the listen panel and speaks to the caller, with the agent paused (barge) or replaced until handed back (take-over).",
     "image_generation": "Posters and ad creatives: images from Chat and two agents, on Gemini, OpenAI or Bedrock, chosen on a card in the thread.",
+    "escalation_v2": "Escalation on calls decided in code from the agent's policy: a handoff card with Accept, Decline and Hand back to AI, spoken hold updates and a no-answer ladder.",
 }
 
 

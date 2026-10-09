@@ -30,8 +30,6 @@ from collections import deque
 from collections.abc import Callable
 
 from loguru import logger
-
-from api.services.live_takeover.frames import SupervisorAudioFrame
 from pipecat.frames.frames import (
     BotStoppedSpeakingFrame,
     InputAudioRawFrame,
@@ -45,6 +43,8 @@ from pipecat.observers.base_observer import BaseObserver, FramePushed
 from pipecat.processors.frame_processor import FrameDirection
 from pipecat.transports.base_input import BaseInputTransport
 from pipecat.transports.base_output import BaseOutputTransport
+
+from api.services.live_takeover.frames import SupervisorAudioFrame
 
 #: About two seconds of 20 ms frames from both sides.
 AUDIO_QUEUE_SIZE = 200

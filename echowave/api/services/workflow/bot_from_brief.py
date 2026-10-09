@@ -83,7 +83,10 @@ DESCRIPTION = (
     "propose_action/create_bot whenever what they want is not one of the "
     "templates in your context, which is most real specs. Pass the spec "
     "itself as `spec`, in their words, including every step and rule -- do "
-    "not summarise it into a sentence. Nothing is built until a person "
+    "not summarise it into a sentence. When they asked in a line or two, "
+    "write the spec yourself from what they said: the steps, what it "
+    "checks, which apps it uses, when it hands over, and its schedule if "
+    "it has one. Nothing is built until a person "
     "confirms on the card, and building takes a moment. Say you have "
     "proposed it and end your reply."
 )
@@ -176,8 +179,10 @@ def resolve(arguments: dict[str, Any]) -> dict[str, Any]:
     spec = str(arguments.get("spec") or "").strip()
     if len(spec) < MIN_BRIEF_CHARS:
         raise BriefError(
-            "That is not enough of a spec to build from. Give the steps the "
-            "agent should follow, in their words."
+            "That is not enough of a spec to build from. Write out the steps "
+            "the agent should follow from what they asked -- what it does "
+            "first, what it checks, when it hands over -- and propose again. "
+            "Ask them only if the job itself is unclear."
         )
     spec = spec[:MAX_BRIEF_CHARS]
     use_case = str(arguments.get("use_case") or "").strip()[:120] or name

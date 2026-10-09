@@ -48,6 +48,7 @@ def build_pipeline(
     context_ready_gate=None,
     takeover_llm_gate=None,
     takeover_output_gate=None,
+    escalation_watcher=None,
 ):
     """Build the main pipeline with all components.
 
@@ -124,6 +125,13 @@ def build_pipeline(
     if end_call_phrase_watcher:
         logger.info("Adding end-call phrase watcher to pipeline")
         processors.append(end_call_phrase_watcher)
+
+    # Escalation v2 (services/escalation): the same place and the same reason
+    # -- a caller asking for a person mutes the pipeline before their words
+    # can start a model turn. Only present while escalation_v2 is on.
+    if escalation_watcher:
+        logger.info("Adding escalation watcher to pipeline")
+        processors.append(escalation_watcher)
 
     # Insert voicemail detector after STT if enabled
     # Note: We intentionally do NOT use voicemail_detector.gate() to allow TTS

@@ -67,8 +67,10 @@ export type ApprovalPreview = {
 };
 
 export type DueItem = {
-    kind: "reminder" | "task" | "missed_call";
+    /** ``handoff``: a caller handed to a person, waiting on the card (escalation v2). */
+    kind: "reminder" | "task" | "missed_call" | "handoff";
     id: number;
+    escalation_uuid?: string;
     title: string;
     at: string | null;
     when: string | null;

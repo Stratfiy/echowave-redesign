@@ -53,6 +53,38 @@ type Refusal = { code: string; message: string };
 
 export type StartContext = { threadId: string | null; draft: string };
 
+type Answer<T> = Promise<{ data?: T; error?: unknown } | null | undefined>;
+type SessionRecord = { id: number; state: string; state_version: number; thread_id?: string | null };
+
+/**
+ * Which kind of voice session the hook runs. Talk (Decibyl) by default; a
+ * huddle with an agent (components/huddle) passes its own routes and
+ * socket, and everything else -- microphone, WebRTC, reconnect, captions,
+ * End -- is this hook's, unchanged.
+ */
+export type VoiceSessionApi = {
+    start: (context: StartContext) => Answer<SessionRecord>;
+    get: (sessionId: number) => Answer<SessionRecord>;
+    move: (
+        sessionId: number,
+        body: { expected_version: number; to: "live" | "reconnecting" | "ended" | "failed"; muted?: boolean },
+    ) => Answer<SessionRecord>;
+    heartbeat: (sessionId: number) => Answer<unknown>;
+    end: (sessionId: number, reason: string) => Answer<unknown>;
+    /** The signaling socket's path under the API's base URL. */
+    socketPath: (sessionId: number) => string;
+};
+
+export const TALK_API: VoiceSessionApi = {
+    start: (context) => startSessionApiV1VoiceSessionsPost({ body: { thread_id: context.threadId } }),
+    get: (sessionId) => getSessionApiV1VoiceSessionsSessionIdGet({ path: { session_id: sessionId } }),
+    move: (sessionId, body) => moveSessionApiV1VoiceSessionsSessionIdMovePost({ path: { session_id: sessionId }, body }),
+    heartbeat: (sessionId) => heartbeatApiV1VoiceSessionsSessionIdHeartbeatPost({ path: { session_id: sessionId } }),
+    end: (sessionId, reason) =>
+        endSessionApiV1VoiceSessionsSessionIdEndPost({ path: { session_id: sessionId }, body: { reason } }),
+    socketPath: (sessionId) => `/api/v1/ws/voice/${sessionId}`,
+};
+
 function refusalOf(error: unknown, fallback: string): Refusal {
     const detail = (error as { detail?: unknown } | undefined)?.detail;
     if (detail && typeof detail === "object" && !Array.isArray(detail)) {
@@ -83,11 +115,21 @@ function newPcId(): string {
 export function useLiveVoice({
     getAccessToken,
     measureLatency,
+    api = TALK_API,
+    onServerEvent,
 }: {
     getAccessToken: () => Promise<string | null | undefined>;
     /** Whether to report per-turn timings (flag `voice_latency`). */
     measureLatency: boolean;
+    /** The kind of session; Talk when omitted. */
+    api?: VoiceSessionApi;
+    /** A server message this hook does not handle itself (a huddle's card). */
+    onServerEvent?: (type: string, payload: Record<string, unknown>) => void;
 }) {
+    const apiRef = useRef(api);
+    apiRef.current = api;
+    const eventRef = useRef(onServerEvent);
+    eventRef.current = onServerEvent;
     const [state, dispatch] = useReducer(reduce, INITIAL);
     const [inputLevel, setInputLevel] = useState(0);
     const stateRef = useRef<VoiceState>(state);
@@ -245,10 +287,7 @@ export function useLiveVoice({
             release();
             dispatch({ type: "ended", notice });
             if (sessionId !== null) {
-                await endSessionApiV1VoiceSessionsSessionIdEndPost({
-                    path: { session_id: sessionId },
-                    body: { reason },
-                }).catch(() => undefined);
+                await apiRef.current.end(sessionId, reason)?.catch(() => undefined);
             }
         },
         [release],
@@ -261,10 +300,7 @@ export function useLiveVoice({
             release();
             dispatch({ type: "refused", ...refusal });
             if (sessionId !== null) {
-                await endSessionApiV1VoiceSessionsSessionIdEndPost({
-                    path: { session_id: sessionId },
-                    body: { reason },
-                }).catch(() => undefined);
+                await apiRef.current.end(sessionId, reason)?.catch(() => undefined);
             }
         },
         [release],
@@ -282,13 +318,12 @@ export function useLiveVoice({
             pcRef.current = null;
             wsRef.current?.close();
             wsRef.current = null;
-            const current = await getSessionApiV1VoiceSessionsSessionIdGet({ path: { session_id: sessionId } }).catch(() => null);
+            const current = await apiRef.current.get(sessionId)?.catch(() => null);
             const session = current?.data;
             if (session && session.state === "live") {
-                await moveSessionApiV1VoiceSessionsSessionIdMovePost({
-                    path: { session_id: sessionId },
-                    body: { expected_version: session.state_version, to: "reconnecting" },
-                }).catch(() => undefined);
+                await apiRef.current
+                    .move(sessionId, { expected_version: session.state_version, to: "reconnecting" })
+                    ?.catch(() => undefined);
             }
             if (session && (session.state === "ended" || session.state === "failed")) {
                 reconnecting.current = false;
@@ -372,6 +407,7 @@ export function useLiveVoice({
                     return;
                 }
                 default:
+                    if (message.type) eventRef.current?.(message.type, payload);
                     return;
             }
         },
@@ -405,7 +441,7 @@ export function useLiveVoice({
             watchPlayback(remote);
         };
         const base = (client.getConfig().baseUrl || resolveBrowserBackendUrl()).replace(/^http/, "ws");
-        const ws = new WebSocket(`${base}/api/v1/ws/voice/${sessionId}`, token ? ["decibyl.auth", `bearer.${token}`] : []);
+        const ws = new WebSocket(`${base}${apiRef.current.socketPath(sessionId)}`, token ? ["decibyl.auth", `bearer.${token}`] : []);
         wsRef.current = ws;
         pc.onicecandidate = (event) => {
             if (ws.readyState !== WebSocket.OPEN) return;
@@ -454,10 +490,10 @@ export function useLiveVoice({
                 dispatch({ type: name === "NotFoundError" || name === "OverconstrainedError" ? "mic_missing" : "mic_denied" });
                 return;
             }
-            const response = await startSessionApiV1VoiceSessionsPost({ body: { thread_id: context.threadId } });
-            if (response.error || !response.data) {
+            const response = await apiRef.current.start(context);
+            if (!response || response.error || !response.data) {
                 release();
-                dispatch({ type: "refused", ...refusalOf(response.error, "Live voice could not start. You can continue in text.") });
+                dispatch({ type: "refused", ...refusalOf(response?.error, "Live voice could not start. You can continue in text.") });
                 return;
             }
             const session = response.data;
@@ -470,7 +506,7 @@ export function useLiveVoice({
                 if (stateRef.current.phase === "connecting") void fail("connect_timeout", { code: "connect_timeout", message: "The connection did not open. Try again, or continue in text." });
             }, CONNECT_TIMEOUT_MS);
             timers.current.heartbeat = setInterval(() => {
-                void heartbeatApiV1VoiceSessionsSessionIdHeartbeatPost({ path: { session_id: session.id } }).catch(() => undefined);
+                void apiRef.current.heartbeat(session.id)?.catch(() => undefined);
             }, HEARTBEAT_MS);
             try {
                 await connectRef.current(session.id);
@@ -489,10 +525,9 @@ export function useLiveVoice({
         dispatch({ type: "muted", muted });
         const { sessionId, stateVersion } = stateRef.current;
         if (sessionId === null || stateVersion === null || state.phase === "reconnecting") return;
-        const moved = await moveSessionApiV1VoiceSessionsSessionIdMovePost({
-            path: { session_id: sessionId },
-            body: { expected_version: stateVersion, to: "live", muted },
-        }).catch(() => null);
+        const moved = await apiRef.current
+            .move(sessionId, { expected_version: stateVersion, to: "live", muted })
+            ?.catch(() => null);
         if (moved?.data) dispatch({ type: "muted", muted, stateVersion: moved.data.state_version });
     }, [state.phase]);
 

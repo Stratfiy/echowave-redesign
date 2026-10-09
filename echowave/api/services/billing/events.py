@@ -180,6 +180,10 @@ TIMELINE_PRICES: dict[str, str] = {
     # customer rate of zero (services/images/metering.py). Not a price.
     AgentEventKind.IMAGE_PROVIDER_OFFERED.value: INCLUDED,
     AgentEventKind.IMAGES_MADE.value: INCLUDED,
+    # A huddle's transcript row (services/huddle). Included, as Talk is: the
+    # conversation is held to the person's daily voice minutes, and the row
+    # is the record of it, not a price.
+    AgentEventKind.HUDDLE.value: INCLUDED,
     AgentEventKind.MEMORY_LEARNED.value: INCLUDED,
     AgentEventKind.ROUTINE_FIRED.value: INCLUDED,
     AgentEventKind.ROUTINE_SKIPPED.value: INCLUDED,

@@ -20,21 +20,6 @@ from types import SimpleNamespace
 import pytest
 import redis.asyncio as aioredis
 from httpx import ASGITransport, AsyncClient
-
-import api.services.live_supervision.session as live_session
-import api.services.live_supervision.tap as live_tap
-from api import constants
-from api.db import db_client
-from api.services.live_supervision import (
-    access,
-    channels,
-    consent,
-    registry,
-    whisper,
-)
-from api.services.live_supervision.lines import LineBuilder
-from api.services.live_supervision.listener import AUDIO_BUFFER, ListenerPump
-from api.services.workflow import audit_log
 from pipecat.frames.frames import (
     InputAudioRawFrame,
     InterimTranscriptionFrame,
@@ -58,6 +43,21 @@ from pipecat.tests.utils import run_test
 from pipecat.transports.base_input import BaseInputTransport
 from pipecat.transports.base_output import BaseOutputTransport
 from pipecat.transports.base_transport import TransportParams
+
+import api.services.live_supervision.session as live_session
+import api.services.live_supervision.tap as live_tap
+from api import constants
+from api.db import db_client
+from api.services.live_supervision import (
+    access,
+    channels,
+    consent,
+    registry,
+    whisper,
+)
+from api.services.live_supervision.lines import LineBuilder
+from api.services.live_supervision.listener import AUDIO_BUFFER, ListenerPump
+from api.services.workflow import audit_log
 
 ORG = 7101
 OTHER_ORG = 7102
