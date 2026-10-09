@@ -890,6 +890,11 @@ class VoiceSignalingManager(SignalingManager):
     the workflow run sender registry, so the two id spaces never meet.
     """
 
+    #: The switch the conversation sits behind.
+    FLAG = "decibyl_voice"
+    #: Whether this socket serves huddles (services/huddle) rather than Talk.
+    HUDDLE = False
+
     async def _authorize_start(
         self,
         ws: WebSocket,
@@ -910,17 +915,24 @@ class VoiceSignalingManager(SignalingManager):
             )
             return False
 
-        if not features.is_on("decibyl_voice", organization_id):
+        if not features.is_on(self.FLAG, organization_id):
             return await refuse("disabled_by_policy", "Live voice is switched off.")
         session = await sessions.get(
             organization_id=organization_id, user_id=user.id, session_id=workflow_run_id
         )
-        if session is None or session["state"] in sessions.TERMINAL:
+        if (
+            session is None
+            or session["state"] in sessions.TERMINAL
+            # A huddle runs the agent's brain and Talk runs Decibyl's: a
+            # session only ever connects on the socket of its own kind.
+            or sessions.is_huddle(session) != self.HUDDLE
+        ):
             return await refuse("session_ended", "This voice session has ended.")
         state = await readiness.live_voice(
             organization_id=organization_id,
             user_id=user.id,
             language=session.get("language"),
+            flag=self.FLAG,
         )
         if state.state != readiness.AVAILABLE:
             return await refuse(
@@ -958,6 +970,39 @@ class VoiceSignalingManager(SignalingManager):
 voice_signaling_manager = VoiceSignalingManager()
 
 
+class HuddleSignalingManager(VoiceSignalingManager):
+    """Signaling for a huddle: Talk's, with the agent's pipeline
+    (services/huddle/voice.py) behind the ``huddle`` flag."""
+
+    FLAG = "huddle"
+    HUDDLE = True
+
+    def _launch_pipeline(
+        self,
+        pc: SmallWebRTCConnection,
+        ws_sender,
+        workflow_id: int,
+        workflow_run_id: int,
+        user: UserModel,
+        call_context_vars: dict,
+        organization_id: int,
+    ) -> None:
+        from api.services.huddle.voice import run_huddle_voice
+
+        asyncio.create_task(
+            run_huddle_voice(
+                pc,
+                session_id=workflow_run_id,
+                user_id=user.id,
+                organization_id=organization_id,
+                ws_sender=ws_sender,
+            )
+        )
+
+
+huddle_signaling_manager = HuddleSignalingManager()
+
+
 @router.websocket("/voice/{session_id}")
 async def voice_signaling_websocket(
     websocket: WebSocket,
@@ -985,4 +1030,34 @@ async def voice_signaling_websocket(
         organization_id,
         enforce_call_concurrency=False,
         call_concurrency_source="voice",
+    )
+
+
+@router.websocket("/huddle/{session_id}")
+async def huddle_signaling_websocket(
+    websocket: WebSocket,
+    session_id: int,
+    user: UserModel = Depends(get_user_ws),
+):
+    """Signaling for a huddle with an agent (services/huddle)."""
+    from api.services import features
+    from api.services.huddle import session as huddle_session
+
+    organization_id = user.selected_organization_id
+    if not organization_id or not features.is_on("huddle", organization_id):
+        raise HTTPException(status_code=404, detail="Not Found")
+    session = await huddle_session.get(
+        organization_id=organization_id, user_id=user.id, session_id=session_id
+    )
+    if session is None:
+        # Somebody else's session, a Talk session, or none.
+        raise HTTPException(status_code=404, detail="Not Found")
+    await huddle_signaling_manager.handle_websocket(
+        websocket,
+        0,
+        session_id,
+        user,
+        organization_id,
+        enforce_call_concurrency=False,
+        call_concurrency_source="huddle",
     )

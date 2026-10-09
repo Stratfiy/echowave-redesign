@@ -986,6 +986,10 @@ CALL_FOR_ME_ENABLED = _flag("CALL_FOR_ME_ENABLED")
 # over finishes (services/call_when_done). Calling hours and the do-not-call
 # list always hold; where no call can be placed it tells them in the app.
 CALL_WHEN_DONE_ENABLED = _flag("CALL_WHEN_DONE_ENABLED")
+# The huddle (services/huddle): the call button on an agent's thread opens a
+# voice conversation with that agent as a teammate. Changes it proposes are
+# cards in the thread; nothing is published by voice.
+HUDDLE_ENABLED = _flag("HUDDLE_ENABLED")
 # How long a finished task waits before its call is placed, so tasks that
 # finish together are said in one call rather than one call each.
 CALL_WHEN_DONE_GATHER_SECONDS = int(os.getenv("CALL_WHEN_DONE_GATHER_SECONDS", "60"))

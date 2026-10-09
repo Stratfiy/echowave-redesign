@@ -48,6 +48,7 @@ import { emphasisTokens } from '@/components/channel/emphasis';
 import { isJudgeableReply, ReplyFeedback, useMyFeedback } from '@/components/channel/ReplyFeedback';
 import { HandoffCard, type HandoffCardData } from '@/components/escalation/HandoffCard';
 import { SaveReportButton } from '@/components/helpers/SaveReportButton';
+import { HuddleEvent } from '@/components/huddle/HuddleEvent';
 import { ImageProviderCard } from '@/components/images/ImageProviderCard';
 import { ImagesCard } from '@/components/images/ImagesCard';
 import { ComparisonCard } from '@/components/reach/ComparisonCard';
@@ -160,6 +161,8 @@ const CARDS = new Set([
     // Image generation: the provider card and the grid of options.
     'image_provider_offered',
     'images_made',
+    // A huddle with the agent: its transcript, compact.
+    'huddle',
 ]);
 
 /** How long a pause can be and still read as one person still talking. */
@@ -1208,6 +1211,18 @@ export function ChannelStream({
                                         </p>
                                     </div>
                                 </li>
+                            </React.Fragment>
+                        );
+                    }
+                    if (event.kind === 'huddle') {
+                        return (
+                            <React.Fragment key={event.id}>
+                                {divider}
+                                <HuddleEvent
+                                    event={event}
+                                    agentName={(event.workflow_id != null && botNames[event.workflow_id]) || fallbackName}
+                                    when={when(event.at)}
+                                />
                             </React.Fragment>
                         );
                     }

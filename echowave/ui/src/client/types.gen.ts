@@ -7079,6 +7079,16 @@ export type EndCallToolDefinition = {
 };
 
 /**
+ * EndHuddle
+ */
+export type EndHuddle = {
+    /**
+     * Reason
+     */
+    reason?: string | null;
+};
+
+/**
  * EndSession
  */
 export type EndSession = {
@@ -9336,6 +9346,82 @@ export type HttpTransferResolverConfig = {
      * Parameters injected by Decibyl from fixed values or workflow context templates.
      */
     preset_parameters?: Array<PresetToolParameter> | null;
+};
+
+/**
+ * HuddleNotes
+ */
+export type HuddleNotes = {
+    /**
+     * Notes
+     */
+    notes: Array<string>;
+};
+
+/**
+ * HuddleSession
+ */
+export type HuddleSession = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Workflow Id
+     */
+    workflow_id: number;
+    /**
+     * Agent Name
+     */
+    agent_name?: string | null;
+    /**
+     * State
+     */
+    state: string;
+    /**
+     * Phase
+     */
+    phase: string | null;
+    /**
+     * State Version
+     */
+    state_version: number;
+    /**
+     * Muted
+     */
+    muted: boolean;
+    /**
+     * Language
+     */
+    language: string | null;
+    /**
+     * Reconnects
+     */
+    reconnects: number;
+    /**
+     * Lost Ms
+     */
+    lost_ms: number;
+    /**
+     * End Reason
+     */
+    end_reason: string | null;
+    /**
+     * Created At
+     */
+    created_at: string | null;
+    /**
+     * Connected At
+     */
+    connected_at: string | null;
+    /**
+     * Ended At
+     */
+    ended_at: string | null;
+    /**
+     * Notes
+     */
+    notes?: Array<string>;
 };
 
 /**
@@ -13104,6 +13190,32 @@ export type MoneyTotal = {
      * Amount
      */
     amount?: string | null;
+};
+
+/**
+ * MoveHuddle
+ */
+export type MoveHuddle = {
+    /**
+     * Expected Version
+     */
+    expected_version: number;
+    /**
+     * To
+     */
+    to: 'live' | 'reconnecting' | 'ended' | 'failed';
+    /**
+     * Phase
+     */
+    phase?: 'listening' | 'processing' | 'speaking' | null;
+    /**
+     * Muted
+     */
+    muted?: boolean | null;
+    /**
+     * End Reason
+     */
+    end_reason?: string | null;
 };
 
 /**
@@ -49957,6 +50069,314 @@ export type LatencySummaryApiV1AdminVoiceLatencyGetResponses = {
 };
 
 export type LatencySummaryApiV1AdminVoiceLatencyGetResponse = LatencySummaryApiV1AdminVoiceLatencyGetResponses[keyof LatencySummaryApiV1AdminVoiceLatencyGetResponses];
+
+export type StartHuddleApiV1HuddleWorkflowIdSessionsPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+    };
+    query?: never;
+    url: '/api/v1/huddle/{workflow_id}/sessions';
+};
+
+export type StartHuddleApiV1HuddleWorkflowIdSessionsPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type StartHuddleApiV1HuddleWorkflowIdSessionsPostError = StartHuddleApiV1HuddleWorkflowIdSessionsPostErrors[keyof StartHuddleApiV1HuddleWorkflowIdSessionsPostErrors];
+
+export type StartHuddleApiV1HuddleWorkflowIdSessionsPostResponses = {
+    /**
+     * Successful Response
+     */
+    201: HuddleSession;
+};
+
+export type StartHuddleApiV1HuddleWorkflowIdSessionsPostResponse = StartHuddleApiV1HuddleWorkflowIdSessionsPostResponses[keyof StartHuddleApiV1HuddleWorkflowIdSessionsPostResponses];
+
+export type GetHuddleApiV1HuddleSessionsSessionIdGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: number;
+    };
+    query?: never;
+    url: '/api/v1/huddle/sessions/{session_id}';
+};
+
+export type GetHuddleApiV1HuddleSessionsSessionIdGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetHuddleApiV1HuddleSessionsSessionIdGetError = GetHuddleApiV1HuddleSessionsSessionIdGetErrors[keyof GetHuddleApiV1HuddleSessionsSessionIdGetErrors];
+
+export type GetHuddleApiV1HuddleSessionsSessionIdGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: HuddleSession;
+};
+
+export type GetHuddleApiV1HuddleSessionsSessionIdGetResponse = GetHuddleApiV1HuddleSessionsSessionIdGetResponses[keyof GetHuddleApiV1HuddleSessionsSessionIdGetResponses];
+
+export type MoveHuddleApiV1HuddleSessionsSessionIdMovePostData = {
+    body: MoveHuddle;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: number;
+    };
+    query?: never;
+    url: '/api/v1/huddle/sessions/{session_id}/move';
+};
+
+export type MoveHuddleApiV1HuddleSessionsSessionIdMovePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MoveHuddleApiV1HuddleSessionsSessionIdMovePostError = MoveHuddleApiV1HuddleSessionsSessionIdMovePostErrors[keyof MoveHuddleApiV1HuddleSessionsSessionIdMovePostErrors];
+
+export type MoveHuddleApiV1HuddleSessionsSessionIdMovePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: HuddleSession;
+};
+
+export type MoveHuddleApiV1HuddleSessionsSessionIdMovePostResponse = MoveHuddleApiV1HuddleSessionsSessionIdMovePostResponses[keyof MoveHuddleApiV1HuddleSessionsSessionIdMovePostResponses];
+
+export type HeartbeatHuddleApiV1HuddleSessionsSessionIdHeartbeatPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: number;
+    };
+    query?: never;
+    url: '/api/v1/huddle/sessions/{session_id}/heartbeat';
+};
+
+export type HeartbeatHuddleApiV1HuddleSessionsSessionIdHeartbeatPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type HeartbeatHuddleApiV1HuddleSessionsSessionIdHeartbeatPostError = HeartbeatHuddleApiV1HuddleSessionsSessionIdHeartbeatPostErrors[keyof HeartbeatHuddleApiV1HuddleSessionsSessionIdHeartbeatPostErrors];
+
+export type HeartbeatHuddleApiV1HuddleSessionsSessionIdHeartbeatPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: HuddleSession;
+};
+
+export type HeartbeatHuddleApiV1HuddleSessionsSessionIdHeartbeatPostResponse = HeartbeatHuddleApiV1HuddleSessionsSessionIdHeartbeatPostResponses[keyof HeartbeatHuddleApiV1HuddleSessionsSessionIdHeartbeatPostResponses];
+
+export type EndHuddleApiV1HuddleSessionsSessionIdEndPostData = {
+    body: EndHuddle;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: number;
+    };
+    query?: never;
+    url: '/api/v1/huddle/sessions/{session_id}/end';
+};
+
+export type EndHuddleApiV1HuddleSessionsSessionIdEndPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type EndHuddleApiV1HuddleSessionsSessionIdEndPostError = EndHuddleApiV1HuddleSessionsSessionIdEndPostErrors[keyof EndHuddleApiV1HuddleSessionsSessionIdEndPostErrors];
+
+export type EndHuddleApiV1HuddleSessionsSessionIdEndPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: HuddleSession;
+};
+
+export type EndHuddleApiV1HuddleSessionsSessionIdEndPostResponse = EndHuddleApiV1HuddleSessionsSessionIdEndPostResponses[keyof EndHuddleApiV1HuddleSessionsSessionIdEndPostResponses];
+
+export type ForgetHuddleNotesApiV1HuddleWorkflowIdNotesDeleteData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+    };
+    query?: never;
+    url: '/api/v1/huddle/{workflow_id}/notes';
+};
+
+export type ForgetHuddleNotesApiV1HuddleWorkflowIdNotesDeleteErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ForgetHuddleNotesApiV1HuddleWorkflowIdNotesDeleteError = ForgetHuddleNotesApiV1HuddleWorkflowIdNotesDeleteErrors[keyof ForgetHuddleNotesApiV1HuddleWorkflowIdNotesDeleteErrors];
+
+export type ForgetHuddleNotesApiV1HuddleWorkflowIdNotesDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    200: HuddleNotes;
+};
+
+export type ForgetHuddleNotesApiV1HuddleWorkflowIdNotesDeleteResponse = ForgetHuddleNotesApiV1HuddleWorkflowIdNotesDeleteResponses[keyof ForgetHuddleNotesApiV1HuddleWorkflowIdNotesDeleteResponses];
+
+export type HuddleNotesApiV1HuddleWorkflowIdNotesGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+    };
+    query?: never;
+    url: '/api/v1/huddle/{workflow_id}/notes';
+};
+
+export type HuddleNotesApiV1HuddleWorkflowIdNotesGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type HuddleNotesApiV1HuddleWorkflowIdNotesGetError = HuddleNotesApiV1HuddleWorkflowIdNotesGetErrors[keyof HuddleNotesApiV1HuddleWorkflowIdNotesGetErrors];
+
+export type HuddleNotesApiV1HuddleWorkflowIdNotesGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: HuddleNotes;
+};
+
+export type HuddleNotesApiV1HuddleWorkflowIdNotesGetResponse = HuddleNotesApiV1HuddleWorkflowIdNotesGetResponses[keyof HuddleNotesApiV1HuddleWorkflowIdNotesGetResponses];
 
 export type OrganisationApiV1OrganisationGetData = {
     body?: never;

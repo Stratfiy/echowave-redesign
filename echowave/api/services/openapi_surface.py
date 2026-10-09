@@ -68,6 +68,9 @@ TAG_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "agent-options",
             "agent-timeline",
             "workflow-text-chat",
+            # Talking to an agent as a teammate, in its thread
+            # (services/huddle/).
+            "huddle",
             "workflow-recordings",
             "workflow-outcomes",
             "evals",

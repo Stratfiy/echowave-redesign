@@ -144,6 +144,35 @@ def gap_sentence(gap: dict[str, Any]) -> str:
     )
 
 
+def config_for(speech: dict[str, Any], prefs: dict[str, Any]) -> dict[str, Any]:
+    """What a session runs on, fixed at its start: the speech readiness
+    found, and the person's speed, captions and voice."""
+    from api.services.voice import catalogue
+
+    voice = prefs.get("voice")
+    language = speech.get("language")
+    return {
+        **speech,
+        "speed": prefs.get("speaking_speed"),
+        "captions": prefs.get("captions") is not False,
+        # The person's voice (Settings -> Voice and language) applies only if
+        # the workspace's voice model has that speaker and speaks the
+        # session's language; it is never silently swapped for another.
+        "voice_compatible": (
+            catalogue.compatible(
+                voice, language, (speech.get("tts") or {}).get("model")
+            )
+            if voice
+            else None
+        ),
+    }
+
+
+def is_huddle(session: dict[str, Any] | None) -> bool:
+    """A session with an agent (services/huddle), not with Decibyl."""
+    return bool(((session or {}).get("config") or {}).get("huddle"))
+
+
 async def _live_for(session, user_id: int) -> VoiceSessionModel | None:
     return (
         await session.scalars(
