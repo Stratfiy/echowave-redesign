@@ -197,6 +197,9 @@ FLAGS: dict[str, str] = {
     "deepfilternet_filter": "DEEPFILTERNET_FILTER_ENABLED",
     # Listen in on a live call and whisper to the agent (services/live_supervision/).
     "live_supervision": "LIVE_SUPERVISION_ENABLED",
+    # Personal adaptation: preferences kept per person and applied, and the
+    # context control above the composer (services/personal/).
+    "evolve_personal": "EVOLVE_PERSONAL_ENABLED",
     # Posters and ad creatives (services/images/).
     "image_generation": "IMAGE_GENERATION_ENABLED",
 }
@@ -323,6 +326,7 @@ DESCRIPTIONS: dict[str, str] = {
     "caller_voice_lock": "Only the caller can interrupt a phone agent: speech that does not match the caller's voice, learnt in their first seconds, no longer stops the agent.",
     "deepfilternet_filter": "DeepFilterNet3 instead of RNNoise as the noise filter on calls with noise suppression on.",
     "live_supervision": "Live calls: listen in on a customer call (transcript and audio) and whisper instructions the caller never hears.",
+    "evolve_personal": "Personal adaptation: a preference a person states (language for calls or email, when to call, how often to report) is kept in their own private store with where it came from, applied to their turns and to calls and reminders that reach them, listed on request with Correct and Forget, and the chat shows what each conversation uses with a way to leave a source out.",
     "image_generation": "Posters and ad creatives: images from Chat and two agents, on Gemini, OpenAI or Bedrock, chosen on a card in the thread.",
     "escalation_v2": "Escalation on calls decided in code from the agent's policy: a handoff card with Accept, Decline and Hand back to AI, spoken hold updates and a no-answer ladder.",
 }

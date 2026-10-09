@@ -174,6 +174,10 @@ TAG_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             # A person's own preferences, allowances, personal space, and
             # their feedback on replies (launch stream controls).
             "controls",
+            # What Decibyl keeps about a person -- their stated preferences
+            # and what it learned -- and what a conversation uses
+            # (services/personal).
+            "personal",
             # The door before an account exists (screen 01): the waitlist
             # and what an invitation link says.
             "public-early-access",

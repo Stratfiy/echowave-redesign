@@ -1311,6 +1311,59 @@
    "approvals"
   ]
  },
+ "/api/v1/personal/about-me": {
+  "GET": [
+   "evolve_personal"
+  ]
+ },
+ "/api/v1/personal/cards/{event_id}": {
+  "GET": [
+   "evolve_personal"
+  ]
+ },
+ "/api/v1/personal/cards/{event_id}/answer": {
+  "POST": [
+   "evolve_personal"
+  ]
+ },
+ "/api/v1/personal/context": {
+  "GET": [
+   "evolve_personal"
+  ],
+  "PUT": [
+   "evolve_personal"
+  ]
+ },
+ "/api/v1/personal/learned/{fact_id}": {
+  "DELETE": [
+   "evolve_personal"
+  ]
+ },
+ "/api/v1/personal/learned/{fact_id}/correct": {
+  "POST": [
+   "evolve_personal"
+  ]
+ },
+ "/api/v1/personal/preferences": {
+  "GET": [
+   "evolve_personal"
+  ]
+ },
+ "/api/v1/personal/preferences/{preference_id}": {
+  "DELETE": [
+   "evolve_personal"
+  ]
+ },
+ "/api/v1/personal/preferences/{preference_id}/correct": {
+  "POST": [
+   "evolve_personal"
+  ]
+ },
+ "/api/v1/personal/preferences/{preference_id}/history": {
+  "GET": [
+   "evolve_personal"
+  ]
+ },
  "/api/v1/procurement/documents": {
   "GET": [
    "procurement_docs"

@@ -217,6 +217,24 @@ async def submit(
             },
         )
         await session.commit()
+    if subject_kind == REPLY and verdict == NOT_QUITE and reasons:
+        # A reason about the person's taste (too long, wrong language) may
+        # point at a preference: offered as a card they accept or not, never
+        # kept silently (services/personal, ``evolve_personal``). The rating
+        # itself stays what it was -- evaluation, not training.
+        try:
+            from api.services.personal import cards as personal_cards
+
+            await personal_cards.from_feedback(
+                organization_id=organization_id,
+                user_id=user_id,
+                reply_event_id=subject_id,
+                reasons=reasons,
+            )
+        except Exception as exc:  # noqa: BLE001 - the feedback is saved
+            from loguru import logger
+
+            logger.warning("No preference offered from feedback: {}", exc)
     return {
         "id": row_id,
         "subject_kind": subject_kind,

@@ -4745,6 +4745,16 @@ export type CorrectRequest = {
 };
 
 /**
+ * Correction
+ */
+export type Correction = {
+    /**
+     * Text
+     */
+    text: string;
+};
+
+/**
  * CostByOutcomeItem
  */
 export type CostByOutcomeItem = {
@@ -16348,6 +16358,16 @@ export type PropertySpec = {
 export type PropertyType = 'string' | 'number' | 'boolean' | 'options' | 'multi_options' | 'fixed_collection' | 'json' | 'tool_refs' | 'document_refs' | 'recording_ref' | 'credential_ref' | 'agent_ref' | 'mention_textarea' | 'url';
 
 /**
+ * ProposalAnswer
+ */
+export type ProposalAnswer = {
+    /**
+     * Save
+     */
+    save: boolean;
+};
+
+/**
  * ProvideSecretRequest
  */
 export type ProvideSecretRequest = {
@@ -17634,7 +17654,7 @@ export type ReminderDraft = {
     /**
      * Channel
      */
-    channel?: string;
+    channel?: string | null;
 };
 
 /**
@@ -17680,7 +17700,7 @@ export type ReminderSave = {
     /**
      * Channel
      */
-    channel?: string;
+    channel?: string | null;
     /**
      * Schedule Key
      */
@@ -19704,6 +19724,24 @@ export type Snooze = {
      * Minutes
      */
     minutes: number;
+};
+
+/**
+ * SourceChoice
+ */
+export type SourceChoice = {
+    /**
+     * Thread Id
+     */
+    thread_id?: string | null;
+    /**
+     * Source
+     */
+    source: string;
+    /**
+     * Included
+     */
+    included: boolean;
 };
 
 /**
@@ -50533,6 +50571,519 @@ export type HuddleNotesApiV1HuddleWorkflowIdNotesGetResponses = {
 };
 
 export type HuddleNotesApiV1HuddleWorkflowIdNotesGetResponse = HuddleNotesApiV1HuddleWorkflowIdNotesGetResponses[keyof HuddleNotesApiV1HuddleWorkflowIdNotesGetResponses];
+
+export type AboutMeApiV1PersonalAboutMeGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/personal/about-me';
+};
+
+export type AboutMeApiV1PersonalAboutMeGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AboutMeApiV1PersonalAboutMeGetError = AboutMeApiV1PersonalAboutMeGetErrors[keyof AboutMeApiV1PersonalAboutMeGetErrors];
+
+export type AboutMeApiV1PersonalAboutMeGetResponses = {
+    /**
+     * Response About Me Api V1 Personal About Me Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type AboutMeApiV1PersonalAboutMeGetResponse = AboutMeApiV1PersonalAboutMeGetResponses[keyof AboutMeApiV1PersonalAboutMeGetResponses];
+
+export type CardApiV1PersonalCardsEventIdGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Event Id
+         */
+        event_id: number;
+    };
+    query?: never;
+    url: '/api/v1/personal/cards/{event_id}';
+};
+
+export type CardApiV1PersonalCardsEventIdGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CardApiV1PersonalCardsEventIdGetError = CardApiV1PersonalCardsEventIdGetErrors[keyof CardApiV1PersonalCardsEventIdGetErrors];
+
+export type CardApiV1PersonalCardsEventIdGetResponses = {
+    /**
+     * Response Card Api V1 Personal Cards  Event Id  Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type CardApiV1PersonalCardsEventIdGetResponse = CardApiV1PersonalCardsEventIdGetResponses[keyof CardApiV1PersonalCardsEventIdGetResponses];
+
+export type AnswerProposalApiV1PersonalCardsEventIdAnswerPostData = {
+    body: ProposalAnswer;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Event Id
+         */
+        event_id: number;
+    };
+    query?: never;
+    url: '/api/v1/personal/cards/{event_id}/answer';
+};
+
+export type AnswerProposalApiV1PersonalCardsEventIdAnswerPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AnswerProposalApiV1PersonalCardsEventIdAnswerPostError = AnswerProposalApiV1PersonalCardsEventIdAnswerPostErrors[keyof AnswerProposalApiV1PersonalCardsEventIdAnswerPostErrors];
+
+export type AnswerProposalApiV1PersonalCardsEventIdAnswerPostResponses = {
+    /**
+     * Response Answer Proposal Api V1 Personal Cards  Event Id  Answer Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type AnswerProposalApiV1PersonalCardsEventIdAnswerPostResponse = AnswerProposalApiV1PersonalCardsEventIdAnswerPostResponses[keyof AnswerProposalApiV1PersonalCardsEventIdAnswerPostResponses];
+
+export type MyPreferencesApiV1PersonalPreferencesGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/personal/preferences';
+};
+
+export type MyPreferencesApiV1PersonalPreferencesGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MyPreferencesApiV1PersonalPreferencesGetError = MyPreferencesApiV1PersonalPreferencesGetErrors[keyof MyPreferencesApiV1PersonalPreferencesGetErrors];
+
+export type MyPreferencesApiV1PersonalPreferencesGetResponses = {
+    /**
+     * Response My Preferences Api V1 Personal Preferences Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type MyPreferencesApiV1PersonalPreferencesGetResponse = MyPreferencesApiV1PersonalPreferencesGetResponses[keyof MyPreferencesApiV1PersonalPreferencesGetResponses];
+
+export type PreferenceHistoryApiV1PersonalPreferencesPreferenceIdHistoryGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Preference Id
+         */
+        preference_id: number;
+    };
+    query?: never;
+    url: '/api/v1/personal/preferences/{preference_id}/history';
+};
+
+export type PreferenceHistoryApiV1PersonalPreferencesPreferenceIdHistoryGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type PreferenceHistoryApiV1PersonalPreferencesPreferenceIdHistoryGetError = PreferenceHistoryApiV1PersonalPreferencesPreferenceIdHistoryGetErrors[keyof PreferenceHistoryApiV1PersonalPreferencesPreferenceIdHistoryGetErrors];
+
+export type PreferenceHistoryApiV1PersonalPreferencesPreferenceIdHistoryGetResponses = {
+    /**
+     * Response Preference History Api V1 Personal Preferences  Preference Id  History Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type PreferenceHistoryApiV1PersonalPreferencesPreferenceIdHistoryGetResponse = PreferenceHistoryApiV1PersonalPreferencesPreferenceIdHistoryGetResponses[keyof PreferenceHistoryApiV1PersonalPreferencesPreferenceIdHistoryGetResponses];
+
+export type CorrectPreferenceApiV1PersonalPreferencesPreferenceIdCorrectPostData = {
+    body: Correction;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Preference Id
+         */
+        preference_id: number;
+    };
+    query?: never;
+    url: '/api/v1/personal/preferences/{preference_id}/correct';
+};
+
+export type CorrectPreferenceApiV1PersonalPreferencesPreferenceIdCorrectPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CorrectPreferenceApiV1PersonalPreferencesPreferenceIdCorrectPostError = CorrectPreferenceApiV1PersonalPreferencesPreferenceIdCorrectPostErrors[keyof CorrectPreferenceApiV1PersonalPreferencesPreferenceIdCorrectPostErrors];
+
+export type CorrectPreferenceApiV1PersonalPreferencesPreferenceIdCorrectPostResponses = {
+    /**
+     * Response Correct Preference Api V1 Personal Preferences  Preference Id  Correct Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type CorrectPreferenceApiV1PersonalPreferencesPreferenceIdCorrectPostResponse = CorrectPreferenceApiV1PersonalPreferencesPreferenceIdCorrectPostResponses[keyof CorrectPreferenceApiV1PersonalPreferencesPreferenceIdCorrectPostResponses];
+
+export type ForgetPreferenceApiV1PersonalPreferencesPreferenceIdDeleteData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Preference Id
+         */
+        preference_id: number;
+    };
+    query?: never;
+    url: '/api/v1/personal/preferences/{preference_id}';
+};
+
+export type ForgetPreferenceApiV1PersonalPreferencesPreferenceIdDeleteErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ForgetPreferenceApiV1PersonalPreferencesPreferenceIdDeleteError = ForgetPreferenceApiV1PersonalPreferencesPreferenceIdDeleteErrors[keyof ForgetPreferenceApiV1PersonalPreferencesPreferenceIdDeleteErrors];
+
+export type ForgetPreferenceApiV1PersonalPreferencesPreferenceIdDeleteResponses = {
+    /**
+     * Response Forget Preference Api V1 Personal Preferences  Preference Id  Delete
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ForgetPreferenceApiV1PersonalPreferencesPreferenceIdDeleteResponse = ForgetPreferenceApiV1PersonalPreferencesPreferenceIdDeleteResponses[keyof ForgetPreferenceApiV1PersonalPreferencesPreferenceIdDeleteResponses];
+
+export type CorrectLearnedApiV1PersonalLearnedFactIdCorrectPostData = {
+    body: Correction;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Fact Id
+         */
+        fact_id: number;
+    };
+    query?: never;
+    url: '/api/v1/personal/learned/{fact_id}/correct';
+};
+
+export type CorrectLearnedApiV1PersonalLearnedFactIdCorrectPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CorrectLearnedApiV1PersonalLearnedFactIdCorrectPostError = CorrectLearnedApiV1PersonalLearnedFactIdCorrectPostErrors[keyof CorrectLearnedApiV1PersonalLearnedFactIdCorrectPostErrors];
+
+export type CorrectLearnedApiV1PersonalLearnedFactIdCorrectPostResponses = {
+    /**
+     * Response Correct Learned Api V1 Personal Learned  Fact Id  Correct Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type CorrectLearnedApiV1PersonalLearnedFactIdCorrectPostResponse = CorrectLearnedApiV1PersonalLearnedFactIdCorrectPostResponses[keyof CorrectLearnedApiV1PersonalLearnedFactIdCorrectPostResponses];
+
+export type ForgetLearnedApiV1PersonalLearnedFactIdDeleteData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Fact Id
+         */
+        fact_id: number;
+    };
+    query?: never;
+    url: '/api/v1/personal/learned/{fact_id}';
+};
+
+export type ForgetLearnedApiV1PersonalLearnedFactIdDeleteErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ForgetLearnedApiV1PersonalLearnedFactIdDeleteError = ForgetLearnedApiV1PersonalLearnedFactIdDeleteErrors[keyof ForgetLearnedApiV1PersonalLearnedFactIdDeleteErrors];
+
+export type ForgetLearnedApiV1PersonalLearnedFactIdDeleteResponses = {
+    /**
+     * Response Forget Learned Api V1 Personal Learned  Fact Id  Delete
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ForgetLearnedApiV1PersonalLearnedFactIdDeleteResponse = ForgetLearnedApiV1PersonalLearnedFactIdDeleteResponses[keyof ForgetLearnedApiV1PersonalLearnedFactIdDeleteResponses];
+
+export type ConversationContextApiV1PersonalContextGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Thread Id
+         */
+        thread_id?: string | null;
+    };
+    url: '/api/v1/personal/context';
+};
+
+export type ConversationContextApiV1PersonalContextGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ConversationContextApiV1PersonalContextGetError = ConversationContextApiV1PersonalContextGetErrors[keyof ConversationContextApiV1PersonalContextGetErrors];
+
+export type ConversationContextApiV1PersonalContextGetResponses = {
+    /**
+     * Response Conversation Context Api V1 Personal Context Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ConversationContextApiV1PersonalContextGetResponse = ConversationContextApiV1PersonalContextGetResponses[keyof ConversationContextApiV1PersonalContextGetResponses];
+
+export type ChooseContextApiV1PersonalContextPutData = {
+    body: SourceChoice;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/personal/context';
+};
+
+export type ChooseContextApiV1PersonalContextPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ChooseContextApiV1PersonalContextPutError = ChooseContextApiV1PersonalContextPutErrors[keyof ChooseContextApiV1PersonalContextPutErrors];
+
+export type ChooseContextApiV1PersonalContextPutResponses = {
+    /**
+     * Response Choose Context Api V1 Personal Context Put
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ChooseContextApiV1PersonalContextPutResponse = ChooseContextApiV1PersonalContextPutResponses[keyof ChooseContextApiV1PersonalContextPutResponses];
 
 export type OrganisationApiV1OrganisationGetData = {
     body?: never;
