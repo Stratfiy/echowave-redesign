@@ -231,7 +231,8 @@ class CareAlertModel(Base):
         nullable=False,
     )
     #: ``dose_missed`` | ``call_not_answered`` | ``call_failed`` |
-    #: ``help_needed`` | ``scam_checked``.
+    #: ``call_unconfirmed`` | ``call_corrected`` | ``help_needed`` |
+    #: ``scam_checked``.
     kind = Column(String(32), nullable=False)
     #: The share that allowed it (services/care/circle.SHARES).
     share = Column(String(32), nullable=False)

@@ -30,7 +30,6 @@ import asyncio
 from datetime import timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
-
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -220,9 +219,10 @@ class TestTheDailyCap:
         assert not await allowance.reserve(third, "Asia/Kolkata", early)
         # 00:01 in Kolkata is still 22:31 the day before in Dubai: for a
         # person there it is the first day's slot, already taken.
-        assert allowance.local_day("Asia/Dubai", early) == late.astimezone(
-            ZoneInfo("Asia/Dubai")
-        ).date()
+        assert (
+            allowance.local_day("Asia/Dubai", early)
+            == late.astimezone(ZoneInfo("Asia/Dubai")).date()
+        )
         assert not await allowance.reserve(third, "Asia/Dubai", early)
 
     async def test_the_window_and_the_cap_turn_over_at_the_persons_midnight(
@@ -495,9 +495,7 @@ class TestUnknownOutcomes:
         await calls.sweep(home.clock["now"] + timedelta(hours=1))
         assert (await _rows("done_calls", home.org))[0]["state"] != cwd.NOT_ANSWERED
 
-    async def test_a_crash_before_the_run_is_recorded_is_dialled_once_later(
-        self, home
-    ):
+    async def test_a_crash_before_the_run_is_recorded_is_dialled_once_later(self, home):
         """Worker crash before run-id linkage: ``dial_workflow`` records the
         run before asking the provider, so no run recorded means nothing
         was requested. Queued again, rung once, nobody told "missed"."""
@@ -555,9 +553,7 @@ class TestUnknownOutcomes:
             (cwd.NOT_ANSWERED, cwd.ANSWERED),
         ]
 
-    async def test_an_answer_after_a_verified_no_answer_is_corrected_once(
-        self, home
-    ):
+    async def test_an_answer_after_a_verified_no_answer_is_corrected_once(self, home):
         await _confirm_number(home)
         await _queued(home)
         await calls.tick(home.clock["now"] + timedelta(minutes=2))

@@ -10,10 +10,13 @@ would reuse it, and mark where it falls short of the contract:
 * a post-call report delivered twice tells the family once (pinned);
 * the care path's calling-hours exemption (pinned, so nobody copies it by
   accident: general reminders must not inherit it);
-* an answer that arrives after the sweep, a provider timeout, a crash between
-  claim and dial, and "I took it" after a missed call all lose or misstate
-  what happened (xfail: they need the separate delivery state and the
-  reconcile-before-retry step the contract describes).
+* silence is ``unknown``, never "did not answer"; a provider timeout after
+  the run was recorded is ``unknown`` and never re-dialled; a crash between
+  claim and dial is a verified "could not call"; an answer after the sweep
+  is kept; delayed and duplicated reports alert once, with a correction only
+  where the family was told something false (F3, fixed here);
+* "I took it" after a missed call overwrites the call's outcome (xfail: it
+  needs the separate delivery and task states).
 
 The clock is passed in; no call is placed: ``calls._dial`` or
 ``dial_workflow`` is replaced in every test that would reach a carrier.
@@ -187,14 +190,49 @@ class TestTheCallingWindow:
         dialled.assert_awaited_once()
 
 
+def _accepted_then(error: Exception, run_id: int = 999):
+    """The real dial's shape: the run is recorded (``on_run_created``), the
+    provider is asked, and the request then fails on our side."""
+
+    async def dial(med, dose, *, on_run_created=None):
+        await on_run_created(run_id)
+        raise error
+
+    return dial
+
+
+def _evidence(**kw):
+    """A run as the telephony status webhook and the pipeline leave it."""
+    base = {
+        "is_completed": False,
+        "answered_at": None,
+        "billable_seconds": None,
+        "gathered_context": {},
+        "initial_context": {},
+        "annotations": {},
+    }
+    base.update(kw)
+    return SimpleNamespace(**base)
+
+
+NO_ANSWER = {
+    "is_completed": True,
+    "gathered_context": {
+        "call_tags": ["not_connected", "telephony_no-answer"],
+        "mapped_call_disposition": "no-answer",
+    },
+}
+
+
+def _runs(run):
+    return patch.object(db_client, "get_workflow_run", new=AsyncMock(return_value=run))
+
+
+def _later(**kw) -> datetime:
+    return datetime.now(UTC) + timedelta(**kw)
+
+
 class TestUnknownOutcomes:
-    @pytest.mark.xfail(
-        strict=True,
-        raises=AssertionError,
-        reason="Gap: the sweep settles a call with no report as not_answered and "
-        "tells the family; a real answer arriving later cannot move it. The "
-        "contract keeps delivery 'unknown' until reconciled.",
-    )
     async def test_an_answer_that_arrives_after_the_sweep_is_kept(
         self, home, dial, monkeypatch
     ):
@@ -205,39 +243,156 @@ class TestUnknownOutcomes:
         await _report(home, _run(dose_id, "taken"))
         assert (await _doses(home.org))[0].state == calls.TAKEN
 
-    @pytest.mark.xfail(
-        strict=True,
-        raises=AssertionError,
-        reason="Gap: a provider timeout during the dial is recorded as failed "
-        "('could not call') although the carrier may have placed the call; "
-        "the contract records 'unknown' and reconciles before alerting or "
-        "retrying.",
-    )
+    async def test_silence_is_unknown_and_the_family_is_not_told_missed(
+        self, home, dial, monkeypatch
+    ):
+        await _live(home, monkeypatch)
+        await calls.tick(_at(8, 1))
+        with _runs(_evidence()):
+            await calls.sweep(_later(minutes=30))
+            await calls.sweep(_later(minutes=60))
+        dose = (await _doses(home.org))[0]
+        assert dose.state == calls.UNKNOWN and dose.reason == "no_outcome"
+        assert await _alerts(home) == []
+        dial.assert_awaited_once()
+
+    async def test_unknown_for_too_long_tells_the_family_could_not_confirm_once(
+        self, home, dial, monkeypatch
+    ):
+        await _live(home, monkeypatch)
+        await calls.tick(_at(8, 1))
+        with _runs(_evidence()):
+            await calls.sweep(_later(minutes=30))
+            await calls.sweep(_later(minutes=calls.UNKNOWN_ALERT_MINUTES + 5))
+            await calls.sweep(_later(minutes=calls.UNKNOWN_ALERT_MINUTES + 10))
+        assert await _alerts(home) == [
+            (
+                "Decibyl could not confirm whether the 08:00 reminder call for BP "
+                "tablet reached Amma."
+            )
+        ]
+        # The carrier's no-answer, arriving later: recorded, no second alert.
+        with _runs(_evidence(**NO_ANSWER)):
+            await calls.sweep(_later(minutes=calls.UNKNOWN_ALERT_MINUTES + 15))
+        dose = (await _doses(home.org))[0]
+        assert dose.state == calls.NOT_ANSWERED
+        assert len(await _alerts(home)) == 1
+        dial.assert_awaited_once()
+
+    async def test_answered_without_a_report_becomes_unclear_not_missed(
+        self, home, dial, monkeypatch
+    ):
+        await _live(home, monkeypatch)
+        await calls.tick(_at(8, 1))
+        answered = _evidence(answered_at=datetime.now(UTC))
+        with _runs(answered):
+            await calls.sweep(_later(minutes=30))
+            assert (await _doses(home.org))[0].reason == "answered_no_report"
+            await calls.sweep(_later(minutes=calls.UNKNOWN_ALERT_MINUTES + 5))
+        assert (await _doses(home.org))[0].state == calls.UNCLEAR
+        assert await _alerts(home) == [
+            "Amma answered the 08:00 call for BP tablet but did not say it was taken."
+        ]
+
     async def test_a_provider_timeout_is_unknown_not_failed(self, home, monkeypatch):
-        monkeypatch.setattr(calls, "_dial", AsyncMock(side_effect=TimeoutError()))
+        """Provider accepted, client timed out: the run was recorded before
+        the provider was asked, so the call may have rung."""
+        dial = AsyncMock(side_effect=_accepted_then(TimeoutError()))
+        monkeypatch.setattr(calls, "_dial", dial)
         await _live(home, monkeypatch)
         await calls.tick(_at(8, 1))
         rows = await _doses(home.org)
         assert rows[0].state != calls.FAILED
         assert await _alerts(home) == []
+        assert rows[0].state == calls.UNKNOWN and rows[0].workflow_run_id == 999
+        # Never re-dialled: the next ticks see the dose's row and pass.
+        await calls.tick(_at(8, 2))
+        await calls.tick(_at(8, 5))
+        dial.assert_awaited_once()
 
-    @pytest.mark.xfail(
-        strict=True,
-        raises=AssertionError,
-        reason="Gap: a dose claimed by a tick that died before dialling is swept "
-        "as 'did not answer' and the family is told, though nothing rang. "
-        "The contract reserves a dispatch record and only a dispatched call "
-        "can be 'not answered'.",
-    )
+    async def test_an_error_before_any_run_is_a_verified_could_not_call(
+        self, home, monkeypatch
+    ):
+        monkeypatch.setattr(calls, "_dial", AsyncMock(side_effect=RuntimeError("x")))
+        await _live(home, monkeypatch)
+        await calls.tick(_at(8, 1))
+        dose = (await _doses(home.org))[0]
+        assert dose.state == calls.FAILED and dose.reason == "call_error"
+        assert await _alerts(home) == [
+            (
+                "Decibyl could not call Amma about BP tablet at 08:00: something "
+                "went wrong on our side."
+            )
+        ]
+
     async def test_a_claim_that_never_dialled_is_not_reported_as_unanswered(
         self, home, dial, monkeypatch
     ):
+        """Worker crash before run-id linkage. Nothing rang, so the dose is
+        not "did not answer"; the family is told Decibyl could not call --
+        which is true -- and not that the person missed it."""
         medicine_id = await _live(home, monkeypatch)
         med = await _medicine(medicine_id)
         await calls._claim(med, _at(8))  # the worker dies here
         await calls.sweep(datetime.now(UTC) + timedelta(hours=1))
-        assert (await _doses(home.org))[0].state != calls.NOT_ANSWERED
-        assert await _alerts(home) == []
+        dose = (await _doses(home.org))[0]
+        assert dose.state != calls.NOT_ANSWERED
+        assert dose.state == calls.FAILED and dose.reason == "not_dialled"
+        alerts = await _alerts(home)
+        assert len(alerts) == 1 and "could not call Amma" in alerts[0]
+        assert not any("did not answer" in a for a in alerts)
+        dial.assert_not_awaited()
+
+    async def test_a_delayed_and_duplicated_outcome_settles_once(
+        self, home, dial, monkeypatch
+    ):
+        await _live(home, monkeypatch)
+        await calls.tick(_at(8, 1))
+        dose_id = (await _doses(home.org))[0].id
+        await calls.sweep(_later(minutes=30))  # unknown, nobody told
+        await _report(home, _run(dose_id, "not_yet"))
+        await _report(home, _run(dose_id, "not_yet"))
+        await _report(home, _run(dose_id, "taken"))  # contradicting, too late
+        dose = (await _doses(home.org))[0]
+        assert dose.state == calls.NOT_TAKEN
+        assert len(await _alerts(home)) == 1
+        assert [(e["from"], e["to"]) for e in dose.outcome_history] == [
+            (calls.CALLING, calls.UNKNOWN),
+            (calls.UNKNOWN, calls.NOT_TAKEN),
+        ]
+
+    async def test_taken_after_a_verified_no_answer_is_corrected_once(
+        self, home, dial, monkeypatch
+    ):
+        await _live(home, monkeypatch)
+        await calls.tick(_at(8, 1))
+        dose_id = (await _doses(home.org))[0].id
+        with _runs(_evidence(**NO_ANSWER)):
+            await calls.sweep(_later(minutes=30))
+        assert await _alerts(home) == [
+            "Amma did not answer the 08:00 reminder call for BP tablet."
+        ]
+        await _report(home, _run(dose_id, "taken"))
+        await _report(home, _run(dose_id, "taken"))
+        alerts = await _alerts(home)
+        assert len(alerts) == 2
+        assert any(a.startswith("Update: Amma did answer") for a in alerts)
+        assert (await _doses(home.org))[0].state == calls.TAKEN
+
+    async def test_a_report_for_another_run_is_ignored(self, home, dial, monkeypatch):
+        await _live(home, monkeypatch)
+        await calls.tick(_at(8, 1))
+        dose_id = (await _doses(home.org))[0].id
+        with (
+            _runs(_run(dose_id, "taken")),
+            patch.object(
+                db_client,
+                "get_organization_id_by_workflow_run_id",
+                new=AsyncMock(return_value=home.org),
+            ),
+        ):
+            await calls.record_run_outcome(123456)  # the dose's run is 999
+        assert (await _doses(home.org))[0].state == calls.CALLING
 
     @pytest.mark.xfail(
         strict=True,
@@ -252,6 +407,7 @@ class TestUnknownOutcomes:
     ):
         medicine_id = await _live(home, monkeypatch)
         await calls.tick(_at(8, 1))
-        await calls.sweep(datetime.now(UTC) + timedelta(hours=1))
+        with _runs(_evidence(**NO_ANSWER)):
+            await calls.sweep(datetime.now(UTC) + timedelta(hours=1))
         await medicines.mark_taken(home.org, home.amma.id, medicine_id, due_at=_at(8))
         assert (await _doses(home.org))[0].state == calls.NOT_ANSWERED
