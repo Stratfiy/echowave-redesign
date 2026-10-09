@@ -58,6 +58,7 @@ WHY = {
     "quota": "the workspace could not pay for the call",
     "call_error": "something went wrong on our side",
     "not_answered": "you did not pick up",
+    "not_member": "you are no longer in this workspace",
 }
 
 
@@ -484,11 +485,22 @@ async def place(call_id: int, *, now: datetime | None = None) -> None:
         await settle(call_id, cwd.NOTIFIED, reason=reason)
         await tell_in_app(call_id, reason)
         return
+    if await db_client.get_membership(user_id, organization_id) is None:
+        # Removed from the workspace since the call was queued: this
+        # workspace no longer rings them, and its thread is not theirs.
+        await settle(call_id, cwd.FAILED, reason="not_member")
+        return
     tz = await person_timezone(organization_id, user_id)
     if await over_cap(user_id, tz, now):
         # Re-checked here: calls placed since this one was queued count.
         await settle(call_id, cwd.NOTIFIED, reason="daily_cap")
         await tell_in_app(call_id, "daily_cap")
+        return
+    if not dnd.within_calling_hours(timezone_name=tz, now=now):
+        # Asked here as well as in the gate: the gate skips every check,
+        # the window included, when do-not-call enforcement is switched off
+        # for a deployment, and the window for these calls is not optional.
+        await _requeue(call, next_opening(tz, now), tz)
         return
     try:
         # The hard rule, asked immediately before dialling: the calling

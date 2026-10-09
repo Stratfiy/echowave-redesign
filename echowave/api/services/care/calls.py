@@ -58,6 +58,9 @@ NOT_TAKEN = "not_taken"
 NOT_ANSWERED = "not_answered"
 UNCLEAR = "unclear"
 FAILED = "failed"
+#: Claimed by a tick, then paused or removed before the dial: nothing rang,
+#: and nobody is told about a dose the person stopped.
+CANCELLED = "cancelled"
 #: The outcomes the family is told about.
 TELL_FAMILY = (NOT_TAKEN, NOT_ANSWERED, UNCLEAR, FAILED)
 
@@ -194,6 +197,14 @@ async def place(dose_id: int) -> None:
         dose = await session.get(CareDoseCallModel, dose_id)
         med = await session.get(CareMedicineModel, dose.medicine_id) if dose else None
     if dose is None or med is None or med.organization_id != dose.organization_id:
+        return
+    # Re-read right before ringing: the tick read the medicine list earlier,
+    # and the person may have tapped "I took it" (the dose is settled) or
+    # paused or removed the reminder (the medicine is not active) since.
+    if dose.state not in WAITING:
+        return
+    if med.state != medicines_service.ACTIVE:
+        await _withdraw(dose_id)
         return
     if med.channel == "app":
         await _remind_in_app(med, dose)
@@ -340,6 +351,26 @@ async def settle(dose_id: int, state: str, *, reason: str | None = None) -> bool
         await session.commit()
     if moved and state in TELL_FAMILY:
         await tell_family(dose_id)
+    return bool(moved)
+
+
+async def _withdraw(dose_id: int) -> bool:
+    """A claimed dose whose reminder stopped before the dial: cancelled,
+    without an alert (the family is told about missed doses, not stopped
+    reminders)."""
+    async with db_client.async_session() as session:
+        moved = (
+            await session.execute(
+                update(CareDoseCallModel)
+                .where(
+                    CareDoseCallModel.id == dose_id,
+                    CareDoseCallModel.state.in_(WAITING),
+                )
+                .values(state=CANCELLED, reason="stopped", outcome_at=_now())
+                .returning(CareDoseCallModel.id)
+            )
+        ).first()
+        await session.commit()
     return bool(moved)
 
 
