@@ -448,7 +448,8 @@ async def test_voicemail_for_the_team_is_the_last_rung(
             ).scalars()
         )
     assert note.payload["voicemail"]["message"] == "Please call about order 1234"
-    assert note.payload["transcript_url"].endswith(f"/run/{call.run.id}")
+    # The run page; live while the call lasts, the full transcript after.
+    assert f"/run/{call.run.id}?live=1" in note.payload["transcript_url"]
 
 
 @pytest.mark.asyncio

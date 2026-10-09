@@ -2725,6 +2725,58 @@ export type CallDispositionCodes = {
 };
 
 /**
+ * CallEscalationOutcomeResponse
+ */
+export type CallEscalationOutcomeResponse = {
+    /**
+     * Workflow Run Id
+     */
+    workflow_run_id: number;
+    /**
+     * Workflow Id
+     */
+    workflow_id?: number | null;
+    /**
+     * Outcome
+     */
+    outcome: string;
+    /**
+     * Reason Code
+     */
+    reason_code?: string | null;
+    /**
+     * Transfer Result
+     */
+    transfer_result?: string | null;
+    /**
+     * Caller Turn
+     */
+    caller_turn?: number | null;
+    /**
+     * Caller Turns
+     */
+    caller_turns?: number | null;
+    /**
+     * Shadow Escalations
+     */
+    shadow_escalations?: Array<{
+        [key: string]: unknown;
+    }>;
+    /**
+     * Qa Label
+     */
+    qa_label?: string | null;
+    /**
+     * Qa Expected Turn
+     */
+    qa_expected_turn?: number | null;
+    /**
+     * Qa Labelled At
+     */
+    qa_labelled_at?: string | null;
+};
+
+/**
  * CallIntentItem
  */
 export type CallIntentItem = {
@@ -7167,9 +7219,89 @@ export type EscalationPolicyResponse = {
      */
     topics: Array<TopicOption>;
     /**
+     * Rules
+     */
+    rules?: Array<RuleOption>;
+    /**
+     * Briefing Languages
+     */
+    briefing_languages?: Array<TopicOption>;
+    /**
      * Unpublished
      */
     unpublished: boolean;
+};
+
+/**
+ * EscalationReportResponse
+ */
+export type EscalationReportResponse = {
+    /**
+     * Window
+     */
+    window: number;
+    /**
+     * Calls
+     */
+    calls: number;
+    /**
+     * Labelled
+     */
+    labelled: number;
+    /**
+     * Unlabelled
+     */
+    unlabelled: number;
+    /**
+     * Outcomes
+     */
+    outcomes: {
+        [key: string]: number;
+    };
+    /**
+     * Labels
+     */
+    labels: {
+        [key: string]: number;
+    };
+    /**
+     * On Time
+     */
+    on_time: number;
+    /**
+     * Early
+     */
+    early: number;
+    /**
+     * Late
+     */
+    late: number;
+    /**
+     * Untimed
+     */
+    untimed: number;
+    /**
+     * Precision
+     */
+    precision?: number | null;
+    /**
+     * Recall
+     */
+    recall?: number | null;
+    /**
+     * F1
+     */
+    f1?: number | null;
+    /**
+     * Resolved By Ai Rate
+     */
+    resolved_by_ai_rate?: number | null;
+    /**
+     * Shadow
+     */
+    shadow: {
+        [key: string]: unknown;
+    };
 };
 
 /**
@@ -14366,6 +14498,20 @@ export type OutcomeCountResponse = {
 };
 
 /**
+ * OutcomeLabelRequest
+ */
+export type OutcomeLabelRequest = {
+    /**
+     * Label
+     */
+    label?: string | null;
+    /**
+     * Expected Turn
+     */
+    expected_turn?: number | null;
+};
+
+/**
  * OutcomeRateResponse
  */
 export type OutcomeRateResponse = {
@@ -18208,6 +18354,24 @@ export type RoutineWrite = {
      * Needs Apps
      */
     needs_apps?: Array<string>;
+};
+
+/**
+ * RuleOption
+ */
+export type RuleOption = {
+    /**
+     * Key
+     */
+    key: string;
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Can Shadow
+     */
+    can_shadow: boolean;
 };
 
 /**
@@ -44974,6 +45138,102 @@ export type OpenEscalationsApiV1EscalationsOpenGetResponses = {
 };
 
 export type OpenEscalationsApiV1EscalationsOpenGetResponse = OpenEscalationsApiV1EscalationsOpenGetResponses[keyof OpenEscalationsApiV1EscalationsOpenGetResponses];
+
+export type EscalationReportApiV1EscalationsReportGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Window
+         */
+        window?: number;
+        /**
+         * Days
+         */
+        days?: number;
+        /**
+         * Workflow Id
+         */
+        workflow_id?: number | null;
+    };
+    url: '/api/v1/escalations/report';
+};
+
+export type EscalationReportApiV1EscalationsReportGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type EscalationReportApiV1EscalationsReportGetError = EscalationReportApiV1EscalationsReportGetErrors[keyof EscalationReportApiV1EscalationsReportGetErrors];
+
+export type EscalationReportApiV1EscalationsReportGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: EscalationReportResponse;
+};
+
+export type EscalationReportApiV1EscalationsReportGetResponse = EscalationReportApiV1EscalationsReportGetResponses[keyof EscalationReportApiV1EscalationsReportGetResponses];
+
+export type LabelCallEscalationOutcomeApiV1EscalationsOutcomesWorkflowRunIdLabelPutData = {
+    body: OutcomeLabelRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Run Id
+         */
+        workflow_run_id: number;
+    };
+    query?: never;
+    url: '/api/v1/escalations/outcomes/{workflow_run_id}/label';
+};
+
+export type LabelCallEscalationOutcomeApiV1EscalationsOutcomesWorkflowRunIdLabelPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type LabelCallEscalationOutcomeApiV1EscalationsOutcomesWorkflowRunIdLabelPutError = LabelCallEscalationOutcomeApiV1EscalationsOutcomesWorkflowRunIdLabelPutErrors[keyof LabelCallEscalationOutcomeApiV1EscalationsOutcomesWorkflowRunIdLabelPutErrors];
+
+export type LabelCallEscalationOutcomeApiV1EscalationsOutcomesWorkflowRunIdLabelPutResponses = {
+    /**
+     * Successful Response
+     */
+    200: CallEscalationOutcomeResponse;
+};
+
+export type LabelCallEscalationOutcomeApiV1EscalationsOutcomesWorkflowRunIdLabelPutResponse = LabelCallEscalationOutcomeApiV1EscalationsOutcomesWorkflowRunIdLabelPutResponses[keyof LabelCallEscalationOutcomeApiV1EscalationsOutcomesWorkflowRunIdLabelPutResponses];
 
 export type GetEscalationApiV1EscalationsEscalationUuidGetData = {
     body?: never;

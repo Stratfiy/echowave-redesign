@@ -37,7 +37,8 @@ const CARD = {
     summary: 'Asha says order 1234 never arrived. The agent could not issue a credit.',
     language: 'hi-IN',
     consent: { ai_disclosed: true, recording_disclosed: true },
-    transcript_url: '/workflow/7/run/9',
+    transcript_url: '/workflow/7/run/9?live=1&escalation=e-1',
+    team: 'Billing',
 };
 
 function escalation(overrides: Record<string, unknown> = {}) {
@@ -69,8 +70,19 @@ describe('HandoffCard', () => {
         expect(screen.getByText(/issue credit/)).toBeTruthy();
         expect(screen.getByLabelText('failed')).toBeTruthy();
         expect(screen.getByText('speaking with an AI, the call is recorded')).toBeTruthy();
-        expect(screen.getByRole('link', { name: 'Live transcript' }).getAttribute('href')).toBe('/workflow/7/run/9');
+        expect(screen.getByRole('link', { name: 'Live transcript' }).getAttribute('href')).toBe(
+            '/workflow/7/run/9?live=1&escalation=e-1',
+        );
+        expect(screen.getByText('Team')).toBeTruthy();
+        expect(screen.getByText('Billing')).toBeTruthy();
         expect(screen.getByTestId('handoff-state').textContent).toContain('The caller is with a person');
+    });
+
+    it('shows no team row when the policy routes the topic to nobody in particular', async () => {
+        api.get.mockResolvedValue({ data: escalation({ handoff_card: { ...CARD, team: null } }) });
+        render(<HandoffCard escalationUuid="e-1" />);
+        await screen.findByText('Asha needs a person');
+        expect(screen.queryByText('Team')).toBeNull();
     });
 
     it('hands the caller back to the agent with a note', async () => {

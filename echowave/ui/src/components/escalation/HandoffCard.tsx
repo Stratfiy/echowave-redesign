@@ -35,6 +35,8 @@ import { useAuth } from '@/lib/auth';
 export type HandoffCardData = {
     caller?: { name?: string | null; number_masked?: string | null; verified?: boolean; verification?: string };
     intent?: string | null;
+    /** The team the policy routes this topic to; absent means the general numbers. */
+    team?: string | null;
     fields?: Record<string, string>;
     actions?: { tool: string; ok: boolean | null; result?: string }[];
     reason?: string;
@@ -175,6 +177,7 @@ export function HandoffCard({
                         <dd className="min-w-0 break-words">{card.intent}</dd>
                     </>
                 )}
+                {card.team && <Field label="Team" value={card.team} />}
                 {fields.map(([key, value]) => (
                     <Field key={key} label={key.replace(/_/g, ' ')} value={value} />
                 ))}

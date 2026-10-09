@@ -36,6 +36,7 @@ from api.services.tool_management import (
     create_tool_for_user,
     refresh_mcp_tool_for_user,
     validate_tool_credential_references,
+    validate_transfer_destination,
 )
 from api.services.tool_management import (
     populate_discovered_tools as _populate_discovered_tools,
@@ -228,6 +229,10 @@ async def update_tool(
         definition = request.definition.model_dump()
         try:
             await validate_tool_credential_references(
+                definition,
+                organization_id=user.selected_organization_id,
+            )
+            validate_transfer_destination(
                 definition,
                 organization_id=user.selected_organization_id,
             )

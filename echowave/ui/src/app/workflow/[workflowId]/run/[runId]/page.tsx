@@ -15,14 +15,15 @@ import {
     Video,
 } from 'lucide-react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import posthog from 'posthog-js';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import {
     getWorkflowApiV1WorkflowFetchWorkflowIdGet,
     getWorkflowRunApiV1WorkflowWorkflowIdRunsRunIdGet,
 } from '@/client/sdk.gen';
+import { LiveEscalationTranscript } from '@/components/escalation/LiveEscalationTranscript';
 import { MediaPreviewButton, MediaPreviewDialog } from '@/components/MediaPreviewDialog';
 import { OnboardingTooltip } from '@/components/onboarding/OnboardingTooltip';
 import { StaffAccessCard } from '@/components/privacy/StaffAccessCard';
@@ -33,6 +34,7 @@ import { ConversationRailFrame, RealtimeFeedback, WorkflowRunLogs } from '@/comp
 import { PostHogEvent } from '@/constants/posthog-events';
 import { WORKFLOW_RUN_MODES } from '@/constants/workflowRunModes';
 import { useAuth } from '@/lib/auth';
+import { useFeature } from '@/lib/features';
 import { downloadFile, getSignedUrl } from '@/lib/files';
 import { cn } from '@/lib/utils';
 
@@ -698,6 +700,20 @@ export default function WorkflowRunPage() {
     const [workflowRun, setWorkflowRun] = useState<WorkflowRunResponse | null>(null);
     const [workflowName, setWorkflowName] = useState<string | null>(null);
     const customizeButtonRef = useRef<HTMLButtonElement>(null);
+    // Escalation v2: the handoff card links here with ?live=1&escalation=…
+    // while the call is going; without the flag the URL's extras are ignored.
+    const searchParams = useSearchParams();
+    const escalationOn = useFeature('escalation_v2');
+    const liveEscalation = escalationOn && searchParams?.get('live') === '1' ? searchParams.get('escalation') : null;
+    const [refreshKey, setRefreshKey] = useState(0);
+    const isRunLive = useCallback(async () => {
+        const res = await getWorkflowRunApiV1WorkflowWorkflowIdRunsRunIdGet({
+            path: { workflow_id: Number(params.workflowId), run_id: Number(params.runId) },
+        });
+        const done = Boolean(res.data?.is_completed);
+        if (done) setRefreshKey((k) => k + 1);
+        return !done;
+    }, [params.workflowId, params.runId]);
 
     // Redirect if not authenticated
     useEffect(() => {
@@ -762,7 +778,7 @@ export default function WorkflowRunPage() {
             }
         };
         fetchWorkflowRun();
-    }, [params.workflowId, params.runId, auth]);
+    }, [params.workflowId, params.runId, auth, refreshKey]);
 
     let returnValue = null;
     const isTextChatRun = workflowRun?.mode === WORKFLOW_RUN_MODES.TEXTCHAT;
@@ -958,6 +974,13 @@ export default function WorkflowRunPage() {
                         <RealtimeFeedback mode="historical" logs={workflowRun?.logs ?? null} />
                     </ConversationRailFrame>
                 </div>
+            </div>
+        );
+    }
+    else if (liveEscalation) {
+        returnValue = (
+            <div className="h-full overflow-y-auto">
+                <LiveEscalationTranscript escalationUuid={liveEscalation} isRunLive={isRunLive} />
             </div>
         );
     }

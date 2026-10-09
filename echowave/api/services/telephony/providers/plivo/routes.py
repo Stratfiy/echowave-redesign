@@ -16,6 +16,7 @@ from starlette.responses import HTMLResponse, Response
 from api.db import db_client
 from api.services.telephony.escalation import DEFAULT_BRIEFING
 from api.services.telephony.factory import get_telephony_provider_for_run
+from api.services.telephony.providers.plivo.provider import PlivoProvider
 from api.services.telephony.status_processor import (
     StatusCallbackRequest,
     _process_status_update,
@@ -169,10 +170,18 @@ async def handle_plivo_transfer_bridge(conference_name: str, request: Request):
     500 that would drop the leg.
     """
     briefing = request.query_params.get("briefing") or DEFAULT_BRIEFING
+    # Escalation v2: the person is briefed in their own language. Only a
+    # language the provider lists is honoured; anything else is the default.
+    speak = "<Speak>"
+    spoken_in = PlivoProvider.BRIEFING_LANGUAGES.get(
+        request.query_params.get("language") or ""
+    )
+    if spoken_in is not None:
+        speak = f'<Speak language="{spoken_in[0]}" voice="{spoken_in[1]}">'
 
     plivo_xml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-    <Speak>{escape(briefing)}</Speak>
+    {speak}{escape(briefing)}</Speak>
     <Conference
         endConferenceOnExit="true"
         startConferenceOnEnter="true"

@@ -27,7 +27,7 @@ from typing import Any, Awaitable, Callable
 from loguru import logger
 
 from api.services.compliance import dnd
-from api.services.escalation.policy import EscalationPolicy
+from api.services.escalation.policy import EMERGENCY_CLASS, EscalationPolicy
 from api.utils.phone_masking import last_four
 
 CALLBACK = "callback"
@@ -62,7 +62,8 @@ def explanation(
     else:
         line = "I couldn't connect you just now"
     tail = ""
-    if reason == "emergency":
+    # A caller in distress is handled like an emergency: the same line.
+    if reason in EMERGENCY_CLASS:
         tail = " If this is an emergency, please call 112 now."
     return f"{line}, I'm sorry.{tail}"
 

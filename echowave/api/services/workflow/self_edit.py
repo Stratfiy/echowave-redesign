@@ -122,7 +122,10 @@ def _escalation_property() -> dict[str, Any]:
                 "slots:[{day_of_week 0-6 Monday first, start_time HH:MM, "
                 "end_time HH:MM}]}; always_transfer_topics is a list of "
                 f"{', '.join(TOPICS)}; custom_topics is a list of phrases; "
-                "refund_limit is rupees; max_ai_attempts is 1-5."
+                "never_transfer_topics is a list of phrases the agent answers "
+                "itself (never an emergency or a caller asking for a person); "
+                "refund_limit is rupees; max_ai_attempts is 1-5. Numbers must "
+                "be Indian (+91)."
             ),
             "properties": {
                 "transfer_numbers": {"type": "array", "items": {"type": "object"}},
@@ -132,6 +135,10 @@ def _escalation_property() -> dict[str, Any]:
                     "items": {"type": "string", "enum": list(TOPICS)},
                 },
                 "custom_topics": {"type": "array", "items": {"type": "string"}},
+                "never_transfer_topics": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                },
                 "refund_limit": {"type": "integer"},
                 "max_ai_attempts": {"type": "integer"},
             },

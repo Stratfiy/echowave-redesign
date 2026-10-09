@@ -119,6 +119,39 @@ async def validate_tool_credential_references(
             )
 
 
+def validate_transfer_destination(
+    definition: dict[str, Any], *, organization_id: int
+) -> None:
+    """With escalation v2 on, a transfer tool's fixed phone number must be
+    Indian: both legs of a call must be in India, or the carrier refuses the
+    transfer with the caller already on hold. Templates and SIP endpoints are
+    not phone numbers and are left alone."""
+    from api.services import escalation
+
+    if not isinstance(definition, dict) or definition.get("type") != "transfer_call":
+        return
+    config = definition.get("config") or {}
+    if config.get("destination_source", "static") != "static":
+        return
+    destination = str(config.get("destination") or "").strip()
+    if (
+        not destination
+        or "{{" in destination
+        or any(mark in destination.lower() for mark in ("/", "@", "sip:"))
+    ):
+        return
+    if not escalation.enabled(organization_id):
+        return
+    from api.services.escalation.policy import indian_number
+
+    try:
+        indian_number(destination)
+    except ValueError as exc:
+        raise ToolManagementError(
+            "transfer_destination_not_indian", str(exc), status_code=422
+        ) from exc
+
+
 async def populate_discovered_tools(
     definition: dict[str, Any], *, organization_id: int
 ) -> dict[str, Any]:
@@ -191,6 +224,9 @@ async def create_tool_for_user(
 
     definition = request.definition.model_dump()
     await validate_tool_credential_references(
+        definition, organization_id=user.selected_organization_id
+    )
+    validate_transfer_destination(
         definition, organization_id=user.selected_organization_id
     )
     definition = await populate_discovered_tools(

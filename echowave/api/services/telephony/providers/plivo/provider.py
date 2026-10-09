@@ -44,6 +44,9 @@ class PlivoProvider(TelephonyProvider):
 
     PROVIDER_NAME = WorkflowRunMode.PLIVO.value
     WEBHOOK_ENDPOINT = "plivo-xml"
+    #: Escalation v2: briefing languages besides English this carrier can
+    #: speak to the person answering, as (``<Speak language>``, voice).
+    BRIEFING_LANGUAGES: Dict[str, tuple[str, str]] = {"hi": ("hi-IN", "Polly.Aditi")}
 
     def __init__(self, config: Dict[str, Any]):
         self.auth_id = config.get("auth_id")
@@ -810,9 +813,15 @@ class PlivoProvider(TelephonyProvider):
         conference_name: str,
         timeout: int = 30,
         briefing: Optional[str] = None,
+        briefing_language: Optional[str] = None,
         **kwargs: Any,
     ) -> Dict[str, Any]:
         """Dial the destination into the transfer conference.
+
+        ``briefing_language`` (escalation v2) is a key of
+        ``BRIEFING_LANGUAGES``; the bridge speaks the briefing in it. It is
+        taken out here because everything left in ``kwargs`` is sent to
+        Plivo as part of the call.
 
         This is only the destination half. The caller is moved in separately,
         by ``PlivoConferenceStrategy`` when the pipeline tears down — the two
@@ -837,6 +846,8 @@ class PlivoProvider(TelephonyProvider):
             f"{quote(conference_name, safe='')}"
             f"?briefing={quote(briefing or DEFAULT_BRIEFING, safe='')}"
         )
+        if briefing_language in self.BRIEFING_LANGUAGES:
+            answer_url += f"&language={quote(briefing_language, safe='')}"
         status_callback_url = (
             f"{backend_endpoint}/api/v1/telephony/transfer-result/{transfer_id}"
         )

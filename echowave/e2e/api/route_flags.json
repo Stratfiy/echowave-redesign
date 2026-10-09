@@ -593,11 +593,21 @@
    "escalation_v2"
   ]
  },
+ "/api/v1/escalations/outcomes/{workflow_run_id}/label": {
+  "PUT": [
+   "escalation_v2"
+  ]
+ },
  "/api/v1/escalations/policy/{workflow_id}": {
   "GET": [
    "escalation_v2"
   ],
   "PUT": [
+   "escalation_v2"
+  ]
+ },
+ "/api/v1/escalations/report": {
+  "GET": [
    "escalation_v2"
   ]
  },
