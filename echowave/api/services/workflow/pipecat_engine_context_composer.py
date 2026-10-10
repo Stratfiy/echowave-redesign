@@ -325,6 +325,7 @@ async def compose_functions_for_node(
     can_edit_self: bool = False,
     can_run_scripts: bool = False,
     can_make_images: bool = False,
+    can_see_team: bool = False,
     escalation_tools: bool = False,
 ) -> list[dict]:
     """Compose the function/tool schemas for a workflow node.
@@ -442,6 +443,22 @@ async def compose_functions_for_node(
                 image_tools.TOOL_NAME,
                 image_tools.DESCRIPTION,
                 properties=image_tools.tool_properties(),
+                required=[],
+            )
+        )
+
+    # Seeing the team (services/workflow/team_activity.py): an agent whose
+    # owner turned on "Can see the team", on text and channel runs, while
+    # team_activity is on -- the engine works that out once and registers the
+    # handler on the same answer.
+    if can_see_team:
+        from api.services.workflow import team_activity
+
+        functions.append(
+            get_function_schema(
+                team_activity.TOOL_NAME,
+                team_activity.DESCRIPTION,
+                properties=team_activity.tool_properties(),
                 required=[],
             )
         )

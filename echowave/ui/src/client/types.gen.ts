@@ -19007,6 +19007,16 @@ export type SetCredentialRequest = {
 };
 
 /**
+ * SetTeamAccessRequest
+ */
+export type SetTeamAccessRequest = {
+    /**
+     * Enabled
+     */
+    enabled: boolean;
+};
+
+/**
  * SetWorkflowAvatarRequest
  *
  * The face to wear; null puts the default face back.
@@ -20567,6 +20577,18 @@ export type TaskWrite = {
      * Backlog
      */
     backlog?: boolean;
+};
+
+/**
+ * TeamAccessResponse
+ *
+ * Whether this agent may see what the rest of the team did.
+ */
+export type TeamAccessResponse = {
+    /**
+     * Enabled
+     */
+    enabled: boolean;
 };
 
 /**
@@ -38516,6 +38538,94 @@ export type SetBotNoticesApiV1WorkflowWorkflowIdNoticesPutResponses = {
 };
 
 export type SetBotNoticesApiV1WorkflowWorkflowIdNoticesPutResponse = SetBotNoticesApiV1WorkflowWorkflowIdNoticesPutResponses[keyof SetBotNoticesApiV1WorkflowWorkflowIdNoticesPutResponses];
+
+export type GetTeamAccessApiV1WorkflowWorkflowIdTeamAccessGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+    };
+    query?: never;
+    url: '/api/v1/workflow/{workflow_id}/team-access';
+};
+
+export type GetTeamAccessApiV1WorkflowWorkflowIdTeamAccessGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetTeamAccessApiV1WorkflowWorkflowIdTeamAccessGetError = GetTeamAccessApiV1WorkflowWorkflowIdTeamAccessGetErrors[keyof GetTeamAccessApiV1WorkflowWorkflowIdTeamAccessGetErrors];
+
+export type GetTeamAccessApiV1WorkflowWorkflowIdTeamAccessGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: TeamAccessResponse;
+};
+
+export type GetTeamAccessApiV1WorkflowWorkflowIdTeamAccessGetResponse = GetTeamAccessApiV1WorkflowWorkflowIdTeamAccessGetResponses[keyof GetTeamAccessApiV1WorkflowWorkflowIdTeamAccessGetResponses];
+
+export type SetTeamAccessApiV1WorkflowWorkflowIdTeamAccessPutData = {
+    body: SetTeamAccessRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+    };
+    query?: never;
+    url: '/api/v1/workflow/{workflow_id}/team-access';
+};
+
+export type SetTeamAccessApiV1WorkflowWorkflowIdTeamAccessPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SetTeamAccessApiV1WorkflowWorkflowIdTeamAccessPutError = SetTeamAccessApiV1WorkflowWorkflowIdTeamAccessPutErrors[keyof SetTeamAccessApiV1WorkflowWorkflowIdTeamAccessPutErrors];
+
+export type SetTeamAccessApiV1WorkflowWorkflowIdTeamAccessPutResponses = {
+    /**
+     * Successful Response
+     */
+    200: TeamAccessResponse;
+};
+
+export type SetTeamAccessApiV1WorkflowWorkflowIdTeamAccessPutResponse = SetTeamAccessApiV1WorkflowWorkflowIdTeamAccessPutResponses[keyof SetTeamAccessApiV1WorkflowWorkflowIdTeamAccessPutResponses];
 
 export type UpdateWorkflowStatusApiV1WorkflowWorkflowIdStatusPutData = {
     body: UpdateWorkflowStatusRequest;

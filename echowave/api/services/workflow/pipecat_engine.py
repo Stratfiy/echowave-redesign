@@ -243,6 +243,10 @@ class PipecatEngine:
         #: Whether this bot makes images (services/images/tools.py): hired
         #: from an image template and the feature on. None means not looked.
         self._makes_images: Optional[bool] = None
+        #: Whether this bot may see what the rest of the team did
+        #: (services/workflow/team_activity.py): the owner's setting and the
+        #: feature on. None means not looked.
+        self._sees_team: Optional[bool] = None
 
         # Open MCP tool sessions for this call, keyed by tool_uuid
         self._mcp_sessions: Dict[str, McpToolSession] = {}
@@ -1011,6 +1015,7 @@ class PipecatEngine:
 
         can_run_scripts = await self._can_run_scripts(node)
         can_make_images = await self._can_make_images()
+        can_see_team = await self._can_see_team()
 
         # Compose prompt and functions via the context composer module
         system_prompt = compose_system_prompt_for_node(
@@ -1038,6 +1043,7 @@ class PipecatEngine:
             can_edit_self=self._can_edit_self,
             can_run_scripts=can_run_scripts,
             can_make_images=can_make_images,
+            can_see_team=can_see_team,
             escalation_tools=self._escalation is not None,
         )
         await self._update_llm_context(system_prompt, functions)
@@ -1125,6 +1131,12 @@ class PipecatEngine:
                     image_tools.TOOL_NAME,
                     self._make_images_handler,
                     timeout_secs=300.0,
+                )
+            if await self._can_see_team():
+                from api.services.workflow import team_activity
+
+                self.llm.register_function(
+                    team_activity.TOOL_NAME, self._team_activity_handler
                 )
 
         # Escalation v2: the model's signal and fallback tools, on every node
@@ -2028,6 +2040,52 @@ class PipecatEngine:
             except Exception as exc:  # noqa: BLE001 - the turn must go on
                 logger.warning("Could not tell whether this bot makes images: {}", exc)
         return bool(self._makes_images)
+
+    async def _can_see_team(self) -> bool:
+        """Whether this run offers ``team_activity``: a text or channel run of
+        a bot whose owner turned on "Can see the team", while the feature is
+        on for its workspace. Read once per run. Same gate for the schema and
+        the handler, so the model is never offered a tool nothing answers."""
+        if self._is_voice:
+            return False
+        if self._sees_team is None:
+            self._sees_team = False
+            try:
+                from api.services.workflow import team_activity
+
+                organization_id = await self._get_organization_id()
+                workflow_id = await self._get_workflow_id()
+                if (
+                    organization_id
+                    and workflow_id
+                    and team_activity.enabled(organization_id)
+                ):
+                    workflow = await db_client.get_workflow(
+                        workflow_id, organization_id=organization_id
+                    )
+                    self._sees_team = bool(
+                        workflow is not None
+                        and team_activity.offered(
+                            organization_id, workflow.workflow_configurations
+                        )
+                    )
+            except Exception as exc:  # noqa: BLE001 - the turn must go on
+                logger.warning("Could not tell whether this bot sees the team: {}", exc)
+        return bool(self._sees_team)
+
+    async def _team_activity_handler(self, function_call_params) -> None:
+        """``team_activity`` for this run's bot. The workspace and the caller
+        come from the run, never from the model; only the range and an agent's
+        name are the model's. Never raises, as with decisions."""
+        from api.services.workflow import team_activity
+
+        arguments = getattr(function_call_params, "arguments", None) or {}
+        result = await team_activity.run(
+            await self._get_organization_id(),
+            arguments if isinstance(arguments, dict) else {},
+            caller_workflow_id=await self._get_workflow_id(),
+        )
+        await function_call_params.result_callback(result)
 
     async def _make_images_handler(self, function_call_params) -> None:
         """``make_images`` for this run's bot (services/images/). The
