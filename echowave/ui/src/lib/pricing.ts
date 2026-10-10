@@ -8,9 +8,10 @@
  * tested, and come back with one line once new price copy is approved.
  *
  * Staff and admin cost screens (superadmin) do not read it: they are not user
- * facing. The checkout itself -- plans, top-ups, autopay -- stays behind
- * `free_mode`, because nothing is charged while that is on, and the moment
- * something is charged the price has to be shown before payment.
+ * facing. There is no checkout: the plans, top-up, autopay, balance and trial
+ * screens were deleted and the server answers 410 to their routes
+ * (api/services/billing/no_checkout.py), because a charge has to show its
+ * price before payment and no price is shown.
  *
  * `pricingGuard.test.ts` fails on a user-facing string with a price in it
  * unless it sits behind this switch or in an allowlisted file.

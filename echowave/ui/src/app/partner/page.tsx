@@ -31,7 +31,7 @@ import {
     submitApplicationApiV1PartnersApplicationPost,
 } from "@/client/sdk.gen";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { BILLING_TABS } from "@/components/layout/SectionTabs";
+import { DOCUMENTS_TABS } from "@/components/layout/SectionTabs";
 import { Button } from "@/components/ui/button";
 import {
     Card,
@@ -225,7 +225,7 @@ export default function PartnerPage() {
     return (
         <>
         <PageHeader
-            tabs={BILLING_TABS}
+            tabs={DOCUMENTS_TABS}
             title="Partner programme"
             description="For developers building on the API, agencies running accounts for clients, and resellers. Your account keeps working exactly as it does now — this adds a commercial arrangement, not a different product."
         />

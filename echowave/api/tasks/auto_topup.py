@@ -141,7 +141,15 @@ async def sweep_auto_topups(_ctx) -> None:
 
     Each account is committed separately. One dead card must not roll back the
     top-ups that worked, and must not stop the accounts after it in the list.
+
+    Does nothing while there is no checkout (services/billing/no_checkout.py):
+    no notice goes out and no saved card is charged.
     """
+    from api.services.billing import no_checkout
+
+    if not no_checkout.is_open():
+        return
+
     now = datetime.now(UTC)
 
     async with db_client.async_session() as session:

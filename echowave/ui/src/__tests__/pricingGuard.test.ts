@@ -26,16 +26,10 @@ const ALLOWED: { path: string; why: string }[] = [
     { path: "components/billing/MarkupOverridesCard.tsx", why: "staff markup overrides" },
     { path: "components/billing/ProviderCatalogue.tsx", why: "staff provider rate catalogue" },
     { path: "lib/billing/", why: "money formatters, no copy of their own" },
-    // The checkout and the record of payments (category D): hidden while
-    // free_mode is on, and a charge has to show its price before payment.
-    { path: "app/billing/", why: "checkout, tax documents and payment history (free_mode-gated)" },
-    { path: "components/billing/PlanSection.tsx", why: "plan checkout (free_mode-gated)" },
-    { path: "components/billing/AutoTopupSection.tsx", why: "autopay checkout (free_mode-gated)" },
-    { path: "components/billing/RateCardSection.tsx", why: "rate card on the checkout (free_mode-gated)" },
-    { path: "components/layout/BalanceChip.tsx", why: "credit balance (free_mode-gated)" },
-    { path: "components/layout/GiftMenu.tsx", why: "earned credits (free_mode-gated)" },
-    { path: "components/layout/v2/TrialBox.tsx", why: "trial and credits (free_mode-gated)" },
-    { path: "app/numbers/", why: "a number's monthly rental, shown at the point of buying it" },
+    // The checkout is gone (the plans, add-credit, autopay, balance chip,
+    // gift menu and trial box files were deleted, and /numbers no longer
+    // quotes a rental), so their entries are gone from this list too. The
+    // Documents page needs none: it carries no price copy.
     { path: "app/partner/", why: "partner commissions, an agreement with a partner" },
     // Price components rendered only behind PRICES_SHOWN at their call site.
     { path: "components/CostPerMinuteBar.tsx", why: "rendered only behind PRICES_SHOWN" },

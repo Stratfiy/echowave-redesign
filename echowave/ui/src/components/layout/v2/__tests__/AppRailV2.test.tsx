@@ -10,7 +10,7 @@ import type { RailData } from "../useRailData";
 
 const state = vi.hoisted(() => ({
   pathname: "/overview",
-  data: { colleagues: [], trial: null, creditsPaise: null } as RailData,
+  data: { colleagues: [] } as RailData,
   features: {} as Record<string, boolean>,
   recents: [] as unknown[],
 }));
@@ -57,7 +57,7 @@ afterEach(cleanup);
 beforeEach(() => {
   state.features = {};
   state.pathname = "/overview";
-  state.data = { colleagues: [], trial: null, creditsPaise: null };
+  state.data = { colleagues: [] };
   state.recents = [];
 });
 
@@ -137,31 +137,14 @@ describe("v2 rail", () => {
     expect(countOf(/^Chat/)).toBeUndefined();
   });
 
-  it("hides the trial box when there is no trial and no credits", () => {
+  it("has no trial box and no credits: nothing is charged and there is no trial", () => {
+    // The rail's foot used to count trial days and credits. Both are gone,
+    // whatever the switches say.
+    state.features = { free_mode: false, trial_plan: true };
     mount();
     expect(screen.queryByTestId("v2-trial-box")).toBeNull();
-  });
-
-  it("shows credits only when there is no trial data", () => {
-    state.data = { ...state.data, creditsPaise: 71_200 };
-    mount();
-    expect(screen.getByTestId("v2-trial-box")).toBeTruthy();
-    expect(screen.queryByTestId("v2-trial-days")).toBeNull();
-    expect(screen.getByText("Credits")).toBeTruthy();
-  });
-
-  it("shows no trial or credits while everything is free", () => {
-    state.features = { free_mode: true };
-    state.data = { ...state.data, trial: { onTrial: true, active: true, daysLeft: 11, days: 14 }, creditsPaise: 71_200 };
-    mount();
-    expect(screen.queryByTestId("v2-trial-box")).toBeNull();
-  });
-
-  it("shows days left when the plan reports a trial", () => {
-    state.data = { ...state.data, trial: { onTrial: true, active: true, daysLeft: 11, days: 14 }, creditsPaise: 71_200 };
-    mount();
-    expect(screen.getByText("11 days left")).toBeTruthy();
-    expect(screen.getByRole("meter").getAttribute("aria-valuenow")).toBe("79");
+    expect(screen.queryByRole("meter")).toBeNull();
+    expect(document.body.textContent ?? "").not.toMatch(/credits|trial/i);
   });
 
   it("never says bot to the reader", () => {

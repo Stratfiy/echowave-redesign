@@ -44,6 +44,7 @@ from api.services.billing import (
     credits,
     document_email,
     documents,
+    no_checkout,
     payments,
     plans,
     subscription_plans,
@@ -319,7 +320,9 @@ async def get_rate_card(user: UserModel = Depends(get_user)) -> RateCardResponse
     return RateCardResponse(**exchange.rate_card())
 
 
-@router.post("/topup")
+@router.post(
+    "/topup", dependencies=[Depends(no_checkout.gone)], include_in_schema=False
+)
 async def create_topup(
     request: TopupRequest, user: UserModel = Depends(get_user)
 ) -> dict[str, Any]:
@@ -424,7 +427,9 @@ class PromoPreviewRequest(BaseModel):
     plan_code: str | None = None
 
 
-@router.post("/promo/preview")
+@router.post(
+    "/promo/preview", dependencies=[Depends(no_checkout.gone)], include_in_schema=False
+)
 async def preview_promo(
     request: PromoPreviewRequest, user: UserModel = Depends(get_user)
 ) -> dict[str, Any]:
@@ -740,7 +745,9 @@ def _mandate_view(mandate) -> dict[str, Any] | None:
     }
 
 
-@router.get("/mandate")
+@router.get(
+    "/mandate", dependencies=[Depends(no_checkout.gone)], include_in_schema=False
+)
 async def get_mandate(user: UserModel = Depends(get_user)) -> dict[str, Any]:
     """This account's autopay mandate, if it has one.
 
@@ -773,7 +780,9 @@ async def get_mandate(user: UserModel = Depends(get_user)) -> dict[str, Any]:
     }
 
 
-@router.post("/mandate")
+@router.post(
+    "/mandate", dependencies=[Depends(no_checkout.gone)], include_in_schema=False
+)
 async def create_mandate(
     user: UserModel = Depends(require_organization_role(OrganizationRole.ADMIN)),
 ) -> dict[str, Any]:
@@ -805,7 +814,7 @@ async def create_mandate(
         return {"mandate": _mandate_view(mandate)}
 
 
-@router.get("/plan")
+@router.get("/plan", dependencies=[Depends(no_checkout.gone)], include_in_schema=False)
 async def get_plan(user: UserModel = Depends(get_user)) -> dict[str, Any]:
     """Every plan on sale, what each includes, and which one this account is on.
 
@@ -965,7 +974,7 @@ async def get_plan(user: UserModel = Depends(get_user)) -> dict[str, Any]:
     }
 
 
-@router.get("/plans")
+@router.get("/plans", dependencies=[Depends(no_checkout.gone)], include_in_schema=False)
 async def public_plans() -> dict[str, Any]:
     """The plan ladder, for anyone: the pricing page reads this.
 
@@ -1020,7 +1029,7 @@ class SubscribeRequest(BaseModel):
     promo_code: str | None = Field(None, max_length=32)
 
 
-@router.post("/plan")
+@router.post("/plan", dependencies=[Depends(no_checkout.gone)], include_in_schema=False)
 async def subscribe_to_plan(
     payload: SubscribeRequest | None = None,
     user: UserModel = Depends(require_organization_role(OrganizationRole.ADMIN)),
@@ -1178,7 +1187,7 @@ async def razorpay_webhook(
     # the commit and in a session of its own, so the referral can neither
     # roll the payment back nor be lost with it; never raises.
     referral = result.get("referral_after_commit")
-    if referral:
+    if referral and no_checkout.is_open():
         from api.services.billing import referral_rewards
 
         await referral_rewards.settle_in_own_session(**referral)
@@ -1229,6 +1238,9 @@ async def _confirm_plan_authorisation(result: dict[str, Any]) -> None:
     organization_id = result.get("organization_id")
     mandate_id = result.get("mandate_id")
     if organization_id is None or mandate_id is None:
+        return
+    if not no_checkout.is_open():
+        # No plan renewal or authorisation emails while there is no checkout.
         return
 
     try:
@@ -1344,7 +1356,9 @@ def _settings_response(row, token, pending) -> dict[str, Any]:
     }
 
 
-@router.get("/auto-topup")
+@router.get(
+    "/auto-topup", dependencies=[Depends(no_checkout.gone)], include_in_schema=False
+)
 async def get_auto_topup(user: UserModel = Depends(get_user)) -> dict[str, Any]:
     """The standing instruction, the instrument behind it, and any debit due.
 
@@ -1364,7 +1378,9 @@ async def get_auto_topup(user: UserModel = Depends(get_user)) -> dict[str, Any]:
         return _settings_response(row, token, pending)
 
 
-@router.put("/auto-topup")
+@router.put(
+    "/auto-topup", dependencies=[Depends(no_checkout.gone)], include_in_schema=False
+)
 async def save_auto_topup(
     request: AutoTopupRequest,
     user: UserModel = Depends(require_organization_role(OrganizationRole.ADMIN)),
@@ -1431,7 +1447,11 @@ async def save_auto_topup(
         return _settings_response(row, token, pending)
 
 
-@router.post("/auto-topup/cancel-pending")
+@router.post(
+    "/auto-topup/cancel-pending",
+    dependencies=[Depends(no_checkout.gone)],
+    include_in_schema=False,
+)
 async def cancel_pending_auto_topup(
     user: UserModel = Depends(require_organization_role(OrganizationRole.ADMIN)),
 ) -> dict[str, Any]:

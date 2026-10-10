@@ -16,9 +16,8 @@ vi.mock("@/context/AppConfigContext", () => ({ useAppConfig: () => ({ config: {}
 vi.mock("@/hooks/useLatestReleaseVersion", () => ({ useLatestReleaseVersion: () => ({ isBehind: false }) }));
 vi.mock("@/components/layout/OrganizationSwitcher", () => ({ OrganizationSwitcher: () => null }));
 vi.mock("@/components/layout/SidebarTeamSwitcher", () => ({ SidebarTeamSwitcher: () => null }));
-vi.mock("../useRailData", () => ({ useRailData: () => ({ colleagues: [], trial: null, creditsPaise: null }) }));
+vi.mock("../useRailData", () => ({ useRailData: () => ({ colleagues: [] }) }));
 vi.mock("../RecentsList", () => ({ RecentsList: () => null }));
-vi.mock("../TrialBox", () => ({ TrialBox: () => null }));
 vi.mock("@/components/ui/sidebar", () => ({
     Sidebar: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
     SidebarTrigger: () => null,

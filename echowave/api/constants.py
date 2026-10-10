@@ -761,8 +761,11 @@ INVITE_DECISION_TTL_DAYS = int(os.getenv("INVITE_DECISION_TTL_DAYS", "14"))
 # A rejected request is told nothing unless this is on; then it gets one
 # kind line.
 INVITE_REJECT_NOTIFY = _flag("INVITE_REJECT_NOTIFY")
-# PLAN-1 (KAN-255): a time-boxed trial plan replaces Free for new accounts.
-TRIAL_PLAN_ENABLED = _flag("TRIAL_PLAN_ENABLED")
+# PLAN-1 (KAN-255): a time-boxed trial plan replaced Free for new accounts.
+# Off for good: with no checkout there is no plan to choose when a trial ends,
+# so the trial lifecycle and its emails are retired (founder, 9 Oct 2026; see
+# services/billing/no_checkout.py). A constant, not the environment's call.
+TRIAL_PLAN_ENABLED = False
 # BYOK-1 (KAN-254): Decibyl, the builder and Decibyl routines use the
 # account's own model key when one is in the vault.
 BYOK_TEXT_ENABLED = _flag("BYOK_TEXT_ENABLED")
@@ -1087,6 +1090,26 @@ FREE_MODE_ENABLED = os.getenv("FREE_MODE_ENABLED", "true").strip().lower() == "t
 # because turning it back on needs new price copy from the founder first.
 PRICES_SHOWN = False
 
+# There is no checkout (founder, 9 Oct 2026). Plans, top-ups, auto top-up, promo
+# codes and autopay mandates are closed: their routes answer 410 Gone and no
+# code path creates a Razorpay order, subscription or mandate. A constant, not
+# an environment variable, for the same reason as PRICES_SHOWN: reopening it
+# needs new price copy from the founder first. The Razorpay webhook stays
+# open for refunds and in-flight events. See services/billing/no_checkout.py.
+CHECKOUT_OPEN = False
+
+# The most phone numbers Decibyl will rent for one account while nothing is
+# charged. A usage limit, not a price: the carrier bills us for every number
+# every month (NUMBER_RENTAL_COST_PAISE), so free numbers need a ceiling.
+# Counted over rentals that are not released or cancelled. A constant on
+# purpose; raising it is a code change someone has to justify.
+MAX_MANAGED_NUMBERS_PER_ACCOUNT = 3
+
+# Whether a number that goes unpaid is suspended and, after 45 days, becomes
+# eligible for release (services/billing/dunning.py). Off: nothing is charged,
+# so a number is never suspended or released because billing stopped.
+RENTAL_SUSPEND_AND_RELEASE_ENABLED = False
+
 # Per-organisation overrides: "feature:org_id,org_id;feature2:org_id". A
 # feature listed here is on for those organisations even while its global
 # flag is off, so it can be tried by the platform organisation and one
@@ -1379,9 +1402,11 @@ RAZORPAY_RENTAL_PLAN_ID_EXPORT = os.getenv("RAZORPAY_RENTAL_PLAN_ID_EXPORT") or 
 # whose prepaid balance ran out, with nothing standing behind the rent. Set it
 # false only while Subscriptions activation is still pending — with it false the
 # rental falls back to the prepaid balance and the dunning schedule.
-REQUIRE_MANDATE_FOR_NUMBERS = (
-    os.getenv("REQUIRE_MANDATE_FOR_NUMBERS", "true").lower() != "false"
-)
+#
+# Off for good (there is no checkout, so no mandate can be created): a number is
+# issued without one, and MAX_MANAGED_NUMBERS_PER_ACCOUNT is what bounds the
+# rent we carry instead.
+REQUIRE_MANDATE_FOR_NUMBERS = False
 
 # The Google OAuth client the calendar flow authorizes against is the same one
 # sign-in uses, defined once near the top of this file — including which

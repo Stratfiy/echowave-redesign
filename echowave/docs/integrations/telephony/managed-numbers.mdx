@@ -1,14 +1,13 @@
 ---
 title: "Managed Numbers"
-description: "Rent an Indian phone number from Decibyl, with verification and billing handled for you"
+description: "Get an Indian phone number from Decibyl, with verification handled for you"
 ---
 
 ## Overview
 
 A managed number is a phone number Decibyl rents from the carrier on your
 behalf. You get a number without opening a carrier account, and we handle the
-telecom compliance application, the number-to-application wiring, and the
-monthly rental.
+telecom compliance application and the number-to-application wiring.
 
 The alternative is bring-your-own: you open a Plivo (or Twilio, Telnyx,
 Vonage…) account yourself and add its credentials under
@@ -22,16 +21,16 @@ licensee to verify each end customer, which is why the verification step below
 exists and cannot be skipped.
 </Note>
 
-## What it costs
+## How many numbers
 
-A managed number is a monthly rental, and the Numbers screen shows it before you buy. It is billed monthly by autopay, from the bank account you authorise, and the first month is prorated by day from the day you buy.
+Numbers are provided without charge for now, and no price is shown or collected.
+Each number costs Decibyl carrier rent every month, so one account can hold a
+limited number of them (three). Asking for another is refused with **409** and a
+message saying so; give one back to free a place, or ask us from Help if you
+need more.
 
-The rental accrues whether or not you place a single call. It is a separate
-line from per-call charges — a quiet month still costs the rental.
-
-If autopay is ever revoked, the rental falls back to your prepaid credit
-balance and the unpaid schedule below applies. Nothing is released because you
-turned autopay off.
+Nothing about a number depends on a payment: no number is suspended or
+released because billing stopped, and there is no autopay to set up.
 
 ## Before you can buy a number
 
@@ -118,32 +117,7 @@ curl -X POST https://api.decibyl.ai/api/v1/managed-numbers/search \
 An empty list is a normal answer. Indian local inventory is thin and moves
 during the day — try a different city, or try again later.
 
-### Authorise autopay first
-
-A number is monthly rent from the day it is issued, so a standing instruction
-has to be in place before one is handed over. Start it once per account:
-
-```bash
-curl -X POST https://api.decibyl.ai/api/v1/billing/mandate \
-  -H "X-API-Key: $DECIBYL_API_KEY"
-```
-
-The response carries an `authorisation_url` — a Razorpay-hosted page where the
-authorisation actually happens (UPI Autopay, card, or eNACH). Open it in a
-browser and complete it there.
-
-<Note>
-Completing that page does not immediately make the mandate usable. The
-authorisation is confirmed by your bank, and Decibyl only treats it as valid
-once the payment provider tells us so. Poll `GET /billing/mandate` until
-`authorised` is `true` — usually seconds, occasionally longer.
-</Note>
-
-Buying before the mandate is authorised is refused with **403** and a message
-saying so. That is deliberate: a number issued against an unauthorised mandate
-is rent nobody has agreed to pay.
-
-### Then buy one
+### Then get one
 
 ```bash
 curl -X POST https://api.decibyl.ai/api/v1/managed-numbers \
@@ -165,36 +139,13 @@ carrier — you are never left paying for a number that does not work.
 Set `inbound_workflow_id` to the agent that should answer. You can attach one
 later, but a number with no agent rejects inbound calls.
 
-## When a rental goes unpaid
+## Numbers are never released for billing
 
-With autopay authorised, the rental is collected from your bank on the monthly
-cycle and never touches your prepaid credit. If the mandate is revoked, halted
-by your bank, or was never set up, collection falls back to that balance —
-which is where the schedule below starts. If the balance is
-short, here is exactly what happens — no step is skipped and nothing happens
-sooner than stated:
-
-| Day | What happens |
-|---|---|
-| 0 | The charge fails. We retry daily. **Calls still work** |
-| 7 | Calls on that number are paused. **The number is still yours** |
-| 15, 25 | Reminders |
-| 45 | The number becomes *eligible* for release |
-
-You are emailed before any of this bites, not after: a warning goes out when
-your balance drops below about ten days of your recent usage, and a more urgent
-one under three. The address used is every account member's, so keep at least
-one that somebody reads.
-
-Two things worth being clear about:
-
-- **Topping up restores everything immediately.** A suspended number is fully
-  recoverable — the number is still held at the carrier, and the next
-  successful charge reactivates it and resets the clock.
-- **Nothing is released automatically.** Day 45 is when release becomes
-  permitted, not when it happens. Releasing a number is irreversible — it goes
-  back to the carrier's pool and may be issued to someone else — so it always
-  takes a deliberate action.
+A number is released only when you ask for it. It is not suspended, warned about
+or made eligible for release because a payment is missing, and nothing is
+released automatically. Releasing a number is irreversible, since it goes back
+to the carrier's pool and may be issued to someone else, so it always takes a
+deliberate action with a reason.
 
 ## Giving a number up
 
@@ -211,7 +162,7 @@ issued to someone else the same day. If it is printed on your signage,
 vehicles or invoices, you will not get it back. A reason is required.
 </Warning>
 
-Billing stops when the number is released. We keep the record that you held it.
+We keep the record that you held it.
 
 ## Checking status
 
@@ -219,7 +170,6 @@ Ask Claude, if you have the [MCP server](/integrations/mcp) connected:
 
 > "Why can't my agent make calls?"
 > "What phone numbers do I have and what's answering on each?"
-> "What am I paying monthly?"
 
 Or over the API: `GET /api/v1/kyc` for verification, and the telephony
 configuration endpoints for numbers.
@@ -243,8 +193,8 @@ configuration endpoints for numbers.
 
   <Accordion title="Inbound calls to my number are rejected">
     Either no agent is attached (`inbound_workflow_id` is null) or the number
-    is suspended for non-payment. Check the number's `status` — `active` means
-    routing is fine, `suspended` means the rental is unpaid.
+    is suspended. Check the number's `status` — `active` means routing is
+    fine. Billing never suspends a number.
   </Accordion>
 
   <Accordion title="My account was approved and now says suspended">

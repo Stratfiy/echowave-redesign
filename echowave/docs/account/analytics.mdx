@@ -53,7 +53,7 @@ Money conflates two different things: how busy the account was, and how expensiv
 The **By model** table is the split a per-call total cannot give you: which model consumed the tokens, what it cost, tokens per call, and an effective cost per 1,000 tokens. That last figure is derived from what was actually spent rather than read off the rate card — so a model priced at one rate and billed at another shows up here as the discrepancy it is.
 
 <Note>
-Agents running on your own provider keys are billed by that provider directly and do not appear here. If **By model** is empty on an account that is clearly making calls, check whether it is running BYOK — see [Billing](/account/billing).
+Agents running on your own provider keys are billed by that provider directly and do not appear here. If **By model** is empty on an account that is clearly making calls, check whether it is running BYOK.
 </Note>
 
 ### Context growth
@@ -79,10 +79,10 @@ Alongside it, the two numbers a prepaid account actually needs:
 - **Daily average** — burn rate, averaged across *every* day in the window, quiet ones included. An account that only calls on weekdays still runs out on a Sunday, and a projection that skips the quiet days is optimistic in the direction that hurts.
 - **Credit lasts** — days remaining at that rate. Amber at 21 days, red at 7. It reads `—` when there has been no spend to project from.
 
-Top up before **Credit lasts** goes red — calls stop at a zero balance. See [Billing](/account/billing) for top-ups and autopay.
+**Credit lasts** is a projection, not a limit: nothing is charged for now, so there is no balance to top up and no price to plan around.
 
 ## Related
 
 - [Usage Metrics](/account/usage-metrics) — the metric definitions, and the same figures over the API
-- [Billing](/account/billing) — GST invoices and receipts
+- [Documents](/account/documents) — GST invoices, receipts and credit notes
 - [Calls and runs](/core-concepts/calls-and-runs) — what a run is and what gets recorded

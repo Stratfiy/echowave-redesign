@@ -80,10 +80,6 @@ export const PROFILE_LINKS = [
 export const RAIL_COPY = {
   navLabel: "Homes",
   recents: "Recents",
-  trialLabel: "Trial · invite-only",
-  daysLeft: (n: number) => (n === 1 ? "1 day left" : `${n} days left`),
-  trialEnded: "Trial ended",
-  credits: "Credits",
   state: {
     live: "Live",
     needs_you: "Needs you",
@@ -98,7 +94,7 @@ function matches(pathname: string, path: string): boolean {
 
 /**
  * The home a pathname belongs to: the longest matching prefix wins, so
- * /workflow/12/thread is still Agents, and /billing is Settings.
+ * /workflow/12/thread is still Agents, and /documents is Settings.
  */
 export function activeHome(pathname: string): HomeId | undefined {
   let best: { id: HomeId; length: number } | undefined;

@@ -420,6 +420,9 @@ async def create_rental_mandate(
     second one. A customer who abandons the authorisation page and comes back
     must not end up with two banks collecting for the same number.
     """
+    from api.services.billing.no_checkout import assert_open
+
+    assert_open("A rental mandate")
     existing = await get_mandate(session, organization_id=organization_id)
     if existing is not None:
         return existing
@@ -531,6 +534,9 @@ async def create_plan_mandate(
     an account holding this one must not also hold a rental mandate — see
     ``NUMBER_BEARING_PURPOSES``.
     """
+    from api.services.billing.no_checkout import assert_open
+
+    assert_open("A plan mandate")
     existing = await get_mandate(
         session, organization_id=organization_id, purpose=PURPOSE_STARTER_PLAN
     )

@@ -53,6 +53,13 @@ def starts_at_floor() -> datetime:
 
 
 def applies(organization_id: int | None) -> bool:
+    # No checkout, so no plan to choose when a trial ends: the trial lifecycle
+    # is off for good, whatever the ``trial_plan`` flag says
+    # (services/billing/no_checkout.py).
+    from api.services.billing.no_checkout import is_open
+
+    if not is_open():
+        return False
     # No trial while everything is free, so none can end (free_mode.py).
     if features.is_on("free_mode", organization_id):
         return False
@@ -224,9 +231,13 @@ async def send_notices() -> dict[str, int]:
 
     from api.db import db_client
     from api.db.models import OrganizationModel
+    from api.services.billing.no_checkout import is_open
     from api.services.messaging.announce import announce
 
     counts = {"checked": 0, "sent": 0}
+    if not is_open():
+        # Off: no trial, so no countdown to announce (see ``applies``).
+        return counts
     async with db_client.async_session() as session:
         ids = (await session.execute(select(OrganizationModel.id))).scalars().all()
     for organization_id in ids:

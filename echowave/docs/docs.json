@@ -140,7 +140,7 @@
           {
             "group": "Account",
             "pages": [
-              "account/billing",
+              "account/documents",
               "account/analytics",
               "account/roles-and-permissions",
               "account/tax-documents",
@@ -373,17 +373,11 @@
                 ]
               },
               {
-                "group": "Billing",
+                "group": "Documents",
                 "pages": [
                   "api-reference/billing",
                   "api-reference/billing/balance",
-                  "api-reference/billing/plans",
-                  "api-reference/billing/plan",
-                  "api-reference/billing/subscribe",
-                  "api-reference/billing/topup",
                   "api-reference/billing/payments",
-                  "api-reference/billing/auto-topup-get",
-                  "api-reference/billing/auto-topup-save",
                   "api-reference/billing/documents-list",
                   "api-reference/billing/documents-get",
                   "api-reference/billing/documents-pdf"

@@ -194,6 +194,11 @@ async def create_topup_order(
     later has something to reconcile against and cannot be the first thing that
     tells us an order existed.
     """
+    # There is no checkout: no order is ever opened (services/billing/no_checkout.py).
+    from api.services.billing.no_checkout import assert_open
+
+    assert_open("A top-up order")
+
     # The amount is checked before the credentials are. Both raise PaymentError,
     # and which one fires decides what the customer is told: an amount they can
     # correct, or a configuration problem that is ours. Reading the environment
@@ -602,6 +607,9 @@ async def charge_saved_token(
     is final for this attempt, and the caller records it against the attempt
     ledger so the consecutive-failure stop can see it.
     """
+    from api.services.billing.no_checkout import assert_open
+
+    assert_open("A saved-card charge")
     key_id, key_secret = _require_api_credentials()
 
     if token.status != "active":
