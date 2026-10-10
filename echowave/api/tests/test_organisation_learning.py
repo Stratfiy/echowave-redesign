@@ -103,8 +103,7 @@ class TestLearningNeverBreaksACall:
         nothing a failure could usefully interrupt -- and an exception escaping
         here would take the run's other post-call bookkeeping with it."""
         with patch(
-            "api.services.workflow.organisation_learning.db_client"
-            ".remember_organisation_observations",
+            "api.services.workflow.organisation_learning.db_client.learn_from_run_once",
             AsyncMock(side_effect=RuntimeError("database on fire")),
         ):
             assert (
@@ -119,8 +118,7 @@ class TestLearningNeverBreaksACall:
     @pytest.mark.asyncio
     async def test_nothing_learned_means_nothing_written(self):
         with patch(
-            "api.services.workflow.organisation_learning.db_client"
-            ".remember_organisation_observations",
+            "api.services.workflow.organisation_learning.db_client.learn_from_run_once",
             AsyncMock(),
         ) as write:
             await learning.learn_from_run(

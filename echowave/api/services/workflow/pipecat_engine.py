@@ -56,6 +56,7 @@ from api.services.workflow import (
     actions,
     agent_timeline,
     decisions,
+    fact_selection,
     organisation_memory,
     secrets_request,
     self_edit,
@@ -412,12 +413,24 @@ class PipecatEngine:
         """
         if self._remembered_block is None:
             try:
-                remembered = await organisation_memory.recall_for_bot(
-                    organization_id=await self._get_organization_id(),
-                    workflow_id=await self._get_workflow_id(),
-                )
+                organization_id = await self._get_organization_id()
+                workflow_id = await self._get_workflow_id()
+                if fact_selection.enabled(organization_id):
+                    # Context v2: the bot's instructions and rules, then the
+                    # facts that bear on its job and on who is on the line,
+                    # rather than the most-seen forty (fact_selection).
+                    remembered, left_out = await fact_selection.remembered_for_bot(
+                        organization_id, workflow_id, self._memory_query()
+                    )
+                else:
+                    remembered = await organisation_memory.recall_for_bot(
+                        organization_id=organization_id,
+                        workflow_id=workflow_id,
+                    )
+                    left_out = 0
                 self._remembered_block = (
-                    organisation_memory.remembered_block(remembered) or ""
+                    organisation_memory.remembered_block(remembered, left_out=left_out)
+                    or ""
                 )
             except Exception as exc:  # noqa: BLE001 - the call must go on
                 # The run lookup is not inside recall_for_bot's guard, and a
@@ -431,6 +444,17 @@ class PipecatEngine:
                 )
                 self._remembered_block = ""
         return self._remembered_block
+
+    def _memory_query(self) -> str:
+        """What a bot's confirmed facts are chosen against on a call: its own
+        steps (its job) and who is on the line. There is no question yet when
+        the prompt is built, and the block must stay byte-identical for the
+        call so the provider's prompt cache holds."""
+        parts = [str(node.prompt or "") for node in self.workflow.nodes.values()]
+        caller = caller_block(self._call_context_vars)
+        if caller:
+            parts.append(caller)
+        return "\n".join(parts)
 
     async def _get_skills_block(self) -> str:
         """The procedures on this bot, read once and then held.
@@ -541,6 +565,25 @@ class PipecatEngine:
             self.llm._context = self.context
 
         await self.llm._update_settings(LLMSettings(system_instruction=system_prompt))
+        self._measure_request(system_prompt, functions)
+
+    def _measure_request(self, system_prompt: str, functions: list) -> None:
+        """Context v2: one log line when this call's request is over its
+        vendor's ceiling (``request_budget.measure_pipeline``). Measures
+        only; the call's request is never cut here."""
+        from api.services.agent_builder import request_budget
+
+        try:
+            if not request_budget.enabled(self._organization_id):
+                return
+            request_budget.measure_pipeline(
+                request_budget.vendor_of(self.llm),
+                system_prompt,
+                functions,
+                list(self.context.messages) if self.context else [],
+            )
+        except Exception as exc:  # noqa: BLE001 - a measurement never ends a call
+            logger.debug("Could not measure the call's request: {}", exc)
 
     def _format_prompt(self, prompt: str) -> str:
         """Delegate prompt formatting to the shared workflow.utils implementation."""

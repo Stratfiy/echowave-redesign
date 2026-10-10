@@ -990,6 +990,11 @@ CALL_WHEN_DONE_ENABLED = _flag("CALL_WHEN_DONE_ENABLED")
 # voice conversation with that agent as a teammate. Changes it proposes are
 # cards in the thread; nothing is published by voice.
 HUDDLE_ENABLED = _flag("HUDDLE_ENABLED")
+# Context v2: every model request is checked against a hard request ceiling
+# (services/agent_builder/request_budget.py) and confirmed memory is chosen
+# for the question rather than by popularity (services/workflow/
+# fact_selection.py). Off: the plan's window and the most-seen forty.
+CONTEXT_V2_ENABLED = _flag("CONTEXT_V2_ENABLED")
 # How long a finished task waits before its call is placed, so tasks that
 # finish together are said in one call rather than one call each.
 CALL_WHEN_DONE_GATHER_SECONDS = int(os.getenv("CALL_WHEN_DONE_GATHER_SECONDS", "60"))

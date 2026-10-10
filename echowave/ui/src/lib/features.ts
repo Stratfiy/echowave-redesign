@@ -137,6 +137,8 @@ export type Feature =
     | "escalation_v2"
     // The huddle: talk to an agent as a teammate, in its thread.
     | "huddle"
+    // Context v2: a hard request ceiling and memory chosen for the question.
+    | "context_v2"
     // People: synced contacts with context (PEOPLE.md).
     | "people"
     // Voice isolation: background voices on calls (VOICE.md).

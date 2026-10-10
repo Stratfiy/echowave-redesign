@@ -4,7 +4,7 @@ import re
 from datetime import UTC, datetime, timedelta
 from typing import Any, Optional
 
-from sqlalchemy import and_, case, func, or_, select
+from sqlalchemy import and_, case, func, or_, select, text
 from sqlalchemy import update as sa_update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
@@ -89,6 +89,24 @@ def _scope(workflow_id: Optional[int], user_id: Optional[int] = None):
     )
 
 
+def _keeps_what_it_replaces(statement) -> dict[str, Any]:
+    """``ON CONFLICT`` assignments that keep the value a write replaces.
+
+    Only a changed value moves into ``previous_value`` (with the time in
+    ``superseded_at``); the same value said again leaves both as they were,
+    so a repeat never erases the record of the last real correction. The
+    right-hand side of an ``ON CONFLICT DO UPDATE`` reads the row as it was,
+    so ``value`` here is the old one."""
+    table = OrganisationFactModel.__table__
+    changed = table.c.value.is_distinct_from(statement.excluded.value)
+    return {
+        "previous_value": case((changed, table.c.value), else_=table.c.previous_value),
+        "superseded_at": case(
+            (changed, statement.excluded.last_seen_at), else_=table.c.superseded_at
+        ),
+    }
+
+
 #: ``key`` is 128 characters and carries the identity of an observation, so a
 #: long question has to fold onto a stable short form. Lowercased and stripped
 #: of punctuation so "Do you open on Saturday?" and "do you open on saturday"
@@ -96,6 +114,84 @@ def _scope(workflow_id: Optional[int], user_id: Optional[int] = None):
 def _slug(value: str) -> str:
     cleaned = re.sub(r"[^a-z0-9]+", "_", str(value or "").lower()).strip("_")
     return (cleaned or "unknown")[:128]
+
+
+#: The run's one-time claim on teaching the organisation anything: a
+#: conditional UPDATE, so of two racing workers exactly one gets a row back.
+_CLAIM_RUN = text(
+    """
+    UPDATE workflow_runs
+    SET annotations = (
+        COALESCE(annotations, '{}')::jsonb
+        || '{"learned_from": true}'::jsonb
+    )::json
+    WHERE id = :run_id
+      AND NOT (COALESCE(annotations, '{}')::jsonb ? 'learned_from')
+    RETURNING id
+    """
+)
+
+
+def _observation_rows(
+    organization_id: int,
+    source_run_id: Optional[int],
+    observations: list[dict[str, str]],
+) -> list[dict[str, Any]]:
+    """Observations as ``organisation_facts`` rows, one per identity.
+
+    Two observations that fold onto the same (gap, slug) are one row: a
+    single INSERT .. ON CONFLICT may not touch the same row twice, and a
+    caller who asked the same thing twice has not doubled the problem.
+    """
+    now = datetime.now(UTC)
+    rows: dict[tuple[str, str], dict[str, Any]] = {}
+    for observation in observations or []:
+        value = str(observation.get("value") or "").strip()
+        if not value:
+            continue
+        subject_key = str(observation.get("key") or "")[:255]
+        key = _slug(value)
+        rows.setdefault(
+            (subject_key, key),
+            {
+                "organization_id": organization_id,
+                # A gap is something the BUSINESS cannot answer. Scoping it
+                # to the bot that ran into it would hide from every other
+                # bot the one question worth answering.
+                "workflow_id": None,
+                "subject_type": SUBJECT_ORGANISATION,
+                "subject_key": subject_key,
+                "key": key,
+                "value": value,
+                "kind": str(observation.get("kind") or "gap"),
+                "status": "learned",
+                "source_run_id": source_run_id,
+                "times_seen": 1,
+                "first_seen_at": now,
+                "last_seen_at": now,
+            },
+        )
+    return list(rows.values())
+
+
+def _observation_upsert(rows: list[dict[str, Any]]):
+    """One INSERT for the rows; a repeat bumps ``times_seen``."""
+    index_elements, index_where = _scope(None)
+    statement = pg_insert(OrganisationFactModel).values(rows)
+    return statement.on_conflict_do_update(
+        index_elements=index_elements,
+        index_where=index_where,
+        set_={
+            "last_seen_at": statement.excluded.last_seen_at,
+            "source_run_id": statement.excluded.source_run_id,
+            "times_seen": OrganisationFactModel.__table__.c.times_seen + 1,
+        },
+        # A gap somebody already rejected stays rejected however often it
+        # recurs. Otherwise dismissing something would only silence it
+        # until the next call, and a list that will not stay dismissed is
+        # a list people stop reading.
+        where=OrganisationFactModel.__table__.c.status != "rejected",
+    )
 
 
 class OrganisationFactClient(BaseDBClient):
@@ -152,6 +248,7 @@ class OrganisationFactClient(BaseDBClient):
             index_elements=index_elements,
             index_where=index_where,
             set_={
+                **_keeps_what_it_replaces(statement),
                 "value": statement.excluded.value,
                 "source_run_id": statement.excluded.source_run_id,
                 "last_seen_at": statement.excluded.last_seen_at,
@@ -227,57 +324,57 @@ class OrganisationFactClient(BaseDBClient):
 
         Everything written here is ``learned``. Nothing reaches an agent's
         prompt until somebody says yes.
-        """
-        if not observations:
-            return 0
 
-        now = datetime.now(UTC)
-        rows = []
-        for observation in observations:
-            value = str(observation.get("value") or "").strip()
-            if not value:
-                continue
-            rows.append(
-                {
-                    "organization_id": organization_id,
-                    # A gap is something the BUSINESS cannot answer. Scoping it
-                    # to the bot that ran into it would hide from every other
-                    # bot the one question worth answering.
-                    "workflow_id": None,
-                    "subject_type": SUBJECT_ORGANISATION,
-                    "subject_key": str(observation.get("key") or "")[:255],
-                    "key": _slug(value),
-                    "value": value,
-                    "kind": str(observation.get("kind") or "gap"),
-                    "status": "learned",
-                    "source_run_id": source_run_id,
-                    "times_seen": 1,
-                    "first_seen_at": now,
-                    "last_seen_at": now,
-                }
-            )
+        No per-run guard: a caller learning from a run uses
+        :meth:`learn_from_run_once`, which claims the run in the same
+        transaction.
+        """
+        rows = _observation_rows(organization_id, source_run_id, observations)
         if not rows:
             return 0
-
-        index_elements, index_where = _scope(None)
-        statement = pg_insert(OrganisationFactModel).values(rows)
-        statement = statement.on_conflict_do_update(
-            index_elements=index_elements,
-            index_where=index_where,
-            set_={
-                "last_seen_at": statement.excluded.last_seen_at,
-                "source_run_id": statement.excluded.source_run_id,
-                "times_seen": OrganisationFactModel.__table__.c.times_seen + 1,
-            },
-            # A gap somebody already rejected stays rejected however often it
-            # recurs. Otherwise dismissing something would only silence it
-            # until the next call, and a list that will not stay dismissed is
-            # a list people stop reading.
-            where=OrganisationFactModel.__table__.c.status != "rejected",
-        )
-
         async with self.async_session() as session:
-            await session.execute(statement)
+            await session.execute(_observation_upsert(rows))
+            await session.commit()
+        return len(rows)
+
+    async def learn_from_run_once(
+        self,
+        *,
+        organization_id: int,
+        run_id: Optional[int],
+        observations: list[dict[str, str]],
+    ) -> Optional[int]:
+        """Claim the run and record what it taught, in ONE transaction.
+
+        Returns how many observations were written, or ``None`` when the run
+        has already taught the organisation what it knows (or does not exist).
+
+        ``times_seen`` is the sentence a suggestion shows a customer -- "seven
+        callers asked this and no agent could answer" -- and it increments
+        through ``ON CONFLICT DO UPDATE``, so the same run counted twice makes
+        the product state a number that is not true. The claim is what stops
+        that: ``learned_from`` on the run's annotations, set by one conditional
+        UPDATE so two racing workers cannot both see an unclaimed run. The
+        second one blocks on the row lock the first holds and, once that
+        commits, re-checks the predicate and claims nothing.
+
+        The claim used to commit on its own, before the observations were
+        written in a second transaction. A database error or a worker dying
+        between the two left a run marked learned with nothing recorded, and
+        every retry skipped it: the observation was lost for good. Here the
+        claim and the writes commit together or not at all, so a failure
+        leaves the run unclaimed and the retry records it exactly once.
+        """
+        if run_id is None:
+            return None
+        rows = _observation_rows(organization_id, run_id, observations)
+        async with self.async_session() as session:
+            claimed = await session.execute(_CLAIM_RUN, {"run_id": run_id})
+            if claimed.first() is None:
+                await session.rollback()
+                return None
+            if rows:
+                await session.execute(_observation_upsert(rows))
             await session.commit()
         return len(rows)
 
@@ -353,6 +450,7 @@ class OrganisationFactClient(BaseDBClient):
             index_elements=index_elements,
             index_where=index_where,
             set_={
+                **_keeps_what_it_replaces(statement),
                 "value": statement.excluded.value,
                 "status": statement.excluded.status,
                 "confirmed_at": statement.excluded.confirmed_at,
@@ -375,8 +473,14 @@ class OrganisationFactClient(BaseDBClient):
         include_bots: bool = False,
         limit: int = 200,
         user_id: Optional[int] = None,
+        matching: Optional[list[str]] = None,
     ) -> list[Any]:
         """What this business knows and what it still cannot answer.
+
+        ``matching`` narrows to rows whose key or value contains any of the
+        words (case-insensitive) -- how a question finds a rare fact that the
+        most-seen order would leave past ``limit``. The scope rules below
+        apply unchanged: it narrows, it never widens.
 
         ``user_id`` adds that member's personal memory (MEM-1) to whichever
         scope is asked for. Without it no member's personal memory is ever
@@ -421,6 +525,20 @@ class OrganisationFactClient(BaseDBClient):
                 query = query.where(OrganisationFactModel.kind == kind)
             if status:
                 query = query.where(OrganisationFactModel.status == status)
+            words = [w for w in (matching or []) if w]
+            if words:
+                query = query.where(
+                    or_(
+                        *(
+                            column.icontains(word, autoescape=True)
+                            for word in words
+                            for column in (
+                                OrganisationFactModel.key,
+                                OrganisationFactModel.value,
+                            )
+                        )
+                    )
+                )
             query = query.order_by(
                 OrganisationFactModel.times_seen.desc(),
                 OrganisationFactModel.last_seen_at.desc(),

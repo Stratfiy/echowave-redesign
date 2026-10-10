@@ -5986,6 +5986,12 @@ class OrganisationFactModel(Base):
 
     key = Column(String(128), nullable=False)
     value = Column(Text, nullable=False)
+    #: The value the latest correction replaced, and when. A correction
+    #: rewrites ``value`` (one answer per fact is what the prompt needs);
+    #: these keep what it said before, so a wrong correction can be undone
+    #: and "what was it until Tuesday?" has an answer. NULL until corrected.
+    previous_value = Column(Text, nullable=True)
+    superseded_at = Column(DateTime(timezone=True), nullable=True)
 
     #: "fact" or "gap". A fact is something we now know; a gap is something a
     #: caller wanted that no agent could answer or do.
