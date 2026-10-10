@@ -122,6 +122,63 @@ describe('the card', () => {
         expect(screen.getByRole('button', { name: 'Discard' })).toBeTruthy();
     });
 
+    it('a card whose step was edited elsewhere since points at the editor', () => {
+        render(
+            <EditCard
+                event={event({
+                    payload: {
+                        step: 'Find a slot',
+                        diff: DIFF,
+                        refused: {
+                            kind: 'conflict',
+                            reasons: ['This change was edited elsewhere since — open the editor.'],
+                        },
+                    },
+                })}
+            />,
+        );
+        const refused = screen.getByTestId('edit-refused');
+        expect(refused.textContent).toContain('edited elsewhere since');
+        expect(screen.getByTestId('open-editor').getAttribute('href')).toBe('/workflow/3');
+        // Discard still takes the card's own change out.
+        expect(screen.getByRole('button', { name: 'Discard' })).toBeTruthy();
+    });
+
+    it('a conflict on the click links to the editor too', async () => {
+        settle.mockResolvedValue({
+            error: { detail: 'This change was edited elsewhere since — open the editor.' },
+        });
+        render(<EditCard event={event()} />);
+        fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
+        expect((await screen.findByRole('alert')).textContent).toContain('edited elsewhere since');
+        expect(screen.getByTestId('open-editor').getAttribute('href')).toBe('/workflow/3');
+    });
+
+    it('a card from before the update says so honestly, and can still be discarded', () => {
+        render(
+            <EditCard
+                event={event({
+                    payload: {
+                        step: 'Find a slot',
+                        diff: DIFF,
+                        refused: {
+                            kind: 'legacy',
+                            reasons: [
+                                "This card was made before an update and can't be applied on its own — open the editor to review it.",
+                            ],
+                        },
+                    },
+                })}
+            />,
+        );
+        const refused = screen.getByTestId('edit-refused');
+        expect(refused.textContent).toContain("made before an update and can't be applied on its own");
+        expect(refused.textContent).not.toContain('edited elsewhere');
+        expect(screen.getByTestId('open-editor').getAttribute('href')).toBe('/workflow/3');
+        expect(screen.queryByRole('button', { name: 'Publish' })).toBeNull();
+        expect(screen.getByRole('button', { name: 'Discard' })).toBeTruthy();
+    });
+
     it('a refused publish says why', async () => {
         settle.mockResolvedValue({
             error: { detail: 'This change cannot go live yet: Field required (position on node 1)' },

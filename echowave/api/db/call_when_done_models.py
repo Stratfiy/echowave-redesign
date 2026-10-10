@@ -101,7 +101,8 @@ class DoneCallModel(Base):
 
     ``state``: ``queued`` -> ``calling`` -> ``answered`` | ``not_answered``
     | ``failed`` | ``unknown``; or ``notified`` when no call could be placed
-    and the person was told in the app instead. ``calling`` means claimed
+    and the person was told in the app instead; or ``cancelled`` when the
+    person cancelled it before it was dialled (it never rings). ``calling`` means claimed
     and being dialled; ``unknown`` means a dial may have reached the carrier
     but nothing has proved what happened -- never re-dialled, reconciled
     against the run, and corrected by late evidence (``outcome_history``

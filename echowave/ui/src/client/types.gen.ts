@@ -6602,6 +6602,10 @@ export type Dose = {
      * Alerted
      */
     alerted: boolean;
+    /**
+     * Taken In App
+     */
+    taken_in_app?: boolean;
 };
 
 /**
@@ -7590,6 +7594,10 @@ export type FamilyDose = {
      * State
      */
     state: string;
+    /**
+     * Taken In App
+     */
+    taken_in_app?: boolean;
 };
 
 /**

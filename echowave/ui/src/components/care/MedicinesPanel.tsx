@@ -368,9 +368,10 @@ function MedicineRow({ medicine, languages, onChanged }: { medicine: Medicine; l
                         <li key={dose.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-muted/40 px-3 py-2">
                             <span>
                                 {localTime(dose.due_at, medicine.timezone)}: <strong>{medicine.channel === "app" && dose.state === "not_answered" ? "Not confirmed" : (DOSE_WORDS[dose.state] ?? dose.state)}</strong>
+                                {dose.taken_in_app && dose.state !== "taken" ? " · you marked it taken" : ""}
                                 {dose.alerted ? " · family told" : ""}
                             </span>
-                            {dose.state !== "taken" && (
+                            {dose.state !== "taken" && !dose.taken_in_app && (
                                 <Button type="button" variant="outline" className="min-h-11" disabled={busy} onClick={() => void took(dose.due_at)}>
                                     I took it
                                 </Button>

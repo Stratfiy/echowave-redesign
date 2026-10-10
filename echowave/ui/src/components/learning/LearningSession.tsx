@@ -641,8 +641,14 @@ function SessionBody({
     const [lessonAnswer, setLessonAnswer] = useState<{ verdict: "yes" | "not_quite"; reasons: string[] } | undefined>();
     const answerRef = useRef<HTMLDivElement | null>(null);
 
+    // A new exercise starts with an empty box and a fresh key. Only a *new*
+    // one: the box already starts empty, and resetting on mount too wiped
+    // anything typed before React got round to running the mount effects
+    // (they run a task after the box is on screen).
+    const shownExercise = useRef(exerciseId);
     useEffect(() => {
-        // A new exercise starts with an empty box and a fresh key.
+        if (shownExercise.current === exerciseId) return;
+        shownExercise.current = exerciseId;
         setAnswer("");
         attemptKey.current = null;
         setInterrupted(null);

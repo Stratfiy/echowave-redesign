@@ -101,7 +101,20 @@ async def drafted(db_session, org_and_user):
             actor=AgentEventActor.AGENT.value,
             summary="Proposed a change to Start",
             workflow_id=workflow.id,
-            payload={"workflow_id": workflow.id, "step": "Start", "why": "x"},
+            payload={
+                "workflow_id": workflow.id,
+                "step": "Start",
+                "why": "x",
+                # The card's own change: what Publish puts live.
+                "changes": [
+                    {
+                        "node_id": "1",
+                        "field": "prompt",
+                        "old": GRAPH["nodes"][0]["data"]["prompt"],
+                        "new": draft_graph["nodes"][0]["data"]["prompt"],
+                    }
+                ],
+            },
         )
 
     return SimpleNamespace(org=org, user=user, workflow=workflow, card=card)
@@ -202,11 +215,8 @@ class TestTheCard:
         assert "customs" in line["payload"]["body"]
 
     async def test_a_draft_that_fails_validation_is_refused(self, db_session, drafted):
-        broken = copy.deepcopy(GRAPH)
-        broken["edges"] = [
-            {"id": "e1", "source": "1", "target": "nowhere", "data": {"label": "x"}}
-        ]
-        event_id = await drafted.card(broken)
+        # An operator placeholder nobody answered: validation refuses it.
+        event_id = await drafted.card(_with_prompt("Welcome to {{clinic_name}}."))
         with (
             _screen([]) as screen,
             patch.object(self_edit.agent_timeline, "record", AsyncMock()) as note,

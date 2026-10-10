@@ -60,7 +60,18 @@ NOTIFIED = "notified"
 #: window). Never re-dialled; reconciled against the run, and moved by
 #: later evidence. Not "not answered": that needs evidence.
 UNKNOWN = "unknown"
-CALL_STATES = (QUEUED, CALLING, ANSWERED, NOT_ANSWERED, FAILED, NOTIFIED, UNKNOWN)
+#: ``CANCELLED`` (above) is a call state too: the person cancelled before it
+#: was dialled (``calls.cancel_call``); it never rings.
+CALL_STATES = (
+    QUEUED,
+    CALLING,
+    ANSWERED,
+    NOT_ANSWERED,
+    FAILED,
+    NOTIFIED,
+    UNKNOWN,
+    CANCELLED,
+)
 
 
 class CallWhenDoneError(ValueError):

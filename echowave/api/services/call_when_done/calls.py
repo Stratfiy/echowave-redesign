@@ -57,7 +57,7 @@ from datetime import UTC, datetime, time, timedelta
 from typing import Any
 
 from loguru import logger
-from sqlalchemy import delete, select, text, update
+from sqlalchemy import delete, func, select, text, update
 from sqlalchemy.dialects.postgresql import insert
 
 from api import constants
@@ -351,6 +351,8 @@ async def items_of_call(organization_id: int, call_id: int) -> list[dict[str, An
                 .where(
                     DoneCallbackModel.call_id == call_id,
                     DoneCallbackModel.organization_id == organization_id,
+                    # A task the person cancelled is not said on the call.
+                    DoneCallbackModel.state != cwd.CANCELLED,
                 )
                 .order_by(DoneCallbackModel.id)
             )
@@ -464,6 +466,91 @@ async def tell_in_app(call_id: int, reason: str) -> None:
         logger.error("call_when_done: could not tell call {} in app: {}", call_id, exc)
 
 
+# --- cancelling a call that has not rung ------------------------------------
+
+
+async def cancel_call(organization_id: int, user_id: int, callback_id: int) -> bool:
+    """The person cancels a finished task's call before it rings.
+
+    Their own callback, in this workspace, whose call has not been dialled:
+    ``queued`` (for example overnight, waiting for 09:00), or ``calling``
+    with no run recorded (claimed, still at the checks). The callback is
+    cancelled; the call is cancelled too when no other task is left on it
+    (otherwise it rings about the rest only). Both rows are locked, and the
+    dial's own compare-and-swaps (``_claim`` queued -> calling, ``link``
+    only while ``calling``) see the cancel, so a cancelled call never rings.
+    False when there is nothing left to stop (the dial has started)."""
+    now = _now()
+    async with db_client.async_session() as session:
+        callback = (
+            await session.execute(
+                select(DoneCallbackModel)
+                .where(
+                    DoneCallbackModel.id == callback_id,
+                    DoneCallbackModel.organization_id == organization_id,
+                    DoneCallbackModel.user_id == user_id,
+                    DoneCallbackModel.state == cwd.FINISHED,
+                    DoneCallbackModel.call_id.is_not(None),
+                )
+                .with_for_update()
+            )
+        ).scalar_one_or_none()
+        call = None
+        if callback is not None:
+            call = (
+                await session.execute(
+                    select(DoneCallModel)
+                    .where(
+                        DoneCallModel.id == callback.call_id,
+                        DoneCallModel.organization_id == organization_id,
+                        DoneCallModel.user_id == user_id,
+                    )
+                    .with_for_update()
+                )
+            ).scalar_one_or_none()
+        not_rung = call is not None and (
+            call.state == cwd.QUEUED
+            or (call.state == cwd.CALLING and call.workflow_run_id is None)
+        )
+        if not not_rung:
+            await session.rollback()
+            return False
+        title = callback.title or "your task"
+        callback.state = cwd.CANCELLED
+        await session.flush()
+        left = await session.scalar(
+            select(func.count(DoneCallbackModel.id)).where(
+                DoneCallbackModel.call_id == call.id,
+                DoneCallbackModel.organization_id == organization_id,
+                DoneCallbackModel.state != cwd.CANCELLED,
+            )
+        )
+        stopped = not left
+        if stopped:
+            call.outcome_history = [
+                *(call.outcome_history or []),
+                _entry(call.state, cwd.CANCELLED, "cancelled", "person"),
+            ]
+            call.state = cwd.CANCELLED
+            call.reason = "cancelled"
+            call.outcome_at = now
+        call_id, thread_id = call.id, call.thread_id
+        await session.commit()
+    if stopped:
+        # A slot reserved by a claim still at its checks goes back.
+        await allowance.release(call_id)
+    await notice(
+        organization_id,
+        user_id,
+        thread_id,
+        f"Cancelled. I won't call you about “{title}”.",
+        call_id=call_id,
+        state=cwd.CANCELLED if stopped else cwd.QUEUED,
+        reason="cancelled",
+    )
+    return True
+
+
 # --- the scheduler ----------------------------------------------------------
 
 
@@ -564,14 +651,21 @@ async def place(call_id: int, *, now: datetime | None = None) -> None:
 
     async def link(run_id: int) -> None:
         # Only while this worker still holds the claim. If the sweep has
-        # meanwhile judged it never dialled (and queued it again), raising
-        # here stops dial_workflow before the provider is asked: one call.
+        # meanwhile judged it never dialled (and queued it again), or the
+        # person cancelled it (``cancel_call``), raising here stops
+        # dial_workflow before the provider is asked: one call, or none.
         if not await _link_run(call_id, organization_id, run_id, claimed=True):
             raise _Superseded()
 
     try:
         run_id = await _dial(call, dialable, on_run_created=link)
     except _Superseded:
+        if await _state(call_id) == cwd.CANCELLED:
+            # The person cancelled it after the claim: nothing rang, and
+            # the slot reserved above goes back.
+            await allowance.release(call_id)
+            logger.info("call_when_done: call {} cancelled before the dial", call_id)
+            return
         logger.warning("call_when_done: call {} was re-queued mid-dial", call_id)
         return
     except _Refused as exc:

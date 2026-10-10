@@ -234,6 +234,36 @@ describe("My medicine reminders", () => {
         fireEvent.click(screen.getByRole("button", { name: /Add a reminder/ }));
         expect(screen.getByText(/never gives advice about doses/)).toBeTruthy();
     });
+
+    it("keeps the call's outcome beside the person's I took it", async () => {
+        sdk.myMedicinesApiV1CareMedicinesGet.mockResolvedValue({
+            data: {
+                medicines: [
+                    {
+                        id: 3,
+                        label: "BP tablet",
+                        times: ["08:00"],
+                        timezone: "Asia/Kolkata",
+                        language: "ta-IN",
+                        language_name: "Tamil",
+                        channel: "call",
+                        phone_masked: "the number ending 3210",
+                        alert_member_ids: [],
+                        state: "active",
+                        card_event_id: 9,
+                        doses: [{ id: 1, due_at: "2026-10-07T02:30:00Z", state: "not_answered", reason: null, alerted: true, taken_in_app: true }],
+                    },
+                ],
+                calls: { state: "ready", reason: "Calls go out from this workspace's phone line." },
+                app: { state: "ready", reason: "Reminders show in Decibyl." },
+                languages: { "ta-IN": "Tamil" },
+            },
+        });
+        render(<MedicinesPanel />);
+        expect(await screen.findByText("Not answered")).toBeTruthy();
+        expect(screen.getByText(/you marked it taken/)).toBeTruthy();
+        expect(screen.queryByRole("button", { name: "I took it" })).toBeNull();
+    });
 });
 
 function pausedReminder(state = "paused") {
