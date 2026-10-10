@@ -40,8 +40,10 @@ leans on it waits with it.
 
 ## decibyl.ai — hero (draft for the founder)
 
-`landing/` is empty until a marketing site exists. When it does, this is the
-draft above the fold.
+The marketing site at www.decibyl.ai is hosted on Vercel, outside this repo
+(the apex DNS points there, so `landing/` is unused). As of 10 Oct 2026 it
+still says "AI that gets work done" and targets B2B voice AI. This is the
+draft above the fold to replace that hero.
 
 > **Personal intelligence that grows and evolves with you.**
 >

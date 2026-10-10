@@ -1,5 +1,9 @@
 # Apex landing site
 
+**Current state (10 Oct 2026):** the apex DNS points to a marketing site on
+Vercel, which redirects to www.decibyl.ai. This directory is unused. The
+wording below describes the original nginx fallback.
+
 `decibyl.ai` is served from this directory. It is empty on purpose: until a
 marketing site exists, nginx answers a 404 with a pointer to
 `app.decibyl.ai`.
