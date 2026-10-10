@@ -16,7 +16,7 @@ import { PostHogEvent } from "@/constants/posthog-events";
 import { WORKFLOW_RUN_MODES } from "@/constants/workflowRunModes";
 import { useOnboarding } from "@/context/OnboardingContext";
 import { useAuth } from "@/lib/auth";
-import { announceBalanceChanged } from "@/lib/billing/balanceEvents";
+import { PRICES_SHOWN } from "@/lib/pricing";
 import { cn, getRandomId } from "@/lib/utils";
 
 import { AiSimulatorPlaceholder } from "./workflow-tester/AiSimulatorPlaceholder";
@@ -208,7 +208,6 @@ export function WorkflowTesterPanel({
                                 accessToken={accessToken}
                                 onReset={() => setVoiceRunId(null)}
                                 onNodeTransition={onRuntimeNodeTransition}
-                                onCompleted={announceBalanceChanged}
                             />
                         ) : (
                             <>
@@ -218,10 +217,15 @@ export function WorkflowTesterPanel({
                                     title="Call this agent in the browser"
                                     description={
                                         <>
-                                            Test the agent over a voice call. The call is recorded and transcribed, and paid
-                                            from your credits like any call
-                                            <EstimatedRate workflowId={workflowId} />. Some telephony-only tools, like call
-                                            transfer, are not yet supported here.
+                                            Test the agent over a voice call. The call is recorded and transcribed
+                                            {/* No pricing is shown to users (lib/pricing.ts). */}
+                                            {PRICES_SHOWN && (
+                                                <>
+                                                    , and paid from your credits like any call
+                                                    <EstimatedRate workflowId={workflowId} />
+                                                </>
+                                            )}
+                                            . Some telephony-only tools, like call transfer, are not yet supported here.
                                         </>
                                     }
                                     action={

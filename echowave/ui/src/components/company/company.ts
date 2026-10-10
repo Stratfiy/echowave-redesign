@@ -185,7 +185,7 @@ export function inbox(input: {
             kind: "budget",
             title: hard ? `${who} hit its budget` : `${who} is near its budget`,
             detail: `${incident.observed_credits} of ${incident.limit_credits} credits${hard ? ", paused until you raise it" : ""}`,
-            href: incident.workflow_id === null ? "/billing" : `/workflow/${incident.workflow_id}`,
+            href: incident.workflow_id === null ? "/settings/company" : `/workflow/${incident.workflow_id}`,
             at: incident.created_at,
             incidentId: incident.id,
         });

@@ -13,8 +13,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
-import { announceBalanceChanged } from "@/lib/billing/balanceEvents";
-import { useFeature } from "@/lib/features";
 
 /**
  * The prompt to finish email verification.
@@ -31,8 +29,6 @@ import { useFeature } from "@/lib/features";
  */
 export function VerifyEmailBanner() {
   const { user, loading: authLoading } = useAuth();
-  // Free while we are early: no credits to promise (free_mode.py).
-  const freeMode = useFeature("free_mode");
   const [needed, setNeeded] = useState(false);
   const [address, setAddress] = useState<string | null>(null);
   const [code, setCode] = useState("");
@@ -66,14 +62,7 @@ export function VerifyEmailBanner() {
       toast.error(detailFromResult(response, "That code was not accepted."));
       return;
     }
-    // The free credit waits for a proved address, so the moment it lands is
-    // worth a sentence: the balance chip catches up on the next page load.
-    const granted = (response.data as { bonus_granted_paise?: number } | undefined)
-      ?.bonus_granted_paise;
-    toast.success(
-      granted ? `Email verified. ${Math.floor(granted / 50)} free credits are in.` : "Email verified."
-    );
-    if (granted) announceBalanceChanged();
+    toast.success("Email verified.");
     setNeeded(false);
   };
 
@@ -103,7 +92,7 @@ export function VerifyEmailBanner() {
       <span className="min-w-0 flex-1 truncate md:flex-none md:whitespace-normal">
         Verify {address ? <strong className="font-medium">{address}</strong> : "your email"}
         <span className="hidden md:inline">
-          {" "}— enter the six-digit code we sent you{freeMode ? "." : ", and your first 150 free credits land."}
+          {" "}— enter the six-digit code we sent you.
         </span>
       </span>
       <Button

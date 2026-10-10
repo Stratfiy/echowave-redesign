@@ -11,7 +11,7 @@ import { FirstTaskOnboarding } from "@/components/onboarding/FirstTaskOnboarding
 
 export default function WelcomePage() {
     return (
-        <DoorShell width="wide" title="Welcome to Decibyl" lead="Two quick choices, then tell Decibyl what you need.">
+        <DoorShell width="wide" title="Welcome to Decibyl" lead="An intelligent agent that grows and evolves with you. Two quick choices, then tell Decibyl what you need.">
             <FirstTaskOnboarding />
         </DoorShell>
     );

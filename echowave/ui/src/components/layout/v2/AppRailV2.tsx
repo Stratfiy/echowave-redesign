@@ -28,12 +28,11 @@ import { cn } from "@/lib/utils";
 import { getVisibleNavSections, STAFF_SECTION, visibleShellManage } from "../navigation";
 import { activeHome, HOMES, RAIL_COPY } from "./homes";
 import { RecentsList } from "./RecentsList";
-import { TrialBox } from "./TrialBox";
 import { useRailData } from "./useRailData";
 
 /**
  * The rail (KAN-208, UI-1), the app's only navigation: brand and workspace,
- * four homes, the colleague roster and the trial box. Everything set up once
+ * four homes and the colleague roster. Everything set up once
  * and then left alone (company, knowledge, channels, team, apps, deploy,
  * billing, settings) is in the account menu at the foot, so the rail holds
  * only where the work is. It took over from the old sidebar, and with it the
@@ -50,11 +49,10 @@ export function AppRailV2() {
   const pathname = usePathname() ?? "";
   const { state, isMobile, setOpenMobile } = useSidebar();
   const collapsed = !isMobile && state === "collapsed";
-  const { colleagues, trial, creditsPaise } = useRailData();
+  const { colleagues } = useRailData();
   const current = activeHome(pathname);
   const { provider } = useAuth();
   const studioOn = useFeature("studio");
-  const freeMode = useFeature("free_mode");
   const homes = HOMES.filter((home) => !home.flag || (home.flag === "studio" && studioOn));
   const { config } = useAppConfig();
   // Self-hosted only: cloud is updated for the customer.
@@ -134,8 +132,6 @@ export function AppRailV2() {
               Update available ({release.latest})
             </a>
           )}
-          {/* Free while we are early: no trial, no credits to count. */}
-          {!collapsed && !freeMode && <TrialBox trial={trial} creditsPaise={creditsPaise} />}
           <div className={cn("v2-foot-row", collapsed && "v2-foot-col")}>
             <AccountMenu collapsed={collapsed} onNavigate={onNavigate} />
             <a
@@ -201,9 +197,7 @@ export function AccountMenu({
   });
   const help = useFeature("support_help");
   const supportInbox = useFeature("support_inbox");
-  const freeMode = useFeature("free_mode");
-  // Free while we are early: nothing to pay, so no Billing in the menu.
-  const manage = visibleShellManage(sections).filter((entry) => !(freeMode && entry.url === "/billing"));
+  const manage = visibleShellManage(sections);
   const staffUrls = new Set(STAFF_SECTION.items.map((item) => item.url));
   const staff = sections.flatMap((section) => section.items).filter((item) => staffUrls.has(item.url));
   // Launch stream `care`: Care for whoever has a part of it switched on, and

@@ -28,9 +28,9 @@ export type PageTab = {
 };
 
 /**
- * The one tab a path lights: the most specific match. /billing carries
- * prefix, so /billing/spend matches both Billing and Spend; the longer href
- * wins and only Spend is lit. `also` routes count as matches of their tab.
+ * The one tab a path lights: the most specific match. A prefix tab such as
+ * /documents also matches anything nested under it; the longer href wins and
+ * only that tab is lit. `also` routes count as matches of their tab.
  */
 export function activeTab(tabs: PageTab[], pathname: string): string | undefined {
   let best: { href: string; length: number } | undefined;

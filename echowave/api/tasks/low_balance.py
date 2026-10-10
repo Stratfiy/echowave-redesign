@@ -119,7 +119,16 @@ async def notify_low_balances(ctx=None, *, now: datetime | None = None) -> dict:
     """Warn every spending account whose credit is about to run out.
 
     Safe to run repeatedly: the dedupe row is claimed before the send.
+
+    Sends nothing while there is no checkout: a warning that credit is running
+    out, with a way to add some, has no meaning when nothing can be bought
+    (services/billing/no_checkout.py).
     """
+    from api.services.billing import no_checkout
+
+    if not no_checkout.is_open():
+        return {"considered": 0, "warned": 0, "skipped": 0, "failed": 0}
+
     now = now or datetime.now(UTC)
     today = now.date()
     since = today - timedelta(days=BURN_WINDOW_DAYS - 1)

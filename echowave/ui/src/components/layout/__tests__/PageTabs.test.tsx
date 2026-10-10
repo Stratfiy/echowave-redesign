@@ -13,7 +13,7 @@ const path = vi.hoisted(() => ({ value: "/numbers" }));
 vi.mock("next/navigation", () => ({ usePathname: () => path.value }));
 
 import { PageTabs } from "../PageHeader";
-import { BILLING_TABS, TELEPHONY_TABS } from "../SectionTabs";
+import { DOCUMENTS_TABS, TELEPHONY_TABS } from "../SectionTabs";
 
 const current = () =>
     screen
@@ -36,10 +36,11 @@ describe("the section strip", () => {
     });
 
     it("lights one tab, the most specific, when two match", () => {
-        // /billing carries prefix, so /billing/spend matches Billing as well.
-        path.value = "/billing/spend";
-        render(<PageTabs tabs={BILLING_TABS} />);
-        expect(current()).toBe("Spend");
+        // /documents carries prefix, so /documents/x matches it as well as
+        // the longer href of a tab nested under it.
+        path.value = "/documents/x";
+        render(<PageTabs tabs={[...DOCUMENTS_TABS, { href: "/documents/x", label: "Nested", prefix: true }]} />);
+        expect(current()).toBe("Nested");
         expect(screen.getAllByRole("link").filter((el) => el.getAttribute("aria-current") === "page")).toHaveLength(1);
     });
 });

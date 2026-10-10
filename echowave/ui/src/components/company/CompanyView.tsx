@@ -50,7 +50,7 @@ const ASKS = [
     "Who needs me today?",
     "What did the team finish this week?",
     "Where is the money going this month?",
-    "Which agent should I hire next?",
+    "Which agent should I add next?",
 ];
 
 const TONE: Record<string, { dot: string; label: string }> = {
@@ -263,9 +263,7 @@ function SpendStat({ spent, limit }: { spent: number; limit: number | null }) {
             {percent !== null ? (
                 <Meter percent={percent} className="mt-2" />
             ) : (
-                <Link href="/billing" className="mt-1 block text-xs text-muted-foreground underline-offset-2 hover:underline">
-                    No budget set
-                </Link>
+                <span className="mt-1 block text-xs text-muted-foreground">No budget set</span>
             )}
         </div>
     );
@@ -300,13 +298,13 @@ function OrgChart({ teams, onEditFace }: { teams: OrgTeam[]; onEditFace: (agent:
                     href="/start"
                     className="inline-flex items-center gap-1 rounded-full border px-3 py-1 text-sm hover:bg-muted"
                 >
-                    <Plus className="h-3.5 w-3.5" aria-hidden="true" /> Hire an agent
+                    <Plus className="h-3.5 w-3.5" aria-hidden="true" /> Add an agent
                 </Link>
             </div>
 
             {teams.length === 0 ? (
                 <p className="mt-6 text-sm text-muted-foreground">
-                    No agents yet. Hire your first one and it will show up here with its team.
+                    No agents yet. Add your first one and it will show up here with its team.
                 </p>
             ) : (
                 <div className="mt-6 flex flex-col items-center">

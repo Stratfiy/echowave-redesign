@@ -108,6 +108,32 @@ def get_base_database_url() -> str:
     )
 
 
+@pytest.fixture(autouse=True)
+def _the_old_money_paths_are_open(request, monkeypatch):
+    """Keep the checkout, the trial and the rental ladder testable.
+
+    There is no checkout (founder, 9 Oct 2026; services/billing/no_checkout.py):
+    the constants below are closed or off in the product. Most of this suite
+    exists to prove the money code is correct for the day it is reopened, so
+    it runs with them as they were. A test of the closed state asks for it
+    with ``@pytest.mark.checkout_closed``.
+    """
+    from api import constants
+
+    if request.node.get_closest_marker("checkout_closed"):
+        # As the product ships: no checkout, and free mode on (the suite
+        # otherwise runs with it off).
+        monkeypatch.setattr(constants, "FREE_MODE_ENABLED", True)
+        return
+    from api.services.billing import mandates
+
+    monkeypatch.setattr(constants, "CHECKOUT_OPEN", True)
+    monkeypatch.setattr(constants, "RENTAL_SUSPEND_AND_RELEASE_ENABLED", True)
+    monkeypatch.setattr(constants, "REQUIRE_MANDATE_FOR_NUMBERS", True)
+    # mandates imported the constant by name, so it holds its own copy.
+    monkeypatch.setattr(mandates, "REQUIRE_MANDATE_FOR_NUMBERS", True)
+
+
 def get_test_db_name() -> str:
     """Extract the test database name from DATABASE_URL."""
     parsed = urlparse(get_test_database_url())

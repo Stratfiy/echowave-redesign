@@ -7,10 +7,9 @@ import { useCallback, useEffect, useId, useMemo, useState } from 'react';
 import TimezoneSelect, { type ITimezoneOption } from 'react-timezone-select';
 import { toast } from 'sonner';
 
-import { downloadUsageRunsReportApiV1OrganizationsUsageRunsReportGet, getDailyUsageBreakdownApiV1OrganizationsUsageDailyBreakdownGet, getPreferencesApiV1OrganizationsPreferencesGet, getUsageHistoryApiV1OrganizationsUsageRunsGet, getWorkflowsSummaryApiV1WorkflowSummaryGet, savePreferencesApiV1OrganizationsPreferencesPut } from '@/client/sdk.gen';
-import type { DailyUsageBreakdownResponse, OrganizationPreferences, UsageHistoryResponse, WorkflowRunUsageResponse, WorkflowSummaryResponse } from '@/client/types.gen';
+import { downloadUsageRunsReportApiV1OrganizationsUsageRunsReportGet, getPreferencesApiV1OrganizationsPreferencesGet, getUsageHistoryApiV1OrganizationsUsageRunsGet, getWorkflowsSummaryApiV1WorkflowSummaryGet, savePreferencesApiV1OrganizationsPreferencesPut } from '@/client/sdk.gen';
+import type { OrganizationPreferences, UsageHistoryResponse, WorkflowRunUsageResponse, WorkflowSummaryResponse } from '@/client/types.gen';
 import { CallTypeCell } from '@/components/CallTypeCell';
-import { DailyUsageTable } from '@/components/DailyUsageTable';
 import { EmptyState } from '@/components/EmptyState';
 import { FilterBuilder } from '@/components/filters/FilterBuilder';
 import { PageBody, PageHeader } from "@/components/layout/PageHeader";
@@ -29,7 +28,6 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import type { CallOutcome } from '@/constants/callOutcomes';
-import { useUserConfig } from '@/context/UserConfigContext';
 import { useCallOutcomes } from '@/hooks/useCallOutcomes';
 import { detailFromResult } from '@/lib/apiError';
 import { useAuth } from '@/lib/auth';
@@ -107,7 +105,6 @@ const buildAgentFilterAttributes = (
 export default function UsagePage() {
     const router = useRouter();
     const searchParams = useSearchParams();
-    const { organizationPricing } = useUserConfig();
     const auth = useAuth();
 
     // Usage history state
@@ -131,10 +128,6 @@ export default function UsagePage() {
         ),
         [agentFilterOptions, isLoadingAgentFilterOptions, callOutcomeOptions, isLoadingCallOutcomes]
     );
-
-    // Daily usage breakdown state (only for paid orgs)
-    const [dailyUsage, setDailyUsage] = useState<DailyUsageBreakdownResponse | null>(null);
-    const [isLoadingDaily, setIsLoadingDaily] = useState(false);
 
     // Initialize filters from URL. `activeFilters` tracks the in-progress
     // edits in the FilterBuilder; `appliedFilters` is what's actually been
@@ -213,26 +206,6 @@ export default function UsagePage() {
             setIsLoadingHistory(false);
         }
     }, [auth.isAuthenticated]);
-
-    // Fetch daily usage breakdown
-    const fetchDailyUsage = useCallback(async () => {
-        if (!auth.isAuthenticated || !organizationPricing?.price_per_second_usd) return;
-
-        setIsLoadingDaily(true);
-        try {
-            const response = await getDailyUsageBreakdownApiV1OrganizationsUsageDailyBreakdownGet({
-                query: { days: 7 },
-            });
-
-            if (response.data) {
-                setDailyUsage(response.data);
-            }
-        } catch (error) {
-            console.error('Failed to fetch daily usage:', error);
-        } finally {
-            setIsLoadingDaily(false);
-        }
-    }, [auth.isAuthenticated, organizationPricing]);
 
     const fetchAgentFilterOptions = useCallback(async () => {
         if (!auth.isAuthenticated) return;
@@ -376,13 +349,6 @@ export default function UsagePage() {
             fetchUsageHistory(currentPage, appliedFilters);
         }
     }, [auth.isAuthenticated, currentPage, appliedFilters, fetchUsageHistory]);
-
-    // Fetch daily usage when organizationPricing becomes available
-    useEffect(() => {
-        if (auth.isAuthenticated && organizationPricing?.price_per_second_usd) {
-            fetchDailyUsage();
-        }
-    }, [auth.isAuthenticated, organizationPricing, fetchDailyUsage]);
 
     // Update URL with query parameters
     const updateUrlParams = useCallback((params: { page?: number; filters?: ActiveFilter[] }) => {
@@ -549,16 +515,6 @@ export default function UsagePage() {
         />
         <PageBody className="space-y-6">
 
-                {/* Daily Usage Table - Only for paid organizations */}
-                {organizationPricing?.price_per_second_usd && (
-                    <div className="mb-6">
-                        <DailyUsageTable
-                            data={dailyUsage}
-                            isLoading={isLoadingDaily}
-                        />
-                    </div>
-                )}
-
                 <OutcomesSummary />
 
                 {/* Filter Builder */}
@@ -593,7 +549,7 @@ export default function UsagePage() {
                             <div className="space-y-1.5">
                                 <CardTitle>All Runs</CardTitle>
                                 <CardDescription>
-                                    Every call across your account, with what it cost
+                                    Every call across your account, with how long it ran
                                 </CardDescription>
                             </div>
                         </div>
@@ -623,9 +579,6 @@ export default function UsagePage() {
                                                 <TableHead className="font-semibold">Outcome</TableHead>
                                                 <TableHead className="font-semibold">Date</TableHead>
                                                 <TableHead className="font-semibold text-right">Duration</TableHead>
-                                                {organizationPricing?.price_per_second_usd && (
-                                                    <TableHead className="font-semibold text-right">Cost (USD)</TableHead>
-                                                )}
                                                 <TableHead className="font-semibold">Actions</TableHead>
                                             </TableRow>
                                         </TableHeader>
@@ -675,14 +628,6 @@ export default function UsagePage() {
                                                     <TableCell className="text-right">
                                                         {formatDuration(run.call_duration_seconds)}
                                                     </TableCell>
-                                                    {organizationPricing?.price_per_second_usd && (
-                                                        <TableCell className="text-right font-medium">
-                                                            {run.charge_usd !== undefined && run.charge_usd !== null
-                                                                ? `$${run.charge_usd.toFixed(2)}`
-                                                                : '-'
-                                                            }
-                                                        </TableCell>
-                                                    )}
                                                     <TableCell>
                                                         <MediaPreviewButton
                                                             recordingUrl={run.recording_url}
@@ -698,19 +643,17 @@ export default function UsagePage() {
                                 </div>
 
                                 {/* Summary */}
-                                {appliedFilters.length > 0 && (
-                                    <div className="mt-4 p-3 bg-muted rounded-md">
-                                        <p className="text-sm text-muted-foreground">
-                                            Total for filtered period: <span className="font-semibold text-foreground">
-                                                {usageHistory.total_decibyl_tokens.toLocaleString()} Decibyl Tokens
-                                            </span>
-                                            {' • '}
-                                            <span className="font-semibold text-foreground">
-                                                {formatDuration(usageHistory.total_duration_seconds)}
-                                            </span>
-                                        </p>
-                                    </div>
-                                )}
+                                <div className="mt-4 p-3 bg-muted rounded-md">
+                                    <p className="text-sm text-muted-foreground">
+                                        {appliedFilters.length > 0 ? 'Total for filtered period' : 'Total'}: <span className="font-semibold text-foreground">
+                                            {usageHistory.total_count.toLocaleString()} {usageHistory.total_count === 1 ? 'run' : 'runs'}
+                                        </span>
+                                        {' • '}
+                                        <span className="font-semibold text-foreground">
+                                            {formatDuration(usageHistory.total_duration_seconds)}
+                                        </span>
+                                    </p>
+                                </div>
 
                                 {/* Pagination */}
                                 {usageHistory.total_pages > 1 && (

@@ -1,9 +1,12 @@
 # Decibyl - Project Overview
 
-Decibyl is an **agent platform for Indian businesses**. A business hires a bot
-for a job — answering the phone, confirming orders, chasing payments, answering
-staff questions from its own documents, filing a reminder every morning — and
-the bot does that job on whatever channel the job needs.
+**Decibyl is an intelligent agent that grows and evolves with you.** That is
+the founder's sentence and the anchor for every product string. It is one
+personal assistant for life and work: talk in your language, give it a task,
+and let it help you follow through. It learns your preferences and, with your
+approval, gets better at your work over time. Agents — assigned jobs that
+answer the phone, confirm orders, answer from your documents or run every
+morning — are how it follows through, on whatever channel the job needs.
 
 **Voice is one channel, not the product.** It was the first one and it is still
 the hardest, which is why so much of this codebase is telephony and pipelines.
@@ -97,12 +100,33 @@ way Grok does it — a person should be able to keep going by tapping, not by
 composing. The home screen has them (`home_openers.py`, rendered by
 `HomeAboveTheFold`); the thread is where they matter most.
 
-**Every feature must work on Free/Everyday with no phone number.** A feature
-that only exists once somebody has bought a number is a feature most trials
+**Every feature must work on the lowest tier with no phone number.** A feature
+that only exists once somebody has bought a number is a feature most people
 never see.
 
-**No new plan, price or positioning string without asking.** Pricing, the
-public site copy and the bot shelf are the founder's to decide.
+**No pricing shown to users; the positioning is fixed.** The founder decided
+on 9 Oct 2026: no price, plan name, credit rate or upgrade prompt appears
+anywhere a user can see it (staff and admin cost screens excepted), and the
+positioning is "an intelligent agent that grows and evolves with you". That
+includes what a model says aloud. `ui/src/lib/pricing.ts` and `api/constants.py`
+(`PRICES_SHOWN`) hold the switch; `pricingGuard.test.ts` and
+`test_prompts_quote_no_prices.py` fail on new price copy in the UI and in the
+persona and builder prompts. Any new price or plan copy still needs the
+founder, as do the public site copy and the bot shelf.
+
+**There is no checkout.** Nothing is sold, so there is nothing to pay for:
+no plans, top-ups, auto top-up, promo codes, autopay mandates, balance chip,
+trial or referral credit. The server closes them, not just the app: their
+routes answer `410 Gone` and no code path may create a Razorpay order,
+subscription or mandate (`api/services/billing/no_checkout.py`,
+`constants.CHECKOUT_OPEN`, a constant and not a switch). `free_mode` stays on
+while `PRICES_SHOWN` is false, and `test_free_mode_guard.py` fails if it does
+not. What survives is the record of money already paid: the **Documents** page
+(`/documents`) keeps every tax document, receipt, credit note and payment, and
+the Razorpay webhook still handles refunds and in-flight events. Phone numbers
+are bounded by `MAX_MANAGED_NUMBERS_PER_ACCOUNT`, a usage limit, and are never
+suspended or released for billing (`RENTAL_SUSPEND_AND_RELEASE_ENABLED` is
+False). Reopening any of this needs the founder and new price copy first.
 
 **Verify against a running instance before saying something works.** Three
 bugs in one afternoon were invisible from the source and obvious from one
