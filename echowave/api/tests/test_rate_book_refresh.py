@@ -155,15 +155,22 @@ class TestNothingDefaultsToARetiringModel:
         assert self.RETIRING not in constants.AGENT_BUILDER_MODELS.values()
 
 
-class TestTheBuilderBuildsOnSonnet5:
-    def test_the_default(self):
-        assert constants.AGENT_BUILDER_MODELS["anthropic"] == "claude-sonnet-5"
+class TestTheBuilderBuildsOnTheSmartTier:
+    def test_the_default_is_the_smart_tiers_claude(self):
+        assert constants.AGENT_BUILDER_MODELS["anthropic"] == (
+            constants.CLAUDE_SONNET_MODEL
+        )
+        assert constants.CLAUDE_SONNET_MODEL == "claude-sonnet-5-5"
+        assert managed_tiers._defaults()[("llm", "accurate")].model == (
+            constants.CLAUDE_SONNET_MODEL
+        )
 
-    def test_both_the_new_and_the_old_default_are_priced(self):
+    def test_the_new_default_and_the_one_it_replaced_are_priced(self):
         assert (
-            _row("anthropic", CostComponent.LLM, "claude-sonnet-5").usd_per_unit
+            _row("anthropic", CostComponent.LLM, "claude-sonnet-5-5").usd_per_unit
             < _row("anthropic", CostComponent.LLM, "claude-sonnet-4-5").usd_per_unit
         )
+        assert _row("anthropic", CostComponent.LLM, "claude-sonnet-5").usd_per_unit
 
 
 class TestTheFinancialModelReconcilesToTheBook:

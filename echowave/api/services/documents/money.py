@@ -252,6 +252,26 @@ def is_unregistered(value: Any) -> bool:
     return str(value or "").strip().upper() in UNREGISTERED
 
 
+#: The one explicit stand-in a draft accepts for a GSTIN or PAN not yet known.
+TAX_ID_PLACEHOLDER = "[to confirm]"
+
+
+def is_tax_id_placeholder(value: Any) -> bool:
+    return isinstance(value, str) and value.strip().lower() == TAX_ID_PLACEHOLDER
+
+
+def has_tax_id_placeholder(data: Any) -> bool:
+    """Whether a register row's saved input still carries the placeholder."""
+    inputs = (data or {}).get("input") or {}
+    rows = [inputs.get("values") or {}, *(inputs.get("items") or [])]
+    return any(
+        is_tax_id_placeholder(v)
+        for row in rows
+        if isinstance(row, dict)
+        for v in row.values()
+    )
+
+
 def validate_gstin(value: Any) -> str:
     """The GSTIN, normalised, or a :class:`MoneyError` saying what is wrong."""
     cleaned = re.sub(r"\s+", "", str(value or "")).upper()
@@ -444,6 +464,7 @@ def plain_number(value: Decimal) -> str:
 __all__ = [
     "INTER_STATE",
     "INTRA_STATE",
+    "TAX_ID_PLACEHOLDER",
     "Line",
     "MoneyError",
     "Totals",
@@ -452,6 +473,8 @@ __all__ = [
     "dec",
     "format_inr",
     "gstin_check_character",
+    "has_tax_id_placeholder",
+    "is_tax_id_placeholder",
     "is_unregistered",
     "number_in_words",
     "paise_int",

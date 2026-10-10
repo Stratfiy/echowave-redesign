@@ -1067,11 +1067,13 @@ class VoiceNotIncluded(PlanError):
     def __init__(self, *, plan: Plan, upgrade_to: str | None):
         self.plan_code = plan.code
         self.upgrade_to = upgrade_to
-        rung = (upgrade_to or "business").capitalize()
+        # Neutral on purpose: no plan names or prices are shown to users
+        # (founder decision, 9 Oct 2026). ``upgrade_to`` stays on the
+        # exception and in the 403 body for the checkout, not the sentence.
         super().__init__(
-            f"The {plan.label} plan is text only: agents on it answer WhatsApp, "
-            f"email and web chat, not the phone. Move to {rung} to attach a "
-            "number or run a campaign."
+            "Phone calls are not switched on for this workspace yet: agents "
+            "here answer WhatsApp, email and web chat. Ask us to turn on "
+            "calling to attach a number or run a campaign."
         )
 
 

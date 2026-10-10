@@ -1,6 +1,7 @@
 from fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
+from api import constants
 from api.mcp_server.instructions import DECIBYL_MCP_INSTRUCTIONS
 from api.mcp_server.tools.agent_templates import (
     get_agent_template,
@@ -75,8 +76,15 @@ _ADVISORY_TOOL_ANNOTATIONS = ToolAnnotations(
     openWorldHint=False,
 )
 
-for _tool in (list_agent_templates, get_agent_template, estimate_agent_cost):
+for _tool in (list_agent_templates, get_agent_template):
     mcp.tool(_tool, annotations=_ADVISORY_TOOL_ANNOTATIONS)
+
+# No pricing is shown to users (constants.PRICES_SHOWN, founder, 9 Oct 2026),
+# and an assistant relays what these return: the cost estimate and the
+# balance-and-charges summary are only offered once prices are.
+PRICED_TOOLS = (estimate_agent_cost, get_billing_summary)
+if constants.PRICES_SHOWN:
+    mcp.tool(estimate_agent_cost, annotations=_ADVISORY_TOOL_ANNOTATIONS)
 
 # Telephony status. Read-only and annotated as such, so a client that respects
 # hints knows none of these change anything.
@@ -98,6 +106,7 @@ for _tool in (
     get_telephony_verification,
     list_phone_numbers,
     search_available_numbers,
-    get_billing_summary,
 ):
     mcp.tool(_tool, annotations=_TELEPHONY_TOOL_ANNOTATIONS)
+if constants.PRICES_SHOWN:
+    mcp.tool(get_billing_summary, annotations=_TELEPHONY_TOOL_ANNOTATIONS)

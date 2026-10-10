@@ -38,6 +38,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { formatPaise } from "@/lib/billing/format";
+import { PRICES_SHOWN } from "@/lib/pricing";
 
 /** One sellable model, as `GET /agent-options/catalogue` serves it. */
 export type CatalogueOption = {
@@ -157,13 +158,16 @@ export function CatalogueModelSelect({
                         <SelectItem key={option.model} value={option.model}>
                             <span className="flex w-full items-center justify-between gap-6">
                                 <span>{option.label}</span>
-                                <span className="text-xs text-muted-foreground">
-                                    {option.paise_per_minute === null
-                                        ? "—"
-                                        : `${option.approximate ? "~" : ""}${formatPaise(
-                                              option.paise_per_minute,
-                                          )}/min`}
-                                </span>
+                                {/* No pricing is shown to users (lib/pricing.ts). */}
+                                {PRICES_SHOWN && (
+                                    <span className="text-xs text-muted-foreground">
+                                        {option.paise_per_minute === null
+                                            ? "—"
+                                            : `${option.approximate ? "~" : ""}${formatPaise(
+                                                  option.paise_per_minute,
+                                              )}/min`}
+                                    </span>
+                                )}
                             </span>
                         </SelectItem>
                     ))}

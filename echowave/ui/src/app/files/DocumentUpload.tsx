@@ -76,9 +76,11 @@ export default function DocumentUpload({
         }
         data-testid="knowledge-page-allowance"
       >
+        {/* No plan or price is shown to users (lib/pricing.ts): the
+            count against the cap, nothing about what it costs. */}
         {allowance.over_cap
-          ? `Past your plan's ${allowance.pages_cap.toLocaleString('en-IN')} pages (${allowance.pages_used.toLocaleString('en-IN')} held). This upload is charged once processed: 1 credit per ${allowance.typed_pages_per_credit} typed pages, ${allowance.scanned_page_credits} credits per scanned page${allowance.raise_to ? `; or upgrade to ${allowance.raise_to} for more pages` : ''}.`
-          : `${allowance.pages_used.toLocaleString('en-IN')} of ${allowance.pages_cap.toLocaleString('en-IN')} pages held on your plan. Pages past the cap are 1 credit per ${allowance.typed_pages_per_credit} typed pages, ${allowance.scanned_page_credits} per scanned page.`}
+          ? `${allowance.pages_used.toLocaleString('en-IN')} pages held, past this workspace's ${allowance.pages_cap.toLocaleString('en-IN')}. Deleting a document gives its pages back.`
+          : `${allowance.pages_used.toLocaleString('en-IN')} of ${allowance.pages_cap.toLocaleString('en-IN')} pages held.`}
       </p>
     ) : null;
 
