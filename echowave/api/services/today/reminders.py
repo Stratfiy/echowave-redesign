@@ -255,12 +255,27 @@ def _sentence(
     return f"{repeat}. Next: {when}."
 
 
+async def their_channel(viewer: Viewer, draft: dict[str, Any]) -> dict[str, Any]:
+    """The draft, with the person's own reminder channel when it names none
+    ("remind me on WhatsApp", services/personal). A channel the draft names
+    is never changed. Without a kept one, the app, as before."""
+    if draft.get("channel"):
+        return draft
+    from api.services.personal import preferences as personal_preferences
+
+    kept = await personal_preferences.reminder_channel(
+        viewer.user_id, viewer.organization_id
+    )
+    return {**draft, "channel": kept} if kept in CHANNELS else draft
+
+
 async def preview(
     viewer: Viewer, draft: dict[str, Any], *, now: datetime | None = None
 ) -> dict[str, Any]:
     """The live next-occurrence sentence shown directly above Save, with the
     states the editor must show (invalid past date, timezone conflict)."""
     now = now or _now()
+    draft = await their_channel(viewer, draft)
     clean = _clean(draft, viewer)
     next_at, event = await _next_for(clean, viewer, now)
     problems: list[dict[str, str]] = []
@@ -411,6 +426,7 @@ async def get(viewer: Viewer, reminder_id: int) -> dict[str, Any]:
 async def _confirmed(
     viewer: Viewer, draft: dict[str, Any], schedule_key: str | None, now: datetime
 ) -> tuple[dict, datetime]:
+    draft = await their_channel(viewer, draft)
     shown = await preview(viewer, draft, now=now)
     if not schedule_key or schedule_key != shown["schedule_key"]:
         raise TodayError(

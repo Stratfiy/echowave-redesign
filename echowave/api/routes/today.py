@@ -213,7 +213,9 @@ class ReminderDraft(BaseModel):
     local_time: str | None = Field(default=None, max_length=5)
     weekday: int | None = Field(default=None, ge=0, le=6)
     timezone: str | None = Field(default=None, max_length=64)
-    channel: str = Field(default="in_app", max_length=16)
+    #: None is "the person's usual": their kept reminder channel while
+    #: ``evolve_personal`` is on (services/personal), else in the app.
+    channel: str | None = Field(default=None, max_length=16)
 
 
 class ReminderSave(ReminderDraft):
