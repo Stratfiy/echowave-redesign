@@ -289,15 +289,41 @@ class TestTheEditCard:
             id=55,
             kind=AgentEventKind.EDIT_PROPOSED.value,
             workflow_id=None,
-            payload={"workflow_id": 3, "step": "Greeting"},
+            payload={
+                "workflow_id": 3,
+                "step": "Greeting",
+                "changes": [
+                    {
+                        "node_id": "g",
+                        "field": "prompt",
+                        "old": "Hi.",
+                        "new": "Vanakkam.",
+                    }
+                ],
+            },
         )
+
+        def graph(prompt):
+            return {"nodes": [{"id": "g", "data": {"prompt": prompt}}]}
+
+        db = "api.services.workflow.self_edit.db_client"
         with (
+            patch(f"{db}.get_agent_event", new=AsyncMock(return_value=event)),
+            patch(f"{db}.get_workflow", new=AsyncMock(return_value=object())),
             patch(
-                "api.services.workflow.self_edit.db_client.get_agent_event",
-                new=AsyncMock(return_value=event),
+                f"{db}.get_published_definition",
+                new=AsyncMock(
+                    return_value=SimpleNamespace(id=1, workflow_json=graph("Hi."))
+                ),
             ),
             patch(
-                "api.services.workflow.self_edit.publish_gate.publish_draft",
+                f"{db}.get_draft_version",
+                new=AsyncMock(
+                    return_value=SimpleNamespace(workflow_json=graph("Vanakkam."))
+                ),
+            ),
+            patch(
+                "api.services.workflow.self_edit.publish_gate.publish_definition",
                 new=AsyncMock(),
             ) as publish,
             patch(

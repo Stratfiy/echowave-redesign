@@ -468,6 +468,43 @@ class TestTools:
         # The huddle's row names the card it produced.
         assert state.payload["cards"] == [cards[0].id]
 
+    async def test_its_card_settles_only_its_own_change(self, people, monkeypatch):
+        """The huddle's card is an ordinary edit card: Publish puts the
+        rename live and leaves the owner's unrelated editor change a draft."""
+        mine = copy.deepcopy(GRAPH)
+        mine["nodes"][1]["data"]["prompt"] = "Thank them, then say goodbye."
+        await db_client.save_workflow_draft(people.agent.id, workflow_definition=mine)
+        result = await _state(people).run_tool(
+            tools.PROPOSE_EDIT,
+            {"find": "Lakshmi Clinic", "replace_with": "Lakshmi Hospital"},
+        )
+        assert result["status"] == "proposed"
+        card = list(
+            await db_client.agent_events(
+                organization_id=people.org,
+                workflow_id=people.agent.id,
+                kinds=[AgentEventKind.EDIT_PROPOSED.value],
+            )
+        )[0]
+        monkeypatch.setattr(
+            publish_gate.acceptable_use, "screen", AsyncMock(return_value=[])
+        )
+
+        await self_edit.settle(
+            organization_id=people.org,
+            event_id=card.id,
+            action="publish",
+            user_id=people.a.id,
+        )
+
+        live = await _published(people.agent.id)
+        assert live["nodes"][0]["data"]["greeting"] == "Hello, Lakshmi Hospital."
+        assert live["nodes"][1]["data"]["prompt"] == "Say goodbye."
+        draft = await db_client.get_draft_version(people.agent.id)
+        assert draft.workflow_json["nodes"][1]["data"]["prompt"] == (
+            "Thank them, then say goodbye."
+        )
+
     async def test_a_spoken_yes_cannot_publish(self, people, monkeypatch):
         """The model asking for a tool that publishes is told it has none."""
         settle = AsyncMock()

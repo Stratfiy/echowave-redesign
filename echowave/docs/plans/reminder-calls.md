@@ -164,11 +164,20 @@ for that occurrence only.
 * `care_dose_calls.state` holds both the call outcome and "taken";
   `medicines.mark_taken` upserts `taken` over a dose already reported as
   `not_answered`, and the call's outcome is gone.
-  *xfail:* `test_i_took_it_after_a_missed_call_keeps_the_calls_outcome`.
+  **Fixed**: once a call was dialled or has an outcome, "I took it" keeps
+  that outcome and records the acknowledgement beside it
+  (`marked_by_user_id`, an `outcome_history` entry, `taken_in_app` in both
+  views); the family is not told of a dose the person marked taken. Only a
+  dose nothing has rung for becomes `taken`. The press locks the dose row,
+  so it is ordered against the dial linking its run.
+  Tests: `test_i_took_it_after_a_missed_call_keeps_the_calls_outcome`,
+  `TestTakenBesideTheCall` (6).
 * `today_reminders.status` moves a one-off to `done` after its occurrence
   whatever the delivery said: a reminder that reached nobody (`needs_setup`,
   `failed`, `unknown`) reads as finished.
-  *xfail:* `test_today_reminder_states.py::test_an_undelivered_one_off_does_not_read_done`.
+  **Fixed**: a one-off is `done` only when delivered (sent or accepted);
+  otherwise `missed`, still listed, and its delivery row says why.
+  Test: `test_today_reminder_states.py::test_an_undelivered_one_off_does_not_read_done`.
 * `done_calls.state` (`queued / calling / answered / not_answered / failed /
   notified`) is delivery only, which is right; there is no task side because
   there is no task.
@@ -181,10 +190,18 @@ for that occurrence only.
   medicine; a stopped reminder's dose is `cancelled` without an alert.
   Tests: `TestCancellationRaces` (3).
 * Today reminders: a cancel after the tick read the row is still sent.
-  *xfail:* `test_a_cancel_after_the_tick_read_it_is_not_sent`.
+  **Fixed**: the delivery claim re-checks the reminder (active, at the time
+  read) under a row lock in the claim's own transaction; a cancel, pause or
+  edit lands before the claim (nothing sent) or after it (the next
+  occurrence is not). Tests: `test_a_cancel_after_the_tick_read_it_is_not_sent`
+  and the concurrent ones in the same file.
 * Call when done: once a finish has queued the call (for example overnight,
   waiting for 09:00), `optin.cancel` only moves `pending` callbacks, so the
-  person cannot stop it. *xfail:* `test_cancelling_a_queued_call_stops_it`.
+  person cannot stop it. **Fixed**: cancel also stops a call not yet dialled
+  (`queued`, or claimed with no run recorded): the call becomes `cancelled`
+  when no other task is left on it, the thread says so, and the dial's
+  compare-and-swaps (`_claim`, `link`) see it, so it never rings.
+  Tests: `TestCancellation` (7).
 
 ### 4.5 The window disappears with the do-not-call switch
 `dnd.assert_may_call` returns early, window included, when a deployment sets
