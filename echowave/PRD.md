@@ -12,21 +12,36 @@ the assumption rather than the arithmetic.
 
 ## 1. What Decibyl is
 
-A voice-AI platform for building conversational phone agents, sold prepaid, with
-Indian tax compliance and per-second-class billing built in rather than bolted
-on.
+**Personal intelligence that grows and evolves with you.** One assistant for a
+person's whole life — home, work and business — that acts on the phone and
+WhatsApp in their language, teaches them at their own pace, remembers what
+matters, and always asks before it acts. Positioning and copy live in
+`POSITIONING.md`; the launch scope lives in `LAUNCH-PLAN.md`.
 
-**The one-line positioning:** *the voice-AI platform that bills the way Indian
-businesses actually buy — prepaid, in rupees, GST-compliant, in 15-second
-pulses instead of rounded-up minutes.*
+A person and their business are one account, so the product earns in three
+places:
 
-Everything else in the market is a US product with an India problem: priced in
-dollars, billed monthly on a card, no GST invoice, no rupee ledger, and rounding
-every 25-second call up to a full minute.
+| Part of life | What Decibyl does | Plans (the 21 Sept ladder in `subscription_plans.py`) |
+|---|---|---|
+| **Home** | Today brief, reminders, learning at your own pace, care for older people, ordering, private browsing | Free, Go, Personal |
+| **Work** | Inbox, research, follow-up and meeting help; its own email and number; the tools you already use | Personal, Business |
+| **Business** | Agents hired for a job — phone, WhatsApp, orders, payments — shared with the team | Business, Pro, Scale |
+
+The rest of this document is mostly about the **business** half, and within it
+the voice channel: it is the costliest part to run and the one whose price a
+finance team reads line by line.
+
+### The voice channel's positioning
+
+*Bills the way Indian businesses actually buy — prepaid, in rupees,
+GST-compliant, in short pulses instead of rounded-up minutes.* Everything else
+in the voice market is a US product with an India problem: priced in dollars,
+billed monthly on a card, no GST invoice, no rupee ledger, and rounding every
+25-second call up to a full minute.
 
 ---
 
-## 2. Market and competition
+## 2. Market and competition (business voice)
 
 ### The field
 
@@ -53,7 +68,7 @@ That is precisely the half this branch built.
 
 ---
 
-## 3. Who it is for
+## 3. Who it is for (business voice)
 
 ### Primary — Indian SMB / mid-market outbound teams
 Insurance, lending, edtech, healthcare front-desk, real estate. 10k–500k

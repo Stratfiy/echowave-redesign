@@ -1,6 +1,6 @@
 # UI - Frontend Application
 
-Next.js 15 frontend for the Decibyl voice AI platform.
+Next.js 15 frontend for Decibyl — personal intelligence that grows and evolves with you, across home, work and business.
 
 ## Project Structure
 

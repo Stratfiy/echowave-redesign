@@ -90,7 +90,7 @@ not by this DPA.
 
 | | |
 |---|---|
-| **Subject matter** | Provision of the Decibyl conversational voice-AI platform |
+| **Subject matter** | Provision of Decibyl, a personal-intelligence assistant for home, work and business, including its voice and messaging agents |
 | **Duration** | The term of the Agreement, plus the retention periods in § 8 |
 | **Nature** | Placing and receiving calls; speech recognition; language-model inference; speech synthesis; recording; transcription; storage; analytics |
 | **Purpose** | Operating automated voice conversations as configured by the Customer |

@@ -89,9 +89,9 @@ const v2Mono = Martian_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Decibyl — AI teammates for Indian businesses",
+  title: "Decibyl — Personal intelligence that grows and evolves with you",
   description:
-    "Add an agent for a job — answering the phone, confirming orders, chasing payments, answering from your own documents. Self-hostable, BYOK, MCP-native.",
+    "One assistant for your whole life — home, work and business. It acts on the phone and WhatsApp in your language, teaches you at your own pace, and always asks before it acts.",
 };
 
 // viewport-fit=cover so env(safe-area-inset-*) reports the notch and the

@@ -1,6 +1,6 @@
 # API - Backend Service
 
-FastAPI backend for the Decibyl voice AI platform.
+FastAPI backend for Decibyl — personal intelligence that grows and evolves with you, across home, work and business.
 
 ## Project Structure
 

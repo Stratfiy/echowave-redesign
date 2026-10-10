@@ -1,10 +1,13 @@
 # Decibyl
 
-Decibyl is a voice AI platform for building, testing and operating conversational agents.
+**Decibyl is personal intelligence that grows and evolves with you.** One assistant for your whole
+life — home, work and business — that acts on the phone and WhatsApp in your language, teaches you
+at your own pace, remembers what matters, and always asks before it acts.
 The production application lives in [`echowave/`](echowave/), not the top-level preview scaffolding.
 
 ## Start here
 
+- [Positioning: what Decibyl is, in words to reuse](echowave/POSITIONING.md)
 - [Application overview and setup](echowave/README.md)
 - [Development guide](echowave/DEVELOPING.md)
 - [Contributor instructions](echowave/AGENTS.md)

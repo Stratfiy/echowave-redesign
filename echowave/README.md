@@ -1,8 +1,16 @@
 # Decibyl
 
-Build production voice agents with a visual workflow builder — a real-time
-speech pipeline with telephony and WebRTC, a drag-and-drop builder, and an MCP
-surface so coding assistants can design and edit agents directly.
+**Personal intelligence that grows and evolves with you.**
+
+Decibyl is one assistant for a person's whole life — home, work and business.
+It acts on the phone and WhatsApp in their language, teaches them at their own
+pace, remembers what matters, and always asks before it acts. A person and their
+business are one account: the same assistant runs their day, helps them at
+work, and puts agents to work for their business, shared with their team.
+
+Under it sits a real-time speech pipeline with telephony and WebRTC, an agent
+builder, and an MCP surface so coding assistants can design and edit agents
+directly.
 
 **This repository is private. Decibyl is a commercial product, not open source.**
 
