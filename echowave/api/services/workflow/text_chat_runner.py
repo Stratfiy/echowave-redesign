@@ -469,6 +469,14 @@ def raise_if_silent_after_error(
         )
 
 
+def routing_text_for(turn: dict[str, Any]) -> str:
+    """What Auto sorts a turn by: what the person asked, not the thread and
+    taught procedures a channel puts in front of it (``routing_text`` on the
+    user message), else the message as it stands."""
+    message = turn.get("user_message") or {}
+    return str(message.get("routing_text") or message.get("text") or "").strip()
+
+
 async def execute_text_chat_pending_turn(
     *,
     workflow_run_id: int,
@@ -486,6 +494,7 @@ async def execute_text_chat_pending_turn(
         if pending_turn.get("user_message") is not None
         else None
     )
+    routing_text = routing_text_for(pending_turn)
     workflow_run, _ = await db_client.get_workflow_run_with_context(workflow_run_id)
     if not workflow_run or workflow_run.workflow_id != workflow_id:
         raise ValueError("Workflow run not found for text chat execution")
@@ -520,9 +529,13 @@ async def execute_text_chat_pending_turn(
         # run says which model it chose and why (services/routing/brain.py).
         from api.services.routing import brain
 
+        # Sorted by what the person asked, never by the turn as the model
+        # reads it: a channel turn carries the thread and the taught
+        # procedures in front of the message, and their length is not the
+        # work's (it sent every channel message to Deep).
         routed = await brain.auto_route(
             workflow.organization_id,
-            pending_user_message or "",
+            routing_text,
             workflow_configurations=run_configs,
             feature="text_chat",
             workflow_id=workflow.id,

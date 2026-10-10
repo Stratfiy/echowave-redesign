@@ -71,7 +71,7 @@ beforeEach(() => {
 describe("the workspace's own roles", () => {
     it("hires a role straight into a new agent", async () => {
         render(<WorkspaceRolesShelf />);
-        fireEvent.click(await screen.findByRole("button", { name: "Hire" }));
+        fireEvent.click(await screen.findByRole("button", { name: "Add" }));
         await waitFor(() => expect(api.push).toHaveBeenCalledWith("/workflow/501"));
         expect(api.hire.mock.calls[0][0].path).toEqual({ role_id: 7 });
     });
@@ -92,7 +92,7 @@ describe("the workspace's own roles", () => {
             }),
         );
         render(<WorkspaceRolesShelf />);
-        expect(await screen.findByText("To connect after hiring")).toBeTruthy();
+        expect(await screen.findByText("To connect after adding")).toBeTruthy();
         expect(screen.getByText("Answer: tools, documents")).toBeTruthy();
         expect(screen.getByText("Copied in")).toBeTruthy();
     });

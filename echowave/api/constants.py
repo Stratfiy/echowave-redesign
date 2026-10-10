@@ -1093,6 +1093,12 @@ EXPO_ACCESS_TOKEN = os.getenv("EXPO_ACCESS_TOKEN", "").strip()
 # from the environment or the staff console. See services/billing/free_mode.py.
 FREE_MODE_ENABLED = os.getenv("FREE_MODE_ENABLED", "true").strip().lower() == "true"
 
+# Whether a price reaches a user, including through what a model says aloud.
+# The founder decided on 9 Oct 2026: no pricing is shown to users (AGENTS.md).
+# The server-side twin of ui/src/lib/pricing.ts; a constant, not a flag,
+# because turning it back on needs new price copy from the founder first.
+PRICES_SHOWN = False
+
 # Per-organisation overrides: "feature:org_id,org_id;feature2:org_id". A
 # feature listed here is on for those organisations even while its global
 # flag is off, so it can be tried by the platform organisation and one
@@ -1124,6 +1130,14 @@ SCRIPT_EXTERNAL_SPEND_CAP_CREDITS = int(
 
 # Which LLM the builder talks to, and in what order of preference.
 #
+#: The Claude model behind each managed LLM tier: Everyday (``default``, and
+#: Auto where no router ran), Smart (``accurate``) and Deep (``advanced``).
+#: ``managed_tiers`` maps the tiers onto these; anything else that should run
+#: on "the Smart Claude" names the constant rather than a second literal.
+CLAUDE_HAIKU_MODEL = "claude-haiku-4-5"
+CLAUDE_SONNET_MODEL = "claude-sonnet-5-5"
+CLAUDE_OPUS_MODEL = "claude-opus-5-5"
+
 # The builder uses the first of these for which a platform LLM key is installed
 # at /superadmin/provider-keys, so the choice of model is made by installing a
 # key rather than by editing a setting. Pin one explicitly with
@@ -1143,9 +1157,9 @@ AGENT_BUILDER_PROVIDER = (os.getenv("AGENT_BUILDER_PROVIDER") or "").strip().low
 # models do poorly, and it runs a handful of times per account rather than per
 # call.
 AGENT_BUILDER_MODELS = {
-    # Sonnet 5 since KAN-58: newer than 4.5 and a third cheaper ($2/$10 against
-    # $3/$15 per million), so there is no reason left to build on the old one.
-    "anthropic": os.getenv("AGENT_BUILDER_MODEL_ANTHROPIC", "claude-sonnet-5"),
+    # The Smart tier's Claude (Sonnet 5.5): the builder builds on the same
+    # model the workspace's "Smart" brain runs, so there is one place to move.
+    "anthropic": os.getenv("AGENT_BUILDER_MODEL_ANTHROPIC", CLAUDE_SONNET_MODEL),
     "openai": os.getenv("AGENT_BUILDER_MODEL_OPENAI", "gpt-4.1"),
     "google": os.getenv("AGENT_BUILDER_MODEL_GOOGLE", "gemini-2.5-flash"),
 }
@@ -1204,7 +1218,7 @@ BROWSER_BOX_PYTHON = os.getenv("BROWSER_BOX_PYTHON") or None
 #: Chromium for the ``local`` driver; the box image carries its own.
 BROWSER_CHROMIUM_PATH = os.getenv("BROWSER_CHROMIUM_PATH") or None
 #: The model the browser thinks with, on the platform's Anthropic key.
-BROWSER_MODEL = os.getenv("BROWSER_MODEL", "claude-sonnet-5-5")
+BROWSER_MODEL = os.getenv("BROWSER_MODEL", CLAUDE_SONNET_MODEL)
 #: Per-task limits. The defaults are what a task gets when nobody asks for
 #: less; the ceilings are what nobody can ask past.
 BROWSER_DEFAULT_STEPS = int(os.getenv("BROWSER_DEFAULT_STEPS", "25"))

@@ -88,14 +88,16 @@ class TestTheSurfaceIsReadOnly:
             "get_telephony_verification",
             "list_phone_numbers",
             "search_available_numbers",
-            "get_billing_summary",
         } <= tools
+        # Balance and charges are money: not offered while no pricing is
+        # shown to users (constants.PRICES_SHOWN, founder, 9 Oct 2026).
+        assert "get_billing_summary" not in tools
 
     async def test_they_are_annotated_read_only(self):
         """So a client that respects hints knows they change nothing."""
         by_name = {t.name for t in await mcp._list_tools()}
-        assert "get_billing_summary" in by_name
-        tool = await mcp.get_tool("get_billing_summary")
+        assert "search_available_numbers" in by_name
+        tool = await mcp.get_tool("search_available_numbers")
         assert tool.annotations.readOnlyHint is True
         assert tool.annotations.destructiveHint is False
 
