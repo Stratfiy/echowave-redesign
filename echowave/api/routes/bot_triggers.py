@@ -32,6 +32,7 @@ from api.schemas.bot_trigger import (
     TriggerWrite,
 )
 from api.services.auth.depends import get_user, require_organization_role
+from api.services.billing import model_usage
 from api.services.workflow import bot_triggers
 from api.tasks.arq import enqueue_job
 from api.tasks.function_names import FunctionNames
@@ -121,9 +122,15 @@ async def compile_trigger(
         from api.routes.agent_builder import meter_builder_message
 
         await meter_builder_message(session, organization_id)
-        compiled = await bot_triggers.compile(
-            body.sentence, answers=body.answers, session=session, source=body.source
-        )
+        with model_usage.scope(
+            organization_id=organization_id, feature="trigger_compile"
+        ):
+            compiled = await bot_triggers.compile(
+                body.sentence,
+                answers=body.answers,
+                session=session,
+                source=body.source,
+            )
     return TriggerCompileResponse(
         **compiled.as_dict(), filter_summary=bot_triggers.describe(compiled.filter)
     )

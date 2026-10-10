@@ -104,6 +104,13 @@ class ContextSummarizationManager:
             self._engine._record_side_call(
                 "summary", llm, getattr(llm, "last_inference_usage", None)
             )
+            from api.services.billing import model_usage
+
+            await model_usage.record_inference(
+                llm,
+                organization_id=await self._engine._get_organization_id(),
+                feature="context_summary",
+            )
 
             # Trace the LLM call — mirror what _generate_summary sends to
             # run_inference: system prompt + formatted transcript as user msg.
