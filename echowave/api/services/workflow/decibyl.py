@@ -63,6 +63,8 @@ from api.services.workflow import (
     draft_requests,
     files_search,
     filing,
+    history_cap,
+    lean_tools,
     office,
     organisation_learning,
     prospects,
@@ -327,11 +329,26 @@ def system_prompt(organization_id: int | None = None) -> str:
     The procurement rules are said only while those tools are offered: a
     rule for a tool the model is not holding is a tool it will describe and
     cannot call (``test_decibyl_knows_what_it_has``)."""
+    before, profile, after = _system_pieces(organization_id)
+    return before + profile + after
+
+
+def system_split(organization_id: int | None = None) -> tuple[str, str]:
+    """The same prompt in two parts, for ``cache_v2``: what every account
+    shares, and what is per person. The person's own settings used to sit in
+    the middle, so one person changing a setting changed the bytes of
+    everything after it; here they come last, and the text is the same
+    words in a different order."""
+    before, profile, after = _system_pieces(organization_id)
+    return before + after, profile
+
+
+def _system_pieces(organization_id: int | None) -> tuple[str, str, str]:
     from api.services.helpers import tools as helper_tools
     from api.services.settings import profile as settings_profile
     from api.services.voice import call_for_me
 
-    return (
+    before = (
         SYSTEM
         + (procurement.RULES if procurement.enabled() else "")
         + (tables.RULES if tables.enabled(organization_id) else "")
@@ -341,14 +358,17 @@ def system_prompt(organization_id: int | None = None) -> str:
         + people_tools.rules(organization_id)
         + image_tools.rules(organization_id)
         + _reach().rules(organization_id)
-        # The person's own choices for this turn (settings stream); "" when
-        # none were set or the switches are off.
-        + settings_profile.turn_block()
-        + (call_for_me.RULES if call_for_me.enabled(organization_id) else "")
+    )
+    # The person's own choices for this turn (settings stream); "" when
+    # none were set or the switches are off.
+    profile = settings_profile.turn_block()
+    after = (
+        (call_for_me.RULES if call_for_me.enabled(organization_id) else "")
         + (_done_calls().RULES if _done_calls_on(organization_id) else "")
         + (_outreach().RULES if _outreach().enabled(organization_id) else "")
         + (_booking().RULES if _booking().enabled(organization_id) else "")
     )
+    return before, profile, after
 
 
 def _booking():
@@ -1262,6 +1282,10 @@ async def _answer(
     # is not sent twice, and add it once with the context in front.
     if history and history[-1]["role"] == "user":
         history = history[:-1]
+    capped = _flag("history_cap", organization_id)
+    if capped:
+        # The recent thread whole, the older part of the window as a digest.
+        history, _ = history_cap.cap(history)
     for turn in history:
         if turn["role"] == "user":
             conversation.add_user(turn["content"])
@@ -1289,13 +1313,22 @@ async def _answer(
     )
     if helper_reading:
         context = f"{context}\n\n{helper_reading}"
-    attached = await attached_block(organization_id, attachments, last_try=last_try)
+    attached = await attached_block(
+        organization_id, attachments, last_try=last_try, capped=capped
+    )
     if attached:
         context = f"{context}\n\n{attached}"
+    if _flag("cache_v2", organization_id):
+        # The messages so far are earlier turns of the thread: the same on the
+        # next message, so the request marks the end of them for the cache.
+        conversation.stable_prefix = len(conversation.messages)
     conversation.add_user(f"{context}\n\n## Question\n{text}{handed}")
 
     #: The backup model's id when it answered any part of this turn.
     backup_model = ""
+    routed = None
+    lean = False
+    more_tools: dict[str, Any] = {"asked": False, "extras": set(), "full": False}
     failed = False
     stopped = False
     # A Stop meant for an earlier reply must not end this one.
@@ -1319,7 +1352,40 @@ async def _answer(
         # Schemas the model has loaded this thread, by tool name. Starts
         # empty: every connected app is a name and a line until asked for.
         loaded: dict[str, dict[str, Any]] = {}
-        tools = await tools_for(organization_id, loaded)
+        lean = _flag("lean_tools", organization_id)
+        # A quick turn is offered a core set (lean_tools); the rest are one
+        # ``more_tools`` call away. What the thread used before stays offered.
+        carried = lean_tools.Carried()
+        quick_turn = False
+        if lean:
+            earlier = await _tools_carried(organization_id, thread_id)
+            # What the thread used could not be read: offer everything rather
+            # than guess which tools it needed.
+            if earlier is not None:
+                carried = earlier
+                quick_turn = await _is_quick(
+                    organization_id, text, routed, len(attachments or [])
+                )
+        #: What this turn's list was, for the reply row: the extras it was
+        #: offered, and whether it was offered everything.
+        more_tools.update(asked=False, extras=set(), full=False)
+
+        async def offered() -> list[dict[str, Any]]:
+            full = await tools_for(organization_id, loaded)
+            # A reply that went out with everything, minutes ago, keeps the
+            # list the same: changing it now would only re-write the cache.
+            if not (lean and quick_turn) or more_tools["asked"] or carried.warm_full:
+                more_tools["full"] = True
+                return full
+            used = carried.used | lean_tools.used_in(conversation.messages)
+            picked = lean_tools.select(
+                full, text=text, used=used, warm_extras=carried.warm_extras
+            )
+            more_tools["extras"].update(picked.extras)
+            more_tools["full"] = not picked.narrowed
+            return picked.tools
+
+        tools = await offered()
         reply = await _speak(model, conversation, organization_id, tools=tools)
         backup_model = reply.fallback_model
         # Up to MAX_TOOL_ROUNDS rounds, not one: a read of a connected app
@@ -1343,6 +1409,17 @@ async def _answer(
             reads_only = True
             asked_for_schema = False
             for call in reply.tool_calls:
+                if call.name == lean_tools.MORE_TOOLS:
+                    # The escape hatch: nothing is lost by a lean turn, the
+                    # rest of the tools arrive on the next round.
+                    more_tools["asked"] = True
+                    asked_for_schema = True
+                    result = {
+                        "status": "success",
+                        "note": "The other tools are loaded now. Carry on.",
+                    }
+                    conversation.add_tool_result(call, result)
+                    continue
                 if call.name == connected_tools.LOAD_TOOL_NAME:
                     result = await _load_tool(organization_id, call, loaded)
                     asked_for_schema = True
@@ -1359,7 +1436,7 @@ async def _answer(
                     reads_only = False
             if asked_for_schema:
                 # The tool it asked about is now offered with its arguments.
-                tools = await tools_for(organization_id, loaded)
+                tools = await offered()
             capped = reads_only and rounds >= MAX_TOOL_ROUNDS
             if capped and decibyl_tasks.enabled():
                 # Mid-plan at the cap, and the board can carry on (D-1a):
@@ -1478,6 +1555,7 @@ async def _answer(
             ),
             **({"backup_model": backup_model} if backup_model else {}),
             **outcome,
+            **_tools_payload(conversation, lean, more_tools),
         },
         in_channel=False,
     )
@@ -1630,8 +1708,12 @@ async def attached_block(
     attachments: list[dict[str, Any]] | None,
     *,
     last_try: bool = False,
+    capped: bool = False,
 ) -> str:
     """The text of the files on this line, as a context block, or empty.
+
+    ``capped`` is ``history_cap``: a smaller share of each file and of the
+    turn, and the size said where a file is clipped.
 
     A file dropped on the thread is filed and read by the knowledge-base
     pipeline; its text is usually there within seconds. A short wait covers
@@ -1642,7 +1724,8 @@ async def attached_block(
     if not attachments:
         return ""
     parts: list[str] = []
-    budget = ATTACHMENTS_CHARS
+    budget = history_cap.ATTACHMENTS_CHARS if capped else ATTACHMENTS_CHARS
+    per_file = history_cap.ATTACHMENT_CHARS if capped else ATTACHMENT_CHARS
     for attachment in attachments[:10]:
         uuid = str(attachment.get("document_uuid") or "")
         name = str(attachment.get("filename") or "file")
@@ -1678,8 +1761,13 @@ async def attached_block(
         if not text:
             parts.append(f"### {name}\n{_why_there_is_no_text(document, last_try)}")
             continue
-        take = min(ATTACHMENT_CHARS, budget)
-        clipped = text[:take] + (" …" if len(text) > take else "")
+        take = min(per_file, budget)
+        if capped:
+            clipped = text[:take] + (
+                history_cap.clipped_note(take, len(text)) if len(text) > take else ""
+            )
+        else:
+            clipped = text[:take] + (" …" if len(text) > take else "")
         budget -= len(clipped)
         parts.append(f"### {name}\n{clipped}")
         if budget <= 0:
@@ -2290,13 +2378,19 @@ async def _speak(
     # becomes the reply (see reply_stop).
     can_stop = features.is_on("chat_shell", organization_id)
     spoken = current_voice_turn()
-    system = system_prompt(organization_id) + _helper_instructions()
+    if _flag("cache_v2", organization_id):
+        # Shared words first, per-person words last, so the cache breakpoint
+        # falls between them (client.SplitSystem).
+        shared, personal = system_split(organization_id)
+        system = client.SplitSystem(shared, personal + _helper_instructions())
+    else:
+        system = system_prompt(organization_id) + _helper_instructions()
     if spoken is not None:
         # Spoken: each new piece goes straight to the voice, unthrottled --
         # the first words are the latency a person hears -- and no draft is
         # written, because the voice session shows its own captions. An
         # interruption cancels the turn instead of a Stop.
-        system = system + VOICE_RULES
+        system = _with_rules(system, VOICE_RULES, client)
         spoken_round = {"seen": 0}
 
         async def on_text(text: str) -> None:
@@ -2348,6 +2442,82 @@ async def _speak(
             on_text=on_text,
             tools=tools,
         )
+
+
+async def _is_quick(
+    organization_id: int, text: str, routed: Any, attachments: int
+) -> bool:
+    """Whether this turn is a quick one: the route Auto chose, or -- where the
+    workspace pinned a brain and Auto chose nothing -- the same rules."""
+    from api.services.routing import brain
+
+    if routed is not None:
+        return routed.kind == "quick"
+    return (
+        brain.by_rules(
+            text,
+            attachments=attachments,
+            tight=brain.tight_rules_on(organization_id),
+        )
+        == "quick"
+    )
+
+
+async def _tools_carried(
+    organization_id: int, thread_id: str | None
+) -> lean_tools.Carried | None:
+    """What earlier replies on this thread hand to this turn's tool list
+    (``lean_tools``), or None when the thread could not be read -- which the
+    caller treats as "offer everything", never as "used nothing"."""
+    try:
+        rows = await db_client.agent_events(
+            organization_id=organization_id,
+            limit=60,
+            thread_id=thread_id,
+            viewer_id=acting.valid_member(acting.acting_user()),
+            **thread_filter(organization_id),
+        )
+    except Exception as exc:  # noqa: BLE001 - fail open, see the docstring
+        logger.warning("Could not read the tools this thread used: {}", exc)
+        return None
+    return lean_tools.carried_from(rows)
+
+
+def _tools_payload(
+    conversation: Any, lean: bool, offered: dict[str, Any]
+) -> dict[str, Any]:
+    """What goes on the reply row so the next lean turn on this thread can
+    keep the list the same: the tools this turn called, the extras it was
+    offered, or that it was offered everything. Nothing while ``lean_tools``
+    is off: the row is as it was."""
+    if not lean:
+        return {}
+    out: dict[str, Any] = {}
+    used = lean_tools.used_in(conversation.messages) - {lean_tools.MORE_TOOLS}
+    if used:
+        out["tools_used"] = sorted(used)
+    if offered["full"]:
+        out["tools_full"] = True
+    else:
+        out["tools_kept"] = sorted(offered["extras"])
+    return out
+
+
+def _flag(name: str, organization_id: int | None) -> bool:
+    """Whether a token-cut flag is on for this account. Unknown is off, so a
+    flag that cannot be read is the request as it was."""
+    try:
+        return features.is_on(name, organization_id)
+    except Exception:  # noqa: BLE001 - see docstring
+        return False
+
+
+def _with_rules(system: str, rules: str, client: Any) -> str:
+    """``system`` plus fixed words, keeping a split system split: the words
+    are the same for every account, so they join the shared half."""
+    if isinstance(system, client.SplitSystem):
+        return client.SplitSystem(system.stable + rules, system.volatile)
+    return system + rules
 
 
 def _helper_instructions() -> str:

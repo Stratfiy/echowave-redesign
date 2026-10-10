@@ -88,10 +88,10 @@ console. Seven days by default.
 | # | Where | What breaks | Status |
 |---|---|---|---|
 | 1 | Agent prompts (composer) | The clock line (to the minute) is the **first** block, so no two calls share a prefix and automatic-prefix vendors (OpenAI, Google, DeepSeek) can never reuse the operator's prompt across calls | Fixed behind `cache_v2`: the line moves after the per-bot fixed blocks, before the caller / steps / known values. Off by default: it changes what the model reads first |
-| 2 | Decibyl via the builder client on Claude | One breakpoint, on the system block. The turn's context (team, memory, knowledge, the clock) rides in the latest user message, and every tool round of the turn resends it **uncached** | Fixed behind `cache_v2`: a second breakpoint on the last block of the conversation. Same content; the cost is a write premium on single-round turns, hence the flag |
+| 2 | Decibyl via the builder client on Claude | One breakpoint, on the system block. The turn's context (team, memory, knowledge, the clock) rides in the latest user message, and every tool round of the turn resends it **uncached** | Fixed behind `cache_v2`: four breakpoints, the most a request may carry — after the tool schemas, on the system prompt, on the thread so far (the prior turns), and on the last block of the conversation. Same content; the cost is a write premium on single-round turns, hence the flag |
 | 3 | Agent prompts on Claude | The system prompt is one block, recomposed at each node transition (node prompt, known values, tools change), and pipecat's markers sit on user turns only — so every transition is a full miss | Measured (`system`/`both` breaks). Not changed: splitting the system prompt or moving known values into messages changes what the model sees — later work |
 | 4 | Decibyl deferred tools | Loading a connected app's schema mid-turn changes the tool list; tools precede the system prompt in Claude's prefix, so the system cache entry is lost | Measured (`tools` breaks). Not changed |
-| 5 | Decibyl's system prompt | Carries per-organisation rules and the person's own settings block, so it is shared per person, not "every thread in every account" as the client's comment says | Measured (fingerprints per feature). Not changed |
+| 5 | Decibyl's system prompt | Carries per-organisation rules and the person's own settings block, so it is shared per person, not "every thread in every account" as the client's comment says | Fixed behind `cache_v2`: the person's settings block and the chosen helper's instructions come last, as a second system block after the cache breakpoint, so the shared block is read from the cache for everyone. The same words in another order |
 | 6 | Tool order and serialisation | Checked: connected tools are read ordered by name, a node's custom tools in the node's own order, Decibyl's own built in a fixed order, schemas from code or JSON with stable key order | No fix needed; `test_decibyls_own_tools_serialise_identically_turn_to_turn` holds it |
 | 7 | In-call summary | Its tokens never reached the receipt | Now measured as `summary` in the task's cost; billing unchanged |
 
@@ -116,6 +116,57 @@ with no quality regression**:
 
 Turning `cache_v2` on for a few organisations through the staff console's
 per-organisation switch is the first experiment this gate is for.
+
+## Token cuts (audit of 10 October 2026)
+
+A Decibyl chat call was about 40K input tokens for about 475 output; 46% of
+input uncached, 33% read from the cache, 21% written to it. Four levers, each
+behind its own flag, each off by default, none switched on anywhere. Measure
+them with `python -m scripts.replay_token_cuts` (test environment only), which
+replays the same synthetic Decibyl conversations once per configuration and
+summarises the per-call rows (`llm_call_usage`) with this page's own report.
+
+| Flag | What it changes | Where |
+|---|---|---|
+| `cache_v2` | The four breakpoints and the split system prompt above | `agent_builder/client.py`, `workflow/decibyl.py` |
+| `lean_tools` | A quick turn is offered ~25 tools, plus those the thread used and those the message points at; `more_tools` loads the rest | `workflow/lean_tools.py`, `routing/tool_intents.py` |
+| `cheap_routing` | The smallest tier for classifiers and extractors; Auto's "steps" and "deep" word rules tightened | `agent_builder/settings.py`, `routing/brain.py` |
+| `history_cap` | The last 6–9 messages whole, older turns as a digest; a file's first 16,000 characters with its size said | `workflow/history_cap.py`, `workflow/decibyl.py` |
+
+**What the replay says (estimated, offline cache model; 4 conversations of 24
+turns, 56 own tools and 24 connected-app tools).** Cost against all flags off,
+by how long the person leaves between messages:
+
+| | turns 45 s apart (cache warm) | turns 400 s apart (cache cold) |
+|---|---|---|
+| `cache_v2` | -20% | -1% |
+| `lean_tools` | +8% | -11% |
+| `cheap_routing` | -7% | -11% |
+| `history_cap` | -11% | -3% |
+| all four | -12% | -30% |
+
+Read it as a shape, not a forecast: the real tokeniser and the real cache
+will move the numbers, and production is nearer the cold column (the audit's
+33% read rate) than the warm one. Three things it found:
+
+- **A cold cache costs more than no cache.** Cold, every call pays the 1.25×
+  write premium and nothing is ever read: about three-fifths of input was
+  written. `cache_v2` does little there; cutting what is sent (`lean_tools`,
+  `cheap_routing`) does.
+- **`lean_tools` can cost more than it saves while the cache is warm.** The
+  tool list comes before the system prompt, so a list that differs from the
+  last turn's makes everything after it a miss, and a write costs a quarter
+  more than a read saves. So a thread's list only grows while the cache is
+  warm (270 s), and a thread whose last reply had the full list stays on it.
+  Still a small loss warm, because the first lean turn of a thread is another
+  prefix to write. Turn it on where threads are sparse.
+- **Nothing the person asked for goes missing.** Every configuration offered
+  the tool a message asked for, by name or in plain words, on the first round.
+
+Not changed: the user message's context is rebuilt every turn and is not part
+of the thread afterwards, so putting its clock line last would not change a
+cache read; the attachments cap is deliberately generous because a spec
+clipped at its tail loses its closing steps.
 
 ## The staged R3 plan — not implemented now
 

@@ -1016,6 +1016,22 @@ ESCALATION_V2_ENABLED = _flag("ESCALATION_V2_ENABLED")
 # conversation on Claude. Off by default; off, every prompt and request is
 # byte-for-byte what it was. The measurement itself is not behind this flag.
 CACHE_V2_ENABLED = _flag("CACHE_V2_ENABLED")
+# Token cuts (services/workflow/lean_tools.py, services/routing/brain.py,
+# services/workflow/history_cap.py), each measured with the per-call usage rows
+# before it is on anywhere. All off by default; off, every prompt, tool list
+# and model choice is exactly what it was.
+#
+# lean_tools: a quick Decibyl turn is offered a core set of tools, plus those
+# the thread already used and those the message points at, with a "more tools"
+# call that loads the rest.
+LEAN_TOOLS_ENABLED = _flag("LEAN_TOOLS_ENABLED")
+# cheap_routing: the smallest tier for the non-conversational model calls
+# (classifiers and extractors), and Auto's "steps" / "deep" word rules tightened
+# so ordinary words do not escalate a message.
+CHEAP_ROUTING_ENABLED = _flag("CHEAP_ROUTING_ENABLED")
+# history_cap: a Decibyl turn sends the recent thread whole, older turns as a
+# short digest, and an attached file's opening rather than all of it.
+HISTORY_CAP_ENABLED = _flag("HISTORY_CAP_ENABLED")
 # Outreach (services/outreach): find leads from a lead-data provider, then
 # one send card per lead on the person's own mailbox, with Confirm all.
 OUTREACH_ENABLED = _flag("OUTREACH_ENABLED")

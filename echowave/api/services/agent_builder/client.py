@@ -272,6 +272,27 @@ class ModelReply:
         return bool(self.tool_calls)
 
 
+class SplitSystem(str):
+    """A system prompt in two parts, the shared one first.
+
+    A ``str`` that reads as the whole prompt everywhere -- every vendor, the
+    hashes, the logs -- and carries the two halves for the one request that
+    can use them: Claude with ``cache_v2`` on, which puts the cache breakpoint
+    between them. What is the same for every account (``stable``) is then
+    cached once for all of them, and what is per person (``volatile``: their
+    settings, the chosen helper) is read after it and never invalidates it.
+    """
+
+    stable: str
+    volatile: str
+
+    def __new__(cls, stable: str, volatile: str = "") -> "SplitSystem":
+        obj = super().__new__(cls, stable + volatile)
+        obj.stable = stable
+        obj.volatile = volatile
+        return obj
+
+
 @dataclass
 class Conversation:
     """The running transcript, in this module's own shape.
@@ -286,6 +307,11 @@ class Conversation:
     """
 
     messages: list[dict[str, Any]] = field(default_factory=list)
+    #: How many leading messages are earlier turns of the thread, unchanged
+    #: from one request to the next, as against this turn's own. A caller that
+    #: knows sets it; ``cache_v2`` puts a cache breakpoint at the end of them.
+    #: 0 means unknown, which marks nothing.
+    stable_prefix: int = 0
 
     def add_user(self, text: str) -> None:
         self.messages.append({"role": "user", "content": text})
@@ -393,7 +419,11 @@ def _anthropic_request(
     *, model: str, system: str, conversation: Conversation, tools: list[dict[str, Any]]
 ) -> dict[str, Any]:
     messages: list[dict[str, Any]] = []
-    for entry in conversation.messages:
+    #: ``cache_v2``: how many built messages the thread's earlier turns make.
+    prefix_end = 0
+    for index, entry in enumerate(conversation.messages):
+        if index == conversation.stable_prefix:
+            prefix_end = len(messages)
         role = entry["role"]
         if role == "user":
             messages.append({"role": "user", "content": entry["content"]})
@@ -457,13 +487,7 @@ def _anthropic_request(
         # Only this block. The per-turn context -- the team, the memory, the
         # knowledge base -- rides in the user message and changes every turn,
         # and marking something that changes buys a write and never a read.
-        "system": [
-            {
-                "type": "text",
-                "text": system,
-                "cache_control": {"type": "ephemeral"},
-            }
-        ],
+        "system": _system_blocks(system),
         "messages": messages,
     }
     if tools:
@@ -476,8 +500,45 @@ def _anthropic_request(
             for t in tools
         ]
     if _cache_v2():
+        # Four breakpoints, the most a request may carry: the tools, the
+        # system prompt (above), the thread so far, and the end of the turn.
+        # The render order is tools, system, messages, so each one reads
+        # everything before it from the cache and a change late in the request
+        # costs only what comes after the change.
+        if payload.get("tools"):
+            payload["tools"][-1] = {
+                **payload["tools"][-1],
+                "cache_control": {"type": "ephemeral"},
+            }
+        _mark_thread_prefix(messages, prefix_end)
         _mark_conversation_tail(messages)
     return payload
+
+
+def _system_blocks(system: str) -> list[dict[str, Any]]:
+    """The system prompt as cache-marked blocks.
+
+    Plain: one block, marked, as it has always been. With ``cache_v2`` and a
+    :class:`SplitSystem` that has a per-person half: the shared half is the
+    marked block, so it is read from the cache for every account, and the
+    per-person half follows it unmarked.
+    """
+    if isinstance(system, SplitSystem) and system.volatile and _cache_v2():
+        return [
+            {
+                "type": "text",
+                "text": system.stable,
+                "cache_control": {"type": "ephemeral"},
+            },
+            {"type": "text", "text": system.volatile},
+        ]
+    return [
+        {
+            "type": "text",
+            "text": str(system),
+            "cache_control": {"type": "ephemeral"},
+        }
+    ]
 
 
 def _cache_v2() -> bool:
@@ -505,9 +566,23 @@ def _mark_conversation_tail(messages: list[dict[str, Any]]) -> None:
 
     The model sees exactly the same content; only the request is marked.
     """
-    if not messages:
+    _mark_message(messages, len(messages) - 1)
+
+
+def _mark_thread_prefix(messages: list[dict[str, Any]], end: int) -> None:
+    """A cache breakpoint on the last block of the thread's earlier turns
+    (``cache_v2``): the part of a Decibyl request that is the same on the next
+    message, because it is the conversation so far. ``end`` is how many
+    messages that is. Nothing when there are none, or when nothing follows
+    them (the tail marker is then the same place)."""
+    if 0 < end < len(messages):
+        _mark_message(messages, end - 1)
+
+
+def _mark_message(messages: list[dict[str, Any]], index: int) -> None:
+    if not 0 <= index < len(messages):
         return
-    last = messages[-1]
+    last = messages[index]
     content = last.get("content")
     if isinstance(content, str):
         if not content.strip():
