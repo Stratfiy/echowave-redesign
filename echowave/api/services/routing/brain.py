@@ -244,7 +244,7 @@ async def auto_route(
     *,
     workflow_configurations: dict | None = None,
     attachments: int = 0,
-    feature: str = "chat",
+    feature: str = "",
     prefer_vendor: str | None = None,
     workflow_id: int | None = None,
     ref: str | None = None,
@@ -262,9 +262,9 @@ async def auto_route(
     The decision is recorded (``routing.record``) and carries the model it
     chose and why (``routing.models``).
 
-    ``feature`` names the caller (``text_chat``, ``decibyl``); each decision is
-    also kept as training data for the router -- under the workspace's consent,
-    redacted, and never in the way of the reply
+    ``feature`` names the caller (``text_chat``, ``decibyl``; recorded as
+    ``chat`` when blank); with it, each decision is also kept as
+    training data for the router -- under the workspace's consent, redacted, and never in the way of the reply
     (``training_loop.hooks.routing_decision``). ``ref`` is what later outcomes
     link back by (``hooks.routing_ref``)."""
     try:
@@ -288,7 +288,7 @@ async def auto_route(
         )
         record.decision(
             organization_id=organization_id,
-            feature=feature,
+            feature=feature or "chat",
             kind=routed.kind,
             provider=chosen.provider,
             model=chosen.model,
