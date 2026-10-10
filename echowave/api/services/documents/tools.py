@@ -472,6 +472,13 @@ def prepare(
         for name, value in list(mapping.items()):
             if _blank(value):
                 continue
+            if money.is_tax_id_placeholder(value) and (
+                name.endswith(("gstin", "_pan")) or name == "pan"
+            ):
+                # A draft can be made before the details are known; the
+                # register refuses to issue a tax invoice while this remains.
+                mapping[name] = money.TAX_ID_PLACEHOLDER
+                continue
             try:
                 if name.endswith("gstin"):
                     mapping[name] = (

@@ -287,6 +287,11 @@ async def update(
         if status not in formats.STATUSES:
             raise RegisterError(f"status must be one of {', '.join(formats.STATUSES)}")
         if status == ISSUED and was != ISSUED:
+            if row.kind == "tax_invoice" and money.has_tax_id_placeholder(row.data):
+                raise RegisterError(
+                    "This tax invoice still has a GSTIN or PAN marked "
+                    "[to confirm]; give the real value before issuing it."
+                )
             # The approval matrix (KAN-160): issuing is the act a rule is
             # about, by the document's kind and amount. Raises
             # ApprovalRequired naming who must; a no-op while off.
