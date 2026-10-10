@@ -74,6 +74,9 @@ TAG_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "workflow-recordings",
             "workflow-outcomes",
             "evals",
+            # What owners did with an agent's suggestions, kept per workspace
+            # as training data, and its export (services/training_loop/).
+            "training-loop",
             "cost-estimate",
             "node-types",
             "extraction-library",

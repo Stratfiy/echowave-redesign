@@ -35,6 +35,7 @@ from api.enums import (
     OrganizationRole,
 )
 from api.services import events, features
+from api.services.training_loop import hooks as training_hooks
 
 FLAG = "reply_feedback"
 
@@ -111,6 +112,10 @@ async def _reply_subject(
         "task_version": None,
         "thread_id": getattr(event, "thread_id", None),
         "workflow_id": event.workflow_id,
+        # Not stored here (this table keeps the verdict, never the words);
+        # handed on to the training loop, which keeps them under the
+        # workspace's own consent.
+        "reply_text": body,
     }
 
 
@@ -217,6 +222,17 @@ async def submit(
             },
         )
         await session.commit()
+    if subject_kind == REPLY:
+        await training_hooks.reply_thumb(
+            organization_id=organization_id,
+            user_id=user_id,
+            reply_event_id=subject_id,
+            workflow_id=found.get("workflow_id"),
+            verdict=verdict,
+            reasons=reasons,
+            reply_text=found.get("reply_text"),
+            model=found.get("model"),
+        )
     return {
         "id": row_id,
         "subject_kind": subject_kind,

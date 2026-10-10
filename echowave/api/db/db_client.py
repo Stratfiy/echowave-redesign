@@ -34,6 +34,7 @@ from api.db.site_project_client import SiteProjectClient
 from api.db.telephony_configuration_client import TelephonyConfigurationClient
 from api.db.telephony_phone_number_client import TelephonyPhoneNumberClient
 from api.db.tool_client import ToolClient
+from api.db.training_loop_client import TrainingLoopClient
 from api.db.user_client import UserClient
 from api.db.verified_number_client import VerifiedNumberClient
 from api.db.webhook_credential_client import WebhookCredentialClient
@@ -48,6 +49,7 @@ from api.db.workflow_template_client import WorkflowTemplateClient
 class DBClient(
     AgentEventClient,
     EscalationClient,
+    TrainingLoopClient,
     MeetingClient,
     RoutineClient,
     BotTriggerClient,

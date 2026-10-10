@@ -17,6 +17,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { getWorkflowApiV1WorkflowFetchWorkflowIdGet } from '@/client/sdk.gen';
+import { AgentLearning } from '@/components/agent/AgentLearning';
 import { AgentMemory } from '@/components/agent/AgentMemory';
 import { AgentSkills } from '@/components/agent/AgentSkills';
 import { type Avatar } from '@/components/avatar/avatar';
@@ -74,6 +75,7 @@ export function AboutPanel({
             </section>
             <AgentSkills workflowId={workflowId} agentName={name} />
             <AgentMemory workflowId={workflowId} agentName={name} />
+            <AgentLearning workflowId={workflowId} />
         </div>
     );
 }

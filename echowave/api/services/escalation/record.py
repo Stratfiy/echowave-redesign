@@ -23,6 +23,7 @@ from loguru import logger
 
 from api.db import db_client
 from api.services.escalation import ReasonCode
+from api.services.training_loop import hooks as training_hooks
 
 REQUESTED = "requested"
 DIALLING = "dialling"
@@ -70,7 +71,7 @@ async def open_escalation(
 ):
     """The row for this escalation, and whether this caller created it."""
     code = reason.value if isinstance(reason, ReasonCode) else str(reason)
-    return await db_client.open_escalation(
+    row, created = await db_client.open_escalation(
         organization_id=organization_id,
         idempotency_key=idempotency_key(workflow_run_id, sequence),
         reason_code=code,
@@ -79,6 +80,16 @@ async def open_escalation(
         workflow_id=workflow_id,
         workflow_run_id=workflow_run_id,
     )
+    if created:
+        await training_hooks.escalation_opened(
+            organization_id=organization_id,
+            escalation_id=row.id,
+            workflow_id=workflow_id,
+            workflow_run_id=workflow_run_id,
+            reason=code,
+            detail=detail,
+        )
+    return row, created
 
 
 async def move(
