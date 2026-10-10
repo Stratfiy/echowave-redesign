@@ -30,6 +30,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
 import { formatCreditsRate } from "@/lib/billing/format";
+import { PRICES_SHOWN } from "@/lib/pricing";
 import { cn } from "@/lib/utils";
 import type { WorkflowConfigurations } from "@/types/workflow-configurations";
 
@@ -371,52 +372,55 @@ export function ModelRow({
     return (
         <div className="space-y-4">
             <div className="flex flex-wrap items-start gap-x-10 gap-y-4">
-                <div className="min-w-0">
-                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                        Cost
-                    </p>
-                    <p className="mt-1 text-2xl font-semibold tabular-nums tracking-tight">
-                        {formatCreditsRate(cost.total_paise_per_minute)}
-                        <span className="ml-1 text-sm font-normal text-muted-foreground">
-                            credits/min
-                        </span>
-                    </p>
-                    {barTotal > 0 && stacked && (
-                        // A bar in a side column: the donut is a badge for a
-                        // band, and in 380px it is a circle beside a list.
-                        <div
-                            className="mt-3 flex h-2.5 w-full overflow-hidden rounded-full bg-muted"
-                            role="img"
-                            aria-label={`Cost split: ${segments.map((s) => s.label).join(", ")}`}
-                        >
-                            {segments.map((s) => (
-                                <span
-                                    key={s.label}
-                                    style={{ width: `${(s.paise / barTotal) * 100}%`, backgroundColor: s.colour }}
-                                />
-                            ))}
-                        </div>
-                    )}
-                    {barTotal > 0 && (
-                        <div className="mt-3 flex items-center gap-3">
-                            {!stacked && <CostDonut segments={segments} total={barTotal} />}
-                            <div className="flex flex-col gap-1 text-[11px] text-muted-foreground">
+                {/* No pricing is shown to users (lib/pricing.ts). */}
+                {PRICES_SHOWN && (
+                    <div className="min-w-0">
+                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                            Cost
+                        </p>
+                        <p className="mt-1 text-2xl font-semibold tabular-nums tracking-tight">
+                            {formatCreditsRate(cost.total_paise_per_minute)}
+                            <span className="ml-1 text-sm font-normal text-muted-foreground">
+                                credits/min
+                            </span>
+                        </p>
+                        {barTotal > 0 && stacked && (
+                            // A bar in a side column: the donut is a badge for a
+                            // band, and in 380px it is a circle beside a list.
+                            <div
+                                className="mt-3 flex h-2.5 w-full overflow-hidden rounded-full bg-muted"
+                                role="img"
+                                aria-label={`Cost split: ${segments.map((s) => s.label).join(", ")}`}
+                            >
                                 {segments.map((s) => (
-                                    <span key={s.label} className="inline-flex items-center gap-1.5">
-                                        <span
-                                            className="h-2 w-2 rounded-full"
-                                            style={{ backgroundColor: s.colour }}
-                                        />
-                                        {s.label}
-                                        <span className="tabular-nums text-foreground">
-                                            {formatCreditsRate(s.paise)}
-                                        </span>
-                                    </span>
+                                    <span
+                                        key={s.label}
+                                        style={{ width: `${(s.paise / barTotal) * 100}%`, backgroundColor: s.colour }}
+                                    />
                                 ))}
                             </div>
-                        </div>
-                    )}
-                </div>
+                        )}
+                        {barTotal > 0 && (
+                            <div className="mt-3 flex items-center gap-3">
+                                {!stacked && <CostDonut segments={segments} total={barTotal} />}
+                                <div className="flex flex-col gap-1 text-[11px] text-muted-foreground">
+                                    {segments.map((s) => (
+                                        <span key={s.label} className="inline-flex items-center gap-1.5">
+                                            <span
+                                                className="h-2 w-2 rounded-full"
+                                                style={{ backgroundColor: s.colour }}
+                                            />
+                                            {s.label}
+                                            <span className="tabular-nums text-foreground">
+                                                {formatCreditsRate(s.paise)}
+                                            </span>
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
 
                 <div className="min-w-0">
                     <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -442,7 +446,7 @@ export function ModelRow({
                         {presets.map((preset) => {
                             const active = data.active_preset === preset.slug;
                             const price =
-                                typeof preset.paise_per_minute === "number"
+                                PRICES_SHOWN && typeof preset.paise_per_minute === "number"
                                     ? `${formatCreditsRate(preset.paise_per_minute)}/min`
                                     : null;
                             return (
@@ -554,24 +558,26 @@ export function ModelRow({
                                     {vendorName(slot.provider)}
                                 </p>
                                 <div className="mt-3 flex gap-6 border-t pt-3">
-                                    <div>
-                                        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                                            Cost
-                                        </p>
-                                        <p className="text-sm tabular-nums">
-                                            {slot.paise_per_minute === null
-                                                ? "—"
-                                                : `${formatCreditsRate(slot.paise_per_minute)} credits/min`}
-                                            {slot.approximate && (
-                                                <span
-                                                    className="ml-1 text-muted-foreground"
-                                                    title="Priced against this provider's default rather than this model"
-                                                >
-                                                    ≈
-                                                </span>
-                                            )}
-                                        </p>
-                                    </div>
+                                    {PRICES_SHOWN && (
+                                        <div>
+                                            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                                                Cost
+                                            </p>
+                                            <p className="text-sm tabular-nums">
+                                                {slot.paise_per_minute === null
+                                                    ? "—"
+                                                    : `${formatCreditsRate(slot.paise_per_minute)} credits/min`}
+                                                {slot.approximate && (
+                                                    <span
+                                                        className="ml-1 text-muted-foreground"
+                                                        title="Priced against this provider's default rather than this model"
+                                                    >
+                                                        ≈
+                                                    </span>
+                                                )}
+                                            </p>
+                                        </div>
+                                    )}
                                     <div>
                                         <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
                                             Measured

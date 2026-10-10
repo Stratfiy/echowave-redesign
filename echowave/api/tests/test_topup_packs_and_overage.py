@@ -298,7 +298,8 @@ class TestTheOrderRefusesWhatItShould:
     ):
         """Free holds 2,000 top-up credits (section 7 of the spec). Holding
         1,500 and buying the ₹1,000 pack (2,000) would be 3,500; refused,
-        and told the rung that holds more: Everyday, at 20,000."""
+        and told to contact support -- no plan is named to a user (founder,
+        9 Oct 2026)."""
         await subscription_plans.ensure_seeded(async_session)
         org = await _org(async_session, "ceiling")
         await _entry(async_session, org, delta=75_000, kind=CreditLedgerKind.TOPUP)
@@ -310,7 +311,9 @@ class TestTheOrderRefusesWhatItShould:
                 created_by=None,
             )
         assert "2,000 top-up credits" in str(excinfo.value)
-        assert "upgrade to Everyday" in str(excinfo.value)
+        assert "contact support" in str(excinfo.value)
+        assert "upgrade" not in str(excinfo.value).lower()
+        assert "Everyday" not in str(excinfo.value)
         count = await async_session.scalar(
             select(PaymentModel).where(PaymentModel.organization_id == org.id)
         )

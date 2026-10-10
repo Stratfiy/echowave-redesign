@@ -216,16 +216,21 @@ async def answer_in_channel(
             session_data=session_data,
             checkpoint=default_text_chat_checkpoint(),
         )
-        text_session = await initialize_text_chat_session(
-            run_id=run_id, text_session=text_session
-        )
-        # The opening turn is a greeting written for a caller, and nobody in a
-        # channel wants to be greeted before their question is answered. Its
-        # output is discarded, but it has to run: the graph's first node is
-        # what loads the bot's context and tools.
-        text_session = await execute_pending_text_chat_turn(
-            workflow_id=workflow_id, run_id=run_id, text_session=text_session
-        )
+        if folder_id is not None:
+            text_session = await initialize_text_chat_session(
+                run_id=run_id, text_session=text_session
+            )
+            # The opening turn is a greeting written for a caller, and nobody
+            # in a channel wants to be greeted before their question is
+            # answered. Its output is discarded, but it has to run: the
+            # graph's first node is what loads the bot's context and tools.
+            text_session = await execute_pending_text_chat_turn(
+                workflow_id=workflow_id, run_id=run_id, text_session=text_session
+            )
+        # A direct message skips it: the opening turn runs the bot's whole
+        # scheduled task as an LLM call that nobody asked for, and the message
+        # turn below loads the first node itself when no opening has run (the
+        # runner opens the node without generating when a message is pending).
 
         # The channel's own conversation, in front of the question.
         #
@@ -275,6 +280,8 @@ async def answer_in_channel(
             run_id=run_id,
             text_session=text_session,
             user_text=compose_turn(thread, text),
+            # Auto sorts by the message, not by the thread around it.
+            routing_text=text,
             expected_revision=text_session.revision,
         )
         text_session = await execute_pending_text_chat_turn(

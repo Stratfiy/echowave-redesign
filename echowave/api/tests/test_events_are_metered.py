@@ -412,8 +412,13 @@ class TestTheBuilderAllowance:
                     "/api/v1/agent-builder/chat", json={"message": "hi", "history": []}
                 )
         assert response.status_code == 402
-        assert "5 credits" in response.json()["detail"]
-        assert "upgrade" in response.json()["detail"]
+        detail = response.json()["detail"]
+        assert "30 builder messages" in detail
+        assert "resets" in detail
+        # No pricing is shown to users (founder, 9 Oct 2026): the limit and
+        # when it resets, never a price, a plan or an upgrade.
+        for word in ("credit", "upgrade", "plan", "₹"):
+            assert word not in detail.lower(), word
         assert await _rows(async_session, org) == []
 
     async def test_unlimited_never_charges(self, db_session, async_session):

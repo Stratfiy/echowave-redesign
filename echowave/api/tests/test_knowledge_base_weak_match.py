@@ -139,6 +139,45 @@ class TestTheFloor:
         assert payload["chunks"][0]["similarity"] == 1.0
 
 
+class TestFoundContentIsNeverDiscarded:
+    @pytest.mark.asyncio
+    async def test_a_bot_scoped_index_doc_survives_a_weak_semantic_match(self):
+        """The template index is read in full (similarity 1.0) while the
+        vector search over the other files finds only distant chunks. The
+        weak-match answer is for when nothing usable was found; the index
+        doc was found, so it is returned."""
+        service = AsyncMock()
+        service.search_similar_chunks = AsyncMock(return_value=[_result(0.2)])
+        service.get_model_id = lambda: "text-embedding-3-small"
+
+        class _Index:
+            full_text = "Templates: tax invoice, purchase order."
+            filename = "template-index.md"
+            document_uuid = "index-uuid"
+            file_folder_id = None
+
+        with (
+            patch.object(
+                kb, "build_embedding_service", AsyncMock(return_value=service)
+            ),
+            patch.object(
+                kb.db_client,
+                "get_full_text_documents",
+                AsyncMock(return_value=[_Index()]),
+            ),
+        ):
+            payload = await kb._perform_retrieval(
+                query="draft an invoice for Acme",
+                organization_id=1,
+                document_uuids=["index-uuid", "other-uuid"],
+                limit=3,
+                embeddings_api_key="sk-test",
+            )
+
+        assert payload["status"] == kb.STATUS_OK
+        assert [c["text"] for c in payload["chunks"]] == [_Index.full_text]
+
+
 class TestTheFloorItself:
     def test_it_sits_between_the_measured_populations(self):
         """The number is evidence, not taste. On-topic bottomed out at 0.478

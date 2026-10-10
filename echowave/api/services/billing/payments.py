@@ -456,14 +456,10 @@ async def _refuse_over_the_topup_ceiling(
     held = credits.credits_of_balance(pools.topup_paise)
     after = held + credits.credits_of_balance(adding_paise)
     if after > limit.value:
-        where = (
-            f"upgrade to {limit.raise_to.capitalize()}"
-            if limit.raise_to
-            else "contact support"
-        )
         raise PaymentError(
-            f"Your plan holds up to {limit.value:,} top-up credits and you have "
-            f"{held:,}; this would take you to {after:,}. To hold more, {where}."
+            f"This account holds up to {limit.value:,} top-up credits and you "
+            f"have {held:,}; this would take you to {after:,}. To hold more, "
+            "contact support."
         )
 
 
