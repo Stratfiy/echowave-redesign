@@ -289,6 +289,7 @@ class TestTheEditCard:
             id=55,
             kind=AgentEventKind.EDIT_PROPOSED.value,
             workflow_id=None,
+            workflow_run_id=None,
             payload={
                 "workflow_id": 3,
                 "step": "Greeting",

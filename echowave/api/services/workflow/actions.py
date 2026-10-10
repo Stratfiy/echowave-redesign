@@ -43,6 +43,7 @@ from loguru import logger
 
 from api.db import db_client
 from api.enums import AgentEventActor, AgentEventKind
+from api.services.training_loop import hooks as training_hooks
 from api.services.workflow import agent_timeline, approvals, audit_log
 
 TOOL_NAME = "propose_action"
@@ -1197,6 +1198,13 @@ async def propose(
         visibility=_visibility(payload),
     )
     if recorded is not None:
+        await training_hooks.action_card_shown(
+            organization_id=organization_id,
+            event_id=recorded,
+            workflow_id=workflow_id,
+            workflow_run_id=workflow_run_id,
+            payload=payload,
+        )
         from types import SimpleNamespace
 
         from api.services import acting
@@ -1576,6 +1584,12 @@ async def settle(
             raise ActionError(payload["error"]) from exc
         await _audit(event, payload, audit_log.CARD_CONFIRMED, user_id, state)
         await _emit("approval_granted", event, payload, user_id)
+        await training_hooks.action_card_confirmed(
+            organization_id=organization_id,
+            event=event,
+            payload=payload,
+            user_id=user_id,
+        )
         return payload
 
     if verb == "decline":
@@ -1590,6 +1604,12 @@ async def settle(
 
             await browser_session.declined(payload)
         await _emit("approval_rejected", event, payload, user_id)
+        await training_hooks.action_card_declined(
+            organization_id=organization_id,
+            event=event,
+            payload=payload,
+            user_id=user_id,
+        )
         if payload.get("action") in CARE_ACTIONS:
             from api.services.care import cards as care_cards
 
@@ -1612,6 +1632,12 @@ async def settle(
             payload["cancelled"] = _stamp(user_id)
             await _move(event, ARMED, payload)
             await _audit(event, payload, audit_log.CARD_UNDONE, user_id, state)
+            await training_hooks.action_card_undone(
+                organization_id=organization_id,
+                event=event,
+                payload=payload,
+                user_id=user_id,
+            )
             if payload.get("action") in CARE_ACTIONS:
                 from api.services.care import cards as care_cards
 
@@ -1633,6 +1659,12 @@ async def settle(
                 await _write(event, payload)
                 raise
             await _audit(event, payload, audit_log.CARD_UNDONE, user_id, state)
+            await training_hooks.action_card_undone(
+                organization_id=organization_id,
+                event=event,
+                payload=payload,
+                user_id=user_id,
+            )
             await _say(event, f"Put back: {payload['label'].lower()} undone.")
             return payload
         if state == DONE:
@@ -1837,6 +1869,12 @@ async def revise(
         actor_user_id=user_id,
         before={"state": state, "version": before},
         after={"state": PROPOSED, "version": after},
+    )
+    await training_hooks.action_card_revised(
+        organization_id=organization_id,
+        event=event,
+        payload=payload,
+        user_id=user_id,
     )
     return payload
 

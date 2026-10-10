@@ -197,6 +197,10 @@ FLAGS: dict[str, str] = {
     "deepfilternet_filter": "DEEPFILTERNET_FILTER_ENABLED",
     # Listen in on a live call and whisper to the agent (services/live_supervision/).
     "live_supervision": "LIVE_SUPERVISION_ENABLED",
+    # What owners do with an agent's suggestions, kept per workspace as training data (services/training_loop/).
+    "training_loop": "TRAINING_LOOP_ENABLED",
+    # Run the next-best model on a small sample of safe calls, for the router to learn from (services/routing/explore.py).
+    "routing_explore": "ROUTING_EXPLORE_ENABLED",
     # Posters and ad creatives (services/images/).
     "image_generation": "IMAGE_GENERATION_ENABLED",
 }
@@ -323,6 +327,8 @@ DESCRIPTIONS: dict[str, str] = {
     "caller_voice_lock": "Only the caller can interrupt a phone agent: speech that does not match the caller's voice, learnt in their first seconds, no longer stops the agent.",
     "deepfilternet_filter": "DeepFilterNet3 instead of RNNoise as the noise filter on calls with noise suppression on.",
     "live_supervision": "Live calls: listen in on a customer call (transcript and audio) and whisper instructions the caller never hears.",
+    "training_loop": "Training loop, step 1: records what each agent suggested and what its owner did with it (approved, rejected, edited, undone, thumbs), per workspace and redacted, for later fine-tuning. Records only; applies nothing.",
+    "routing_explore": "Routing data: on about 1% of classifier and extraction calls that send nothing and face no customer, also run the next-best model in the background and keep its answer and cost for training the router. Never shown to anyone; counted against the weekly learning cap. Needs training_loop.",
     "image_generation": "Posters and ad creatives: images from Chat and two agents, on Gemini, OpenAI or Bedrock, chosen on a card in the thread.",
     "escalation_v2": "Escalation on calls decided in code from the agent's policy: a handoff card with Accept, Decline and Hand back to AI, spoken hold updates and a no-answer ladder.",
 }

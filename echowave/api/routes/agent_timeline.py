@@ -1183,10 +1183,22 @@ async def provide_secret(
     return _as_event(row)
 
 
+class EditedField(BaseModel):
+    #: Which part of the card's change the owner rewrote: the step's node and
+    #: the field ("prompt" or "greeting"), as the card's ``changes`` name them.
+    node_id: str = Field(max_length=128)
+    field: str = Field(max_length=16)
+    #: The owner's text, in place of the bot's.
+    new: str = Field(max_length=12000)
+
+
 class SettleEditRequest(BaseModel):
     event_id: int
     #: "publish" puts the draft live; "discard" throws it away.
     action: str = Field(max_length=16)
+    #: The owner's changes to the proposed text, before publishing. Only with
+    #: "publish". It goes through the same checks as an unedited card.
+    edits: list[EditedField] = Field(default_factory=list, max_length=20)
 
 
 @router.post("/edits/settle", response_model=TimelineEvent)
@@ -1206,6 +1218,7 @@ async def settle_edit(body: SettleEditRequest, user: UserModel = Depends(get_use
             event_id=body.event_id,
             action=body.action.strip().lower(),
             user_id=user.id,
+            edits=[edit.model_dump() for edit in body.edits],
         )
     except self_edit.EditError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc

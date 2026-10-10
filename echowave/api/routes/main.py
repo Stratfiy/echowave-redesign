@@ -109,6 +109,8 @@ from api.routes.telephony_admin import router as telephony_admin_router
 from api.routes.today import router as today_router
 from api.routes.tool import router as tool_router
 from api.routes.tool_library import router as tool_library_router
+from api.routes.training_loop import admin_router as training_loop_admin_router
+from api.routes.training_loop import router as training_loop_router
 from api.routes.translate import router as translate_router
 from api.routes.turn_credentials import router as turn_credentials_router
 from api.routes.user import router as user_router
@@ -235,6 +237,8 @@ router.include_router(people_router)
 router.include_router(images_router)
 router.include_router(learning_router)
 router.include_router(live_calls_router)
+router.include_router(training_loop_router)
+router.include_router(training_loop_admin_router)
 router.include_router(live_calls_ws_router)
 router.include_router(meetings_router)
 router.include_router(support_router)

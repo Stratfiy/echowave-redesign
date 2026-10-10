@@ -1309,6 +1309,7 @@ async def _answer(
                 text,
                 attachments=len(attachments or []),
                 feature="decibyl",
+                ref=f"decibyl_thread:{thread_id or 'main'}",
             )
             if routed is not None:
                 preset = routed.preset

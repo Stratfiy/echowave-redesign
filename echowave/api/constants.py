@@ -1071,6 +1071,18 @@ DEEPFILTERNET_MODEL_PATH = os.getenv("DEEPFILTERNET_MODEL_PATH", "").strip()
 # Decibyl (services/live_supervision/). Off by default; even when on, each
 # workspace has to switch "Allow live listening" on before anybody listens.
 LIVE_SUPERVISION_ENABLED = _flag("LIVE_SUPERVISION_ENABLED")
+# training_loop: step 1 of the training loop. Records, per workspace and agent,
+# what was suggested and what its owner did with it (approved, rejected,
+# edited, undone, thumbs, eval failures, escalations), as data a model can
+# later be fine-tuned on (services/training_loop/). Records only; nothing
+# learned is applied, and nothing leaves the workspace. Off by default; even
+# when on, the workspace can switch "Use my feedback to improve my agents" off.
+TRAINING_LOOP_ENABLED = _flag("TRAINING_LOOP_ENABLED")
+# routing_explore: on a small sample of safe calls (classifiers, extraction;
+# never a customer-facing or side-effecting one), also run the next-best model
+# in the background and keep its answer and cost as training data for Auto's
+# router (services/routing/explore.py). Needs training_loop. Off by default.
+ROUTING_EXPLORE_ENABLED = _flag("ROUTING_EXPLORE_ENABLED")
 EXPO_PUSH_URL = os.getenv(
     "EXPO_PUSH_URL", "https://exp.host/--/api/v2/push/send"
 ).strip()

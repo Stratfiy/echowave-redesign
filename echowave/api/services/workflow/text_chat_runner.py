@@ -538,6 +538,8 @@ async def execute_text_chat_pending_turn(
             routing_text,
             workflow_configurations=run_configs,
             feature="text_chat",
+            workflow_id=workflow.id,
+            ref=f"workflow_run:{workflow_run_id}",
         )
         if routed is not None:
             preset = routed.preset
