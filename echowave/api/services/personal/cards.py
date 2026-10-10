@@ -457,60 +457,54 @@ async def from_feedback(
 def tool_schemas() -> list[dict[str, Any]]:
     return [
         {
-            "type": "function",
-            "function": {
-                "name": SHOW_TOOL,
-                "description": (
-                    "Show the person, on a card in this conversation, every "
-                    "preference they have told you and what was learned from "
-                    "their own conversations, with where each came from and "
-                    "Correct and Forget on each. Use when they ask what you "
-                    "know or remember about them."
-                ),
-                "parameters": {"type": "object", "properties": {}},
-            },
+            "name": SHOW_TOOL,
+            "description": (
+                "Show the person, on a card in this conversation, every "
+                "preference they have told you and what was learned from "
+                "their own conversations, with where each came from and "
+                "Correct and Forget on each. Use when they ask what you "
+                "know or remember about them."
+            ),
+            "parameters": {"type": "object", "properties": {}},
         },
         {
-            "type": "function",
-            "function": {
-                "name": PROPOSE_TOOL,
-                "description": (
-                    "Offer the person a preference to keep, on a card they "
-                    "accept or not. Nothing is kept unless they press Save. "
-                    "Only for how they like things done: a language for "
-                    "calls, email, chat or reminders; when calls may ring; "
-                    "the channel for reminders; how often to report numbers; "
-                    "short or detailed replies."
-                ),
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "kind": {
-                            "type": "string",
-                            "enum": [
-                                capture.LANGUAGE,
-                                capture.CALL_WINDOW,
-                                capture.CHANNEL,
-                                capture.CADENCE,
-                                capture.LENGTH,
-                            ],
-                        },
-                        "topic": {"type": "string", "enum": list(capture.TOPICS)},
-                        "value": {
-                            "type": "string",
-                            "description": (
-                                "In plain words: a language name, a time like "
-                                "10:30, whatsapp/app/notification, "
-                                "daily/weekly/monthly, short/detailed."
-                            ),
-                        },
-                        "why": {
-                            "type": "string",
-                            "description": "One short line on why you offer it.",
-                        },
+            "name": PROPOSE_TOOL,
+            "description": (
+                "Offer the person a preference to keep, on a card they "
+                "accept or not. Nothing is kept unless they press Save. "
+                "Only for how they like things done: a language for "
+                "calls, email, chat or reminders; when calls may ring; "
+                "the channel for reminders; how often to report numbers; "
+                "short or detailed replies."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "kind": {
+                        "type": "string",
+                        "enum": [
+                            capture.LANGUAGE,
+                            capture.CALL_WINDOW,
+                            capture.CHANNEL,
+                            capture.CADENCE,
+                            capture.LENGTH,
+                        ],
                     },
-                    "required": ["kind", "topic", "value"],
+                    "topic": {"type": "string", "enum": list(capture.TOPICS)},
+                    "value": {
+                        "type": "string",
+                        "description": (
+                            "In plain words: a language name, a time like "
+                            "10:30, whatsapp/app/notification, "
+                            "daily/weekly/monthly, short/detailed."
+                        ),
+                    },
+                    "why": {
+                        "type": "string",
+                        "description": "One short line on why you offer it.",
+                    },
                 },
+                "required": ["kind", "topic", "value"],
             },
         },
     ]
