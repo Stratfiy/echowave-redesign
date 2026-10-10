@@ -181,7 +181,11 @@ def _organization_id(user: UserModel) -> int:
     return user.selected_organization_id
 
 
-@router.get("/balance")
+@router.get(
+    "/balance",
+    dependencies=[Depends(no_checkout.costs_hidden)],
+    include_in_schema=False,
+)
 async def get_balance(user: UserModel = Depends(get_user)) -> dict[str, Any]:
     """Current credit, and whether we can sell more of it.
 
@@ -311,7 +315,12 @@ class RateCardResponse(BaseModel):
     lines: list[RateCardLine]
 
 
-@router.get("/rate-card", response_model=RateCardResponse)
+@router.get(
+    "/rate-card",
+    response_model=RateCardResponse,
+    dependencies=[Depends(no_checkout.costs_hidden)],
+    include_in_schema=False,
+)
 async def get_rate_card(user: UserModel = Depends(get_user)) -> RateCardResponse:
     """What things cost in credits: the exchange table while the charge rule
     is on, today's figures while it is off. Any member may read it."""

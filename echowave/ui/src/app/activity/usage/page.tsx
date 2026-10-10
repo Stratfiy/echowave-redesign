@@ -9,7 +9,6 @@ import { PageBody, PageHeader } from "@/components/layout/PageHeader";
 import { CALLS_TABS } from "@/components/layout/SectionTabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/lib/auth";
-import { formatPaise } from "@/lib/billing/format";
 import { formatTokens } from "@/lib/chatPresets";
 import { cn } from "@/lib/utils";
 
@@ -19,7 +18,6 @@ type ModelLine = {
   model: string;
   tokens: number;
   units: number;
-  cost_paise: number;
   agents?: number;
 };
 type AgentLine = {
@@ -28,13 +26,12 @@ type AgentLine = {
   runs: Record<string, number>;
   total_runs: number;
   tokens: number;
-  cost_paise: number;
   models: ModelLine[];
 };
 type Report = {
   agents: AgentLine[];
   models: ModelLine[];
-  totals: { runs: number; tokens: number; cost_paise: number };
+  totals: { runs: number; tokens: number };
 };
 
 const RANGES = [
@@ -54,6 +51,11 @@ function amount(line: ModelLine): string {
     return line.units < 60 ? `${line.units}s heard` : `${Math.round(line.units / 60)} min heard`;
   }
   return `${formatTokens(line.units)} chars spoken`;
+}
+
+/** Minutes of speech heard, from the receipt's seconds: what a call lasted. */
+function heardMinutes(lines: ModelLine[]): number {
+  return Math.round(lines.filter((l) => l.slot === "stt").reduce((n, l) => n + l.units, 0) / 60);
 }
 
 function runsLabel(runs: Record<string, number>): string {
@@ -97,7 +99,7 @@ export default function UsageByAgentPage() {
       <PageHeader
         tabs={CALLS_TABS}
         title="Usage"
-        description="What each agent ran, on which models, and what it cost. Free during the beta."
+        description="What each agent ran, for how long, and on which models."
         actions={
           <div className="flex gap-1 rounded-full bg-[var(--paper-2)] p-1" role="group" aria-label="Range">
             {RANGES.map((range) => (
@@ -131,8 +133,8 @@ export default function UsageByAgentPage() {
             <dl className="grid grid-cols-3 gap-3" data-testid="usage-totals">
               {[
                 ["Runs", String(report.totals.runs)],
-                ["Tokens", formatTokens(report.totals.tokens)],
-                ["Cost", formatPaise(report.totals.cost_paise)],
+                ["Minutes of calls", String(heardMinutes(report.models))],
+                ["Chats", String(report.agents.reduce((n, a) => n + (a.runs.text ?? 0), 0))],
               ].map(([label, value]) => (
                 <div key={label} className="rounded-2xl bg-[var(--paper-2)] px-4 py-3">
                   <dt className="text-[13px] text-muted-foreground">{label}</dt>
@@ -160,8 +162,10 @@ export default function UsageByAgentPage() {
                           <div className="text-[13px] text-muted-foreground">{runsLabel(agent.runs) || "No runs"}</div>
                         </div>
                         <div className="text-right">
-                          <div className="text-[15px] tabular-nums">{formatPaise(agent.cost_paise)}</div>
-                          <div className="text-[13px] text-muted-foreground">{formatTokens(agent.tokens)} tokens</div>
+                          <div className="text-[15px] tabular-nums">
+                            {agent.total_runs} {agent.total_runs === 1 ? "run" : "runs"}
+                          </div>
+                          <div className="text-[13px] text-muted-foreground">{heardMinutes(agent.models)} min of calls</div>
                         </div>
                       </div>
                       {agent.models.length > 0 && (
@@ -195,7 +199,6 @@ export default function UsageByAgentPage() {
                       <th className="py-2 font-normal">Model</th>
                       <th className="py-2 font-normal">Used for</th>
                       <th className="py-2 font-normal">Amount</th>
-                      <th className="py-2 text-right font-normal">Cost</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -210,7 +213,6 @@ export default function UsageByAgentPage() {
                           {line.agents ? ` · ${line.agents} agent${line.agents === 1 ? "" : "s"}` : ""}
                         </td>
                         <td className="py-2.5 tabular-nums text-muted-foreground">{amount(line)}</td>
-                        <td className="py-2.5 text-right tabular-nums">{formatPaise(line.cost_paise)}</td>
                       </tr>
                     ))}
                   </tbody>

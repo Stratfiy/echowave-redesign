@@ -225,7 +225,6 @@ const FAMILIES = {
     title: "Documents",
     blurb: "Tax documents, receipts, credit notes and payment history. There is no checkout: plans, top-ups and auto top-up are gone, and their routes answer 410.",
     methods: [
-      ["balance", "GET /api/v1/billing/balance", "Credit balance."],
       ["payments", "GET /api/v1/billing/payments", "Every payment."],
       ["documents.list", "GET /api/v1/billing/documents", "Receipts, tax invoices and credit notes."],
       ["documents.get", "GET /api/v1/billing/documents/{document_id}", "One document."],

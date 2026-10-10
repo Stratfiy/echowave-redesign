@@ -46,6 +46,18 @@ def assert_open(what: str) -> None:
         raise CheckoutClosed(f"{what}: there is no checkout.")
 
 
+COSTS_HIDDEN_MESSAGE = (
+    "Costs are not shown: nothing is charged for now. Usage is under Activity."
+)
+
+
+async def costs_hidden() -> None:
+    """Route dependency: 410 for the customer cost views (spend, rate card,
+    balance). Staff read costs from the admin routes, not these."""
+    if not is_open():
+        raise HTTPException(status_code=410, detail=COSTS_HIDDEN_MESSAGE)
+
+
 async def gone() -> None:
     """Route dependency: 410 Gone for every checkout route.
 

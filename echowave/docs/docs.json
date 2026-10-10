@@ -376,7 +376,6 @@
                 "group": "Documents",
                 "pages": [
                   "api-reference/billing",
-                  "api-reference/billing/balance",
                   "api-reference/billing/payments",
                   "api-reference/billing/documents-list",
                   "api-reference/billing/documents-get",

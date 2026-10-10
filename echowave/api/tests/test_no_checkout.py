@@ -513,3 +513,41 @@ class TestTheRentalLadderIsOff:
             check=True,
         ).stdout.split()
         assert out[-2:] == ["False", "False"]
+
+
+class TestCustomersSeeNoCosts:
+    @pytest.mark.parametrize(
+        "path",
+        [
+            "/api/v1/billing/balance",
+            "/api/v1/billing/rate-card",
+            "/api/v1/organizations/usage/spend",
+        ],
+    )
+    async def test_the_customer_cost_views_answer_410(self, path):
+        from api.app import app
+
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            response = await client.get(path)
+        assert response.status_code == 410
+        assert path not in app.openapi()["paths"]
+
+    def test_the_usage_report_for_customers_carries_no_cost_field(self):
+        from api.routes.organization_usage import _without_cost
+
+        report = {
+            "agents": [
+                {
+                    "name": "a",
+                    "total_runs": 2,
+                    "cost_paise": 10,
+                    "models": [{"slot": "stt", "units": 60, "cost_paise": 4}],
+                }
+            ],
+            "models": [{"model": "m", "units": 1, "cost_paise": 3}],
+            "totals": {"runs": 2, "tokens": 5, "cost_paise": 10},
+        }
+        assert "cost" not in json.dumps(_without_cost(report))
+        assert _without_cost(report)["totals"] == {"runs": 2, "tokens": 5}
