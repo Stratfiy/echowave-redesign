@@ -487,7 +487,9 @@ async def _perform_retrieval(
                 paths,
                 limit,
             )
-            if meaning and not near_enough and not merged:
+            # Only "weak match" when nothing usable was found: full-document
+            # text already in ``chunks`` (a bot's own index) is an answer too.
+            if meaning and not near_enough and not merged and not chunks:
                 best = max(float(c.get("similarity") or 0) for c in meaning)
                 logger.info(
                     "Knowledge base weak match: query='{}', best={:.4f} < {:.2f}",
