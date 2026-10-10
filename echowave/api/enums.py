@@ -954,6 +954,11 @@ class AgentEventKind(str, Enum):
     #: one row per huddle, carrying who said what, rewritten as it goes.
     #: The edit cards it proposed are their own rows beside it.
     HUDDLE = "huddle"
+    #: A skill learned something, or was remembered (services/evolve/): the
+    #: card offering a new version with its evidence and evaluation, a
+    #: remembered draft to edit, a proposal to roll a version back, or a
+    #: skill to put on an agent. Nothing changes until a person presses.
+    SKILL_LESSON = "skill_lesson"
 
 
 class AgentEventActor(str, Enum):

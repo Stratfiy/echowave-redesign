@@ -184,6 +184,9 @@ TIMELINE_PRICES: dict[str, str] = {
     # conversation is held to the person's daily voice minutes, and the row
     # is the record of it, not a price.
     AgentEventKind.HUDDLE.value: INCLUDED,
+    # A skill's learning card (services/evolve): an offer on the thread,
+    # like EDIT_PROPOSED. Not a price.
+    AgentEventKind.SKILL_LESSON.value: INCLUDED,
     AgentEventKind.MEMORY_LEARNED.value: INCLUDED,
     AgentEventKind.ROUTINE_FIRED.value: INCLUDED,
     AgentEventKind.ROUTINE_SKIPPED.value: INCLUDED,

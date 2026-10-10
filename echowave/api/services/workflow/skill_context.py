@@ -218,8 +218,16 @@ async def installed_for(
                 imported = await imported_skills(organization_id)
             entry = imported.get(slug)
         if entry is not None:
-            found.append(entry)
+            found.append(await _evolved(organization_id, entry))
     return found
+
+
+async def _evolved(organization_id: int, entry: Any) -> Any:
+    """The workspace's published version of the skill (services/evolve);
+    the entry itself while ``evolve_skills`` is off."""
+    from api.services.evolve import versions
+
+    return await versions.overlay_entry(organization_id, entry)
 
 
 async def imported_skills(organization_id: int) -> dict[str, Any]:

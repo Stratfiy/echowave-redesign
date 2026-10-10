@@ -76,6 +76,8 @@ function payload(row: Row): Record<string, unknown> {
 
 /** A proposed action still waiting on the person. */
 function awaitingApproval(row: Row): boolean {
+    // A learning card (evolve_skills) waits until a person presses on it.
+    if (row.kind === "skill_lesson") return !payload(row).decided;
     if (row.kind !== "action_proposed" && row.kind !== "edit_proposed") return false;
     const state = (payload(row).state as string | undefined) ?? "proposed";
     return state === "proposed";
