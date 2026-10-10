@@ -680,6 +680,7 @@ async def family_view(user_id: int, *, now: datetime | None = None) -> list[dict
                             {
                                 "due_at": d.due_at.isoformat(),
                                 "state": d.state,
+                                "taken_in_app": d.marked_by_user_id is not None,
                             }
                             for d in doses
                             if d.medicine_id == m.id

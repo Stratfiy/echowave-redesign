@@ -150,33 +150,75 @@ class TestProposing:
         assert not saved.await_count
 
 
+def _graph(prompt: str) -> dict:
+    return {
+        "nodes": [
+            {
+                "id": "n1",
+                "type": "agentNode",
+                "data": {"name": "Find a slot", "prompt": prompt},
+            },
+            {
+                "id": "n2",
+                "type": "agentNode",
+                "data": {"name": "Confirm", "prompt": "Read it back."},
+            },
+        ]
+    }
+
+
 @pytest.mark.asyncio
 class TestSettling:
-    async def _settle(self, action, *, decided=None, publish=None, discard=None):
+    """The click acts on the card's own change; see
+    test_an_edit_card_settles_only_its_own_change for the same against a DB."""
+
+    CHANGE = {
+        "node_id": "n1",
+        "field": "prompt",
+        "old": "Ask for a date.",
+        "new": "Ask for a name, then a date.",
+    }
+
+    async def _settle(
+        self,
+        action,
+        *,
+        decided=None,
+        publish=None,
+        draft_prompt="Ask for a name, then a date.",
+        live_prompt="Ask for a date.",
+    ):
         event = SimpleNamespace(
             id=9,
             kind=AgentEventKind.EDIT_PROPOSED.value,
             workflow_id=3,
-            payload={"step": "Find a slot", "decided": decided},
+            payload={
+                "step": "Find a slot",
+                "decided": decided,
+                "changes": [dict(self.CHANGE)],
+            },
         )
         publish = publish or AsyncMock()
-        discard = discard or AsyncMock()
+        live = SimpleNamespace(id=70, workflow_json=_graph(live_prompt))
+        draft = (
+            None
+            if draft_prompt is None
+            else SimpleNamespace(workflow_json=_graph(draft_prompt))
+        )
+        rewrite = AsyncMock(return_value=True)
+        db = "api.services.workflow.self_edit.db_client"
         with (
+            patch(f"{db}.get_agent_event", new=AsyncMock(return_value=event)),
+            patch(f"{db}.get_workflow", new=AsyncMock(return_value=object())),
+            patch(f"{db}.get_published_definition", new=AsyncMock(return_value=live)),
+            patch(f"{db}.get_draft_version", new=AsyncMock(return_value=draft)),
+            patch(f"{db}.rewrite_draft_json", new=rewrite),
             patch(
-                "api.services.workflow.self_edit.db_client.get_agent_event",
-                new=AsyncMock(return_value=event),
-            ),
-            patch(
-                "api.services.workflow.self_edit.publish_gate.publish_draft",
+                "api.services.workflow.self_edit.publish_gate.publish_definition",
                 new=publish,
             ),
             patch(
-                "api.services.workflow.self_edit.db_client.discard_workflow_draft",
-                new=discard,
-            ),
-            patch(
-                "api.services.workflow.self_edit.db_client.set_agent_event_payload",
-                new=AsyncMock(return_value=True),
+                f"{db}.set_agent_event_payload", new=AsyncMock(return_value=True)
             ) as stamp,
             patch(
                 "api.services.workflow.self_edit.agent_timeline.record", new=AsyncMock()
@@ -185,17 +227,20 @@ class TestSettling:
             payload = await self_edit.settle(
                 organization_id=7, event_id=9, action=action, user_id=42
             )
-        return payload, publish, discard, stamp, record
+        return payload, publish, rewrite, stamp, record
 
-    async def test_publish_puts_the_draft_live_and_stamps_the_card(self):
-        payload, publish, discard, stamp, record = await self._settle("publish")
+    async def test_publish_puts_the_cards_change_live_and_stamps_the_card(self):
+        payload, publish, rewrite, stamp, record = await self._settle("publish")
         # Through the editor's own gate, scoped to the card's account and
-        # refusing on an acceptable-use finding.
+        # refusing on an acceptable-use finding -- with the live version
+        # plus this change, not the draft.
         kwargs = publish.await_args.kwargs
         assert kwargs["workflow_id"] == 3 and kwargs["organization_id"] == 7
         assert kwargs["user_id"] == 42 and kwargs["refuse_on_findings"] is True
         assert kwargs["via"] == "edit_card"
-        assert not discard.await_count
+        assert kwargs["based_on_definition_id"] == 70
+        assert kwargs["workflow_json"] == _graph("Ask for a name, then a date.")
+        assert not rewrite.await_count
         assert (
             payload["decided"]["action"] == "publish" and payload["decided"]["by"] == 42
         )
@@ -204,10 +249,16 @@ class TestSettling:
             record.await_args.kwargs["summary"] == "Published the change to Find a slot"
         )
 
-    async def test_discard_throws_the_draft_away(self):
-        payload, publish, discard, _, _ = await self._settle("discard")
-        discard.assert_awaited_once_with(3)
+    async def test_discard_takes_only_the_cards_change_out_of_the_draft(self):
+        payload, publish, rewrite, _, _ = await self._settle("discard")
         assert not publish.await_count
+        workflow_id, take_out = rewrite.await_args.args
+        assert workflow_id == 3
+        draft = _graph("Ask for a name, then a date.")
+        draft["nodes"][1]["data"]["prompt"] = "The owner's own edit."
+        out = take_out(draft)
+        assert out["nodes"][0]["data"]["prompt"] == "Ask for a date."
+        assert out["nodes"][1]["data"]["prompt"] == "The owner's own edit."
         assert payload["decided"]["action"] == "discard"
 
     async def test_a_settled_card_stays_settled(self):
@@ -215,15 +266,23 @@ class TestSettling:
             await self._settle("publish", decided={"action": "discard"})
 
     async def test_a_draft_gone_from_the_editor_is_said_so(self):
-        with pytest.raises(self_edit.EditError, match="No draft"):
+        with pytest.raises(self_edit.EditError, match="edited elsewhere since"):
+            await self._settle("publish", draft_prompt=None)
+
+    async def test_a_step_edited_since_is_refused(self):
+        publish = AsyncMock()
+        with pytest.raises(self_edit.EditError, match="open the editor"):
             await self._settle(
-                "publish",
-                publish=AsyncMock(
-                    side_effect=self_edit.publish_gate.NoDraft(
-                        "No draft exists for workflow 3"
-                    )
-                ),
+                "publish", publish=publish, draft_prompt="Somebody else's text."
             )
+        assert not publish.await_count
+
+    async def test_a_change_already_live_publishes_nothing(self):
+        payload, publish, _, _, _ = await self._settle(
+            "publish", live_prompt="Ask for a name, then a date."
+        )
+        assert not publish.await_count
+        assert payload["decided"]["already_live"] is True
 
 
 @pytest.mark.asyncio

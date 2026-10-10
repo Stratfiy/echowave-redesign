@@ -184,6 +184,37 @@ describe("The lesson", () => {
         expect(api.baseline.mock.calls[0][0].body).toEqual({ answer: "A little" });
     });
 
+    it("keeps what was typed the moment the box appeared", async () => {
+        // The box's new-exercise reset ran as a mount effect too. React runs
+        // those effects a task after the box is on screen, so an answer typed
+        // in between -- a fast typist, autofill, a loaded CI runner -- was
+        // wiped and Send answer stayed disabled. Type in exactly that gap.
+        api.session.mockResolvedValue({ data: { goal: { ...goal, status: "baseline" }, state: "baseline", baseline_question: "What do you know about fractions?", attempts: [] } });
+        api.baseline.mockResolvedValue({ data: waiting });
+        let typed = false;
+        const observer = new MutationObserver(() => {
+            const box = document.getElementById("learning-answer");
+            if (box && !typed) {
+                typed = true;
+                fireEvent.change(box, { target: { value: "A little" } });
+            }
+        });
+        observer.observe(document.body, { childList: true, subtree: true });
+        try {
+            open();
+            await waitFor(() => expect(typed).toBe(true));
+        } finally {
+            observer.disconnect();
+        }
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        expect((screen.getByLabelText("Your answer") as HTMLTextAreaElement).value).toBe("A little");
+        const send = screen.getByText("Send answer").closest("button")!;
+        expect(send.disabled).toBe(false);
+        fireEvent.click(send);
+        expect(await screen.findByText("What is 1/2 + 1/4?")).toBeTruthy();
+        expect(api.baseline.mock.calls[0][0].body).toEqual({ answer: "A little" });
+    });
+
     it("shows a short lesson, says it is general, and one practice prompt", async () => {
         open();
         expect(await screen.findByText("Find a common denominator first.")).toBeTruthy();

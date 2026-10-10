@@ -313,6 +313,8 @@ class FamilyAlert(BaseModel):
 class FamilyDose(BaseModel):
     due_at: str
     state: str
+    #: The person's own "I took it", kept beside the call's outcome.
+    taken_in_app: bool = False
 
 
 class FamilyMedicine(BaseModel):
@@ -389,6 +391,8 @@ class Dose(BaseModel):
     state: str
     reason: str | None = None
     alerted: bool
+    #: The person's own "I took it". ``state`` stays the call's outcome.
+    taken_in_app: bool = False
 
 
 class Medicine(BaseModel):
