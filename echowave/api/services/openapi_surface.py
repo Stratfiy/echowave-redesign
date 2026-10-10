@@ -71,6 +71,9 @@ TAG_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             # Talking to an agent as a teammate, in its thread
             # (services/huddle/).
             "huddle",
+            # Skills that learn: versions, the learning card, rollback, the
+            # Skills tab and "remember this as my way" (services/evolve/).
+            "evolve",
             "workflow-recordings",
             "workflow-outcomes",
             "evals",

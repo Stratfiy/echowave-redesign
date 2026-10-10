@@ -409,6 +409,20 @@ export type AgentAvatar = {
 };
 
 /**
+ * AgentRef
+ */
+export type AgentRef = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Name
+     */
+    name: string;
+};
+
+/**
  * AgentSchedule
  *
  * The hours an agent keeps, as something the platform can enforce.
@@ -1094,6 +1108,16 @@ export type AssemblyAisttConfiguration = {
      * ISO 639-1 language code.
      */
     language?: string;
+};
+
+/**
+ * AttachRequest
+ */
+export type AttachRequest = {
+    /**
+     * Workflow Id
+     */
+    workflow_id: number;
 };
 
 /**
@@ -6643,6 +6667,18 @@ export type EarlyAdopterRequest = {
 };
 
 /**
+ * EditDraftRequest
+ */
+export type EditDraftRequest = {
+    /**
+     * Content
+     */
+    content: {
+        [key: string]: unknown;
+    };
+};
+
+/**
  * EditItemRequest
  */
 export type EditItemRequest = {
@@ -7477,6 +7513,58 @@ export type ExchangeRateRequest = {
 };
 
 /**
+ * ExperienceOut
+ */
+export type ExperienceOut = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Task Family
+     */
+    task_family: string;
+    /**
+     * Skill Slug
+     */
+    skill_slug?: string | null;
+    /**
+     * Skill Version
+     */
+    skill_version?: number | null;
+    /**
+     * Outcome
+     */
+    outcome: string;
+    /**
+     * Split
+     */
+    split: string;
+    /**
+     * Scope
+     */
+    scope: string;
+    /**
+     * Summary
+     */
+    summary: string;
+    /**
+     * Evidence
+     */
+    evidence?: Array<{
+        [key: string]: unknown;
+    }>;
+    /**
+     * Occurred At
+     */
+    occurred_at?: string | null;
+};
+
+/**
  * ExportRequested
  */
 export type ExportRequested = {
@@ -7488,6 +7576,24 @@ export type ExportRequested = {
      * Note
      */
     note: string;
+};
+
+/**
+ * ExternalActions
+ */
+export type ExternalActions = {
+    /**
+     * Can Act
+     */
+    can_act: boolean;
+    /**
+     * Sentence
+     */
+    sentence: string;
+    /**
+     * Mentions
+     */
+    mentions?: Array<string>;
 };
 
 /**
@@ -17620,6 +17726,24 @@ export type ReleaseRequest = {
 };
 
 /**
+ * RememberRequest
+ */
+export type RememberRequest = {
+    /**
+     * Workflow Id
+     */
+    workflow_id?: number | null;
+    /**
+     * Thread Id
+     */
+    thread_id?: string | null;
+    /**
+     * Title
+     */
+    title?: string;
+};
+
+/**
  * ReminderDraft
  */
 export type ReminderDraft = {
@@ -18171,6 +18295,34 @@ export type RimeTtsConfiguration = {
      * ISO 639-1 language code.
      */
     language?: string;
+};
+
+/**
+ * RollbackRequest
+ */
+export type RollbackRequest = {
+    /**
+     * Reason
+     */
+    reason?: string;
+};
+
+/**
+ * RollbackResponse
+ */
+export type RollbackResponse = {
+    /**
+     * Slug
+     */
+    slug: string;
+    /**
+     * Rolled Back
+     */
+    rolled_back: number;
+    /**
+     * Active
+     */
+    active?: number | null;
 };
 
 /**
@@ -19154,6 +19306,36 @@ export type SettleCard = {
 };
 
 /**
+ * SettleCardRequest
+ */
+export type SettleCardRequest = {
+    /**
+     * Event Id
+     */
+    event_id: number;
+    /**
+     * Action
+     */
+    action: string;
+};
+
+/**
+ * SettleCardResponse
+ */
+export type SettleCardResponse = {
+    /**
+     * Event Id
+     */
+    event_id: number;
+    /**
+     * Payload
+     */
+    payload: {
+        [key: string]: unknown;
+    };
+};
+
+/**
  * SettleEditRequest
  */
 export type SettleEditRequest = {
@@ -19595,6 +19777,39 @@ export type SkillDetail = {
 };
 
 /**
+ * SkillExplain
+ *
+ * The five things a skill card says (skills-and-context.md).
+ */
+export type SkillExplain = {
+    /**
+     * Accomplish
+     */
+    accomplish: string;
+    /**
+     * Example
+     */
+    example: string;
+    /**
+     * Needs
+     */
+    needs: Array<string>;
+    /**
+     * Produces
+     */
+    produces: Array<string>;
+    external_actions: ExternalActions;
+    /**
+     * Enabled On
+     */
+    enabled_on: Array<string>;
+    /**
+     * Wont Do
+     */
+    wont_do?: Array<string>;
+};
+
+/**
  * SkillOnBot
  *
  * A bot carrying this skill. Named so the picker can tick it.
@@ -19608,6 +19823,165 @@ export type SkillOnBot = {
      * Name
      */
     name: string;
+};
+
+/**
+ * SkillTabCard
+ */
+export type SkillTabCard = {
+    /**
+     * Slug
+     */
+    slug: string;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Emoji
+     */
+    emoji?: string;
+    /**
+     * Division
+     */
+    division?: string;
+    /**
+     * Own
+     */
+    own?: boolean;
+    /**
+     * Installed
+     */
+    installed?: boolean;
+    explain: SkillExplain;
+    /**
+     * On Agents
+     */
+    on_agents?: Array<AgentRef>;
+    /**
+     * Active Version
+     */
+    active_version?: number | null;
+    /**
+     * Versions
+     */
+    versions?: Array<SkillVersionOut>;
+    /**
+     * Improvement
+     */
+    improvement?: {
+        [key: string]: unknown;
+    } | null;
+    /**
+     * Experience
+     */
+    experience?: {
+        [key: string]: number;
+    };
+};
+
+/**
+ * SkillVersionOut
+ */
+export type SkillVersionOut = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Slug
+     */
+    slug: string;
+    /**
+     * Version
+     */
+    version: number;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Origin
+     */
+    origin: string;
+    /**
+     * Base Version
+     */
+    base_version?: number | null;
+    /**
+     * Lessons
+     */
+    lessons?: Array<string>;
+    /**
+     * Content
+     */
+    content?: {
+        [key: string]: unknown;
+    };
+    /**
+     * Evidence
+     */
+    evidence?: Array<{
+        [key: string]: unknown;
+    }>;
+    /**
+     * Evaluation
+     */
+    evaluation?: {
+        [key: string]: unknown;
+    } | null;
+    /**
+     * Cost
+     */
+    cost?: {
+        [key: string]: unknown;
+    };
+    /**
+     * Author User Id
+     */
+    author_user_id?: number | null;
+    /**
+     * Decided By
+     */
+    decided_by?: number | null;
+    /**
+     * Published At
+     */
+    published_at?: string | null;
+    /**
+     * Rolled Back At
+     */
+    rolled_back_at?: string | null;
+    /**
+     * Rolled Back By
+     */
+    rolled_back_by?: number | null;
+    /**
+     * Reason
+     */
+    reason?: string | null;
+    /**
+     * Created At
+     */
+    created_at?: string | null;
+    /**
+     * Card Event Id
+     */
+    card_event_id?: number | null;
+};
+
+/**
+ * SkillsTabResponse
+ */
+export type SkillsTabResponse = {
+    /**
+     * Skills
+     */
+    skills: Array<SkillTabCard>;
+    /**
+     * Max Per Bot
+     */
+    max_per_bot: number;
 };
 
 /**
@@ -45352,6 +45726,443 @@ export type HandBackEscalationApiV1EscalationsEscalationUuidHandBackPostResponse
 };
 
 export type HandBackEscalationApiV1EscalationsEscalationUuidHandBackPostResponse = HandBackEscalationApiV1EscalationsEscalationUuidHandBackPostResponses[keyof HandBackEscalationApiV1EscalationsEscalationUuidHandBackPostResponses];
+
+export type SkillsTabApiV1EvolveSkillsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/evolve/skills';
+};
+
+export type SkillsTabApiV1EvolveSkillsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SkillsTabApiV1EvolveSkillsGetError = SkillsTabApiV1EvolveSkillsGetErrors[keyof SkillsTabApiV1EvolveSkillsGetErrors];
+
+export type SkillsTabApiV1EvolveSkillsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: SkillsTabResponse;
+};
+
+export type SkillsTabApiV1EvolveSkillsGetResponse = SkillsTabApiV1EvolveSkillsGetResponses[keyof SkillsTabApiV1EvolveSkillsGetResponses];
+
+export type SkillVersionsApiV1EvolveSkillsSlugVersionsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Slug
+         */
+        slug: string;
+    };
+    query?: never;
+    url: '/api/v1/evolve/skills/{slug}/versions';
+};
+
+export type SkillVersionsApiV1EvolveSkillsSlugVersionsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SkillVersionsApiV1EvolveSkillsSlugVersionsGetError = SkillVersionsApiV1EvolveSkillsSlugVersionsGetErrors[keyof SkillVersionsApiV1EvolveSkillsSlugVersionsGetErrors];
+
+export type SkillVersionsApiV1EvolveSkillsSlugVersionsGetResponses = {
+    /**
+     * Response Skill Versions Api V1 Evolve Skills  Slug  Versions Get
+     *
+     * Successful Response
+     */
+    200: Array<SkillVersionOut>;
+};
+
+export type SkillVersionsApiV1EvolveSkillsSlugVersionsGetResponse = SkillVersionsApiV1EvolveSkillsSlugVersionsGetResponses[keyof SkillVersionsApiV1EvolveSkillsSlugVersionsGetResponses];
+
+export type RollbackSkillApiV1EvolveSkillsSlugRollbackPostData = {
+    body: RollbackRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Slug
+         */
+        slug: string;
+    };
+    query?: never;
+    url: '/api/v1/evolve/skills/{slug}/rollback';
+};
+
+export type RollbackSkillApiV1EvolveSkillsSlugRollbackPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RollbackSkillApiV1EvolveSkillsSlugRollbackPostError = RollbackSkillApiV1EvolveSkillsSlugRollbackPostErrors[keyof RollbackSkillApiV1EvolveSkillsSlugRollbackPostErrors];
+
+export type RollbackSkillApiV1EvolveSkillsSlugRollbackPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: RollbackResponse;
+};
+
+export type RollbackSkillApiV1EvolveSkillsSlugRollbackPostResponse = RollbackSkillApiV1EvolveSkillsSlugRollbackPostResponses[keyof RollbackSkillApiV1EvolveSkillsSlugRollbackPostResponses];
+
+export type AttachSkillApiV1EvolveSkillsSlugAgentsPostData = {
+    body: AttachRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Slug
+         */
+        slug: string;
+    };
+    query?: never;
+    url: '/api/v1/evolve/skills/{slug}/agents';
+};
+
+export type AttachSkillApiV1EvolveSkillsSlugAgentsPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AttachSkillApiV1EvolveSkillsSlugAgentsPostError = AttachSkillApiV1EvolveSkillsSlugAgentsPostErrors[keyof AttachSkillApiV1EvolveSkillsSlugAgentsPostErrors];
+
+export type AttachSkillApiV1EvolveSkillsSlugAgentsPostResponses = {
+    /**
+     * Response Attach Skill Api V1 Evolve Skills  Slug  Agents Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type AttachSkillApiV1EvolveSkillsSlugAgentsPostResponse = AttachSkillApiV1EvolveSkillsSlugAgentsPostResponses[keyof AttachSkillApiV1EvolveSkillsSlugAgentsPostResponses];
+
+export type EditVersionApiV1EvolveVersionsVersionIdPutData = {
+    body: EditDraftRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Version Id
+         */
+        version_id: number;
+    };
+    query?: never;
+    url: '/api/v1/evolve/versions/{version_id}';
+};
+
+export type EditVersionApiV1EvolveVersionsVersionIdPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type EditVersionApiV1EvolveVersionsVersionIdPutError = EditVersionApiV1EvolveVersionsVersionIdPutErrors[keyof EditVersionApiV1EvolveVersionsVersionIdPutErrors];
+
+export type EditVersionApiV1EvolveVersionsVersionIdPutResponses = {
+    /**
+     * Successful Response
+     */
+    200: SkillVersionOut;
+};
+
+export type EditVersionApiV1EvolveVersionsVersionIdPutResponse = EditVersionApiV1EvolveVersionsVersionIdPutResponses[keyof EditVersionApiV1EvolveVersionsVersionIdPutResponses];
+
+export type PublishVersionApiV1EvolveVersionsVersionIdPublishPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Version Id
+         */
+        version_id: number;
+    };
+    query?: never;
+    url: '/api/v1/evolve/versions/{version_id}/publish';
+};
+
+export type PublishVersionApiV1EvolveVersionsVersionIdPublishPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type PublishVersionApiV1EvolveVersionsVersionIdPublishPostError = PublishVersionApiV1EvolveVersionsVersionIdPublishPostErrors[keyof PublishVersionApiV1EvolveVersionsVersionIdPublishPostErrors];
+
+export type PublishVersionApiV1EvolveVersionsVersionIdPublishPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: SkillVersionOut;
+};
+
+export type PublishVersionApiV1EvolveVersionsVersionIdPublishPostResponse = PublishVersionApiV1EvolveVersionsVersionIdPublishPostResponses[keyof PublishVersionApiV1EvolveVersionsVersionIdPublishPostResponses];
+
+export type DiscardVersionApiV1EvolveVersionsVersionIdDiscardPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Version Id
+         */
+        version_id: number;
+    };
+    query?: never;
+    url: '/api/v1/evolve/versions/{version_id}/discard';
+};
+
+export type DiscardVersionApiV1EvolveVersionsVersionIdDiscardPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DiscardVersionApiV1EvolveVersionsVersionIdDiscardPostError = DiscardVersionApiV1EvolveVersionsVersionIdDiscardPostErrors[keyof DiscardVersionApiV1EvolveVersionsVersionIdDiscardPostErrors];
+
+export type DiscardVersionApiV1EvolveVersionsVersionIdDiscardPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: SkillVersionOut;
+};
+
+export type DiscardVersionApiV1EvolveVersionsVersionIdDiscardPostResponse = DiscardVersionApiV1EvolveVersionsVersionIdDiscardPostResponses[keyof DiscardVersionApiV1EvolveVersionsVersionIdDiscardPostResponses];
+
+export type SettleCardApiV1EvolveCardsSettlePostData = {
+    body: SettleCardRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/evolve/cards/settle';
+};
+
+export type SettleCardApiV1EvolveCardsSettlePostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SettleCardApiV1EvolveCardsSettlePostError = SettleCardApiV1EvolveCardsSettlePostErrors[keyof SettleCardApiV1EvolveCardsSettlePostErrors];
+
+export type SettleCardApiV1EvolveCardsSettlePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: SettleCardResponse;
+};
+
+export type SettleCardApiV1EvolveCardsSettlePostResponse = SettleCardApiV1EvolveCardsSettlePostResponses[keyof SettleCardApiV1EvolveCardsSettlePostResponses];
+
+export type RememberMyWayApiV1EvolveRememberPostData = {
+    body: RememberRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/evolve/remember';
+};
+
+export type RememberMyWayApiV1EvolveRememberPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RememberMyWayApiV1EvolveRememberPostError = RememberMyWayApiV1EvolveRememberPostErrors[keyof RememberMyWayApiV1EvolveRememberPostErrors];
+
+export type RememberMyWayApiV1EvolveRememberPostResponses = {
+    /**
+     * Response Remember My Way Api V1 Evolve Remember Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type RememberMyWayApiV1EvolveRememberPostResponse = RememberMyWayApiV1EvolveRememberPostResponses[keyof RememberMyWayApiV1EvolveRememberPostResponses];
+
+export type ListExperienceApiV1EvolveExperienceGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Family
+         */
+        family?: string | null;
+    };
+    url: '/api/v1/evolve/experience';
+};
+
+export type ListExperienceApiV1EvolveExperienceGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListExperienceApiV1EvolveExperienceGetError = ListExperienceApiV1EvolveExperienceGetErrors[keyof ListExperienceApiV1EvolveExperienceGetErrors];
+
+export type ListExperienceApiV1EvolveExperienceGetResponses = {
+    /**
+     * Response List Experience Api V1 Evolve Experience Get
+     *
+     * Successful Response
+     */
+    200: Array<ExperienceOut>;
+};
+
+export type ListExperienceApiV1EvolveExperienceGetResponse = ListExperienceApiV1EvolveExperienceGetResponses[keyof ListExperienceApiV1EvolveExperienceGetResponses];
 
 export type CapabilityChecklistApiV1AdminControlsCapabilitiesGetData = {
     body?: never;

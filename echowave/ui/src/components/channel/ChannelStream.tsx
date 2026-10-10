@@ -47,6 +47,7 @@ import { tagTokens } from '@/components/channel/ChannelComposer';
 import { emphasisTokens } from '@/components/channel/emphasis';
 import { isJudgeableReply, ReplyFeedback, useMyFeedback } from '@/components/channel/ReplyFeedback';
 import { HandoffCard, type HandoffCardData } from '@/components/escalation/HandoffCard';
+import { LearningCard } from '@/components/evolve/LearningCard';
 import { SaveReportButton } from '@/components/helpers/SaveReportButton';
 import { HuddleEvent } from '@/components/huddle/HuddleEvent';
 import { ImageProviderCard } from '@/components/images/ImageProviderCard';
@@ -166,6 +167,8 @@ const CARDS = new Set([
     'huddle',
     // The person's own memory: what is kept, a preference saved or offered.
     'personal_memory',
+    // A skill learned something, or was remembered (evolve_skills).
+    'skill_lesson',
 ]);
 
 /** How long a pause can be and still read as one person still talking. */
@@ -1249,6 +1252,37 @@ export function ChannelStream({
                                         </span>
                                     </p>
                                     <EditCard
+                                        event={event}
+                                        onSettled={(updated) =>
+                                            setEvents((all) =>
+                                                all.map((e) => (e.id === updated.id ? updated : e)),
+                                            )
+                                        }
+                                    />
+                                </div>
+                            </li>
+                            </React.Fragment>
+                        );
+                    }
+                    if (event.kind === 'skill_lesson') {
+                        // A skill learned a better way, or a way was
+                        // remembered: the card with its evidence, and the
+                        // person's Publish (services/evolve).
+                        const who =
+                            (event.workflow_id != null && botNames[event.workflow_id]) || fallbackName;
+                        return (
+                            <React.Fragment key={event.id}>
+                            {divider}
+                            <li className="flex gap-3">
+                                {face(event)}
+                                <div className="min-w-0 flex-1">
+                                    <p className="mb-1 text-sm">
+                                        <span className="font-medium">{who}</span>
+                                        <span className="ml-2 text-xs text-muted-foreground">
+                                            <time dateTime={event.at}>{when(event.at)}</time>
+                                        </span>
+                                    </p>
+                                    <LearningCard
                                         event={event}
                                         onSettled={(updated) =>
                                             setEvents((all) =>

@@ -960,6 +960,11 @@ class AgentEventKind(str, Enum):
     #: ``private_to`` the person; the card reads the values from the
     #: person's own store when it draws, so a colleague never sees them.
     PERSONAL_MEMORY = "personal_memory"
+    #: A skill learned something, or was remembered (services/evolve/): the
+    #: card offering a new version with its evidence and evaluation, a
+    #: remembered draft to edit, a proposal to roll a version back, or a
+    #: skill to put on an agent. Nothing changes until a person presses.
+    SKILL_LESSON = "skill_lesson"
 
 
 class AgentEventActor(str, Enum):

@@ -36,6 +36,7 @@ from api.routes.dialer_connections import router as dialer_connections_router
 from api.routes.do_not_call import router as do_not_call_router
 from api.routes.escalations import router as escalations_router
 from api.routes.evals import router as evals_router
+from api.routes.evolve import router as evolve_router
 from api.routes.extraction_library import router as extraction_library_router
 from api.routes.feature_admin import router as feature_admin_router
 from api.routes.folder import router as folder_router
@@ -194,6 +195,7 @@ router.include_router(helpers_router)
 router.include_router(care_router)
 router.include_router(call_when_done_router)
 router.include_router(escalations_router)
+router.include_router(evolve_router)
 router.include_router(controls_admin_router)
 router.include_router(today_router)
 router.include_router(staff_console_router)

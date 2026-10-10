@@ -358,7 +358,15 @@ def system_prompt(organization_id: int | None = None) -> str:
         + (_done_calls().RULES if _done_calls_on(organization_id) else "")
         + (_outreach().RULES if _outreach().enabled(organization_id) else "")
         + (_booking().RULES if _booking().enabled(organization_id) else "")
+        + _evolve().rules(organization_id)
     )
+
+
+def _evolve():
+    """Skills by chat: use, add to an agent, remember, correct (services/evolve)."""
+    from api.services.evolve import chat_tools
+
+    return chat_tools
 
 
 def _booking():
@@ -414,6 +422,10 @@ def thread_filter(organization_id: int | None = None) -> dict[str, Any]:
             # about them, a preference just saved, one offered. Listed always,
             # like the cards above; each row is private to its person.
             AgentEventKind.PERSONAL_MEMORY.value,
+            # Evolving skills: the learning card, a remembered draft, an
+            # add-to-agent card. Listed always, like the cards above: only
+            # written while ``evolve_skills`` is on.
+            AgentEventKind.SKILL_LESSON.value,
             # Stream `reach`: the connect chip and the comparison table.
             *(
                 (
@@ -1865,6 +1877,7 @@ def office_tools(organization_id: int | None = None) -> list[dict[str, Any]]:
         ),
         *((_done_calls().tool_schema(),) if _done_calls_on(organization_id) else ()),
         *(personal_cards.tool_schemas() if personal.enabled(organization_id) else ()),
+        *_evolve().schemas(organization_id),
     ]
 
 
@@ -1982,6 +1995,10 @@ def _was_a_read(call: Any, result: Any) -> bool:
     if name in people_tools.NAMES:
         # A lookup is answered in the turn; the model may still draft or call.
         return True
+    if name in _evolve().NAMES and isinstance(result, dict):
+        # Reading a skill or noting a correction is answered in the turn; a
+        # draft or an add-to-agent card ends the round like any other card.
+        return name in _evolve().READS or result.get("status") != "proposed"
     if name in image_tools.NAMES:
         # A brief turned back keeps the tools (ask, then try again); the
         # grid or the provider card ends the round like any other card.
@@ -2321,6 +2338,14 @@ async def _tool(
     if call.name == _done_calls().TOOL_NAME and _done_calls_on(organization_id):
         return await _done_calls().run_tool(
             organization_id, arguments, user_id=author_id, thread_id=thread_id
+        )
+    if call.name in _evolve().NAMES and _evolve().enabled(organization_id):
+        return await _evolve().run(
+            str(call.name),
+            organization_id=organization_id,
+            user_id=author_id,
+            arguments=arguments,
+            thread_id=thread_id,
         )
     if call.name == documents.SEND_TOOL_NAME:
         return await documents.send_for_thread(

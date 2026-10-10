@@ -6947,6 +6947,10 @@ from api.db.escalation_models import (  # noqa: E402,F401
     CallEscalationOutcomeModel,
     EscalationModel,
 )
+from api.db.evolve_models import (  # noqa: E402,F401
+    ExperienceRecordModel,
+    SkillVersionModel,
+)
 from api.db.feature_override_models import (  # noqa: E402,F401
     FeatureOverrideModel,
 )

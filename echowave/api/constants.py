@@ -1077,6 +1077,13 @@ LIVE_SUPERVISION_ENABLED = _flag("LIVE_SUPERVISION_ENABLED")
 # request with Correct and Forget, and shows what a conversation uses above
 # the composer (services/personal/). Off: nothing is captured or applied.
 EVOLVE_PERSONAL_ENABLED = _flag("EVOLVE_PERSONAL_ENABLED")
+# evolve_skills (services/evolve/): skills that get better at the person's
+# work without ever changing themselves silently. A ledger of task attempts
+# with outcome evidence from persisted records, small lesson deltas proposed
+# offline from corrections and failures, an evaluation gate on held-out and
+# unrelated cases, and an approval card before anything is published, with
+# one-click rollback. Off by default; off means skills read exactly as before.
+EVOLVE_SKILLS_ENABLED = _flag("EVOLVE_SKILLS_ENABLED")
 EXPO_PUSH_URL = os.getenv(
     "EXPO_PUSH_URL", "https://exp.host/--/api/v2/push/send"
 ).strip()

@@ -626,6 +626,56 @@
    "event_catalogue"
   ]
  },
+ "/api/v1/evolve/cards/settle": {
+  "POST": [
+   "evolve_skills"
+  ]
+ },
+ "/api/v1/evolve/experience": {
+  "GET": [
+   "evolve_skills"
+  ]
+ },
+ "/api/v1/evolve/remember": {
+  "POST": [
+   "evolve_skills"
+  ]
+ },
+ "/api/v1/evolve/skills": {
+  "GET": [
+   "evolve_skills"
+  ]
+ },
+ "/api/v1/evolve/skills/{slug}/agents": {
+  "POST": [
+   "evolve_skills"
+  ]
+ },
+ "/api/v1/evolve/skills/{slug}/rollback": {
+  "POST": [
+   "evolve_skills"
+  ]
+ },
+ "/api/v1/evolve/skills/{slug}/versions": {
+  "GET": [
+   "evolve_skills"
+  ]
+ },
+ "/api/v1/evolve/versions/{version_id}": {
+  "PUT": [
+   "evolve_skills"
+  ]
+ },
+ "/api/v1/evolve/versions/{version_id}/discard": {
+  "POST": [
+   "evolve_skills"
+  ]
+ },
+ "/api/v1/evolve/versions/{version_id}/publish": {
+  "POST": [
+   "evolve_skills"
+  ]
+ },
  "/api/v1/feedback": {
   "POST": [
    "reply_feedback"

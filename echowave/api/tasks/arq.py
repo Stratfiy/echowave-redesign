@@ -43,6 +43,7 @@ from api.tasks.dialer_import import import_dialer_calls, purge_imported_calls
 from api.tasks.document_fields import extract_document_fields, remind_due_tasks
 from api.tasks.email_tax_document import email_tax_document
 from api.tasks.evals import run_eval_case
+from api.tasks.evolve_skills import evolve_skills_tick
 from api.tasks.fx import refresh_exchange_rate
 from api.tasks.heartbeat import record_worker_heartbeat
 from api.tasks.identity import reconcile_unknown_outcomes
@@ -159,6 +160,7 @@ class WorkerSettings:
         care_call_sweep,
         call_when_done_tick,
         call_when_done_sweep,
+        evolve_skills_tick,
         transcribe_meeting_segment,
         finish_meeting,
         run_staff_command,
@@ -196,6 +198,10 @@ class WorkerSettings:
         # hours and DND checked right before each dial), and calls that never
         # reported back marked not answered. No-ops while off.
         cron(call_when_done_tick, second=20, run_at_startup=False),
+        # Evolving skills: hourly at 41 past, away from the hourly ledger
+        # snapshot (20) and balance check (37). Offline only; a no-op while
+        # evolve_skills is off everywhere.
+        cron(evolve_skills_tick, minute={41}, second=0, run_at_startup=False),
         cron(
             call_when_done_sweep,
             minute=set(range(4, 60, 5)),
