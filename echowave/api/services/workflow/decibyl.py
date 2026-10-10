@@ -1305,7 +1305,10 @@ async def _answer(
             from api.services.routing import brain
 
             routed = await brain.auto_route(
-                organization_id, text, attachments=len(attachments or [])
+                organization_id,
+                text,
+                attachments=len(attachments or []),
+                feature="decibyl",
             )
             if routed is not None:
                 preset = routed.preset

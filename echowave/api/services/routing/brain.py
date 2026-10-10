@@ -23,13 +23,13 @@ from __future__ import annotations
 
 import asyncio
 import re
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from typing import Any
 
 from loguru import logger
 
 from api import constants
-from api.services.routing import decision
+from api.services.routing import decision, models, record
 
 #: The three kinds of work, as the decision model is asked about them.
 KINDS: dict[str, str] = {
@@ -99,6 +99,11 @@ class Route:
     laya_kind: str | None = None
     laya_ms: int | None = None
     abstained: str | None = None
+    #: The model Auto chose for the kind, and why (services/routing/models.py).
+    #: None on a route that only sorted the work (``route``, the evals).
+    provider: str | None = None
+    model: str | None = None
+    model_reason: str | None = None
 
     def as_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -227,15 +232,32 @@ def agent_follows_workspace(workflow_configurations: dict | None) -> bool:
     return _is_managed_default(effective.llm)
 
 
+#: Which sorter decided, as it is recorded: rules, laya, or fallback (Laya
+#: was asked, abstained, and the rules decided).
+_RECORDED_SOURCE = {"rules": "rules", "laya": "laya", "laya_fallback": "fallback"}
+
+
 async def auto_route(
     organization_id: int | None,
     text: str,
     *,
     workflow_configurations: dict | None = None,
     attachments: int = 0,
+    feature: str = "chat",
+    prefer_vendor: str | None = None,
 ) -> Route | None:
     """The route for this work, or None when Auto is not in charge of it --
-    the workspace pinned a model, or the agent has a brain of its own."""
+    the workspace pinned a model, or the agent has a brain of its own.
+
+    ``text`` is what the person wrote, and only that. Callers add a channel's
+    thread, the procedures a bot was taught, a briefing or a page of context
+    around it before the model sees it; none of that is the work. Sorting the
+    wrapped text sent every channel message to Deep (the length rule fires on
+    the context's 1.9k-9.4k characters, not on the question), so a caller with
+    a wrapped turn hands over the bare words and nothing else.
+
+    The decision is recorded (``routing.record``) and carries the model it
+    chose and why (``routing.models``)."""
     try:
         if workflow_configurations is not None and not agent_follows_workspace(
             workflow_configurations
@@ -243,7 +265,28 @@ async def auto_route(
             return None
         if not await workspace_is_auto(organization_id):
             return None
-        return await route(text, attachments=attachments)
+        sorted_ = await route(text, attachments=attachments)
+        chosen = await models.pick(
+            sorted_.kind, preset=sorted_.preset, prefer_vendor=prefer_vendor
+        )
+        routed = replace(
+            sorted_,
+            preset=chosen.slug,
+            provider=chosen.provider,
+            model=chosen.model,
+            model_reason=chosen.reason,
+        )
+        record.decision(
+            organization_id=organization_id,
+            feature=feature,
+            kind=routed.kind,
+            provider=chosen.provider,
+            model=chosen.model,
+            source=_RECORDED_SOURCE.get(routed.source, routed.source),
+            reason=chosen.reason,
+            detail=chosen.detail,
+        )
+        return routed
     except Exception as exc:  # noqa: BLE001 -- routing must never cost a reply
         logger.warning("Auto routing skipped for org {}: {}", organization_id, exc)
         return None
