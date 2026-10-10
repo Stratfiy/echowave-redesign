@@ -21745,6 +21745,44 @@ export type TrackerRowWrite = {
 };
 
 /**
+ * TrainingLoopSettings
+ */
+export type TrainingLoopSettings = {
+    /**
+     * Use Feedback
+     */
+    use_feedback: boolean;
+};
+
+/**
+ * TrainingLoopSettingsUpdate
+ */
+export type TrainingLoopSettingsUpdate = {
+    /**
+     * Use Feedback
+     */
+    use_feedback: boolean;
+};
+
+/**
+ * TrainingLoopSummary
+ */
+export type TrainingLoopSummary = {
+    /**
+     * Approved This Week
+     */
+    approved_this_week: number;
+    /**
+     * Rejected This Week
+     */
+    rejected_this_week: number;
+    /**
+     * Use Feedback
+     */
+    use_feedback: boolean;
+};
+
+/**
  * TranscriptPart
  */
 export type TranscriptPart = {
@@ -59015,6 +59053,229 @@ export type ProposeConsentFixApiV1LiveCallsRunIdConsentFixPostResponses = {
 };
 
 export type ProposeConsentFixApiV1LiveCallsRunIdConsentFixPostResponse = ProposeConsentFixApiV1LiveCallsRunIdConsentFixPostResponses[keyof ProposeConsentFixApiV1LiveCallsRunIdConsentFixPostResponses];
+
+export type GetSettingsApiV1TrainingLoopSettingsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/training-loop/settings';
+};
+
+export type GetSettingsApiV1TrainingLoopSettingsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetSettingsApiV1TrainingLoopSettingsGetError = GetSettingsApiV1TrainingLoopSettingsGetErrors[keyof GetSettingsApiV1TrainingLoopSettingsGetErrors];
+
+export type GetSettingsApiV1TrainingLoopSettingsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: TrainingLoopSettings;
+};
+
+export type GetSettingsApiV1TrainingLoopSettingsGetResponse = GetSettingsApiV1TrainingLoopSettingsGetResponses[keyof GetSettingsApiV1TrainingLoopSettingsGetResponses];
+
+export type SetSettingsApiV1TrainingLoopSettingsPutData = {
+    body: TrainingLoopSettingsUpdate;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/training-loop/settings';
+};
+
+export type SetSettingsApiV1TrainingLoopSettingsPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SetSettingsApiV1TrainingLoopSettingsPutError = SetSettingsApiV1TrainingLoopSettingsPutErrors[keyof SetSettingsApiV1TrainingLoopSettingsPutErrors];
+
+export type SetSettingsApiV1TrainingLoopSettingsPutResponses = {
+    /**
+     * Successful Response
+     */
+    200: TrainingLoopSettings;
+};
+
+export type SetSettingsApiV1TrainingLoopSettingsPutResponse = SetSettingsApiV1TrainingLoopSettingsPutResponses[keyof SetSettingsApiV1TrainingLoopSettingsPutResponses];
+
+export type AgentSummaryApiV1TrainingLoopAgentsWorkflowIdSummaryGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+    };
+    query?: never;
+    url: '/api/v1/training-loop/agents/{workflow_id}/summary';
+};
+
+export type AgentSummaryApiV1TrainingLoopAgentsWorkflowIdSummaryGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AgentSummaryApiV1TrainingLoopAgentsWorkflowIdSummaryGetError = AgentSummaryApiV1TrainingLoopAgentsWorkflowIdSummaryGetErrors[keyof AgentSummaryApiV1TrainingLoopAgentsWorkflowIdSummaryGetErrors];
+
+export type AgentSummaryApiV1TrainingLoopAgentsWorkflowIdSummaryGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: TrainingLoopSummary;
+};
+
+export type AgentSummaryApiV1TrainingLoopAgentsWorkflowIdSummaryGetResponse = AgentSummaryApiV1TrainingLoopAgentsWorkflowIdSummaryGetResponses[keyof AgentSummaryApiV1TrainingLoopAgentsWorkflowIdSummaryGetResponses];
+
+export type ExportMineApiV1TrainingLoopExportGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Shape
+         *
+         * sft or preference
+         */
+        shape?: string;
+        /**
+         * Agent Id
+         */
+        agent_id?: number | null;
+    };
+    url: '/api/v1/training-loop/export';
+};
+
+export type ExportMineApiV1TrainingLoopExportGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ExportMineApiV1TrainingLoopExportGetError = ExportMineApiV1TrainingLoopExportGetErrors[keyof ExportMineApiV1TrainingLoopExportGetErrors];
+
+export type ExportMineApiV1TrainingLoopExportGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
+export type ExportForStaffApiV1AdminTrainingLoopOrganizationIdExportGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Organization Id
+         */
+        organization_id: number;
+    };
+    query?: {
+        /**
+         * Shape
+         *
+         * sft or preference
+         */
+        shape?: string;
+        /**
+         * Agent Id
+         */
+        agent_id?: number | null;
+    };
+    url: '/api/v1/admin/training-loop/{organization_id}/export';
+};
+
+export type ExportForStaffApiV1AdminTrainingLoopOrganizationIdExportGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ExportForStaffApiV1AdminTrainingLoopOrganizationIdExportGetError = ExportForStaffApiV1AdminTrainingLoopOrganizationIdExportGetErrors[keyof ExportForStaffApiV1AdminTrainingLoopOrganizationIdExportGetErrors];
+
+export type ExportForStaffApiV1AdminTrainingLoopOrganizationIdExportGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
 
 export type MeetingCapabilitiesApiV1MeetingsCapabilitiesGetData = {
     body?: never;

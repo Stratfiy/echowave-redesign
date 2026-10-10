@@ -7044,6 +7044,7 @@ from api.db.today_models import (  # noqa: E402,F401
     TodayEventModel,
     TodayReminderModel,
 )
+from api.db.training_loop_models import LearningEventModel  # noqa: E402,F401
 from api.db.voice_models import (  # noqa: E402,F401
     AppointmentModel,
     AppointmentPolicyModel,

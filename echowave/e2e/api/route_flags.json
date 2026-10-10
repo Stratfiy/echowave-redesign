@@ -1534,6 +1534,24 @@
    "today_list"
   ]
  },
+ "/api/v1/training-loop/agents/{workflow_id}/summary": {
+  "GET": [
+   "training_loop"
+  ]
+ },
+ "/api/v1/training-loop/export": {
+  "GET": [
+   "training_loop"
+  ]
+ },
+ "/api/v1/training-loop/settings": {
+  "GET": [
+   "training_loop"
+  ],
+  "PUT": [
+   "training_loop"
+  ]
+ },
  "/api/v1/voice/appointments": {
   "GET": [
    "call_appointment"

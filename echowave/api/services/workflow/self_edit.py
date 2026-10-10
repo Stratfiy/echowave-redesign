@@ -31,6 +31,7 @@ from loguru import logger
 
 from api.db import db_client
 from api.enums import AgentEventActor, AgentEventKind
+from api.services.training_loop import hooks as training_hooks
 from api.services.workflow import agent_timeline, publish_gate
 
 TOOL_NAME = "propose_edit"
@@ -428,7 +429,7 @@ async def propose(
         if on_assistant_thread
         else f"Proposed a change to {target}"
     ) + (f": {why}" if why else "")
-    await agent_timeline.record(
+    event_id = await agent_timeline.record(
         organization_id=organization_id,
         kind=AgentEventKind.EDIT_PROPOSED.value,
         summary=summary,
@@ -436,6 +437,12 @@ async def propose(
         workflow_run_id=workflow_run_id,
         payload=payload,
         in_channel=not on_assistant_thread,
+    )
+    await training_hooks.edit_card_shown(
+        organization_id=organization_id,
+        event_id=event_id,
+        payload=payload,
+        workflow_run_id=workflow_run_id,
     )
     return {
         "status": "proposed",
@@ -527,7 +534,7 @@ async def _propose_replace(
         if on_assistant_thread
         else f"Proposed a change to {label}"
     ) + (f": {why}" if why else "")
-    await agent_timeline.record(
+    event_id = await agent_timeline.record(
         organization_id=organization_id,
         kind=AgentEventKind.EDIT_PROPOSED.value,
         summary=summary,
@@ -535,6 +542,12 @@ async def _propose_replace(
         workflow_run_id=workflow_run_id,
         payload=payload,
         in_channel=not on_assistant_thread,
+    )
+    await training_hooks.edit_card_shown(
+        organization_id=organization_id,
+        event_id=event_id,
+        payload=payload,
+        workflow_run_id=workflow_run_id,
     )
     where = ", ".join(labels) + (" (greeting)" if greetings and not changed else "")
     return {
@@ -627,7 +640,7 @@ async def _propose_escalation(
         if on_assistant_thread
         else "Proposed a change to when calls go to a person"
     ) + (f": {why}" if why else "")
-    await agent_timeline.record(
+    event_id = await agent_timeline.record(
         organization_id=organization_id,
         kind=AgentEventKind.EDIT_PROPOSED.value,
         summary=summary,
@@ -635,6 +648,12 @@ async def _propose_escalation(
         workflow_run_id=workflow_run_id,
         payload=payload,
         in_channel=not on_assistant_thread,
+    )
+    await training_hooks.edit_card_shown(
+        organization_id=organization_id,
+        event_id=event_id,
+        payload=payload,
+        workflow_run_id=workflow_run_id,
     )
     return {
         "status": "proposed",
@@ -1216,6 +1235,13 @@ async def settle(
     ):
         raise EditError("That change is not here to settle.")
 
+    await training_hooks.edit_card_settled(
+        organization_id=organization_id,
+        event_id=event_id,
+        payload=payload,
+        action=action,
+        user_id=user_id,
+    )
     verb = "Published" if action == "publish" else "Discarded"
     line = f"{verb} the change to {payload.get('step') or 'the bot'}"
     try:
