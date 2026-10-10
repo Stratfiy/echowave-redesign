@@ -333,7 +333,9 @@ async def screen(
         return []
 
     try:
-        model = await settings.resolve_model(session)
+        model = await settings.resolve_choice(
+            session, settings.cheap_choice(organization_id)
+        )
     except settings.BuilderUnavailable as exc:
         # Ordinary on a deployment with no platform LLM key. Debug, not a
         # warning: it would otherwise fire on every save, forever.

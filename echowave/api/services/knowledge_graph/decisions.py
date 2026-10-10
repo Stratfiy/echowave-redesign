@@ -122,7 +122,9 @@ async def extract(organization_id: int, text: str) -> list[Decision]:
         return []
     try:
         async with db_client.async_session() as session:
-            model = await settings.resolve_model(session)
+            model = await settings.resolve_choice(
+                session, settings.cheap_choice(organization_id)
+            )
         conversation = client.Conversation()
         conversation.add_user(text)
         with model_usage.scope(

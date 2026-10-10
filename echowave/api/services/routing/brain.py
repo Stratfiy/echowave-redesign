@@ -65,15 +65,75 @@ _STEPS_WORDS = re.compile(
 )
 
 
-def by_rules(text: str, *, attachments: int = 0) -> str:
+#: ``cheap_routing``: the same words, split by how much they say about the
+#: work. "report", "list", "send", "email" and "meeting" are what people say in
+#: any message, so on their own they sent a one-line ask to the Smart or the
+#: Deep brain. A strong word still decides; a weak one decides only alongside
+#: enough text to be a real task.
+_DEEP_STRONG = re.compile(
+    r"\b(analy[sz]e|analysis|compare|comparison|research|strategy|evaluate|"
+    r"investigate|pros and cons|trade-?offs?|forecast|root cause|in depth|"
+    r"deep dive)\b",
+    re.IGNORECASE,
+)
+_DEEP_WEAK = re.compile(
+    r"\b(report|assess|audit|in detail|why does|why is)\b", re.IGNORECASE
+)
+_STEPS_STRONG = re.compile(
+    r"\b(draft|rewrite|plan|summari[sz]e|translate|prepare|organi[sz]e|"
+    r"checklist|follow[- ]?up)\b",
+    re.IGNORECASE,
+)
+_STEPS_WEAK = re.compile(
+    r"\b(write|schedule|remind|send|email|mail|reply|summary|book|create|"
+    r"update|list|invoice|calendar|meeting)\b",
+    re.IGNORECASE,
+)
+#: Characters of text a weak word needs beside it, to count.
+_WEAK_STEPS_MIN = 160
+_WEAK_DEEP_MIN = 400
+#: A strong deep word needs this much text, or a second one.
+_STRONG_DEEP_MIN = 200
+
+
+def _by_tight_rules(body: str, attachments: int) -> str:
+    lines = [line for line in body.splitlines() if line.strip()]
+    questions = body.count("?")
+    strong_deep = {m.group(0).lower() for m in _DEEP_STRONG.finditer(body)}
+    if (
+        len(body) > 1200
+        or (strong_deep and len(body) > _STRONG_DEEP_MIN)
+        or (len(strong_deep) > 1 and len(body) > 80)
+        or (_DEEP_WEAK.search(body) and len(body) > _WEAK_DEEP_MIN)
+    ):
+        return "deep"
+    if (
+        attachments
+        or len(body) > 280
+        or len(lines) > 3
+        or questions > 2
+        or _STEPS_STRONG.search(body)
+        or (_STEPS_WEAK.search(body) and len(body) > _WEAK_STEPS_MIN)
+    ):
+        return "steps"
+    return "quick"
+
+
+def by_rules(text: str, *, attachments: int = 0, tight: bool = False) -> str:
     """The kind of work by plain rules: length, attachments and a few words.
 
     Deliberately simple, and language-light: the length signals work in any
     script, and Laya is what is meant to read Hindi and Tamil well.
+
+    ``tight`` is ``cheap_routing``: the stricter word rules above. The default
+    is the rules Laya is measured against, so the evaluation report
+    (``services/ops/laya_eval``) keeps calling it without the flag.
     """
     body = (text or "").strip()
     if not body:
         return "quick"
+    if tight:
+        return _by_tight_rules(body, attachments)
     lines = [line for line in body.splitlines() if line.strip()]
     questions = body.count("?")
     if len(body) > 1200 or (_DEEP_WORDS.search(body) and len(body) > 80):
@@ -123,11 +183,25 @@ def _count_shadow(laya_eval, ruled: str, asked: decision.Decision) -> None:
     task.add_done_callback(_PENDING.discard)
 
 
-async def route(text: str, *, attachments: int = 0) -> Route:
+def tight_rules_on(organization_id: int | None) -> bool:
+    """Whether ``cheap_routing`` is on for this account. Unknown is off."""
+    from api.services import features
+
+    try:
+        return features.is_on("cheap_routing", organization_id)
+    except Exception:  # noqa: BLE001 - unknown is off: the rules as before
+        return False
+
+
+async def route(
+    text: str, *, attachments: int = 0, organization_id: int | None = None
+) -> Route:
     """Sort one piece of work. Never raises: the rules are always there."""
     from api.services.ops import laya_eval
 
-    ruled = by_rules(text, attachments=attachments)
+    ruled = by_rules(
+        text, attachments=attachments, tight=tight_rules_on(organization_id)
+    )
     mode = constants.LAYA_ROUTING
     if mode not in ("shadow", "on") or not decision.enabled():
         return Route(kind=ruled, preset=PRESET_FOR[ruled], source="rules")
@@ -243,7 +317,9 @@ async def auto_route(
             return None
         if not await workspace_is_auto(organization_id):
             return None
-        return await route(text, attachments=attachments)
+        return await route(
+            text, attachments=attachments, organization_id=organization_id
+        )
     except Exception as exc:  # noqa: BLE001 -- routing must never cost a reply
         logger.warning("Auto routing skipped for org {}: {}", organization_id, exc)
         return None

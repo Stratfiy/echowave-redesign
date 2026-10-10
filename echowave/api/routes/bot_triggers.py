@@ -130,6 +130,7 @@ async def compile_trigger(
                 answers=body.answers,
                 session=session,
                 source=body.source,
+                organization_id=organization_id,
             )
     return TriggerCompileResponse(
         **compiled.as_dict(), filter_summary=bot_triggers.describe(compiled.filter)

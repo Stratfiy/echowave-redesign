@@ -47,7 +47,12 @@ from api.constants import (
 )
 from api.services.agent_builder import client as builder_client
 from api.services.agent_builder.client import Conversation
-from api.services.agent_builder.settings import BuilderUnavailable, resolve_model
+from api.services.agent_builder.settings import (
+    BuilderUnavailable,
+    cheap_choice,
+    resolve_choice,
+    resolve_model,
+)
 from api.services.billing import model_usage
 
 SOURCE_WEBHOOK = "webhook"
@@ -564,6 +569,7 @@ async def compile(
     answers: dict[str, str] | None = None,
     session: Any,
     source: str = SOURCE_WEBHOOK,
+    organization_id: int | None = None,
 ) -> Compiled:
     """Turn a sentence into a trigger, or into the questions that stand in its way.
 
@@ -581,7 +587,12 @@ async def compile(
             ],
         )
     try:
-        model = await resolve_model(session)
+        # A classifier, not a conversation: the cheap tier while
+        # ``cheap_routing`` is on, the builder's own model otherwise.
+        choice = cheap_choice(organization_id)
+        model = await (
+            resolve_choice(session, choice) if choice else resolve_model(session)
+        )
     except BuilderUnavailable as exc:
         logger.info("Trigger compiled without a model: {}", exc)
         return _plain(
