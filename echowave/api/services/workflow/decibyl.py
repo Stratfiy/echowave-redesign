@@ -1919,12 +1919,14 @@ async def tools_for(
     Connected apps are deferred: each is a name and a line until the model
     loads it, and ``loaded`` carries the schemas this thread has asked for
     so far, so a loaded tool is offered in full on every later round."""
-    connected = [
-        t
-        for t in await connected_tools.list_for_organization(organization_id)
+    connected = await connected_tools.list_for_organization(organization_id)
+    if context_control.excluded_apps():
         # An app left out of this conversation is out of its tools too.
-        if context_control.keep_app(connected_tools.toolkit_of(t))
-    ]
+        connected = [
+            t
+            for t in connected
+            if context_control.keep_app(connected_tools.toolkit_of(t))
+        ]
     own = office_tools(organization_id)
     if web_tools.enabled():
         from api.services.sandbox import code_mode
