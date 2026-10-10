@@ -6,10 +6,10 @@ it is the only message in the inbox from a company the person has just handed
 their email to. The next thing they heard from us was either a receipt or a
 low-balance warning.
 
-**Not a marketing email.** Three things, because those are the three that
-decide whether the account is ever used: what to do first, what it will cost
-when they do, and where the keys and numbers live. Anything else belongs on the
-site.
+**Not a marketing email.** The positioning in one line (founder decision,
+9 Oct 2026, AGENTS.md), then three things: what to do first, that it learns
+with the person's approval, and where their own keys live. No plan, price or
+balance -- no pricing is shown to users. Anything else belongs on the site.
 
 **Not a second verification email either.** It says nothing about the code —
 that mail is already in flight and repeating it here would make two messages
@@ -35,24 +35,21 @@ def compose(*, account_name: str | None, app_url: str) -> Notice:
 
     body = f"""{greeting}
 
-Your account is ready. Three things worth knowing before your first call:
+Decibyl is an intelligent agent that grows and evolves with you: one
+personal assistant for life and work. Talk in your language, give it a task,
+and let it help you follow through.
 
-1. Build an agent — {base}/start
-   Pick how it should sound and think. Every option shows what it costs a
-   minute before you commit to it.
+Three things worth knowing:
 
-2. Connect a number — {base}/telephony-configurations
-   Either bring your own carrier account, or take a number from us. On your own
-   account the carrier bills you for the minutes directly; on ours they appear
-   on your Decibyl invoice.
+1. Start with a task — {base}/overview
+   Ask for anything. If it needs an app, Decibyl asks then, not before.
 
-3. Add balance when you are ready — {base}/billing
-   Calls run down a prepaid balance. Nothing is charged until you place one,
-   and the balance page always shows what a minute costs on your setup.
+2. It learns how you like things done
+   It learns your preferences and, with your approval, gets better at your
+   work over time.
 
-If you would rather run models on your own provider keys, they live at
-{base}/provider-keys — we only ask for the ones covering models we do not
-already offer.
+3. Your own keys, if you want them — {base}/provider-keys
+   If you would rather run models on your own provider keys, they live there.
 
 Reply to this email if anything is unclear. A person reads it.
 

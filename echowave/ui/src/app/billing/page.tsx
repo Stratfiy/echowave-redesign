@@ -656,7 +656,11 @@ export default function BillingPage() {
       <PageHeader
         tabs={BILLING_TABS}
         title="Billing"
-        description="Decibyl is prepaid. Your agents run while there is credit on the account."
+        description={
+          freeMode
+            ? "Your billing details, tax documents and payment history."
+            : "Decibyl is prepaid. Your agents run while there is credit on the account."
+        }
       />
       <PageBody>{body}</PageBody>
     </>
@@ -780,50 +784,58 @@ export default function BillingPage() {
         </div>
       )}
 
-      <section className="rounded-xl border bg-card p-6">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Wallet className="h-4 w-4" />
-          Available credits
-        </div>
-        <div
-          className={cn(
-            "mt-2 text-4xl font-semibold tabular-nums",
-            outOfCredit && "text-red-600 dark:text-red-400",
-            runningLow && "text-amber-600 dark:text-amber-400",
-          )}
-        >
-          {formatCredits(balancePaise)}
-        </div>
-        {/* D-1: the balance in things a person recognises. Flag-gated. */}
-        <RunwayLine balancePaise={balancePaise} />
-        {balance &&
-          (balance.plan_credits ?? 0) + (balance.topup_credits ?? 0) > 0 && (
-            <p className="mt-1 text-sm text-muted-foreground">
-              {(balance.plan_credits ?? 0).toLocaleString("en-IN")} plan
-              credits, which expire with the cycle ·{" "}
-              {(balance.topup_credits ?? 0).toLocaleString("en-IN")} top-up
-              credits, which never expire
-            </p>
-          )}
-        {/* Both messages name the floor, because it is not zero. An
-                    account told "calls stop at zero" while sitting on ₹18 and
-                    unable to dial reads that as our arithmetic being broken. */}
-        {outOfCredit && (
-          <p className="mt-2 text-sm text-red-600 dark:text-red-400">
-            {whatStops === "Replies" ? "Replies are paused" : "Calling is paused"}{" "}
-            — the balance is below {formatCreditsLabel(floorPaise)}. Add credit from{" "}
-            {formatPaise(balance?.min_topup_paise ?? 0)} to start again.
-          </p>
-        )}
-        {runningLow && (
-          <p className="mt-2 text-sm text-amber-600 dark:text-amber-400">
-            Running low. {whatStopsLower} once this falls below{" "}
-            {formatCreditsLabel(floorPaise)}.
-          </p>
-        )}
-      </section>
+      {/* No pricing is shown to users while nothing is charged (free_mode;
+          lib/pricing.ts): no balance in credits and no rate card. The
+          documents and history below stay -- they are the record of any
+          payment already made. */}
+      {!freeMode && (
+        <>
+          <section className="rounded-xl border bg-card p-6">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Wallet className="h-4 w-4" />
+              Available credits
+            </div>
+            <div
+              className={cn(
+                "mt-2 text-4xl font-semibold tabular-nums",
+                outOfCredit && "text-red-600 dark:text-red-400",
+                runningLow && "text-amber-600 dark:text-amber-400",
+              )}
+            >
+              {formatCredits(balancePaise)}
+            </div>
+            {/* D-1: the balance in things a person recognises. Flag-gated. */}
+            <RunwayLine balancePaise={balancePaise} />
+            {balance &&
+              (balance.plan_credits ?? 0) + (balance.topup_credits ?? 0) > 0 && (
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {(balance.plan_credits ?? 0).toLocaleString("en-IN")} plan
+                  credits, which expire with the cycle ·{" "}
+                  {(balance.topup_credits ?? 0).toLocaleString("en-IN")} top-up
+                  credits, which never expire
+                </p>
+              )}
+            {/* Both messages name the floor, because it is not zero. An
+                        account told "calls stop at zero" while sitting on ₹18 and
+                        unable to dial reads that as our arithmetic being broken. */}
+            {outOfCredit && (
+              <p className="mt-2 text-sm text-red-600 dark:text-red-400">
+                {whatStops === "Replies" ? "Replies are paused" : "Calling is paused"}{" "}
+                — the balance is below {formatCreditsLabel(floorPaise)}. Add credit from{" "}
+                {formatPaise(balance?.min_topup_paise ?? 0)} to start again.
+              </p>
+            )}
+            {runningLow && (
+              <p className="mt-2 text-sm text-amber-600 dark:text-amber-400">
+                Running low. {whatStopsLower} once this falls below{" "}
+                {formatCreditsLabel(floorPaise)}.
+              </p>
+            )}
+          </section>
 
-      <RateCardSection />
+          <RateCardSection />
+        </>
+      )}
 
       {/* Free while we are early: no plans to pick and no credit to add. */}
       {!freeMode && (

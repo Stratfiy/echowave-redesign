@@ -1081,6 +1081,12 @@ EXPO_ACCESS_TOKEN = os.getenv("EXPO_ACCESS_TOKEN", "").strip()
 # from the environment or the staff console. See services/billing/free_mode.py.
 FREE_MODE_ENABLED = os.getenv("FREE_MODE_ENABLED", "true").strip().lower() == "true"
 
+# Whether a price reaches a user, including through what a model says aloud.
+# The founder decided on 9 Oct 2026: no pricing is shown to users (AGENTS.md).
+# The server-side twin of ui/src/lib/pricing.ts; a constant, not a flag,
+# because turning it back on needs new price copy from the founder first.
+PRICES_SHOWN = False
+
 # Per-organisation overrides: "feature:org_id,org_id;feature2:org_id". A
 # feature listed here is on for those organisations even while its global
 # flag is off, so it can be tried by the platform organisation and one

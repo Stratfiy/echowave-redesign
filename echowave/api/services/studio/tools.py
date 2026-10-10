@@ -24,6 +24,7 @@ from typing import Any
 from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from api import constants
 from api.db import db_client
 from api.services.agent_builder import tools as builder_tools
 from api.services.studio import images, sites, themes
@@ -53,6 +54,12 @@ AGENT_TOOLS: tuple[str, ...] = (
     "list_app_actions",
     "list_app_accounts",
     "attach_app_tool",
+)
+# A priced tool is not offered while no pricing is shown to users.
+AGENT_TOOLS = tuple(
+    name
+    for name in AGENT_TOOLS
+    if constants.PRICES_SHOWN or name not in builder_tools.PRICED_TOOLS
 )
 
 _builder_schemas = {schema["name"]: schema for schema in builder_tools.tool_schemas()}
