@@ -162,6 +162,8 @@ async def run_routine(routine_id: int) -> Optional[int]:
                     getattr(workflow, "workflow_configurations", None)
                 ),
             ),
+            # The instruction, not the unattended-run framing around it.
+            routing_text=routine["instruction"] or routine["name"],
             expected_revision=text_session.revision,
         )
         text_session = await execute_pending_text_chat_turn(

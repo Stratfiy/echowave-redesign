@@ -111,12 +111,19 @@ async def append_text_chat_user_message(
     text_session: WorkflowRunTextSessionModel,
     user_text: str,
     expected_revision: int | None,
+    routing_text: str | None = None,
 ) -> WorkflowRunTextSessionModel:
+    """``routing_text`` is what the person actually asked, when ``user_text``
+    is that wrapped in a thread, taught procedures or a briefing. Auto sorts
+    the work by it (see ``routing.brain.auto_route``); left out, the turn is
+    sorted by ``user_text``, which is right whenever nothing was added."""
     session_data = normalize_text_chat_session_data(text_session.session_data)
     checkpoint = normalize_text_chat_checkpoint(text_session.checkpoint)
 
     active_turns, discarded_future = truncate_text_chat_future_turns(session_data)
-    active_turns.append(build_pending_text_chat_turn(user_text=user_text))
+    active_turns.append(
+        build_pending_text_chat_turn(user_text=user_text, routing_text=routing_text)
+    )
 
     session_data["turns"] = active_turns
     session_data["discarded_future"] = discarded_future
@@ -310,20 +317,21 @@ def latest_completed_text_chat_turn_id(turns: list[dict[str, Any]]) -> str | Non
     return None
 
 
-def build_pending_text_chat_turn(*, user_text: str | None) -> dict[str, Any]:
+def build_pending_text_chat_turn(
+    *, user_text: str | None, routing_text: str | None = None
+) -> dict[str, Any]:
     now = datetime.now(UTC).isoformat()
+    user_message: dict[str, Any] | None = None
+    if user_text is not None:
+        user_message = {"text": user_text, "created_at": now}
+        # Only when it differs: a turn nothing was added to has one text.
+        if routing_text is not None and routing_text != user_text:
+            user_message["routing_text"] = routing_text
     return {
         "id": f"turn_{uuid4().hex[:12]}",
         "status": "pending",
         "created_at": now,
-        "user_message": (
-            {
-                "text": user_text,
-                "created_at": now,
-            }
-            if user_text is not None
-            else None
-        ),
+        "user_message": user_message,
         "assistant_message": None,
         "events": [],
         "usage": {},
