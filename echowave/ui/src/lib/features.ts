@@ -147,7 +147,10 @@ export type Feature =
     // Skills that learn from corrections, evaluated and approved first.
     | "evolve_skills"
     // Posters and ad creatives: images on a provider chosen in the thread.
-    | "image_generation";
+    | "image_generation"
+    // Personal adaptation: kept preferences, "what you know about me", the
+    // context control above the composer.
+    | "evolve_personal";
 
 export function useFeature(name: Feature): boolean {
     const { config } = useAppConfig();

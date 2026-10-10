@@ -52,6 +52,7 @@ import { SaveReportButton } from '@/components/helpers/SaveReportButton';
 import { HuddleEvent } from '@/components/huddle/HuddleEvent';
 import { ImageProviderCard } from '@/components/images/ImageProviderCard';
 import { ImagesCard } from '@/components/images/ImagesCard';
+import { PersonalMemoryCard } from '@/components/personal/PersonalMemoryCard';
 import { ComparisonCard } from '@/components/reach/ComparisonCard';
 import { ReachConnectChip } from '@/components/reach/ReachConnectChip';
 import { SaveReplyButton } from '@/components/settings/SaveReplyButton';
@@ -164,6 +165,8 @@ const CARDS = new Set([
     'images_made',
     // A huddle with the agent: its transcript, compact.
     'huddle',
+    // The person's own memory: what is kept, a preference saved or offered.
+    'personal_memory',
     // A skill learned something, or was remembered (evolve_skills).
     'skill_lesson',
 ]);
@@ -558,6 +561,8 @@ export function ChannelStream({
     // Posters and ad creatives (services/images/). Off, the rows fall
     // through to the plain summary rather than vanish.
     const imagesOn = useFeature('image_generation');
+    // The person's own memory cards (evolve_personal).
+    const personalOn = useFeature('evolve_personal');
     // Escalation v2: a caller handed to a person, as a card with Accept,
     // Decline and Hand back to AI.
     const handoffOn = useFeature('escalation_v2');
@@ -1449,6 +1454,28 @@ export function ChannelStream({
                                     ) : (
                                         <ImagesCard event={event} onEdit={canSendLine ? sendLine : undefined} />
                                     )}
+                                </div>
+                            </li>
+                            </React.Fragment>
+                        );
+                    }
+                    if (personalOn && event.kind === 'personal_memory') {
+                        // What Decibyl keeps about the person, a preference
+                        // just saved, or one offered: Correct, Forget and
+                        // Save happen here, in the thread. Private to them.
+                        return (
+                            <React.Fragment key={event.id}>
+                            {divider}
+                            <li className="flex gap-3">
+                                {face(event)}
+                                <div className="min-w-0 flex-1">
+                                    <p className="mb-1 text-sm">
+                                        <span className="font-medium">{fallbackName}</span>
+                                        <span className="ml-2 text-xs text-muted-foreground">
+                                            <time dateTime={event.at}>{when(event.at)}</time>
+                                        </span>
+                                    </p>
+                                    <PersonalMemoryCard event={event} />
                                 </div>
                             </li>
                             </React.Fragment>

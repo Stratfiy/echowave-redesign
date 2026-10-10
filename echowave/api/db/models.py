@@ -7002,6 +7002,10 @@ from api.db.people_models import (  # noqa: E402,F401
     PersonShareModel,
     PersonSourceModel,
 )
+from api.db.personal_models import (  # noqa: E402,F401
+    ConversationContextChoiceModel,
+    PersonalPreferenceModel,
+)
 from api.db.reach_models import (  # noqa: E402,F401
     ReachConnectionModel,
     ReachOrderDraftModel,

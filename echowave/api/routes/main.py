@@ -70,6 +70,7 @@ from api.routes.partner_admin import router as partner_admin_router
 from api.routes.partners import router as partners_router
 from api.routes.payments import router as payments_router
 from api.routes.people import router as people_router
+from api.routes.personal import router as personal_router
 from api.routes.platform_credentials import router as platform_credentials_router
 from api.routes.privacy import router as privacy_router
 from api.routes.procurement import router as procurement_router
@@ -202,6 +203,7 @@ router.include_router(settings_router)
 router.include_router(voice_router)
 router.include_router(voice_admin_router)
 router.include_router(huddle_router)
+router.include_router(personal_router)
 router.include_router(organisation_router)
 router.include_router(organisation_memory_router)
 router.include_router(packs_router)

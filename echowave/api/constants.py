@@ -1071,6 +1071,12 @@ DEEPFILTERNET_MODEL_PATH = os.getenv("DEEPFILTERNET_MODEL_PATH", "").strip()
 # Decibyl (services/live_supervision/). Off by default; even when on, each
 # workspace has to switch "Allow live listening" on before anybody listens.
 LIVE_SUPERVISION_ENABLED = _flag("LIVE_SUPERVISION_ENABLED")
+# evolve_personal: Decibyl keeps what a person says they prefer ("Tamil
+# for calls, English for email", "call me after 10") in their own private
+# store, applies it to their turns and to calls that ring them, shows it on
+# request with Correct and Forget, and shows what a conversation uses above
+# the composer (services/personal/). Off: nothing is captured or applied.
+EVOLVE_PERSONAL_ENABLED = _flag("EVOLVE_PERSONAL_ENABLED")
 # evolve_skills (services/evolve/): skills that get better at the person's
 # work without ever changing themselves silently. A ledger of task attempts
 # with outcome evidence from persisted records, small lesson deltas proposed

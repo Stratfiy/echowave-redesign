@@ -954,6 +954,12 @@ class AgentEventKind(str, Enum):
     #: one row per huddle, carrying who said what, rewritten as it goes.
     #: The edit cards it proposed are their own rows beside it.
     HUDDLE = "huddle"
+    #: A person's own memory, as a card on their own thread (services/
+    #: personal/cards.py): what Decibyl keeps about them, a preference just
+    #: saved, or one offered from their feedback. Always written with
+    #: ``private_to`` the person; the card reads the values from the
+    #: person's own store when it draws, so a colleague never sees them.
+    PERSONAL_MEMORY = "personal_memory"
     #: A skill learned something, or was remembered (services/evolve/): the
     #: card offering a new version with its evidence and evaluation, a
     #: remembered draft to edit, a proposal to roll a version back, or a

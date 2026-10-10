@@ -38,7 +38,7 @@ from loguru import logger
 
 from api.db import db_client
 from api.enums import AgentEventActor, AgentEventKind
-from api.services import acting, features, prompt_budget, reporting_window
+from api.services import acting, features, personal, prompt_budget, reporting_window
 from api.services.billing import model_usage
 from api.services.browser import tool as browser_tool
 from api.services.care import tools as care_tools
@@ -48,6 +48,9 @@ from api.services.knowledge_graph import personal as personal_memory
 from api.services.knowledge_graph import quiet, recall, teach
 from api.services.organization_preferences import get_organization_preferences
 from api.services.people import tools as people_tools
+from api.services.personal import cards as personal_cards
+from api.services.personal import context_control
+from api.services.personal import preferences as personal_preferences
 from api.services.skills import imports as skill_imports
 from api.services.workflow import (
     actions,
@@ -346,6 +349,11 @@ def system_prompt(organization_id: int | None = None) -> str:
         # The person's own choices for this turn (settings stream); "" when
         # none were set or the switches are off.
         + settings_profile.turn_block()
+        # The person's own kept preferences (services/personal), after their
+        # settings so a later stated preference is the last word; "" when the
+        # switch is off, nobody is signed in, or Personal is left out.
+        + personal_preferences.turn_block()
+        + (personal_preferences.RULES if personal.enabled(organization_id) else "")
         + (call_for_me.RULES if call_for_me.enabled(organization_id) else "")
         + (_done_calls().RULES if _done_calls_on(organization_id) else "")
         + (_outreach().RULES if _outreach().enabled(organization_id) else "")
@@ -410,6 +418,10 @@ def thread_filter(organization_id: int | None = None) -> dict[str, Any]:
             # nobody ever sees.
             AgentEventKind.IMAGE_PROVIDER_OFFERED.value,
             AgentEventKind.IMAGES_MADE.value,
+            # The person's own memory cards (services/personal): what is kept
+            # about them, a preference just saved, one offered. Listed always,
+            # like the cards above; each row is private to its person.
+            AgentEventKind.PERSONAL_MEMORY.value,
             # Evolving skills: the learning card, a remembered draft, an
             # add-to-agent card. Listed always, like the cards above: only
             # written while ``evolve_skills`` is on.
@@ -478,7 +490,7 @@ async def ask(
     asked = [m.workflow_id for m in handed_to]
     subjects = [m.workflow_id for m in who.subjects]
 
-    await agent_timeline.record(
+    line_id = await agent_timeline.record(
         organization_id=organization_id,
         kind=AgentEventKind.MESSAGE.value,
         actor=AgentEventActor.HUMAN.value,
@@ -506,6 +518,23 @@ async def ask(
         organization_id=organization_id, user_id=user_id, thread_id=thread_id
     ):
         return []
+
+    # The person's own preferences (services/personal): "what do you know
+    # about me" is answered with the card and no model; a preference said
+    # outright ("Tamil for calls") is saved now and shown on a card, and the
+    # turn goes on to the model, which reads it from the store. No-op while
+    # ``evolve_personal`` is off.
+    if not handed_to and personal.enabled(organization_id):
+        from api.services.personal import listen
+
+        if await listen.on_line(
+            organization_id=organization_id,
+            user_id=user_id,
+            thread_id=thread_id,
+            text=text,
+            line_id=line_id,
+        ):
+            return []
 
     # "Call me when it's done", said on its own (or the chip's own words):
     # answered here, with no model, so the ask cannot be misread. A longer
@@ -820,7 +849,18 @@ async def build_context(organization_id: int, question: str) -> str:
     # are different spans and reporting the second under the name of the first
     # is what had this function answer "7 calls today" and, minutes later,
     # "15 calls today" -- the window had slid, nothing else had happened.
-    if "week" in question.lower():
+    # "Weekly numbers, not daily" (services/personal): the person's own
+    # cadence decides the span when the question does not name one.
+    asker_id = acting.valid_member(acting.acting_user())
+    cadence = (
+        None
+        if context_control.is_excluded(context_control.PERSONAL)
+        else await personal_preferences.cadence(asker_id, organization_id)
+    )
+    weekly = "week" in question.lower() or (
+        cadence == "weekly" and "today" not in question.lower()
+    )
+    if weekly:
         window = reporting_window.last_days(7)
     else:
         try:
@@ -833,7 +873,7 @@ async def build_context(organization_id: int, question: str) -> str:
 
     # Kept for the callers below that still think in hours; the window is what
     # the counts are actually taken over.
-    hours = 168 if "week" in question.lower() else 24
+    hours = 168 if weekly else 24
     try:
         members = [
             m.model_dump()
@@ -867,6 +907,10 @@ async def build_context(organization_id: int, question: str) -> str:
     except Exception as exc:  # noqa: BLE001
         logger.warning("Decibyl could not read memory: {}", exc)
         memory_rows = []
+    if context_control.is_excluded(context_control.WORKSPACE):
+        # Left out of this conversation: the workspace's facts go, the
+        # person's own (if Personal is still in) stay.
+        memory_rows = [r for r in memory_rows if getattr(r, "user_id", None)]
 
     try:
         recent = await db_client.agent_events(
@@ -894,7 +938,10 @@ async def build_context(organization_id: int, question: str) -> str:
         logger.warning("Decibyl could not read missed calls: {}", exc)
         missed = []
 
-    knowledge = await _knowledge(organization_id, question)
+    if context_control.is_excluded(context_control.KNOWLEDGE):
+        knowledge = {"status": "excluded", "chunks": []}
+    else:
+        knowledge = await _knowledge(organization_id, question)
     # Contacts are part of what the account knows, and were reachable only
     # from a ringing phone. Matched against the question, never dumped.
     #
@@ -920,8 +967,12 @@ async def build_context(organization_id: int, question: str) -> str:
     # The files themselves, not just whether a search of them matched: see
     # documents_block.
     try:
-        documents = await db_client.get_documents_for_organization(
-            organization_id, limit=50
+        documents = (
+            []
+            if context_control.is_excluded(context_control.KNOWLEDGE)
+            else await db_client.get_documents_for_organization(
+                organization_id, limit=50
+            )
         )
     except Exception as exc:  # noqa: BLE001 - a list is a nicety, not a dependency
         logger.warning("Decibyl could not list the documents: {}", exc)
@@ -934,7 +985,12 @@ async def build_context(organization_id: int, question: str) -> str:
     door = await home_openers.door_answers(organization_id)
     # Which apps are connected, so the model knows what it can reach before
     # it tries. The listing never raises; an empty workspace reads as such.
-    apps = await connected_tools.list_for_organization(organization_id)
+    apps = [
+        a
+        for a in await connected_tools.list_for_organization(organization_id)
+        # An app left out of this conversation (the context control).
+        if context_control.keep_app(connected_tools.toolkit_of(a))
+    ]
     # Apps connected at the vendor whose tool rows have not been made yet.
     # Reading this here also queues them, so somebody who connects an app and
     # comes straight back to the chat gets them without opening any screen.
@@ -1211,12 +1267,23 @@ async def answer(
     person = await settings_profile.block_for_turn(
         organization_id, author_id, memory_off
     )
+    # What the person left out of this conversation (the context control),
+    # and their own kept preferences unless Personal is one of them. Both
+    # empty while ``evolve_personal`` is off.
+    left_out = await context_control.excluded_for(organization_id, author_id, thread_id)
+    kept = (
+        None
+        if context_control.PERSONAL in left_out
+        else await personal_preferences.block_for_turn(organization_id, author_id)
+    )
     with (
         agent_timeline.in_thread(thread_id),
         acting.acting_as(author_id),
         helper_turn.running_as(helper),
         memory_choice.paused(memory_off),
         settings_profile.for_turn(person),
+        context_control.for_turn(left_out),
+        personal_preferences.for_turn(kept),
     ):
         return await _answer(
             organization_id,
@@ -1299,7 +1366,11 @@ async def _answer(
     )
     if helper_reading:
         context = f"{context}\n\n{helper_reading}"
-    attached = await attached_block(organization_id, attachments, last_try=last_try)
+    attached = (
+        ""
+        if context_control.is_excluded(context_control.FILES)
+        else await attached_block(organization_id, attachments, last_try=last_try)
+    )
     if attached:
         context = f"{context}\n\n{attached}"
     conversation.add_user(f"{context}\n\n## Question\n{text}{handed}")
@@ -1805,6 +1876,7 @@ def office_tools(organization_id: int | None = None) -> list[dict[str, Any]]:
             else ()
         ),
         *((_done_calls().tool_schema(),) if _done_calls_on(organization_id) else ()),
+        *(personal_cards.tool_schemas() if personal.enabled(organization_id) else ()),
         *_evolve().schemas(organization_id),
     ]
 
@@ -1848,6 +1920,13 @@ async def tools_for(
     loads it, and ``loaded`` carries the schemas this thread has asked for
     so far, so a loaded tool is offered in full on every later round."""
     connected = await connected_tools.list_for_organization(organization_id)
+    if context_control.excluded_apps():
+        # An app left out of this conversation is out of its tools too.
+        connected = [
+            t
+            for t in connected
+            if context_control.keep_app(connected_tools.toolkit_of(t))
+        ]
     own = office_tools(organization_id)
     if web_tools.enabled():
         from api.services.sandbox import code_mode
@@ -2129,6 +2208,14 @@ async def _tool(
         return await document_fields.confirm_for_thread(organization_id, arguments)
     if call.name == filing.TOOL_NAME:
         return await filing.file_for_thread(organization_id, arguments)
+    if call.name in (personal_cards.SHOW_TOOL, personal_cards.PROPOSE_TOOL):
+        return await personal_cards.for_thread(
+            organization_id,
+            str(call.name),
+            dict(call.arguments or {}),
+            user_id=acting.valid_member(author_id),
+            thread_id=thread_id,
+        )
     if call.name == recall.TOOL_NAME:
         return await recall.for_thread(
             organization_id,
