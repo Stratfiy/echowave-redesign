@@ -26351,6 +26351,92 @@ export type SetGlobalOverrideApiV1AdminFeaturesNameGlobalPutResponses = {
 
 export type SetGlobalOverrideApiV1AdminFeaturesNameGlobalPutResponse = SetGlobalOverrideApiV1AdminFeaturesNameGlobalPutResponses[keyof SetGlobalOverrideApiV1AdminFeaturesNameGlobalPutResponses];
 
+export type OpenAlertsApiV1AdminOpsAlertsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/ops/alerts';
+};
+
+export type OpenAlertsApiV1AdminOpsAlertsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type OpenAlertsApiV1AdminOpsAlertsGetError = OpenAlertsApiV1AdminOpsAlertsGetErrors[keyof OpenAlertsApiV1AdminOpsAlertsGetErrors];
+
+export type OpenAlertsApiV1AdminOpsAlertsGetResponses = {
+    /**
+     * Response Open Alerts Api V1 Admin Ops Alerts Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type OpenAlertsApiV1AdminOpsAlertsGetResponse = OpenAlertsApiV1AdminOpsAlertsGetResponses[keyof OpenAlertsApiV1AdminOpsAlertsGetResponses];
+
+export type DailySummariesApiV1AdminOpsAlertsDailySummariesGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/admin/ops/alerts/daily-summaries';
+};
+
+export type DailySummariesApiV1AdminOpsAlertsDailySummariesGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DailySummariesApiV1AdminOpsAlertsDailySummariesGetError = DailySummariesApiV1AdminOpsAlertsDailySummariesGetErrors[keyof DailySummariesApiV1AdminOpsAlertsDailySummariesGetErrors];
+
+export type DailySummariesApiV1AdminOpsAlertsDailySummariesGetResponses = {
+    /**
+     * Response Daily Summaries Api V1 Admin Ops Alerts Daily Summaries Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type DailySummariesApiV1AdminOpsAlertsDailySummariesGetResponse = DailySummariesApiV1AdminOpsAlertsDailySummariesGetResponses[keyof DailySummariesApiV1AdminOpsAlertsDailySummariesGetResponses];
+
 export type OpsHealthApiV1AdminOpsHealthGetData = {
     body?: never;
     headers?: {

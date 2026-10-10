@@ -24,6 +24,10 @@ REDIS_SETTINGS = build_redis_settings(
 )
 
 from api.constants import ARQ_MAX_JOBS
+from api.services.ops_alerts.thresholds import (
+    DAILY_SUMMARY_HOUR_UTC,
+    DAILY_SUMMARY_MINUTE_UTC,
+)
 from api.tasks.auto_topup import sweep_auto_topups
 from api.tasks.backup import run_database_backup, run_ledger_snapshot
 from api.tasks.billing_rollup import refresh_billing_rollups
@@ -55,6 +59,7 @@ from api.tasks.memory_export import export_memory
 from api.tasks.memory_notices import notice_connections, resurface_asked
 from api.tasks.missed_call_tasks import place_missed_call_callback
 from api.tasks.ops import run_ops_command, sweep_ops
+from api.tasks.ops_alerts import run_ops_alerts, send_daily_cost_summary
 from api.tasks.people import resync_people, sync_people, write_due_briefs
 from api.tasks.plan_expiry import expire_lapsed_plan_balance
 from api.tasks.provider_balances import check_provider_balances
@@ -155,6 +160,8 @@ class WorkerSettings:
         sweep_support_actions,
         run_ops_command,
         sweep_ops,
+        run_ops_alerts,
+        send_daily_cost_summary,
         care_medicine_tick,
         care_call_sweep,
         call_when_done_tick,
@@ -181,6 +188,24 @@ class WorkerSettings:
             sweep_ops,
             minute=set(range(0, 60, 5)),
             second=20,
+            run_at_startup=False,
+        ),
+        # Operational alerts to the operators (services/ops_alerts): call and
+        # provider error spikes, stuck jobs, spend anomalies, waiting invite
+        # requests. Every five minutes; the worker's own liveness is watched
+        # from the API (services/ops_alerts/watchdog.py). No-op while off.
+        cron(
+            run_ops_alerts,
+            minute=set(range(2, 60, 5)),
+            second=50,
+            run_at_startup=False,
+        ),
+        # 03:15 UTC is 08:45 IST: yesterday's metered cost summary, once.
+        cron(
+            send_daily_cost_summary,
+            hour={DAILY_SUMMARY_HOUR_UTC},
+            minute={DAILY_SUMMARY_MINUTE_UTC},
+            second=0,
             run_at_startup=False,
         ),
         # Launch stream care: medicine reminder calls on the minute, and calls

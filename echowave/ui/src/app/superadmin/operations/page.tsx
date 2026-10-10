@@ -4,10 +4,12 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 
+import { OpsAlertsPanel } from "@/components/staff/OpsAlertsPanel";
 import { OpsCommand } from "@/components/staff/OpsCommand";
 import { Empty, PageHeader, Panel, StateBadge, TableRegion } from "@/components/staff/parts";
 import { useReportFreshness, useStaffConsole } from "@/components/staff/StaffShell";
 import { Button } from "@/components/ui/button";
+import { useFeature } from "@/lib/features";
 import { useStaffData } from "@/lib/staff/data";
 import { count, when, words } from "@/lib/staff/format";
 
@@ -27,13 +29,16 @@ type Ops = {
     providers: Array<{ provider: string; status: string; kind: string; remaining: number | null; currency: string | null; needs_attention: boolean; detail: string | null }>;
 };
 
-const TABS = ["jobs", "calls", "providers", "delivery", "infrastructure"] as const;
+const TABS = ["jobs", "calls", "providers", "delivery", "infrastructure", "alerts"] as const;
 type Tab = (typeof TABS)[number];
 
 function OperationsInner() {
     const router = useRouter();
     const params = useSearchParams();
-    const tab = (TABS as readonly string[]).includes(params?.get("tab") ?? "") ? (params?.get("tab") as Tab) : "jobs";
+    // Operational alerts are a tab only while ops_alerts is on.
+    const alertsOn = useFeature("ops_alerts");
+    const tabs = TABS.filter((t) => t !== "alerts" || alertsOn);
+    const tab = (tabs as readonly string[]).includes(params?.get("tab") ?? "") ? (params?.get("tab") as Tab) : "jobs";
     const { can, me } = useStaffConsole();
     const query = useStaffData<Ops>("/api/v1/admin/staff/operations", undefined, 60_000);
     const opsHealth = useStaffData<{ status: string; signals: Array<{ name: string; status: string; detail: string; metrics?: Record<string, unknown> }> }>("/api/v1/admin/ops/health");
@@ -45,7 +50,7 @@ function OperationsInner() {
         <div className="space-y-4">
             <PageHeader title="Operations and delivery" description="Actionable failures first. Monitoring that did not answer is shown as unknown, never as healthy." />
             <div role="tablist" aria-label="Operations sections" className="flex flex-wrap gap-1 border-b border-border">
-                {TABS.map((t) => (
+                {tabs.map((t) => (
                     <button
                         key={t}
                         role="tab"
@@ -58,6 +63,8 @@ function OperationsInner() {
                     </button>
                 ))}
             </div>
+
+            {tab === "alerts" && <OpsAlertsPanel />}
 
             {tab === "jobs" && (
                 <Panel title="Jobs that need a person" query={query}>

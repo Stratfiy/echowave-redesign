@@ -29,6 +29,16 @@
    "operational_quotas"
   ]
  },
+ "/api/v1/admin/ops/alerts": {
+  "GET": [
+   "ops_alerts"
+  ]
+ },
+ "/api/v1/admin/ops/alerts/daily-summaries": {
+  "GET": [
+   "ops_alerts"
+  ]
+ },
  "/api/v1/admin/ops/commands": {
   "GET": [
    "ops_console"

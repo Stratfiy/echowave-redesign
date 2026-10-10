@@ -606,6 +606,24 @@ Saved logins (cookies only) are encrypted with `PLATFORM_CREDENTIAL_SECRET`;
 without it, logins are never kept and the panel says so. The staff's allow
 and deny list is at `/api/v1/admin/browser/sites` (superadmin, audited).
 
+## 9c. Operational alerts and the daily cost summary (`ops_alerts`)
+
+Mail to the platform's operators when calls fail, a provider errors, a
+background job stops, spend runs away or invite requests wait; and each
+morning at 08:45 IST, yesterday's metered provider spend
+(`api/services/ops_alerts/`). Platform-level: switch it on globally, not per
+organisation. Uses the SMTP settings in section 3 (sent as
+`EMAIL_FROM_NOTIFICATIONS`) and `UI_APP_URL` for the links. Thresholds are
+constants in `api/services/ops_alerts/thresholds.py`, not environment.
+
+```
+OPS_ALERTS_ENABLED=false              # the switch; off = no job, no counters, routes 404
+OPS_ALERT_EMAILS=                     # comma-separated; unset = every superadmin, with a warning
+```
+
+Open alerts and the last seven summaries are under Super admin → Operations →
+Alerts (`/api/v1/admin/ops/alerts`; the summaries are superadmin only).
+
 ## Not environment variables
 
 Worth stating, because they are the three things most likely to be looked for

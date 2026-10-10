@@ -990,6 +990,17 @@ CALL_WHEN_DONE_ENABLED = _flag("CALL_WHEN_DONE_ENABLED")
 # voice conversation with that agent as a teammate. Changes it proposes are
 # cards in the thread; nothing is published by voice.
 HUDDLE_ENABLED = _flag("HUDDLE_ENABLED")
+# Operational alerts and the daily cost summary, mailed to the platform's
+# operators (services/ops_alerts): call failure spikes, provider error
+# spikes, background jobs not running, spend anomalies and invite requests
+# left waiting. Off by default; thresholds live in
+# services/ops_alerts/thresholds.py.
+OPS_ALERTS_ENABLED = _flag("OPS_ALERTS_ENABLED")
+# Who those mails go to. Comma-separated. Unset, every superadmin's address,
+# with a warning in the log -- the same fallback as INVITE_APPROVER_EMAILS.
+OPS_ALERT_EMAILS = [
+    a.strip().lower() for a in os.getenv("OPS_ALERT_EMAILS", "").split(",") if a.strip()
+]
 # How long a finished task waits before its call is placed, so tasks that
 # finish together are said in one call rather than one call each.
 CALL_WHEN_DONE_GATHER_SECONDS = int(os.getenv("CALL_WHEN_DONE_GATHER_SECONDS", "60"))
