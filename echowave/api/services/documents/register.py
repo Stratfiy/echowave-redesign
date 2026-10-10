@@ -175,6 +175,67 @@ async def get(
     return await session.scalar(query.limit(1))
 
 
+#: A draft that is still the agent's to change. Past this, a person has issued,
+#: followed up or closed it, and an agent calling draft_document again must not
+#: rewrite a document a vendor may already hold.
+REVISABLE = ("draft", "awaiting_approval")
+
+
+def draft_key(
+    *, workflow_run_id: int | None, template: str, recipient: str
+) -> str | None:
+    """Identity of a draft within one run: the same template to the same
+    recipient. None outside a run (nothing to be idempotent within).
+
+    The recipient is compared as a person reads it -- case and spacing do not
+    make "Acme  Traders" a different vendor from "acme traders".
+    """
+    if workflow_run_id is None:
+        return None
+    who = " ".join(str(recipient or "").casefold().split())
+    return f"{int(workflow_run_id)}|{' '.join(str(template or '').casefold().split())}|{who}"
+
+
+async def lock_run_drafts(
+    session: AsyncSession, *, organization_id: int, workflow_run_id: int
+) -> None:
+    """Serialize drafting within one run until the transaction ends.
+
+    Two tool calls of one turn can run side by side; without this both look
+    for an existing draft, both find none, and both take a number -- the
+    duplicate this exists to prevent. A transaction-scoped advisory lock, so
+    it is released by the commit that makes the first draft visible.
+    """
+    import hashlib
+
+    from sqlalchemy import text
+
+    digest = hashlib.sha256(
+        f"draft:{organization_id}:{workflow_run_id}".encode()
+    ).digest()
+    await session.execute(
+        text("SELECT pg_advisory_xact_lock(:k)"),
+        {"k": int.from_bytes(digest[:8], "big", signed=True)},
+    )
+
+
+async def find_draft(
+    session: AsyncSession, *, organization_id: int, key: str, kind: str
+) -> ProcurementDocumentModel | None:
+    """The live (not cancelled) draft this run already made for ``key``."""
+    return await session.scalar(
+        select(ProcurementDocumentModel)
+        .where(
+            ProcurementDocumentModel.organization_id == organization_id,
+            ProcurementDocumentModel.kind == kind,
+            ProcurementDocumentModel.status != "cancelled",
+            ProcurementDocumentModel.data["draft_key"].as_string() == key,
+        )
+        .order_by(ProcurementDocumentModel.id)
+        .limit(1)
+    )
+
+
 def parse_date(value: Any) -> date | None:
     """A date from what a person wrote: 2026-10-15, 15-10-2026, 15/10/2026,
     15 Oct 2026, 15 October 2026. None when it is not a date ("30 days")."""
@@ -287,6 +348,11 @@ async def update(
         if status not in formats.STATUSES:
             raise RegisterError(f"status must be one of {', '.join(formats.STATUSES)}")
         if status == ISSUED and was != ISSUED:
+            if row.kind == "tax_invoice" and money.has_tax_id_placeholder(row.data):
+                raise RegisterError(
+                    "This tax invoice still has a GSTIN or PAN marked "
+                    "[to confirm]; give the real value before issuing it."
+                )
             # The approval matrix (KAN-160): issuing is the act a rule is
             # about, by the document's kind and amount. Raises
             # ApprovalRequired naming who must; a no-op while off.

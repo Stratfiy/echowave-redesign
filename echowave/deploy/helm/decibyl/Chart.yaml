@@ -1,7 +1,7 @@
 apiVersion: v2
 name: decibyl
 description: |
-  Decibyl — open-source voice AI platform. Deploys the FastAPI backend
+  Decibyl — an intelligent agent that grows and evolves with you. Deploys the FastAPI backend
   (decomposed into web, ARQ worker, ARI manager singleton, and campaign
   orchestrator singleton), the Next.js UI, and coturn for WebRTC media
   relay. Optional bundled PostgreSQL, Redis, and MinIO via subcharts.

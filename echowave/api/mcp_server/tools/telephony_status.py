@@ -12,6 +12,7 @@ a phone number that is printed on a customer's signage and cannot be recovered.
 Read access is the part that is safe to automate.
 """
 
+from api import constants
 from api.db import db_client
 from api.enums import PhoneNumberStatus, RecurringChargeStatus
 from api.mcp_server.auth import authenticate_mcp_request
@@ -186,7 +187,12 @@ async def search_available_numbers(
                 "number_type": n.number_type,
                 "city": n.city,
                 "region": n.region,
-                "monthly_rental_at_carrier": n.monthly_rental,
+                # No pricing is shown to users (constants.PRICES_SHOWN).
+                **(
+                    {"monthly_rental_at_carrier": n.monthly_rental}
+                    if constants.PRICES_SHOWN
+                    else {}
+                ),
             }
             for n in results
         ]

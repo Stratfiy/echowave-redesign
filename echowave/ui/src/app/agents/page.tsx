@@ -17,7 +17,7 @@ import { fetchShelf } from "@/lib/publicMarketplace";
 
 export const metadata: Metadata = {
     title: "Marketplace · Decibyl",
-    description: "Agents you can hire, what each one does, and what it will ask you before it starts.",
+    description: "Agents you can add, what each one does, and what it will ask you before it starts.",
 };
 
 type Props = { searchParams: Promise<{ q?: string; job?: string }> };

@@ -75,9 +75,11 @@ describe("BotAnalytics", () => {
         });
     });
 
-    it("reads money in rupees, not the paise the API speaks", async () => {
+    it("shows no money: no pricing is shown to users (lib/pricing.ts)", async () => {
         render(<BotAnalytics workflowId={42} />);
-        expect(await screen.findByText("₹450.5")).toBeTruthy();
+        expect(await screen.findByText("12")).toBeTruthy();
+        expect(screen.queryByText("Spent")).toBeNull();
+        expect(screen.queryByText(/₹/)).toBeNull();
     });
 
     it("shows the runs, the answer rate and the tokens", async () => {
