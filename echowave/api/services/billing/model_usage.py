@@ -182,6 +182,45 @@ async def record_units(
         )
 
 
+async def record_inference(
+    llm: Any,
+    *,
+    organization_id: int | None,
+    feature: str,
+    usage: Any = None,
+) -> None:
+    """One out-of-band ``run_inference`` call on a pipeline LLM service.
+
+    A one-shot inference goes round the frame path, so the run's receipt
+    never sees it: the channel fold, the in-call variable extractor, the
+    handoff summary and the eval simulator all spent tokens on the platform
+    key and wrote them nowhere. Read ``last_inference_usage`` straight after
+    the call (the next inference overwrites it) and say what asked and for
+    whom. ``organization_id`` is required by name so a caller cannot forget
+    it. Never raises.
+    """
+    try:
+        from api.services.billing.llm_usage import normalise
+        from api.services.billing.usage import provider_from_processor
+
+        if usage is None:
+            usage = getattr(llm, "last_inference_usage", None)
+        if usage is None:
+            return
+        provider = provider_from_processor(type(llm).__name__)
+        normalised = normalise(usage, shape="pipeline", provider=provider)
+        if normalised is None or normalised.is_empty:
+            return
+        with scope(organization_id=organization_id, feature=feature):
+            await record(
+                provider=provider,
+                model=str(getattr(llm, "model_name", "") or "").strip().lower(),
+                usage=normalised.as_usage_fields(),
+            )
+    except Exception as exc:  # noqa: BLE001 - measurement never costs the reply
+        logger.warning("Could not record inference usage for {}: {}", feature, exc)
+
+
 def provider_of(service: Any) -> str:
     """A transcription service's vendor, from its class name:
     ``DeepgramTranscriptionService`` is ``deepgram``."""
@@ -196,6 +235,7 @@ __all__ = [
     "labelled",
     "provider_of",
     "record",
+    "record_inference",
     "record_units",
     "record_audio",
     "scope",

@@ -64,6 +64,7 @@ from api.services.workflow import (
     tasks_board,
 )
 from api.services.workflow import pipecat_engine_callbacks as engine_callbacks
+from api.services.workflow.known_values import known_values_block
 from api.services.workflow.mcp_tool_session import McpToolSession
 from api.services.workflow.pipecat_engine_context_composer import (
     caller_block,
@@ -158,6 +159,15 @@ class PipecatEngine:
         # chat and every test construct an engine without one, and neither
         # should have to know about billing to run a conversation.
         self._metrics_aggregator = None
+        # Where the prompt-cache measurement is told which prompt is in force
+        # and about calls made off the frame path (services/billing/
+        # cache_metrics.py). The metrics aggregator on a call; on a text chat,
+        # set on its own, because attaching the aggregator there would start
+        # pricing add-ons and embeddings that text runs do not price today.
+        self._cache_listener = None
+        # The tools in force: a node with none keeps the previous node's, so
+        # the measured prefix has to as well.
+        self._prompt_functions: list = []
         self._node_transition_callback = node_transition_callback
         # Whether this run is a phone or WebRTC call rather than a text chat.
         # Only calls announce that they are recorded: saying "this call is
@@ -707,6 +717,49 @@ class PipecatEngine:
         reordering pipeline setup to satisfy billing.
         """
         self._metrics_aggregator = aggregator
+        self._cache_listener = aggregator
+
+    def set_cache_listener(self, aggregator) -> None:
+        """Attach only the prompt-cache measurement, with no billing."""
+        self._cache_listener = aggregator
+
+    def _record_prompt(
+        self, system_prompt: str, functions: list, volatile: tuple
+    ) -> None:
+        """Tell the cache measurement which prompt is now in force.
+
+        ``volatile`` are the parts of the system prompt that differ on every
+        call by design; they are masked out of the prompt's version
+        fingerprint and kept in its prefix hash. Never raises."""
+        try:
+            if functions:
+                self._prompt_functions = list(functions)
+            if self._cache_listener is None:
+                return
+            from api.services.billing import cache_metrics
+
+            self._cache_listener.register_prompt(
+                cache_metrics.prompt_hashes(
+                    system_prompt, self._prompt_functions, volatile=volatile
+                )
+            )
+        except Exception:  # noqa: BLE001 - measurement never costs the call
+            logger.debug("Could not record the prompt for the cache measurement")
+
+    def _record_side_call(self, feature: str, llm, usage) -> None:
+        """A model call made off the frame path (the background summary), so
+        the run's measured cost includes it. Never raises."""
+        try:
+            if self._cache_listener is None or usage is None:
+                return
+            self._cache_listener.register_side_call(
+                feature=feature,
+                processor=type(llm).__name__,
+                model=getattr(llm, "model_name", None),
+                usage=usage,
+            )
+        except Exception:  # noqa: BLE001 - measurement never costs the call
+            logger.debug("Could not record the {} call", feature)
 
     def _record_addon_used(self, addon_key: str) -> None:
         """Note that a priced feature ran, if anything is listening.
@@ -1013,6 +1066,7 @@ class PipecatEngine:
         can_make_images = await self._can_make_images()
 
         # Compose prompt and functions via the context composer module
+        caller = caller_block(self._call_context_vars)
         system_prompt = compose_system_prompt_for_node(
             node=node,
             workflow=self.workflow,
@@ -1026,8 +1080,11 @@ class PipecatEngine:
             remembered=remembered,
             skills=skills,
             schedule=schedule,
-            caller=caller_block(self._call_context_vars),
+            caller=caller,
             steps=self._steps_block() if self._can_edit_self else None,
+            # Passed only when on, so the call with the flag off is the call
+            # it always was.
+            **({"clock_after_instructions": True} if await self._cache_v2() else {}),
         )
         functions = await compose_functions_for_node(
             node=node,
@@ -1041,6 +1098,24 @@ class PipecatEngine:
             escalation_tools=self._escalation is not None,
         )
         await self._update_llm_context(system_prompt, functions)
+        self._record_prompt(
+            system_prompt,
+            functions,
+            volatile=(today_line, caller, known_values_block(self._gathered_context)),
+        )
+
+    async def _cache_v2(self) -> bool:
+        """Whether ``cache_v2`` is on for this run's organisation. Checked in
+        process first, so a deployment with the flag off nowhere never reads
+        the organisation for it. Never raises: unknown is off."""
+        try:
+            from api.services import features
+
+            if not features.on_anywhere("cache_v2"):
+                return False
+            return features.is_on("cache_v2", await self._get_organization_id())
+        except Exception:  # noqa: BLE001 - unknown is off: the prompt as before
+            return False
 
     def _prompt_inputs_cached(self) -> bool:
         return None not in (

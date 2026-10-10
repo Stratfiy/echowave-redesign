@@ -107,6 +107,7 @@ export const DESTINATIONS: DestinationSpec[] = [
         children: [
             { href: "/superadmin/operations", label: "Jobs and delivery" },
             { href: "/superadmin/operations/latency", label: "Voice latency" },
+            { href: "/superadmin/operations/caching", label: "Prompt caching" },
             { href: "/superadmin/operations/incidents", label: "Incidents", capability: "operations.read" },
             { href: "/superadmin/telephony", label: "Phone numbers and telephony", legacy: true },
             { href: "/superadmin/billing/calls", label: "Calls and transcripts", legacy: true },

@@ -135,6 +135,8 @@ export type Feature =
     | "call_when_done"
     // Escalation rules, the handoff card and the no-answer ladder on calls.
     | "escalation_v2"
+    // Prompt-cache prefix fixes (the measurement itself is unflagged).
+    | "cache_v2"
     // The huddle: talk to an agent as a teammate, in its thread.
     | "huddle"
     // People: synced contacts with context (PEOPLE.md).

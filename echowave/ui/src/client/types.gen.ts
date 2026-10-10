@@ -48191,6 +48191,58 @@ export type VoiceLatencyApiV1AdminStaffOperationsLatencyGetResponses = {
 
 export type VoiceLatencyApiV1AdminStaffOperationsLatencyGetResponse = VoiceLatencyApiV1AdminStaffOperationsLatencyGetResponses[keyof VoiceLatencyApiV1AdminStaffOperationsLatencyGetResponses];
 
+export type PromptCachingApiV1AdminStaffOperationsCachingGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Days
+         */
+        days?: number;
+        /**
+         * Organization Id
+         */
+        organization_id?: number | null;
+    };
+    url: '/api/v1/admin/staff/operations/caching';
+};
+
+export type PromptCachingApiV1AdminStaffOperationsCachingGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type PromptCachingApiV1AdminStaffOperationsCachingGetError = PromptCachingApiV1AdminStaffOperationsCachingGetErrors[keyof PromptCachingApiV1AdminStaffOperationsCachingGetErrors];
+
+export type PromptCachingApiV1AdminStaffOperationsCachingGetResponses = {
+    /**
+     * Response Prompt Caching Api V1 Admin Staff Operations Caching Get
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type PromptCachingApiV1AdminStaffOperationsCachingGetResponse = PromptCachingApiV1AdminStaffOperationsCachingGetResponses[keyof PromptCachingApiV1AdminStaffOperationsCachingGetResponses];
+
 export type ListIncidentsApiV1AdminStaffIncidentsGetData = {
     body?: never;
     headers?: {

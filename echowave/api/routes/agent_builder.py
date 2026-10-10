@@ -27,6 +27,7 @@ from api.services.agent_builder.client import BuilderClientError
 from api.services.agent_builder.edit_proposal import EditProposalRequest, propose_edit
 from api.services.agent_builder.session import run_turn
 from api.services.auth.depends import get_user
+from api.services.billing import model_usage
 
 router = APIRouter(prefix="/agent-builder", tags=["agent-builder"])
 
@@ -63,9 +64,12 @@ async def edit_proposal(
             raise HTTPException(status_code=503, detail=str(exc)) from exc
         state, charged_credits = await meter_builder_message(session, organization_id)
         try:
-            result = await propose_edit(
-                model=model, graph=payload.graph, message=payload.message
-            )
+            with model_usage.scope(
+                organization_id=organization_id, feature="edit_proposal"
+            ):
+                result = await propose_edit(
+                    model=model, graph=payload.graph, message=payload.message
+                )
         except BuilderClientError as exc:
             raise HTTPException(status_code=502, detail=str(exc)) from exc
     return {**result, "usage": _usage(state, charged_credits=charged_credits)}
