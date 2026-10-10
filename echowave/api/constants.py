@@ -2236,3 +2236,10 @@ IMAGE_BEDROCK_MODEL = (
 #: Seconds one provider request may take. Generation is slow; a request is
 #: never retried, because a retry would spend the person's key twice.
 IMAGE_TIMEOUT_SECONDS = float(os.getenv("IMAGE_TIMEOUT_SECONDS", "120"))
+
+# ---------------------------------------------------------------------------
+# team_activity: a read-only tool that lets an agent whose owner turned on
+# "Can see the team" see what the other agents in its workspace did, ran and
+# spent (services/workflow/team_activity.py). Off by default.
+# ---------------------------------------------------------------------------
+TEAM_ACTIVITY_ENABLED = _flag("TEAM_ACTIVITY_ENABLED")

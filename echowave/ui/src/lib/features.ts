@@ -145,7 +145,9 @@ export type Feature =
     // Listen in on a live call and whisper to its agent.
     | "live_supervision"
     // Posters and ad creatives: images on a provider chosen in the thread.
-    | "image_generation";
+    | "image_generation"
+    // An agent that can see what the other agents in the workspace did.
+    | "team_activity";
 
 export function useFeature(name: Feature): boolean {
     const { config } = useAppConfig();

@@ -1587,6 +1587,14 @@
    "voice_latency"
   ]
  },
+ "/api/v1/workflow/{workflow_id}/team-access": {
+  "GET": [
+   "team_activity"
+  ],
+  "PUT": [
+   "team_activity"
+  ]
+ },
  "/api/v1/workflow/{workflow_id}/visibility": {
   "PUT": [
    "workspace_roles"

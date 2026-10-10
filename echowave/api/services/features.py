@@ -199,6 +199,8 @@ FLAGS: dict[str, str] = {
     "live_supervision": "LIVE_SUPERVISION_ENABLED",
     # Posters and ad creatives (services/images/).
     "image_generation": "IMAGE_GENERATION_ENABLED",
+    # A chief-of-staff agent reads what the other agents did and spent.
+    "team_activity": "TEAM_ACTIVITY_ENABLED",
 }
 
 
@@ -324,6 +326,7 @@ DESCRIPTIONS: dict[str, str] = {
     "deepfilternet_filter": "DeepFilterNet3 instead of RNNoise as the noise filter on calls with noise suppression on.",
     "live_supervision": "Live calls: listen in on a customer call (transcript and audio) and whisper instructions the caller never hears.",
     "image_generation": "Posters and ad creatives: images from Chat and two agents, on Gemini, OpenAI or Bedrock, chosen on a card in the thread.",
+    "team_activity": "Team activity: an agent whose owner turned on Can see the team can read, in one compact answer, what the other agents in the workspace ran, drafted, left waiting for approval and spent.",
     "escalation_v2": "Escalation on calls decided in code from the agent's policy: a handoff card with Accept, Decline and Hand back to AI, spoken hold updates and a no-answer ladder.",
 }
 
