@@ -13,10 +13,12 @@ Rules the shape enforces:
   read names it. There is no query in the codebase that spans workspaces.
 * **Idempotent.** ``(organization_id, event_type, subject_key)`` is unique, so
   a card settled twice, or a retry, is one row.
-* **Consent is on the row.** A row written while the workspace had "Use my
-  feedback to improve my agents" off is ``declined`` and carries no text at
-  all: only what happened, to what, when. Turning the setting off also clears
-  the text from rows already written (services/training_loop/consent.py).
+* **Consent is checked before a row is written.** While the workspace has
+  "Use my feedback to improve my agents" off, nothing new is written. Turning
+  it off with "Stop collecting" keeps the rows already there; "Stop and
+  delete" archives them (``archived_at``): out of export, counts and
+  training, kept only as the law requires, never hard-deleted
+  (services/training_loop/consent.py).
 * **Redacted before it lands.** The three text columns are written through
   ``services/training_loop/redact.py``; nothing reaches them raw.
 
@@ -37,6 +39,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 
 from api.db.models import Base
 
@@ -63,6 +66,9 @@ class LearningEventModel(Base):
     event_type = Column(String(24), nullable=False)
     #: Where it happened: edit_card | action_card | reply | eval | escalation.
     source = Column(String(24), nullable=False)
+    #: ``agent``: about one agent. ``decibyl``: about Decibyl's own thread,
+    #: which has no agent (``workflow_id`` is NULL).
+    scope = Column(String(12), nullable=False, default="agent", server_default="agent")
     #: What makes this event the same event if it is written twice.
     subject_key = Column(String(128), nullable=False)
     #: A pointer to the thing judged (``agent_event:123``), never its words.
@@ -88,6 +94,14 @@ class LearningEventModel(Base):
     created_at = Column(
         DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
     )
+    #: Structured facts of the event as JSON, never free text (a routing
+    #: decision's candidates, chosen model, latency, tokens, cost, outcomes).
+    data = Column(JSONB, nullable=True)
+    #: Set when the workspace chose "Stop and delete". An archived row is out
+    #: of every export, count and training read, and is kept only as long as
+    #: the law needs (``training_loop.ARCHIVE_RETENTION_DAYS``). It is never
+    #: hard-deleted here.
+    archived_at = Column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (
         UniqueConstraint(

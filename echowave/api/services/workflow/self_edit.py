@@ -11,6 +11,12 @@ which puts that change live and nothing else; Discard takes that change back
 out of the draft and leaves the rest. A draft is shared with the editor, so
 the card records the fields it changed (``changes``) and acts on those only.
 
+The owner can change the proposed text before publishing (``settle(edits=)``).
+The edit goes into the draft in place of the bot's text, and Publish then runs
+the same ``publish_gate`` as for an unedited card: validation, the
+acceptable-use screen, the audit row. The card keeps the bot's proposal as
+``original``, so what the owner changed it *from* is never lost.
+
 Two halves in one module, as ``decisions`` does, so they cannot drift:
 ``propose`` is what the bot calls, ``settle`` is what the person's click does.
 
@@ -1170,12 +1176,154 @@ async def _discard(
     )
 
 
+class _Moved(Exception):
+    """The draft no longer holds what the card wrote, inside the row lock."""
+
+
+def _owner_values(
+    changes: list[dict[str, Any]], edits: list[dict[str, Any]]
+) -> dict[tuple[str, str], str]:
+    """The owner's text per (node, field), for the fields they really
+    changed. An edit that names a field the card does not change, a field
+    that is not text (the escalation policy), or empty or over-long text is
+    refused, never skipped: an edit that quietly did not apply would publish
+    something the owner did not mean."""
+    editable = {
+        (c["node_id"], c["field"]): c for c in _graph(changes) if "node_id" in c
+    }
+    out: dict[tuple[str, str], str] = {}
+    for edit in edits:
+        key = (str(edit.get("node_id")), str(edit.get("field")))
+        change = editable.get(key)
+        if change is None:
+            raise EditError("That part of the change can't be edited here.")
+        text = edit.get("new")
+        if not isinstance(text, str) or not text.strip():
+            raise EditError("The edited text can't be empty.")
+        limit = MAX_PROMPT_CHARS if key[1] == PROMPT else MAX_GREETING_CHARS
+        if len(text) > limit:
+            raise EditError(
+                f"The edited text is too long (at most {limit} characters)."
+            )
+        if key in out:
+            raise EditError("That part of the change was edited twice.")
+        if text != change["new"]:
+            out[key] = text
+    return out
+
+
+def _restated(
+    payload: dict[str, Any],
+    changes: list[dict[str, Any]],
+    live: dict[str, Any],
+) -> dict[str, Any]:
+    """The card's display fields (``old``, ``new``, ``diff``, ``greetings``),
+    rebuilt from ``changes`` so the card, once published, shows what went
+    live and not what the bot first proposed."""
+    out = dict(payload)
+    prompts = [c for c in _graph(changes) if c["field"] == PROMPT]
+    greetings = [c for c in _graph(changes) if c["field"] == GREETING]
+
+    def node_of(change: dict[str, Any]) -> dict[str, Any]:
+        return _node_in(live, change["node_id"]) or {"id": change["node_id"]}
+
+    out["old"] = "\n\n".join(c["old"] for c in prompts)
+    out["new"] = "\n\n".join(c["new"] for c in prompts)
+    out["diff"] = "".join(
+        unified_diff(c["old"], c["new"], name=_label(node_of(c))) for c in prompts
+    )
+    out["greetings"] = [
+        _greeting_change(node_of(c), c["old"], c["new"]) for c in greetings
+    ]
+    out["changes"] = changes
+    return out
+
+
+async def _edited(
+    *,
+    organization_id: int,
+    workflow_id: int,
+    event: Any,
+    payload: dict[str, Any],
+    edits: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """The card with the owner's text in place of the bot's, and the draft
+    holding the same.
+
+    The draft is written here, under its row lock and only where it still
+    holds exactly what the card wrote, so an editor save that landed since
+    is a ``CONFLICT`` and not overwritten. Publish then goes through the
+    gate as for any card; if the gate refuses, the draft and the card both
+    hold the owner's text and the card stays open, so the next try starts
+    from what they wrote. ``original`` is set once and never overwritten: it
+    is the bot's proposal, however many times the owner edits.
+    """
+    live = await db_client.get_published_definition(workflow_id, organization_id)
+    if live is None:
+        raise await _refuse_conflict(
+            organization_id=organization_id, event=event, payload=payload
+        )
+    live_json = live.workflow_json or {}
+    changes = _changes_of(payload, live_json)
+    if changes is None:
+        raise await _refuse_legacy(
+            organization_id=organization_id, event=event, payload=payload
+        )
+    wanted = _owner_values(changes, edits)
+    if not wanted:
+        return payload
+    edited = []
+    for change in changes:
+        key = (change.get("node_id"), change.get("field"))
+        if key in wanted:
+            # Live must still read as the card's ``old``, as Publish asks.
+            if _value(live_json, change) != change["old"]:
+                raise await _refuse_conflict(
+                    organization_id=organization_id, event=event, payload=payload
+                )
+            change = {**change, "new": wanted[key]}
+        edited.append(change)
+
+    def rewrite(draft: dict[str, Any]) -> dict[str, Any]:
+        out = copy.deepcopy(draft)
+        for before, after in zip(changes, edited, strict=True):
+            if before["new"] == after["new"]:
+                continue
+            node = _node_in(out, after["node_id"])
+            if node is None:
+                raise _Moved
+            data = node.setdefault("data", {})
+            if data.get(after["field"]) != before["new"]:
+                raise _Moved
+            data[after["field"]] = after["new"]
+            if after["field"] == GREETING:
+                data.setdefault("greeting_type", "text")
+        return out
+
+    try:
+        written = await db_client.rewrite_draft_json(workflow_id, rewrite)
+    except _Moved:
+        written = False
+    if not written:
+        raise await _refuse_conflict(
+            organization_id=organization_id, event=event, payload=payload
+        )
+    out = _restated(payload, edited, live_json)
+    if not isinstance(out.get("original"), dict):
+        out["original"] = {
+            key: payload.get(key)
+            for key in ("old", "new", "diff", "greetings", "changes")
+        }
+    return out
+
+
 async def settle(
     *,
     organization_id: int,
     event_id: int,
     action: str,
     user_id: int,
+    edits: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Publish or discard the change the card proposed -- that change only,
     never the rest of the draft -- and stamp the card.
@@ -1187,9 +1335,17 @@ async def settle(
     Publish is refused on the card (``CONFLICT``) rather than guessed at; a
     card from before ``changes`` whose change cannot be rebuilt exactly is
     refused with ``LEGACY``. Neither ever falls back to the whole draft.
+
+    ``edits`` -- ``{"node_id", "field", "new"}`` per field -- is the owner
+    changing the proposed text before publishing it. It goes through the same
+    gate as the bot's text (``_publish``), and is recorded as
+    ``edited_then_approved``, the bot's text and the owner's side by side
+    (``training_loop.hooks``). Only Publish takes edits.
     """
     if action not in ACTIONS:
         raise EditError("Publish or discard.")
+    if edits and action != "publish":
+        raise EditError("Only a change that is published can be edited first.")
     event = await db_client.get_agent_event(event_id, organization_id=organization_id)
     if event is None or event.kind != AgentEventKind.EDIT_PROPOSED.value:
         raise EditError("That change is not here to settle.")
@@ -1210,6 +1366,14 @@ async def settle(
         raise EditError(f"Workflow with id {workflow_id} not found")
 
     if action == "publish":
+        if edits:
+            payload = await _edited(
+                organization_id=organization_id,
+                workflow_id=workflow_id,
+                event=event,
+                payload=payload,
+                edits=edits,
+            )
         published = await _publish(
             organization_id=organization_id,
             workflow_id=workflow_id,
@@ -1241,6 +1405,7 @@ async def settle(
         payload=payload,
         action=action,
         user_id=user_id,
+        workflow_run_id=event.workflow_run_id,
     )
     verb = "Published" if action == "publish" else "Discarded"
     line = f"{verb} the change to {payload.get('step') or 'the bot'}"

@@ -20,7 +20,9 @@ list, so that decision cannot be skipped by accident.
 from __future__ import annotations
 
 import json
+import uuid
 from collections.abc import Awaitable, Callable
+from datetime import UTC, datetime
 from functools import wraps
 from typing import Any
 
@@ -28,7 +30,7 @@ from loguru import logger
 
 from api.db import db_client
 from api.services import training_loop as loop
-from api.services.training_loop import record
+from api.services.training_loop import consent, record
 
 #: Action cards that are an agent's suggestion to the workspace, and so are
 #: recorded. (Names as in ``services/workflow/actions.py``.)
@@ -160,15 +162,32 @@ async def edit_card_settled(
     payload: dict[str, Any],
     action: str,
     user_id: int | None,
+    workflow_run_id: int | None = None,
 ) -> None:
-    """Publish is the owner approving the card as it was; Discard is the
-    owner turning it down. (An edit card has no edit-then-approve: a card
-    changed in the editor since is refused, not published.)"""
-    prompt, output = _edit_texts(payload)
+    """Publish is the owner approving the card; Discard is the owner turning
+    it down. A card the owner changed before publishing carries
+    ``payload["original"]`` (the model's proposal, set by
+    ``self_edit.settle``): that is ``edited_then_approved``, holding the
+    model's text as ``model_output`` and the owner's as ``owner_final``, the
+    two halves of a preference pair."""
     approved = action == "publish"
+    await routing_outcome(
+        organization_id=organization_id,
+        ref=routing_ref(workflow_run_id, None),
+        outcome_type=loop.APPROVED if approved else loop.REJECTED,
+        outcome_ref=f"agent_event:{event_id}",
+    )
+    original = payload.get("original") if approved else None
+    edited = isinstance(original, dict)
+    prompt, output = _edit_texts({**payload, **original} if edited else payload)
+    final = _edit_texts(payload)[1] if edited else output
     await record.record(
         organization_id=organization_id,
-        event_type=loop.APPROVED if approved else loop.REJECTED,
+        event_type=(
+            loop.EDITED_THEN_APPROVED
+            if edited
+            else (loop.APPROVED if approved else loop.REJECTED)
+        ),
         source=loop.EDIT_CARD,
         subject_key=f"edit_card:{event_id}",
         workflow_id=payload.get("workflow_id"),
@@ -177,7 +196,7 @@ async def edit_card_settled(
         group_key=_edit_group(payload),
         input_text=prompt,
         model_output=output,
-        owner_final=output if approved else None,
+        owner_final=final if approved else None,
     )
 
 
@@ -258,6 +277,12 @@ async def action_card_confirmed(
     ``edited_then_approved`` and carries both the model's version and theirs."""
     if not action_recordable(payload):
         return
+    await routing_outcome(
+        organization_id=organization_id,
+        ref=routing_ref(event.workflow_run_id, None),
+        outcome_type=loop.APPROVED,
+        outcome_ref=f"agent_event:{event.id}",
+    )
     prompt, final = _action_texts(payload)
     edited = bool(payload.get("revisions"))
     original_prompt, original_output = (
@@ -288,6 +313,12 @@ async def action_card_declined(
 ) -> None:
     if not action_recordable(payload):
         return
+    await routing_outcome(
+        organization_id=organization_id,
+        ref=routing_ref(event.workflow_run_id, None),
+        outcome_type=loop.REJECTED,
+        outcome_ref=f"agent_event:{event.id}",
+    )
     prompt, output = _action_texts(payload)
     await record.record(
         organization_id=organization_id,
@@ -368,15 +399,23 @@ async def reply_thumb(
     user_id: int,
     reply_event_id: int,
     workflow_id: int | None,
+    folder_id: int | None = None,
     verdict: str,
     reasons: list[str],
     reply_text: str | None,
     model: str | None,
+    prompt_text: str | None = None,
+    workflow_run_id: int | None = None,
+    thread_id: str | None = None,
 ) -> None:
-    """Yes / Not quite on an agent's reply. Only replies that belong to an
-    agent: Decibyl's own threads can be one person's, and are not recorded."""
-    if workflow_id is None:
+    """Yes / Not quite on a reply: an agent's (scope ``agent``, with the
+    agent), or one on Decibyl's own thread (scope ``decibyl``, no agent: a
+    reply with neither an agent nor a folder). The same consent check and
+    redaction either way (``record.record``). A reply in a folder is neither,
+    and is not recorded."""
+    if workflow_id is None and folder_id is not None:
         return
+    scope = loop.SCOPE_AGENT if workflow_id is not None else loop.SCOPE_DECIBYL
     up = verdict == "yes"
     await record.record(
         organization_id=organization_id,
@@ -386,9 +425,17 @@ async def reply_thumb(
         workflow_id=workflow_id,
         user_id=user_id,
         input_ref=f"agent_event:{reply_event_id}",
+        input_text=prompt_text,
         model_output=reply_text,
         detail=",".join(reasons),
         model=model,
+        scope=scope,
+    )
+    await routing_outcome(
+        organization_id=organization_id,
+        ref=routing_ref(workflow_run_id, thread_id, decibyl=workflow_id is None),
+        outcome_type=loop.THUMBS_UP if up else loop.THUMBS_DOWN,
+        outcome_ref=f"agent_event:{reply_event_id}",
     )
 
 
@@ -403,7 +450,18 @@ async def eval_finished(result_id: int) -> None:
 
     async with db_client.async_session() as session:
         result = await session.get(EvalResultModel, result_id)
-        if result is None or result.status != "failed":
+        if result is None:
+            return
+        if result.status in ("passed", "failed"):
+            await routing_outcome(
+                organization_id=result.organization_id,
+                ref=routing_ref(result.workflow_run_id, None),
+                outcome_type="eval_pass"
+                if result.status == "passed"
+                else loop.EVAL_FAIL,
+                outcome_ref=f"eval_result:{result_id}",
+            )
+        if result.status != "failed":
             return
         case = await session.get(EvalCaseModel, result.case_id)
         if case is None:
@@ -470,4 +528,131 @@ async def escalation_opened(
             f"The agent handed a caller to a person. Reason: {reason}. {detail or ''}"
         ).strip(),
         detail=reason,
+    )
+
+
+# --- routing ----------------------------------------------------------------
+
+
+def routing_ref(
+    workflow_run_id: int | None, thread_id: str | None, *, decibyl: bool = False
+) -> str | None:
+    """What links a routing decision to the outcomes that follow it: the run
+    for an agent's chat, the thread for Decibyl's own. A thread's outcomes
+    attach to its latest decision, which is the turn they were given on."""
+    if workflow_run_id:
+        return f"workflow_run:{workflow_run_id}"
+    if decibyl:
+        return f"decibyl_thread:{thread_id or 'main'}"
+    return None
+
+
+@never_raises
+async def routing_decision(
+    *,
+    organization_id: int | None,
+    workflow_id: int | None,
+    feature: str,
+    ref: str | None,
+    text: str,
+    attachments: int,
+    routed: Any,
+    candidates: dict[str, str],
+    mode: str,
+    latency_ms: int,
+) -> None:
+    """Auto sent one piece of work to a model. Recorded with what the router
+    saw (the text redacted like any other, and its shape), the models it
+    could have chosen, the one it did and who chose it (rules, Laya, or the
+    rules standing in for Laya), Laya's own answer and confidence where it
+    was asked (always, in shadow), and how long deciding took. Tokens, cost
+    and the outcome arrive later (``routing_outcome``)."""
+    if not organization_id:
+        return
+    body = text or ""
+    laya = (
+        {
+            "kind": routed.laya_kind,
+            "confidence": routed.confidence,
+            "ms": routed.laya_ms,
+            "abstained": routed.abstained,
+        }
+        if routed.laya_ms is not None or routed.laya_kind or routed.abstained
+        else None
+    )
+    await record.record(
+        organization_id=organization_id,
+        event_type=loop.ROUTING_DECISION,
+        source=loop.ROUTING,
+        subject_key=f"routing:{feature}:{uuid.uuid4().hex}",
+        workflow_id=workflow_id,
+        scope=loop.SCOPE_AGENT if workflow_id is not None else loop.SCOPE_DECIBYL,
+        input_ref=ref,
+        input_text=body,
+        data={
+            "feature": feature,
+            "mode": mode,
+            "input": {
+                "chars": len(body),
+                "lines": len([x for x in body.splitlines() if x.strip()]),
+                "questions": body.count("?"),
+                "attachments": attachments,
+            },
+            "candidates": [
+                {"kind": kind, "preset": preset} for kind, preset in candidates.items()
+            ],
+            "chosen": {
+                "kind": routed.kind,
+                "preset": routed.preset,
+                "source": routed.source,
+            },
+            "laya": laya,
+            "latency_ms": latency_ms,
+            "cost_paise": None,
+            "outcomes": [],
+        },
+    )
+
+
+@never_raises
+async def routing_outcome(
+    *,
+    organization_id: int | None,
+    ref: str | None,
+    outcome_type: str,
+    outcome_ref: str | None = None,
+) -> None:
+    """Something happened to the work a routing decision sent to a model: an
+    eval passed or failed, a person gave a thumb, a card was approved or
+    turned down. Linked to the decision for ``ref``, together with the model,
+    tokens and cost the run turned out to use. Nothing is written when the
+    workspace has the loop or its setting off, or when there was no decision
+    to link to."""
+    if not organization_id or not ref or not loop.enabled(organization_id):
+        return
+    if not await consent.use_feedback(organization_id):
+        return
+    usage: dict[str, Any] | None = None
+    if ref.startswith("workflow_run:"):
+        run_id = int(ref.partition(":")[2])
+        model, prompt_tokens, completion_tokens = await record.run_usage(
+            run_id, organization_id
+        )
+        usage = {
+            "model": model,
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+            "cost_paise": await db_client.run_model_cost_paise(
+                organization_id=organization_id, workflow_run_id=run_id
+            ),
+        }
+    await db_client.link_routing_outcome(
+        organization_id=organization_id,
+        input_ref=ref,
+        outcome={
+            "type": outcome_type,
+            "ref": outcome_ref,
+            "at": datetime.now(UTC).isoformat(timespec="seconds"),
+        },
+        usage=usage,
     )

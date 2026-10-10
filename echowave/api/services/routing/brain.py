@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import asyncio
 import re
+import time
 from dataclasses import asdict, dataclass
 from typing import Any
 
@@ -233,9 +234,18 @@ async def auto_route(
     *,
     workflow_configurations: dict | None = None,
     attachments: int = 0,
+    feature: str = "",
+    workflow_id: int | None = None,
+    ref: str | None = None,
 ) -> Route | None:
     """The route for this work, or None when Auto is not in charge of it --
-    the workspace pinned a model, or the agent has a brain of its own."""
+    the workspace pinned a model, or the agent has a brain of its own.
+
+    ``feature`` names the caller (``text_chat``, ``decibyl``); with it, each
+    decision is kept as training data for the router -- under the workspace's
+    consent, redacted, and never in the way of the reply
+    (``training_loop.hooks.routing_decision``). ``ref`` is what later
+    outcomes link back by (``hooks.routing_ref``)."""
     try:
         if workflow_configurations is not None and not agent_follows_workspace(
             workflow_configurations
@@ -243,7 +253,24 @@ async def auto_route(
             return None
         if not await workspace_is_auto(organization_id):
             return None
-        return await route(text, attachments=attachments)
+        started = time.monotonic()
+        routed = await route(text, attachments=attachments)
+        if feature:
+            from api.services.training_loop import hooks
+
+            await hooks.routing_decision(
+                organization_id=organization_id,
+                workflow_id=workflow_id,
+                feature=feature,
+                ref=ref,
+                text=text,
+                attachments=attachments,
+                routed=routed,
+                candidates=PRESET_FOR,
+                mode=constants.LAYA_ROUTING,
+                latency_ms=int((time.monotonic() - started) * 1000),
+            )
+        return routed
     except Exception as exc:  # noqa: BLE001 -- routing must never cost a reply
         logger.warning("Auto routing skipped for org {}: {}", organization_id, exc)
         return None

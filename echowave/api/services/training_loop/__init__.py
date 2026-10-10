@@ -27,8 +27,10 @@ What is recorded, and when:
 * ``record.py`` is the one writer: flag check, consent check, redaction, one
   idempotent insert.
 * ``consent.py`` is the workspace's "Use my feedback to improve my agents"
-  setting: on by default for the workspace itself, never shared. Off, a row
-  holds no words at all.
+  setting: on by default for the workspace itself, never shared. Off, nothing
+  new is written. "Stop collecting" keeps what is there; "Stop and delete"
+  archives it (out of export and training, kept only as the law requires,
+  never hard-deleted).
 * ``redact.py`` takes phone numbers, emails, Aadhaar and PAN numbers out of
   the text before it is stored.
 * ``export.py`` writes a workspace's rows as JSONL: SFT examples and
@@ -61,6 +63,11 @@ THUMBS_DOWN = "thumbs_down"
 OWNER_CORRECTION = "owner_correction"
 EVAL_FAIL = "eval_fail"
 ESCALATION = "escalation"
+#: Auto's routing: which model a piece of work was sent to, and why.
+ROUTING_DECISION = "routing_decision"
+#: What the next-best model would have said, run in the background on a safe
+#: sample (``services/routing/explore.py``) and never shown to anybody.
+ROUTING_COUNTERFACTUAL = "routing_counterfactual"
 
 EVENT_TYPES = (
     SUGGESTION_SHOWN,
@@ -73,6 +80,8 @@ EVENT_TYPES = (
     OWNER_CORRECTION,
     EVAL_FAIL,
     ESCALATION,
+    ROUTING_DECISION,
+    ROUTING_COUNTERFACTUAL,
 )
 
 #: The owner took what was offered, as offered or after changing it.
@@ -88,9 +97,25 @@ ACTION_CARD = "action_card"
 REPLY = "reply"
 EVAL = "eval"
 ESCALATION_SOURCE = "escalation"
+ROUTING = "routing"
 
 GRANTED = "granted"
 DECLINED = "declined"
+
+# What a row is about (``learning_events.scope``).
+SCOPE_AGENT = "agent"
+#: Decibyl's own thread: no agent, ``workflow_id`` is NULL.
+SCOPE_DECIBYL = "decibyl"
+SCOPES = (SCOPE_AGENT, SCOPE_DECIBYL)
+
+#: How long rows archived by "Stop and delete" are kept, in days, before they
+#: may be removed. Kept only as the law requires, and never hard-deleted by
+#: this package: nothing here purges, the constant is the one place the period
+#: is written down and what the settings screen reports.
+#:
+#: PLACEHOLDER VALUE: counsel has not given the period yet. Change this one
+#: line when they do.
+ARCHIVE_RETENTION_DAYS = 365
 
 
 def enabled(organization_id: int | None = None) -> bool:

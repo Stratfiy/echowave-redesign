@@ -8130,7 +8130,9 @@ export const getSettingsApiV1TrainingLoopSettingsGet = <ThrowOnError extends boo
  * Set Settings
  *
  * Switch "Use my feedback to improve my agents". Off, nothing new is
- * kept beyond the facts, and the words already kept are cleared.
+ * kept. "Stop collecting" leaves what was kept; ``delete_past`` ("Stop and
+ * delete") archives it: out of export and training, kept only as the law
+ * requires, never hard-deleted.
  */
 export const setSettingsApiV1TrainingLoopSettingsPut = <ThrowOnError extends boolean = false>(options: Options<SetSettingsApiV1TrainingLoopSettingsPutData, ThrowOnError>): RequestResult<SetSettingsApiV1TrainingLoopSettingsPutResponses, SetSettingsApiV1TrainingLoopSettingsPutErrors, ThrowOnError> => (options.client ?? client).put<SetSettingsApiV1TrainingLoopSettingsPutResponses, SetSettingsApiV1TrainingLoopSettingsPutErrors, ThrowOnError>({
     url: '/api/v1/training-loop/settings',
@@ -8149,7 +8151,7 @@ export const agentSummaryApiV1TrainingLoopAgentsWorkflowIdSummaryGet = <ThrowOnE
 /**
  * Export Mine
  *
- * The workspace's training data as JSONL, in one of two shapes.
+ * The workspace's training data as JSONL, in one of three shapes.
  */
 export const exportMineApiV1TrainingLoopExportGet = <ThrowOnError extends boolean = false>(options?: Options<ExportMineApiV1TrainingLoopExportGetData, ThrowOnError>): RequestResult<ExportMineApiV1TrainingLoopExportGetResponses, ExportMineApiV1TrainingLoopExportGetErrors, ThrowOnError> => (options?.client ?? client).get<ExportMineApiV1TrainingLoopExportGetResponses, ExportMineApiV1TrainingLoopExportGetErrors, ThrowOnError>({ url: '/api/v1/training-loop/export', ...options });
 
