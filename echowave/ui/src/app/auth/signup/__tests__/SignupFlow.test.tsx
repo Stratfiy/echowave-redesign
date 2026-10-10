@@ -5,11 +5,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SignupFlow } from "../SignupFlow";
 
 const signupMock = vi.fn();
+const joinMock = vi.fn();
 let inviteOnly = false;
 let search = new URLSearchParams();
 
 vi.mock("@/client/sdk.gen", () => ({
   signupApiV1AuthSignupPost: (...args: unknown[]) => signupMock(...args),
+  joinWaitlistApiV1PublicEarlyAccessWaitlistPost: (...args: unknown[]) => joinMock(...args),
 }));
 vi.mock("@/lib/features", () => ({
   useFeature: (name: string) => (name === "invite_only_signup" ? inviteOnly : false),
@@ -61,6 +63,7 @@ describe("sign-up, one question per screen", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     signupMock.mockReset();
+    joinMock.mockReset();
     inviteOnly = false;
     search = new URLSearchParams();
     stubFetch();
@@ -221,5 +224,90 @@ describe("sign-up, one question per screen", () => {
     // Google refused to start: the reason stays on the invite step.
     await waitFor(() => expect(screen.getByRole("alert").textContent).toBe("stop here"));
     expect(stepOf()).toBe("invite");
+  });
+
+  describe("no code? ask for one, in place", () => {
+    const askFromInviteStep = () => {
+      inviteOnly = true;
+      render(<SignupFlow />);
+      fillEmail("asha@example.com");
+      expect(stepOf()).toBe("invite");
+      fireEvent.click(screen.getByTestId("ask-code-open"));
+    };
+    const send = (note = "Chase payments due this week") => {
+      fireEvent.change(screen.getByTestId("ask-code-note"), { target: { value: note } });
+      fireEvent.click(screen.getByTestId("ask-code-submit"));
+    };
+
+    it("offers the ask on the code step, before leaving for Google too", async () => {
+      inviteOnly = true;
+      render(<SignupFlow />);
+      await waitFor(() => expect(screen.getByTestId("google-signin-button")).toBeTruthy());
+      fireEvent.click(screen.getByTestId("google-signin-button"));
+      expect(stepOf()).toBe("invite");
+      expect(screen.getByTestId("ask-code-open").textContent).toBe("Don't have a code? Ask for one");
+      fireEvent.click(screen.getByTestId("ask-code-open"));
+      // Nothing typed yet on this path: the email is theirs to fill.
+      expect((screen.getByTestId("ask-code-email") as HTMLInputElement).value).toBe("");
+      expect(stepOf()).toBe("invite");
+    });
+
+    it("sends the same request as /early-access, with the email already typed", async () => {
+      joinMock.mockResolvedValue({ data: { state: "waitlisted", created: true }, error: undefined });
+      askFromInviteStep();
+      expect((screen.getByTestId("ask-code-email") as HTMLInputElement).value).toBe("asha@example.com");
+      send();
+      await waitFor(() => expect(joinMock).toHaveBeenCalledTimes(1));
+      expect(joinMock.mock.calls[0][0].body).toEqual({
+        email: "asha@example.com",
+        first_task: "Chase payments due this week",
+      });
+      await waitFor(() =>
+        expect(screen.getByTestId("ask-code-result").textContent).toBe(
+          "Thanks — we'll email you a code as soon as it's approved.",
+        ),
+      );
+      // Still on the code step: the code can be typed the moment it arrives.
+      expect(stepOf()).toBe("invite");
+      expect(signupMock).not.toHaveBeenCalled();
+    });
+
+    it("answers an address already on the list the same way", async () => {
+      joinMock.mockResolvedValue({ data: { state: "waitlisted", created: false }, error: undefined });
+      askFromInviteStep();
+      send("");
+      await waitFor(() => expect(screen.getByTestId("ask-code-result").textContent).toMatch(/as soon as it's approved/));
+      expect(joinMock.mock.calls[0][0].body.first_task).toBeNull();
+    });
+
+    it("shows a refusal inline and keeps what was typed", async () => {
+      joinMock.mockResolvedValue({
+        data: undefined,
+        error: { detail: "Too many tries from here. Wait a few minutes and try again." },
+      });
+      askFromInviteStep();
+      send();
+      await waitFor(() => expect(screen.getByTestId("ask-code-error").textContent).toMatch(/Too many tries/));
+      expect((screen.getByTestId("ask-code-note") as HTMLInputElement).value).toBe("Chase payments due this week");
+      expect(screen.queryByTestId("ask-code-result")).toBeNull();
+    });
+
+    it("shows a network failure inline", async () => {
+      joinMock.mockRejectedValue(new Error("offline"));
+      askFromInviteStep();
+      send();
+      await waitFor(() => expect(screen.getByTestId("ask-code-error").textContent).toMatch(/not sent/));
+    });
+
+    it("checks the email before sending", async () => {
+      inviteOnly = true;
+      render(<SignupFlow />);
+      await waitFor(() => expect(screen.getByTestId("google-signin-button")).toBeTruthy());
+      fireEvent.click(screen.getByTestId("google-signin-button"));
+      fireEvent.click(screen.getByTestId("ask-code-open"));
+      send();
+      expect(joinMock).not.toHaveBeenCalled();
+      expect(screen.getByTestId("ask-code-error").textContent).toMatch(/valid email/);
+    });
   });
 });

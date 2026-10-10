@@ -24,6 +24,7 @@ allowance like any send (operational quotas).
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from typing import Any
 
@@ -168,8 +169,15 @@ async def _claim(
     occurrence_key: str,
     channel: str,
     is_test: bool,
+    still_due: Callable[[Any], Awaitable[bool]] | None = None,
 ) -> int | None:
-    """Write the row first. None when this occurrence was already claimed."""
+    """Write the row first. None when this occurrence was already claimed.
+
+    ``still_due`` runs in the claim's own transaction, before the insert: a
+    subject cancelled or moved since the caller read it is not claimed
+    (``_Withdrawn``). It may lock its row, so a change made at the same
+    moment either lands first (nothing is claimed) or waits for the claim
+    (and changes what comes after this occurrence)."""
     stmt = (
         insert(TodayDeliveryModel)
         .values(
@@ -187,9 +195,16 @@ async def _claim(
         .returning(TodayDeliveryModel.id)
     )
     async with db_client.async_session() as session:
+        if still_due is not None and not await still_due(session):
+            await session.rollback()
+            raise _Withdrawn()
         delivery_id = await session.scalar(stmt)
         await session.commit()
     return int(delivery_id) if delivery_id is not None else None
+
+
+class _Withdrawn(Exception):
+    """The subject stopped being due between the read and the claim."""
 
 
 async def _finish(delivery_id: int, **values: Any) -> None:
@@ -251,17 +266,32 @@ async def deliver(
     channel: str,
     text: str,
     is_test: bool = False,
+    still_due: Callable[[Any], Awaitable[bool]] | None = None,
 ) -> dict[str, Any]:
-    """Deliver one occurrence on one channel, once. Never raises."""
-    delivery_id = await _claim(
-        organization_id=organization_id,
-        user_id=user_id,
-        subject_kind=subject_kind,
-        subject_id=subject_id,
-        occurrence_key=occurrence_key,
-        channel=channel,
-        is_test=is_test,
-    )
+    """Deliver one occurrence on one channel, once. Never raises.
+
+    With ``still_due`` (see ``_claim``), an occurrence that is no longer due
+    when it is claimed -- cancelled, paused or moved after the caller read
+    it -- is not sent and leaves no row: ``{"withdrawn": True}``."""
+    try:
+        delivery_id = await _claim(
+            organization_id=organization_id,
+            user_id=user_id,
+            subject_kind=subject_kind,
+            subject_id=subject_id,
+            occurrence_key=occurrence_key,
+            channel=channel,
+            is_test=is_test,
+            still_due=still_due,
+        )
+    except _Withdrawn:
+        return {
+            "channel": channel,
+            "status": None,
+            "occurrence_key": occurrence_key,
+            "duplicate": False,
+            "withdrawn": True,
+        }
     if delivery_id is None:
         async with db_client.async_session() as session:
             existing = await session.scalar(

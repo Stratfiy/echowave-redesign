@@ -610,6 +610,10 @@ async def tell_family(dose_id: int) -> int:
         return 0
     if not med.alert_member_ids:
         return 0
+    if dose.marked_by_user_id is not None:
+        # The person said "I took it": the dose is not missed, whatever the
+        # call's own outcome (which the dose keeps).
+        return 0
     person = await circle.person_name(med.organization_id, med.person_user_id)
     due_local = dose.due_at.astimezone(ZoneInfo(med.timezone)).strftime("%H:%M")
     kind, title = _alert_line(

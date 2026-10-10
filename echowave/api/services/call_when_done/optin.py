@@ -348,8 +348,15 @@ async def _say(
 
 
 async def cancel(organization_id: int, user_id: int, callback_id: int) -> bool:
-    """Stop waiting. Only the person's own pending callback in this
-    workspace; anything else is not here."""
+    """Stop waiting, or stop the call it queued. Only the person's own
+    callback in this workspace; anything else is not here.
+
+    A pending callback is cancelled. A finished one whose call has not been
+    dialled yet -- queued (say, overnight until 09:00), or claimed with no
+    run recorded -- is cancelled too, and so is the call once nothing else
+    it was to say is left (``calls.cancel_call``, which the dial's own
+    compare-and-swap re-checks, so a cancelled call never rings). Once the
+    dial has started there is nothing left to stop: False."""
     async with db_client.async_session() as session:
         moved = (
             await session.execute(
@@ -365,7 +372,9 @@ async def cancel(organization_id: int, user_id: int, callback_id: int) -> bool:
             )
         ).first()
         await session.commit()
-    return bool(moved)
+    if moved:
+        return True
+    return await calls.cancel_call(organization_id, user_id, callback_id)
 
 
 async def status(

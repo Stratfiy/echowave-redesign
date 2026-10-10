@@ -173,6 +173,8 @@ def dose_dict(d: Any) -> dict[str, Any]:
         "state": d.state,
         "reason": d.reason,
         "alerted": d.alerted_at is not None,
+        #: The person's own "I took it", kept beside the call's outcome.
+        "taken_in_app": d.marked_by_user_id is not None,
     }
 
 
@@ -455,7 +457,17 @@ async def mark_taken(
     due_at: datetime,
 ) -> dict[str, Any]:
     """The person says "I took it" in the app, for a dose due today. A dose
-    marked before its call means the call is not placed."""
+    marked before its call means the call is not placed.
+
+    "I took it" is the person's acknowledgement; the call's outcome is the
+    delivery. Neither overwrites the other: once a call was dialled (its
+    run is recorded) or has an outcome, the dose keeps that outcome and the
+    acknowledgement is recorded beside it (``marked_by_user_id``, plus an
+    ``outcome_history`` entry). Only a dose nothing has rung for yet --
+    not claimed, claimed but not dialled, or an app reminder waiting --
+    becomes ``taken``; a claimed call then finds it settled and never
+    dials (``calls.place``). The dose row is locked, so a dial linking its
+    run at the same moment is ordered against this."""
     from sqlalchemy.dialects.postgresql import insert
 
     if due_at.tzinfo is None:
@@ -467,6 +479,7 @@ async def mark_taken(
             for d in due_times(row, due_at.astimezone(ZoneInfo(row.timezone)).date())
         ):
             raise CareError("That is not one of this medicine's times.")
+        now = _now()
         await session.execute(
             insert(CareDoseCallModel)
             .values(
@@ -476,28 +489,43 @@ async def mark_taken(
                 state="taken",
                 reason="marked_in_app",
                 marked_by_user_id=user_id,
-                outcome_at=_now(),
-                created_at=_now(),
+                outcome_at=now,
+                created_at=now,
             )
-            .on_conflict_do_update(
-                constraint="uq_care_dose_due",
-                set_={
-                    "state": "taken",
-                    "reason": "marked_in_app",
-                    "marked_by_user_id": user_id,
-                    "outcome_at": _now(),
-                },
-            )
+            .on_conflict_do_nothing(constraint="uq_care_dose_due")
         )
-        await session.commit()
         dose = (
             await session.execute(
-                select(CareDoseCallModel).where(
-                    CareDoseCallModel.medicine_id == medicine_id,
+                select(CareDoseCallModel)
+                .where(
+                    CareDoseCallModel.medicine_id == row.id,
                     CareDoseCallModel.due_at == due_at,
                 )
+                .with_for_update()
             )
         ).scalar_one()
+        if dose.marked_by_user_id is None:
+            prior = dose.state
+            nothing_rang = (
+                dose.state in ("calling", "reminded") and dose.workflow_run_id is None
+            )
+            if nothing_rang:
+                dose.state = "taken"
+                dose.reason = "marked_in_app"
+                dose.outcome_at = now
+            dose.marked_by_user_id = user_id
+            dose.outcome_history = [
+                *(dose.outcome_history or []),
+                {
+                    "at": now.isoformat(),
+                    "from": prior,
+                    "to": dose.state,
+                    "reason": "marked_in_app",
+                    "source": "person",
+                },
+            ]
+        await session.commit()
+        await session.refresh(dose)
         return dose_dict(dose)
 
 

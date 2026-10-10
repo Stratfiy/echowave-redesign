@@ -11,6 +11,7 @@ import Link from "next/link";
 import { type FormEvent, useEffect, useState } from "react";
 
 import { loginApiV1AuthLoginPost } from "@/client/sdk.gen";
+import { AskForCode } from "@/components/auth/AskForCode";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 import { AUTH_COPY } from "@/components/auth/steps/copy";
 import { PasswordInput } from "@/components/auth/steps/fields";
@@ -32,6 +33,9 @@ export function LoginForm({ signupEnabled }: { signupEnabled: boolean }) {
   const [mfaCode, setMfaCode] = useState("");
   const [errors, setErrors] = useState<Partial<Record<LoginStep, string>>>({});
   const [loading, setLoading] = useState(false);
+  // Set when Google sign-in came back refused for want of an invite code:
+  // the ask for one is offered right here, and stays while they type.
+  const [inviteWall, setInviteWall] = useState(false);
   // The second factor, once the server has told us this account has one.
   // The backend answers `401 detail="mfa_required"`; without this step an
   // account with MFA could never sign in.
@@ -45,6 +49,7 @@ export function LoginForm({ signupEnabled }: { signupEnabled: boolean }) {
     const message = params.get("error");
     if (!message) return;
     setErrors({ email: message });
+    if (/invite/i.test(message)) setInviteWall(true);
     const url = new URL(window.location.href);
     url.searchParams.delete("error");
     window.history.replaceState({}, "", url.toString());
@@ -178,6 +183,7 @@ export function LoginForm({ signupEnabled }: { signupEnabled: boolean }) {
           <StepError id={ERROR_ID} message={error} />
           <StepAction testId="login-next">{AUTH_COPY.continue}</StepAction>
         </form>
+        {inviteWall && <AskForCode initialEmail={email.trim()} className="mt-4" />}
       </StepShell>
     );
   }

@@ -772,8 +772,9 @@ async def test_the_policy_can_be_changed_by_chat_as_a_draft_card(call, flag_on):
         },
     )
     assert result["status"] == "proposed"
-    draft = await db_client.get_draft_version(call.workflow.id)
-    assert draft.workflow_configurations["escalation_policy"]["refund_limit"] == 2000
+    # The card's change is on the card, not in the shared draft: a policy
+    # waiting there would go live with the next unrelated publish.
+    assert await db_client.get_draft_version(call.workflow.id) is None
     async with db_client.async_session() as session:
         [card] = list(
             (
@@ -787,6 +788,10 @@ async def test_the_policy_can_be_changed_by_chat_as_a_draft_card(call, flag_on):
         )
     assert card.payload["step"] == "Escalation"
     assert "Refund limit: Rs 2000" in card.payload["new"]
+    [change] = card.payload["changes"]
+    assert change["config"] == "escalation_policy"
+    assert change["old"] is None
+    assert change["new"]["refund_limit"] == 2000
 
 
 # --- the flag ------------------------------------------------------------------------------

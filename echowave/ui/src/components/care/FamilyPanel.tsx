@@ -82,6 +82,7 @@ function Person({ person, onRead }: { person: CaredFor; onRead: (id: number) => 
                                             {medicine.doses.map((dose) => (
                                                 <li key={dose.due_at}>
                                                     {localTime(dose.due_at, medicine.timezone)}: {DOSE_WORDS[dose.state] ?? dose.state}
+                                                    {dose.taken_in_app && dose.state !== "taken" ? " · marked taken in the app" : ""}
                                                 </li>
                                             ))}
                                         </ul>

@@ -12,6 +12,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const list = vi.fn();
 const preview = vi.fn();
 const create = vi.fn();
+const getOne = vi.fn();
 const getSettings = vi.fn();
 const saveSettings = vi.fn();
 const testBrief = vi.fn();
@@ -24,7 +25,7 @@ vi.mock("@/client/sdk.gen", () => ({
     listRemindersApiV1TodayRemindersGet: (...a: unknown[]) => list(...a),
     previewReminderApiV1TodayRemindersPreviewPost: (...a: unknown[]) => preview(...a),
     createReminderApiV1TodayRemindersPost: (...a: unknown[]) => create(...a),
-    getReminderApiV1TodayRemindersReminderIdGet: vi.fn(),
+    getReminderApiV1TodayRemindersReminderIdGet: (...a: unknown[]) => getOne(...a),
     updateReminderApiV1TodayRemindersReminderIdPut: vi.fn(),
     setReminderStatusApiV1TodayRemindersReminderIdStatusPost: vi.fn(),
     testReminderApiV1TodayRemindersReminderIdTestPost: vi.fn(),
@@ -86,6 +87,23 @@ describe("The reminder editor", () => {
     it("says which channels need setup", async () => {
         render(<ReminderEditor />);
         expect(await screen.findByText("Needs setup: Phone notifications are not set up yet.")).toBeTruthy();
+    });
+
+    it("a one-off that reached nobody says why, never done", async () => {
+        getOne.mockResolvedValue({
+            data: {
+                id: 8, title: "Pay rent", note: "", event_id: null, offset_minutes: null, offset_words: null,
+                recurrence: "once", local_time: "09:00", weekday: null, timezone: "Asia/Kolkata",
+                remind_at: "2026-10-09T03:30:00+00:00", when: "Fri 9 Oct 2026, 09:00 IST (Asia/Kolkata)",
+                channel: "push", status: "missed", revision: 1, history: [], last_delivered_at: null,
+                deliveries: [
+                    { id: 3, channel: "push", status: "needs_setup", reason_code: "push_needs_setup", detail: "Phone notifications are not set up yet.", evidence: null, is_test: false, occurrence_key: "k" },
+                ],
+            },
+        });
+        render(<ReminderEditor reminderId={8} />);
+        const status = await screen.findByTestId("reminder-status");
+        expect(status.textContent).toBe("Not sent: Phone notifications are not set up yet. Change the time to set it again.");
     });
 });
 
