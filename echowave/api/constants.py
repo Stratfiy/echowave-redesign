@@ -541,6 +541,13 @@ WHATSAPP_WEBHOOK_VERIFY_TOKEN = os.getenv("WHATSAPP_WEBHOOK_VERIFY_TOKEN", "")
 # closed ("Reply to receive {{1}}"). Empty: a send outside the window is
 # refused with the reason instead.
 WHATSAPP_FILE_OFFER_TEMPLATE = os.getenv("WHATSAPP_FILE_OFFER_TEMPLATE", "")
+# An approved template for review requests after a conversation, with two
+# placeholders: {{1}} the business's name, {{2}} the review link -- e.g.
+# "Thank you for choosing {{1}}. If you have a minute, we would be grateful
+# for your review: {{2}}" (category marketing). Empty: review requests go by
+# SMS, since WhatsApp refuses free text outside the 24-hour window.
+WHATSAPP_REVIEW_TEMPLATE = os.getenv("WHATSAPP_REVIEW_TEMPLATE", "")
+WHATSAPP_REVIEW_TEMPLATE_LANGUAGE = os.getenv("WHATSAPP_REVIEW_TEMPLATE_LANGUAGE", "en")
 # One line on the invoice: a message sent from the platform sender costs the
 # account this much, and Meta charges us roughly the second figure for an
 # Indian utility message. Both in paise.
@@ -2314,3 +2321,9 @@ TEAM_ACTIVITY_ENABLED = _flag("TEAM_ACTIVITY_ENABLED")
 # this is a kill switch rather than an opt-in.
 # ---------------------------------------------------------------------------
 LEARN_WEBSITE_ENABLED = os.getenv("LEARN_WEBSITE_ENABLED", "true").lower() == "true"
+
+# Review requests (services/messaging/review_requests.py): Decibyl adds a
+# "Review request" message to an agent from Chat. On by default -- nothing is
+# sent until a person confirms the card and publishes the agent -- so this is
+# a kill switch rather than an opt-in.
+REVIEW_REQUESTS_ENABLED = os.getenv("REVIEW_REQUESTS_ENABLED", "true").lower() == "true"

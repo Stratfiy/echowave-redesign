@@ -109,6 +109,86 @@ def resolve_template(node_data, variables: Mapping[str, Any]) -> dict[str, Any] 
     }
 
 
+#: How a call ended when nobody had a conversation, in the words the
+#: disposition step uses. Matched as words inside the disposition.
+NOT_A_CONVERSATION = ("voicemail", "no_answer", "no answer", "busy", "failed")
+
+
+def real_conversation(run: Any) -> bool:
+    """Whether somebody actually spoke with the agent on this run: a chat
+    that happened, or a call that was answered and did not end on a
+    voicemail, a busy line or nobody. A test run never counts -- an owner
+    trying their agent is not a customer to message."""
+    from api.services.workflow import answered as answered_rule
+    from api.services.workflow import test_runs
+
+    if test_runs.is_test(run):
+        return False
+    gathered = getattr(run, "gathered_context", None) or {}
+    disposition = str(
+        gathered.get("mapped_call_disposition")
+        or gathered.get("call_disposition")
+        or ""
+    ).lower()
+    if any(word in disposition for word in NOT_A_CONVERSATION):
+        return False
+    if (getattr(run, "mode", "") or "") == "textchat":
+        return True
+    return answered_rule.was_answered(run)
+
+
+#: Where "sent this person this message already" is remembered, per
+#: workspace, agent, message and number, for ``once_per_contact_days``.
+ONCE_KEY = "follow_up_once:{organization_id}:{workflow_id}:{node}:{to}"
+
+
+def _once_key(
+    node_data, *, organization_id: int | None, workflow_id: int | None, to: str
+) -> str:
+    digits = "".join(ch for ch in to if ch.isdigit())
+    node = str(getattr(node_data, "name", "") or "message").strip().lower()
+    return ONCE_KEY.format(
+        organization_id=organization_id or 0,
+        workflow_id=workflow_id or 0,
+        node=node,
+        to=digits or to,
+    )
+
+
+async def _redis():
+    import redis.asyncio as aioredis
+
+    from api.constants import REDIS_URL
+
+    return aioredis.from_url(REDIS_URL, decode_responses=True)
+
+
+async def _sent_recently(key: str) -> bool:
+    """Whether the key is held. Unknown (Redis down) reads as not sent: a
+    second message is a nuisance somebody notices; a message that silently
+    never goes is not (AGENTS.md, Silent Absence)."""
+    try:
+        client = await _redis()
+        try:
+            return bool(await client.exists(key))
+        finally:
+            await client.aclose()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Could not check {} before sending: {}", key, exc)
+        return False
+
+
+async def _remember_sent(key: str, days: int) -> None:
+    try:
+        client = await _redis()
+        try:
+            await client.set(key, "1", ex=int(days) * 24 * 60 * 60)
+        finally:
+            await client.aclose()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Could not remember {} was sent: {}", key, exc)
+
+
 async def deliver(
     node_data,
     *,
@@ -116,25 +196,48 @@ async def deliver(
     provider: str,
     credentials: Mapping[str, Any],
     default_from: str = "",
+    answered: bool | None = None,
+    organization_id: int | None = None,
+    workflow_id: int | None = None,
 ) -> SendResult | None:
     """Send the node's message if its condition holds.
 
-    Returns ``None`` when nothing was sent by design — a disabled node or a
-    condition that did not hold — so the caller can tell "we chose not to" from
-    "we tried and failed".
+    Returns ``None`` when nothing was sent by design — a disabled node, a
+    condition that did not hold, no real conversation for a node that asks
+    for one (``answered`` is the caller's word on it), or a person already
+    sent this message within ``once_per_contact_days`` — so the caller can
+    tell "we chose not to" from "we tried and failed".
     """
     variables = dict(variables)
+    name = getattr(node_data, "name", "message")
 
     ok, reason = should_send(node_data, variables)
     if not ok:
+        logger.info("Send Message '{}' skipped: {}.", name, reason)
+        return None
+
+    if getattr(node_data, "only_if_answered", False) and answered is not True:
         logger.info(
-            "Send Message '{}' skipped: {}.",
-            getattr(node_data, "name", "message"),
-            reason,
+            "Send Message '{}' skipped: nobody was on the line (or a test).", name
         )
         return None
 
     to = resolve_recipient(node_data, variables)
+    days = getattr(node_data, "once_per_contact_days", None)
+    once_key = (
+        _once_key(
+            node_data, organization_id=organization_id, workflow_id=workflow_id, to=to
+        )
+        if days and to
+        else None
+    )
+    if once_key and await _sent_recently(once_key):
+        logger.info(
+            "Send Message '{}' skipped: this person had it within {} days.",
+            name,
+            days,
+        )
+        return None
     from_ = (
         render_template(
             (getattr(node_data, "from_number", None) or "").strip(), variables
@@ -154,7 +257,7 @@ async def deliver(
         effective_provider = "whatsapp" if channel == "whatsapp" else provider
 
     try:
-        return await send_message(
+        result = await send_message(
             provider=effective_provider,
             credentials=credentials,
             to=to,
@@ -164,6 +267,9 @@ async def deliver(
             if effective_provider == META_WHATSAPP
             else None,
         )
+        if once_key and result.ok:
+            await _remember_sent(once_key, int(days))
+        return result
     except MessagingError as exc:
         # A configuration mistake — unsupported carrier, missing credential,
         # unusable number. Recorded like any other failure rather than raised,
