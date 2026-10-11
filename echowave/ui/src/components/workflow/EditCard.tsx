@@ -19,9 +19,16 @@
  * guessing which version is meant. A card made before cards recorded their
  * own change, whose change cannot be rebuilt exactly, says so (``legacy``):
  * it cannot be published on its own, and Discard still settles it.
+ *
+ * Edit: the person can change the proposed text before publishing it. Their
+ * text replaces the bot's in the draft and goes through the same checks as
+ * the bot's would (validation, the acceptable-use screen, the audit row), so
+ * a refusal reads the same and the card stays open with their text. The
+ * bot's own proposal is kept on the card (`original`), and is what the change
+ * is later recorded as having been changed from.
  */
 
-import { Check, GitBranch } from 'lucide-react';
+import { Check, GitBranch, Pencil } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
 
@@ -30,6 +37,9 @@ import type { TimelineEvent } from '@/client/types.gen';
 import { Button } from '@/components/ui/button';
 import { detailFromError } from '@/lib/apiError';
 import { cn } from '@/lib/utils';
+
+/** One field of one step the card changes, as the server recorded it. */
+export type FieldChange = { node_id?: string; field?: string; old?: string; new?: string; config?: string };
 
 export type GreetingChange = { step?: string; node_id?: string; old?: string; new?: string };
 
@@ -41,6 +51,8 @@ export type EditPayload = {
     new?: string;
     diff?: string;
     greetings?: GreetingChange[];
+    changes?: FieldChange[];
+    original?: Record<string, unknown>;
     decided?: { action?: 'publish' | 'discard'; by?: number; at?: string };
     refused?: { kind?: 'invalid' | 'acceptable_use' | 'conflict' | 'legacy'; reasons?: string[]; at?: string };
 };
@@ -62,6 +74,16 @@ export function diffLines(diff: string | undefined): { kind: 'add' | 'del' | 'ct
         });
 }
 
+const editKey = (c: FieldChange) => `${c.node_id}:${c.field}`;
+
+/** The text fields a person can rewrite before publishing: a step's prompt or
+ * greeting. A configuration change (the escalation policy) is not text. */
+export function editableChanges(edit: EditPayload): FieldChange[] {
+    return (edit.changes ?? []).filter(
+        (c) => !c.config && c.node_id != null && (c.field === 'prompt' || c.field === 'greeting'),
+    );
+}
+
 export function EditCard({
     event,
     onSettled,
@@ -72,21 +94,40 @@ export function EditCard({
     const edit = editOf(event);
     const [saving, setSaving] = useState<'publish' | 'discard' | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [editing, setEditing] = useState(false);
+    const [drafts, setDrafts] = useState<Record<string, string>>({});
     const lines = diffLines(edit.diff);
     const greetings = (edit.greetings ?? []).filter((g) => (g.old ?? '') !== (g.new ?? ''));
 
-    const settle = async (action: 'publish' | 'discard') => {
+    const editable = editableChanges(edit);
+    const changedEdits = editable
+        .filter((c) => (drafts[editKey(c)] ?? c.new ?? '') !== (c.new ?? ''))
+        .map((c) => ({ node_id: String(c.node_id), field: String(c.field), new: drafts[editKey(c)] }));
+    const fieldLabel = (c: FieldChange) => {
+        const where =
+            c.field === 'greeting'
+                ? (edit.greetings ?? []).find((g) => g.node_id === c.node_id)?.step
+                : editable.filter((x) => x.field === 'prompt').length === 1
+                  ? edit.step
+                  : undefined;
+        return `${where || `Step ${c.node_id}`} · ${c.field === 'greeting' ? 'greeting' : 'instructions'}`;
+    };
+
+    const settle = async (action: 'publish' | 'discard', edits: typeof changedEdits = []) => {
         setSaving(action);
         setError(null);
         const result = await settleEditApiV1TimelineEditsSettlePost({
-            body: { event_id: event.id, action },
+            body: edits.length > 0 ? { event_id: event.id, action, edits } : { event_id: event.id, action },
         });
         setSaving(null);
         if (result.error) {
             setError(detailFromError(result.error, 'Could not do that'));
             return;
         }
-        if (result.data) onSettled?.(result.data);
+        if (result.data) {
+            setEditing(false);
+            onSettled?.(result.data);
+        }
     };
 
     const decided = edit.decided;
@@ -181,17 +222,64 @@ export function EditCard({
                     {/open the editor/i.test(error) && editorLink}
                 </p>
             )}
+            {editing && !decided && (
+                <div className="mt-3 space-y-2" data-testid="edit-fields">
+                    {editable.map((c) => (
+                        <label key={editKey(c)} className="block text-xs text-muted-foreground">
+                            {fieldLabel(c)}
+                            <textarea
+                                className="mt-1 block min-h-24 w-full rounded-md border border-border bg-background p-2 text-sm text-foreground"
+                                value={drafts[editKey(c)] ?? c.new ?? ''}
+                                onChange={(e) => setDrafts({ ...drafts, [editKey(c)]: e.target.value })}
+                                aria-label={fieldLabel(c)}
+                            />
+                        </label>
+                    ))}
+                    <p className="text-xs text-muted-foreground">
+                        Your text is checked the same way before it goes live.
+                    </p>
+                </div>
+            )}
             {decided ? (
                 <p className="mt-2 flex items-center gap-1.5 text-sm text-muted-foreground">
                     <Check className="h-3.5 w-3.5" aria-hidden />
-                    {decided.action === 'publish' ? 'Published' : 'Discarded'}
+                    {decided.action === 'publish' ? (edit.original ? 'Published, as edited' : 'Published') : 'Discarded'}
                     {decided.at ? ` · ${new Date(decided.at).toLocaleString()}` : ''}
                 </p>
             ) : (
                 <div className="mt-3 flex gap-2">
-                    {!legacy && (
+                    {!legacy && !editing && (
                         <Button size="sm" disabled={saving !== null} onClick={() => void settle('publish')}>
                             {saving === 'publish' ? 'Publishing…' : 'Publish'}
+                        </Button>
+                    )}
+                    {!legacy && editing && (
+                        <Button
+                            size="sm"
+                            disabled={saving !== null}
+                            onClick={() => void settle('publish', changedEdits)}
+                        >
+                            {saving === 'publish' ? 'Publishing…' : 'Publish edited'}
+                        </Button>
+                    )}
+                    {!legacy && editable.length > 0 && (
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={saving !== null}
+                            onClick={() => {
+                                setEditing(!editing);
+                                setDrafts({});
+                            }}
+                        >
+                            {editing ? (
+                                'Cancel edit'
+                            ) : (
+                                <>
+                                    <Pencil className="mr-1 h-3.5 w-3.5" aria-hidden />
+                                    Edit
+                                </>
+                            )}
                         </Button>
                     )}
                     <Button

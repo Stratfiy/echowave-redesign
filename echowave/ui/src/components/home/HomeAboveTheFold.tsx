@@ -35,6 +35,7 @@ import { ThreadList } from "@/components/home/ThreadList";
 import { AuxiliaryPanel } from "@/components/layout/AuxiliaryPanel";
 import { LearningResume } from "@/components/learning/LearningResume";
 import { LearningSession } from "@/components/learning/LearningSession";
+import { ContextChip } from "@/components/personal/ContextChip";
 import { TemporaryBanner } from "@/components/settings/TemporaryBanner";
 import { Announcer } from "@/components/shell/Announcer";
 import { SourceCoverage } from "@/components/shell/SourceCoverage";
@@ -629,6 +630,14 @@ export function HomeAboveTheFold({ firstName }: { firstName?: string }) {
       {/* The lesson has its own answer box: two boxes on one screen is one
           too many, so the composer steps aside (kept mounted, draft kept). */}
       <div className={cn(showLesson && "hidden")}>
+      {/* What this conversation uses, and leaving a source out of it
+          (evolve_personal; renders nothing while off). Not on a chat that
+          has not started: its sources are chosen once it exists. */}
+      {!empty && !startsFresh && !holdStream && (
+        <div className="px-4 sm:px-6">
+          <ContextChip threadId={threadId} refreshKey={threadsVersion} />
+        </div>
+      )}
       <ChannelComposer
         hero={empty}
         assistant

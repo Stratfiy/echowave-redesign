@@ -206,6 +206,14 @@ class VariableExtractionManager:
         llm_response = await self._engine.inference_llm.run_inference(
             extraction_context, system_instruction=system_prompt
         )
+        # Round the frame path, so the run's receipt never sees it.
+        from api.services.billing import model_usage
+
+        await model_usage.record_inference(
+            self._engine.inference_llm,
+            organization_id=await self._engine._get_organization_id(),
+            feature="variable_extraction",
+        )
 
         # Get model name for tracing
         model_name = getattr(self._engine.inference_llm, "model_name", "unknown")

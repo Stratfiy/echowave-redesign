@@ -23,13 +23,14 @@ from __future__ import annotations
 
 import asyncio
 import re
-from dataclasses import asdict, dataclass
+import time
+from dataclasses import asdict, dataclass, replace
 from typing import Any
 
 from loguru import logger
 
 from api import constants
-from api.services.routing import decision
+from api.services.routing import decision, models, record
 
 #: The three kinds of work, as the decision model is asked about them.
 KINDS: dict[str, str] = {
@@ -65,15 +66,75 @@ _STEPS_WORDS = re.compile(
 )
 
 
-def by_rules(text: str, *, attachments: int = 0) -> str:
+#: ``cheap_routing``: the same words, split by how much they say about the
+#: work. "report", "list", "send", "email" and "meeting" are what people say in
+#: any message, so on their own they sent a one-line ask to the Smart or the
+#: Deep brain. A strong word still decides; a weak one decides only alongside
+#: enough text to be a real task.
+_DEEP_STRONG = re.compile(
+    r"\b(analy[sz]e|analysis|compare|comparison|research|strategy|evaluate|"
+    r"investigate|pros and cons|trade-?offs?|forecast|root cause|in depth|"
+    r"deep dive)\b",
+    re.IGNORECASE,
+)
+_DEEP_WEAK = re.compile(
+    r"\b(report|assess|audit|in detail|why does|why is)\b", re.IGNORECASE
+)
+_STEPS_STRONG = re.compile(
+    r"\b(draft|rewrite|plan|summari[sz]e|translate|prepare|organi[sz]e|"
+    r"checklist|follow[- ]?up)\b",
+    re.IGNORECASE,
+)
+_STEPS_WEAK = re.compile(
+    r"\b(write|schedule|remind|send|email|mail|reply|summary|book|create|"
+    r"update|list|invoice|calendar|meeting)\b",
+    re.IGNORECASE,
+)
+#: Characters of text a weak word needs beside it, to count.
+_WEAK_STEPS_MIN = 160
+_WEAK_DEEP_MIN = 400
+#: A strong deep word needs this much text, or a second one.
+_STRONG_DEEP_MIN = 200
+
+
+def _by_tight_rules(body: str, attachments: int) -> str:
+    lines = [line for line in body.splitlines() if line.strip()]
+    questions = body.count("?")
+    strong_deep = {m.group(0).lower() for m in _DEEP_STRONG.finditer(body)}
+    if (
+        len(body) > 1200
+        or (strong_deep and len(body) > _STRONG_DEEP_MIN)
+        or (len(strong_deep) > 1 and len(body) > 80)
+        or (_DEEP_WEAK.search(body) and len(body) > _WEAK_DEEP_MIN)
+    ):
+        return "deep"
+    if (
+        attachments
+        or len(body) > 280
+        or len(lines) > 3
+        or questions > 2
+        or _STEPS_STRONG.search(body)
+        or (_STEPS_WEAK.search(body) and len(body) > _WEAK_STEPS_MIN)
+    ):
+        return "steps"
+    return "quick"
+
+
+def by_rules(text: str, *, attachments: int = 0, tight: bool = False) -> str:
     """The kind of work by plain rules: length, attachments and a few words.
 
     Deliberately simple, and language-light: the length signals work in any
     script, and Laya is what is meant to read Hindi and Tamil well.
+
+    ``tight`` is ``cheap_routing``: the stricter word rules above. The default
+    is the rules Laya is measured against, so the evaluation report
+    (``services/ops/laya_eval``) keeps calling it without the flag.
     """
     body = (text or "").strip()
     if not body:
         return "quick"
+    if tight:
+        return _by_tight_rules(body, attachments)
     lines = [line for line in body.splitlines() if line.strip()]
     questions = body.count("?")
     if len(body) > 1200 or (_DEEP_WORDS.search(body) and len(body) > 80):
@@ -99,6 +160,11 @@ class Route:
     laya_kind: str | None = None
     laya_ms: int | None = None
     abstained: str | None = None
+    #: The model Auto chose for the kind, and why (services/routing/models.py).
+    #: None on a route that only sorted the work (``route``, the evals).
+    provider: str | None = None
+    model: str | None = None
+    model_reason: str | None = None
 
     def as_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -123,11 +189,25 @@ def _count_shadow(laya_eval, ruled: str, asked: decision.Decision) -> None:
     task.add_done_callback(_PENDING.discard)
 
 
-async def route(text: str, *, attachments: int = 0) -> Route:
+def tight_rules_on(organization_id: int | None) -> bool:
+    """Whether ``cheap_routing`` is on for this account. Unknown is off."""
+    from api.services import features
+
+    try:
+        return features.is_on("cheap_routing", organization_id)
+    except Exception:  # noqa: BLE001 - unknown is off: the rules as before
+        return False
+
+
+async def route(
+    text: str, *, attachments: int = 0, organization_id: int | None = None
+) -> Route:
     """Sort one piece of work. Never raises: the rules are always there."""
     from api.services.ops import laya_eval
 
-    ruled = by_rules(text, attachments=attachments)
+    ruled = by_rules(
+        text, attachments=attachments, tight=tight_rules_on(organization_id)
+    )
     mode = constants.LAYA_ROUTING
     if mode not in ("shadow", "on") or not decision.enabled():
         return Route(kind=ruled, preset=PRESET_FOR[ruled], source="rules")
@@ -227,15 +307,40 @@ def agent_follows_workspace(workflow_configurations: dict | None) -> bool:
     return _is_managed_default(effective.llm)
 
 
+#: Which sorter decided, as it is recorded: rules, laya, or fallback (Laya
+#: was asked, abstained, and the rules decided).
+_RECORDED_SOURCE = {"rules": "rules", "laya": "laya", "laya_fallback": "fallback"}
+
+
 async def auto_route(
     organization_id: int | None,
     text: str,
     *,
     workflow_configurations: dict | None = None,
     attachments: int = 0,
+    feature: str = "",
+    prefer_vendor: str | None = None,
+    workflow_id: int | None = None,
+    ref: str | None = None,
 ) -> Route | None:
     """The route for this work, or None when Auto is not in charge of it --
-    the workspace pinned a model, or the agent has a brain of its own."""
+    the workspace pinned a model, or the agent has a brain of its own.
+
+    ``text`` is what the person wrote, and only that. Callers add a channel's
+    thread, the procedures a bot was taught, a briefing or a page of context
+    around it before the model sees it; none of that is the work. Sorting the
+    wrapped text sent every channel message to Deep (the length rule fires on
+    the context's 1.9k-9.4k characters, not on the question), so a caller with
+    a wrapped turn hands over the bare words and nothing else.
+
+    The decision is recorded (``routing.record``) and carries the model it
+    chose and why (``routing.models``).
+
+    ``feature`` names the caller (``text_chat``, ``decibyl``; recorded as
+    ``chat`` when blank); with it, each decision is also kept as
+    training data for the router -- under the workspace's consent, redacted, and never in the way of the reply
+    (``training_loop.hooks.routing_decision``). ``ref`` is what later outcomes
+    link back by (``hooks.routing_ref``)."""
     try:
         if workflow_configurations is not None and not agent_follows_workspace(
             workflow_configurations
@@ -243,7 +348,46 @@ async def auto_route(
             return None
         if not await workspace_is_auto(organization_id):
             return None
-        return await route(text, attachments=attachments)
+        started = time.monotonic()
+        sorted_ = await route(
+            text, attachments=attachments, organization_id=organization_id
+        )
+        chosen = await models.pick(
+            sorted_.kind, preset=sorted_.preset, prefer_vendor=prefer_vendor
+        )
+        routed = replace(
+            sorted_,
+            preset=chosen.slug,
+            provider=chosen.provider,
+            model=chosen.model,
+            model_reason=chosen.reason,
+        )
+        record.decision(
+            organization_id=organization_id,
+            feature=feature or "chat",
+            kind=routed.kind,
+            provider=chosen.provider,
+            model=chosen.model,
+            source=_RECORDED_SOURCE.get(routed.source, routed.source),
+            reason=chosen.reason,
+            detail=chosen.detail,
+        )
+        if feature:
+            from api.services.training_loop import hooks
+
+            await hooks.routing_decision(
+                organization_id=organization_id,
+                workflow_id=workflow_id,
+                feature=feature,
+                ref=ref,
+                text=text,
+                attachments=attachments,
+                routed=routed,
+                candidates=PRESET_FOR,
+                mode=constants.LAYA_ROUTING,
+                latency_ms=int((time.monotonic() - started) * 1000),
+            )
+        return routed
     except Exception as exc:  # noqa: BLE001 -- routing must never cost a reply
         logger.warning("Auto routing skipped for org {}: {}", organization_id, exc)
         return None

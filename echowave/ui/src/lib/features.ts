@@ -135,6 +135,12 @@ export type Feature =
     | "call_when_done"
     // Escalation rules, the handoff card and the no-answer ladder on calls.
     | "escalation_v2"
+    // Prompt-cache prefix fixes (the measurement itself is unflagged).
+    | "cache_v2"
+    // Token cuts, one lever each.
+    | "lean_tools"
+    | "cheap_routing"
+    | "history_cap"
     // The huddle: talk to an agent as a teammate, in its thread.
     | "huddle"
     // People: synced contacts with context (PEOPLE.md).
@@ -144,8 +150,15 @@ export type Feature =
     | "deepfilternet_filter"
     // Listen in on a live call and whisper to its agent.
     | "live_supervision"
+    // Records what owners did with an agent's suggestions, per workspace.
+    | "training_loop"
+    // Skills that learn from corrections, evaluated and approved first.
+    | "evolve_skills"
     // Posters and ad creatives: images on a provider chosen in the thread.
-    | "image_generation";
+    | "image_generation"
+    // Personal adaptation: kept preferences, "what you know about me", the
+    // context control above the composer.
+    | "evolve_personal";
 
 export function useFeature(name: Feature): boolean {
     const { config } = useAppConfig();

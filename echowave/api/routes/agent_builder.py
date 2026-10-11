@@ -27,6 +27,7 @@ from api.services.agent_builder.client import BuilderClientError
 from api.services.agent_builder.edit_proposal import EditProposalRequest, propose_edit
 from api.services.agent_builder.session import run_turn
 from api.services.auth.depends import get_user
+from api.services.billing import model_usage
 
 router = APIRouter(prefix="/agent-builder", tags=["agent-builder"])
 
@@ -63,9 +64,12 @@ async def edit_proposal(
             raise HTTPException(status_code=503, detail=str(exc)) from exc
         state, charged_credits = await meter_builder_message(session, organization_id)
         try:
-            result = await propose_edit(
-                model=model, graph=payload.graph, message=payload.message
-            )
+            with model_usage.scope(
+                organization_id=organization_id, feature="edit_proposal"
+            ):
+                result = await propose_edit(
+                    model=model, graph=payload.graph, message=payload.message
+                )
         except BuilderClientError as exc:
             raise HTTPException(status_code=502, detail=str(exc)) from exc
     return {**result, "usage": _usage(state, charged_credits=charged_credits)}
@@ -153,7 +157,6 @@ async def meter_builder_message(
     # Past the plan's allowance a message is five credits (KAN-56), taken
     # before the model runs. Refused, with the way out named, when the
     # balance cannot cover it.
-    from api.services.billing import credits as credit_units
     from api.services.billing import events as billing_events
     from api.services.billing.payments import current_balance_paise
 
@@ -163,11 +166,8 @@ async def meter_builder_message(
         raise HTTPException(
             status_code=402,
             detail=(
-                f"You have used this month's {allowance} included builder "
-                f"messages. Each further message is "
-                f"{limits.PAST_ALLOWANCE_CREDITS} credits; you have "
-                f"{credit_units.credits_of_balance(balance)}. Add credit, "
-                "or upgrade for a larger allowance."
+                f"You have used this month's {allowance} builder messages. "
+                "The allowance resets at the start of next month."
             ),
         )
     await billing_events.charge(

@@ -55,7 +55,8 @@ TOKEN_COMPONENTS: tuple[str, ...] = (
 #: Paths known to spend tokens without writing them anywhere. Named so the
 #: report says so; removing an entry is how one gets fixed.
 NOT_METERED: tuple[str, ...] = (
-    "channel context fold (services/workflow/channel_context.py): logged, not stored",
+    "LLM connection warm-up, one token a call (services/pipecat/run_pipeline.py)",
+    "voicemail classifier sub-pipeline: not verified to reach the run's receipt",
 )
 
 _LABEL = {

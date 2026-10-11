@@ -20,6 +20,7 @@ import { BotAvatar } from '@/components/bot/BotAvatar';
 import type { FlowNode } from '@/components/flow/types';
 import { MemoryList } from '@/components/memory/MemoryList';
 import { useAuth } from '@/lib/auth';
+import { PRICES_SHOWN } from '@/lib/pricing';
 
 import { AgentStanding } from './AgentStanding';
 import { EscalationSettingsCard } from './EscalationSettingsCard';
@@ -234,8 +235,10 @@ export function AgentProfilePanel({
             <AgentStanding workflowId={workflowId} folderId={folderId} />
 
             {/* What a run costs and what it may not exceed (OP-5): the cap is
-                the one thing here a person sets. */}
-            <SpendCard workflowId={workflowId} />
+                the one thing here a person sets. It reads in credits, and no
+                pricing is shown to users (lib/pricing.ts); a cap already set
+                is still enforced by the server. */}
+            {PRICES_SHOWN && <SpendCard workflowId={workflowId} />}
 
             {/* Who takes over a call and when (escalation_v2): numbers, hours,
                 always-to-a-person topics and tries, on the agent's own page

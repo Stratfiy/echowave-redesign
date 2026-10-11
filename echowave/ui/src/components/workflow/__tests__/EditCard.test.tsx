@@ -196,3 +196,105 @@ describe('the card', () => {
         expect((await screen.findByRole('alert')).textContent).toContain('Already settled');
     });
 });
+
+describe('editing before publishing', () => {
+    const changes = [{ node_id: '1', field: 'prompt', old: 'Ask for a date.', new: "Ask for the patient's name, then a date." }];
+    const withChanges = (extra: Record<string, unknown> = {}) =>
+        event({ payload: { step: 'Find a slot', why: 'Name first', diff: DIFF, changes, ...extra } });
+
+    it('offers Edit, which opens the proposed text to change', () => {
+        render(<EditCard event={withChanges()} />);
+        expect(screen.queryByTestId('edit-fields')).toBeNull();
+        fireEvent.click(screen.getByRole('button', { name: /Edit/ }));
+        const box = screen.getByLabelText('Find a slot · instructions') as HTMLTextAreaElement;
+        expect(box.value).toBe("Ask for the patient's name, then a date.");
+        expect(screen.getByRole('button', { name: 'Publish edited' })).toBeTruthy();
+        expect(screen.queryByRole('button', { name: 'Publish' })).toBeNull();
+    });
+
+    it('publishes the changed text, and only what was changed', async () => {
+        settle.mockResolvedValue({ data: event() });
+        render(<EditCard event={withChanges()} />);
+        fireEvent.click(screen.getByRole('button', { name: /Edit/ }));
+        fireEvent.change(screen.getByLabelText('Find a slot · instructions'), {
+            target: { value: 'Ask for their name, then a date.' },
+        });
+        fireEvent.click(screen.getByRole('button', { name: 'Publish edited' }));
+        await waitFor(() =>
+            expect(settle).toHaveBeenCalledWith({
+                body: {
+                    event_id: 9,
+                    action: 'publish',
+                    edits: [{ node_id: '1', field: 'prompt', new: 'Ask for their name, then a date.' }],
+                },
+            }),
+        );
+    });
+
+    it('publishing edited text that was not changed sends no edits', async () => {
+        settle.mockResolvedValue({ data: event() });
+        render(<EditCard event={withChanges()} />);
+        fireEvent.click(screen.getByRole('button', { name: /Edit/ }));
+        fireEvent.click(screen.getByRole('button', { name: 'Publish edited' }));
+        await waitFor(() => expect(settle).toHaveBeenCalledWith({ body: { event_id: 9, action: 'publish' } }));
+    });
+
+    it('a refusal keeps the card open with what was typed', async () => {
+        settle.mockResolvedValue({ error: { detail: 'This change cannot go live yet: x' } });
+        render(<EditCard event={withChanges()} />);
+        fireEvent.click(screen.getByRole('button', { name: /Edit/ }));
+        fireEvent.change(screen.getByLabelText('Find a slot · instructions'), { target: { value: 'Mine' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Publish edited' }));
+        expect((await screen.findByRole('alert')).textContent).toContain('cannot go live yet');
+        expect((screen.getByLabelText('Find a slot · instructions') as HTMLTextAreaElement).value).toBe('Mine');
+    });
+
+    it('Cancel edit goes back to the plain card', () => {
+        render(<EditCard event={withChanges()} />);
+        fireEvent.click(screen.getByRole('button', { name: /Edit/ }));
+        fireEvent.click(screen.getByRole('button', { name: 'Cancel edit' }));
+        expect(screen.getByRole('button', { name: 'Publish' })).toBeTruthy();
+    });
+
+    it('a greeting is edited on its own field', () => {
+        render(
+            <EditCard
+                event={event({
+                    payload: {
+                        step: 'Start',
+                        diff: '',
+                        greetings: [{ step: 'Start', node_id: 's', old: 'Namaste.', new: 'Namaste, Sharma Dental.' }],
+                        changes: [{ node_id: 's', field: 'greeting', old: 'Namaste.', new: 'Namaste, Sharma Dental.' }],
+                    },
+                })}
+            />,
+        );
+        fireEvent.click(screen.getByRole('button', { name: /Edit/ }));
+        expect(screen.getByLabelText('Start · greeting')).toBeTruthy();
+    });
+
+    it('a card with no recorded changes, or only a setting, cannot be edited', () => {
+        const { unmount } = render(<EditCard event={event()} />);
+        expect(screen.queryByRole('button', { name: /Edit/ })).toBeNull();
+        unmount();
+        render(
+            <EditCard
+                event={event({
+                    id: 10,
+                    payload: { step: 'Escalation', diff: '', changes: [{ config: 'escalation_policy', old: '{}', new: '{"a":1}' }] },
+                })}
+            />,
+        );
+        expect(screen.queryByRole('button', { name: /Edit/ })).toBeNull();
+    });
+
+    it('a settled edited card says it was edited, and offers nothing to press', () => {
+        render(
+            <EditCard
+                event={withChanges({ original: { new: 'x' }, decided: { action: 'publish', at: '2026-09-14T06:01:00Z' } })}
+            />,
+        );
+        expect(screen.getByText(/Published, as edited/)).toBeTruthy();
+        expect(screen.queryByRole('button', { name: /Edit/ })).toBeNull();
+    });
+});

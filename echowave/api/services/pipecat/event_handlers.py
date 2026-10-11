@@ -5,6 +5,7 @@ from loguru import logger
 
 from api.db import db_client
 from api.enums import PostHogEvent, WorkflowRunState
+from api.services.billing import cache_metrics
 from api.services.billing.turn_metrics import record_turn_metrics
 from api.services.campaign.circuit_breaker import circuit_breaker
 from api.services.integrations import IntegrationRuntimeSession
@@ -553,6 +554,11 @@ def register_event_handlers(
         # call its recording, transcript or usage.
         await record_turn_metrics(
             workflow_run_id, pipeline_metrics_aggregator.get_turn_metrics()
+        )
+        # Each model call of the run and the prompt it sent, for the cache
+        # measurement. Best-effort, like the turn metrics above.
+        await cache_metrics.record_run(
+            pipeline_metrics_aggregator.take_llm_calls(), workflow_run_id
         )
 
         logger.debug(

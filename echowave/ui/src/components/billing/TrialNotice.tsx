@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { client } from "@/client/client.gen";
 import { useAuth } from "@/lib/auth";
 import { useFeature } from "@/lib/features";
+import { PRICES_SHOWN } from "@/lib/pricing";
 
 /**
  * Where the account stands on its trial (PLAN-1, KAN-255): the end date
@@ -40,13 +41,25 @@ export function TrialLine({ trial }: { trial: TrialState | null | undefined }) {
         data-testid="trial-ended"
       >
         <p className="font-medium">Your trial ended on {formatDay(trial.ends_at)}.</p>
-        <p className="mt-1 text-muted-foreground">
-          Your agents, threads and reports are all still here. Choose a plan to
-          switch them back on.{" "}
-          <Link href="/billing" className="font-medium underline underline-offset-4">
-            See plans
-          </Link>
-        </p>
+        {/* No plan or price is shown to users (lib/pricing.ts): what
+            happened and where to get help, no plan picker. */}
+        {PRICES_SHOWN ? (
+          <p className="mt-1 text-muted-foreground">
+            Your agents, threads and reports are all still here. Choose a plan to
+            switch them back on.{" "}
+            <Link href="/billing" className="font-medium underline underline-offset-4">
+              See plans
+            </Link>
+          </p>
+        ) : (
+          <p className="mt-1 text-muted-foreground">
+            Your agents, threads and reports are all still here. Calls, messages
+            and routines are paused for now.{" "}
+            <Link href="/help" className="font-medium underline underline-offset-4">
+              Get help
+            </Link>
+          </p>
+        )}
       </div>
     );
   }
@@ -58,9 +71,11 @@ export function TrialLine({ trial }: { trial: TrialState | null | undefined }) {
         {" "}· ends {formatDay(trial.ends_at)} · {days === 1 ? "1 day" : `${days} days`} left.
         Everything is on, including a phone number.{" "}
       </span>
-      <Link href="/billing" className="font-medium underline underline-offset-4">
-        Plans
-      </Link>
+      {PRICES_SHOWN && (
+        <Link href="/billing" className="font-medium underline underline-offset-4">
+          Plans
+        </Link>
+      )}
     </div>
   );
 }

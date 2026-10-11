@@ -315,20 +315,27 @@ def instructions_in(definition: Any) -> str:
     return "\n\n".join(parts)
 
 
-async def screen(session: AsyncSession, *, instructions: str) -> list[Finding]:
+async def screen(
+    session: AsyncSession, *, instructions: str, organization_id: int | None = None
+) -> list[Finding]:
     """What these instructions breach, or an empty list.
 
     Never raises. Every failure path -- no key installed, the vendor refusing,
     a reply that does not parse -- returns no findings, because a save that
     fails on a compliance check nobody asked for is worse than an unscreened
     bot, and an unscreened bot is where every bot was until now.
+
+    ``organization_id`` is whose bot is being screened, so the model call is
+    recorded against them rather than against nobody.
     """
     text = (instructions or "").strip()
     if not text:
         return []
 
     try:
-        model = await settings.resolve_model(session)
+        model = await settings.resolve_choice(
+            session, settings.cheap_choice(organization_id)
+        )
     except settings.BuilderUnavailable as exc:
         # Ordinary on a deployment with no platform LLM key. Debug, not a
         # warning: it would otherwise fire on every save, forever.
@@ -339,7 +346,9 @@ async def screen(session: AsyncSession, *, instructions: str) -> list[Finding]:
     conversation.add_user(_prompt_for(text))
 
     try:
-        with model_usage.labelled("acceptable_use"):
+        with model_usage.scope(
+            organization_id=organization_id, feature="acceptable_use"
+        ):
             reply = await complete(
                 provider=model.provider,
                 model=model.model,

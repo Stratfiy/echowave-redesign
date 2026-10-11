@@ -75,6 +75,7 @@ import {
 import { type DesktopBridge, desktopBridge, toFiles } from '@/lib/desktop';
 import { useFeature } from '@/lib/features';
 import { hasIndicScript } from '@/lib/indic';
+import { PRICES_SHOWN } from '@/lib/pricing';
 import { useEntryPoint } from '@/lib/shell/chatEntryPoints';
 import { blockLabel, composeMessage,type ComposerBlock } from '@/lib/shell/composerBlocks';
 import { clearDraft, draftKey, readDraft, useOnline, writeDraft } from '@/lib/shell/drafts';
@@ -320,7 +321,8 @@ export function ChannelComposer({
     // rule; the API sends the figures only then too.
     const chargeRule = useFeature('charge_rule');
     const [costs, setCosts] = useState<Record<string, number>>({});
-    const costOf = (slug: string) => (chargeRule ? replyCostLabel(costs[slug]) : null);
+    // No pricing is shown to users (lib/pricing.ts).
+    const costOf = (slug: string) => (PRICES_SHOWN && chargeRule ? replyCostLabel(costs[slug]) : null);
     useEffect(() => {
         let cancelled = false;
         void (async () => {
@@ -1117,8 +1119,7 @@ export function ChannelComposer({
                             aria-label={`Memory: ${formatTokens(memory.used)} of ${formatTokens(memory.budget)} tokens`}
                             title={
                                 `This chat keeps the last ${formatTokens(memory.used)} tokens of ` +
-                                `${formatTokens(memory.budget)} in mind on the ${memory.plan} plan.` +
-                                (memory.raiseTo ? ` The ${memory.raiseTo} plan keeps more.` : '')
+                                `${formatTokens(memory.budget)} in mind.`
                             }
                             className="hidden shrink-0 items-center gap-1 text-[11px] tabular-nums text-muted-foreground sm:inline-flex"
                         >

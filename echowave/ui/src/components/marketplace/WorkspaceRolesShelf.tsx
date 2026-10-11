@@ -80,7 +80,7 @@ export function WorkspaceRolesShelf() {
         });
         setBusy(null);
         if (result.error) {
-            setError(detailFromResult(result, "Could not hire that role"));
+            setError(detailFromResult(result, "Could not add that role"));
             return;
         }
         const id = (result.data as { id?: number })?.id;
@@ -127,7 +127,7 @@ export function WorkspaceRolesShelf() {
             return;
         }
         setError(null);
-        toast.success(`Copied to ${name}. Switch to that workspace to hire it.`);
+        toast.success(`Copied to ${name}. Switch to that workspace to add it.`);
     };
 
     const remove = async (role: WorkspaceRole) => {
@@ -160,7 +160,7 @@ export function WorkspaceRolesShelf() {
             )}
             {roles.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
-                    Tuned an agent the way you like it? Save it from its ⋮ menu as one of your roles, and hire it
+                    Tuned an agent the way you like it? Save it from its ⋮ menu as one of your roles, and add it
                     again from here without answering anything twice.
                 </p>
             ) : (
@@ -183,7 +183,7 @@ export function WorkspaceRolesShelf() {
                                 </p>
                                 {role.needs.length > 0 && (
                                     <div className="rounded-md bg-muted/50 p-2 text-xs">
-                                        <p className="font-medium">To connect after hiring</p>
+                                        <p className="font-medium">To connect after adding</p>
                                         <ul className="list-disc pl-4 text-muted-foreground">
                                             {describeNeeds(role.needs).map((line) => (
                                                 <li key={line}>{line}</li>
@@ -211,7 +211,7 @@ export function WorkspaceRolesShelf() {
                                         ) : (
                                             <UserPlus className="mr-1 h-3 w-3" />
                                         )}
-                                        Hire
+                                        Add
                                     </Button>
                                     <Button size="sm" variant="outline" onClick={() => void share(role)}>
                                         <Link2 className="mr-1 h-3 w-3" />

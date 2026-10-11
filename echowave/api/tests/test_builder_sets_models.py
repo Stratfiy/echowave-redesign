@@ -51,21 +51,35 @@ class TestTheToolsExist:
 
 class TestWhatTheChatIsGiven:
     @pytest.mark.asyncio
-    async def test_every_brain_comes_back_with_a_label_and_a_price(self):
-        with patch.object(
-            agent_options, "price_per_minute", AsyncMock(return_value=250)
-        ):
+    async def test_every_brain_comes_back_with_a_label_and_no_price(self):
+        # No pricing is shown to users (constants.PRICES_SHOWN, founder,
+        # 9 Oct 2026), and the model reads this list aloud.
+        price = AsyncMock(return_value=250)
+        with patch.object(agent_options, "price_per_minute", price):
             result = await builder_tools._list_voice_and_brain(None, organization_id=42)
         assert result["brains"]
         for brain in result["brains"]:
             assert brain["label"]
             assert brain["what_it_is_for"]
+            assert "rupees_per_minute" not in brain
+        price.assert_not_awaited()
+        assert "price" not in result["note"]
+
+    @pytest.mark.asyncio
+    async def test_with_prices_shown_every_brain_carries_its_price(self, monkeypatch):
+        monkeypatch.setattr(builder_tools.constants, "PRICES_SHOWN", True)
+        with patch.object(
+            agent_options, "price_per_minute", AsyncMock(return_value=250)
+        ):
+            result = await builder_tools._list_voice_and_brain(None, organization_id=42)
+        for brain in result["brains"]:
             assert brain["rupees_per_minute"] == 2.5
 
     @pytest.mark.asyncio
-    async def test_an_unpriceable_tier_says_none_rather_than_zero(self):
+    async def test_an_unpriceable_tier_says_none_rather_than_zero(self, monkeypatch):
         # "We cannot price this yet" and "this is free" read the same in a
         # number and differently in a sentence.
+        monkeypatch.setattr(builder_tools.constants, "PRICES_SHOWN", True)
         with patch.object(
             agent_options, "price_per_minute", AsyncMock(return_value=None)
         ):

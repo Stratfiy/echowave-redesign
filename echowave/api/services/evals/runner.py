@@ -24,10 +24,12 @@ from pipecat.utils.run_context import set_current_run_id
 from api.db import db_client
 from api.db.models import EvalCaseModel, EvalResultModel
 from api.enums import WorkflowRunMode
+from api.services.billing import model_usage
 from api.services.evals import judge as judging
 from api.services.gen_ai.json_parser import parse_llm_json
 from api.services.pipecat.service_factory import create_llm_service_from_provider
 from api.services.quota_service import authorize_workflow_run_start
+from api.services.training_loop import hooks as training_hooks
 from api.services.workflow.qa.llm_config import resolve_user_llm_config
 from api.services.workflow.text_chat_runner import default_text_chat_checkpoint
 from api.services.workflow.text_chat_session_service import (
@@ -57,10 +59,22 @@ async def _llm_for(run):
     return create_llm_service_from_provider(provider, model, api_key, **kwargs)
 
 
-async def _say(llm, system: str, messages: list[dict]) -> str:
+async def _say(
+    llm,
+    system: str,
+    messages: list[dict],
+    *,
+    organization_id: int | None,
+    feature: str,
+) -> str:
     context = LLMContext()
     context.set_messages(messages)
     text = await llm.run_inference(context, system_instruction=system)
+    # The simulated caller and the judge run on the platform key outside the
+    # agent's own run, so the run's receipt never counts them.
+    await model_usage.record_inference(
+        llm, organization_id=organization_id, feature=feature
+    )
     return (text or "").strip()
 
 
@@ -92,6 +106,9 @@ async def _finish(
         await session.commit()
         origin = row.origin
         finished = row
+    # A failed case is something an agent can be improved on. After the
+    # commit, like the post below; it never raises.
+    await training_hooks.eval_finished(result_id)
     if origin:
         # A check asked for on Decibyl's thread gets its verdict back there
         # (KAN-140 P1). After the commit, so the row is the record either way.
@@ -183,7 +200,13 @@ async def run_case(result_id: int) -> None:
                 }
                 for t in transcript
             ] or [{"role": "user", "content": "(the line connects)"}]
-            line = await _say(llm, system, history)
+            line = await _say(
+                llm,
+                system,
+                history,
+                organization_id=organization_id,
+                feature="eval_caller",
+            )
             if not line or END in line:
                 break
             transcript.append({"role": "caller", "text": line})
@@ -217,6 +240,8 @@ async def run_case(result_id: int) -> None:
                 llm,
                 judging.judge_prompt(persona=case.persona, goal=case.goal),
                 [{"role": "user", "content": f"## Transcript\n{rendered}"}],
+                organization_id=organization_id,
+                feature="eval_judge",
             )
             try:
                 verdict = judging.parse_judgement(parse_llm_json(raw))

@@ -183,6 +183,12 @@ FLAGS: dict[str, str] = {
     "call_when_done": "CALL_WHEN_DONE_ENABLED",
     # Escalation rules, handoff card and the no-answer ladder on calls.
     "escalation_v2": "ESCALATION_V2_ENABLED",
+    # Prompt-cache prefix fixes, measured before they are on anywhere.
+    "cache_v2": "CACHE_V2_ENABLED",
+    # Token cuts, one lever each (docs/plans/caching-and-compression.md).
+    "lean_tools": "LEAN_TOOLS_ENABLED",
+    "cheap_routing": "CHEAP_ROUTING_ENABLED",
+    "history_cap": "HISTORY_CAP_ENABLED",
     # The huddle: talk to an agent as a teammate, in its thread
     # (services/huddle/).
     "huddle": "HUDDLE_ENABLED",
@@ -197,6 +203,16 @@ FLAGS: dict[str, str] = {
     "deepfilternet_filter": "DEEPFILTERNET_FILTER_ENABLED",
     # Listen in on a live call and whisper to the agent (services/live_supervision/).
     "live_supervision": "LIVE_SUPERVISION_ENABLED",
+    # What owners do with an agent's suggestions, kept per workspace as training data (services/training_loop/).
+    "training_loop": "TRAINING_LOOP_ENABLED",
+    # Run the next-best model on a small sample of safe calls, for the router to learn from (services/routing/explore.py).
+    "routing_explore": "ROUTING_EXPLORE_ENABLED",
+    # Personal adaptation: preferences kept per person and applied, and the
+    # context control above the composer (services/personal/).
+    "evolve_personal": "EVOLVE_PERSONAL_ENABLED",
+    # Skills that learn from corrections, evaluated and approved first
+    # (services/evolve/).
+    "evolve_skills": "EVOLVE_SKILLS_ENABLED",
     # Posters and ad creatives (services/images/).
     "image_generation": "IMAGE_GENERATION_ENABLED",
     # Learn a website: a site's pages kept as company knowledge
@@ -326,9 +342,17 @@ DESCRIPTIONS: dict[str, str] = {
     "caller_voice_lock": "Only the caller can interrupt a phone agent: speech that does not match the caller's voice, learnt in their first seconds, no longer stops the agent.",
     "deepfilternet_filter": "DeepFilterNet3 instead of RNNoise as the noise filter on calls with noise suppression on.",
     "live_supervision": "Live calls: listen in on a customer call (transcript and audio) and whisper instructions the caller never hears.",
+    "training_loop": "Training loop, step 1: records what each agent suggested and what its owner did with it (approved, rejected, edited, undone, thumbs), per workspace and redacted, for later fine-tuning. Records only; applies nothing.",
+    "routing_explore": "Routing data: on about 1% of classifier and extraction calls that send nothing and face no customer, also run the next-best model in the background and keep its answer and cost for training the router. Never shown to anyone; counted against the weekly learning cap. Needs training_loop.",
+    "evolve_personal": "Personal adaptation: a preference a person states (language for calls or email, when to call, how often to report) is kept in their own private store with where it came from, applied to their turns and to calls and reminders that reach them, listed on request with Correct and Forget, and the chat shows what each conversation uses with a way to leave a source out.",
+    "evolve_skills": "Skills that get better at your work: lessons from corrections and outcomes, tested on held-out and unrelated cases, offered on a card and published only by a person, with rollback; the Skills tab on Agents.",
     "image_generation": "Posters and ad creatives: images from Chat and two agents, on Gemini, OpenAI or Bedrock, chosen on a card in the thread.",
     "learn_website": "Learn a website: Decibyl reads a site's key pages (contact, hours, prices, services, FAQ) into one file in Files; kept for the agents, every agent answers from it.",
     "escalation_v2": "Escalation on calls decided in code from the agent's policy: a handoff card with Accept, Decline and Hand back to AI, spoken hold updates and a no-answer ladder.",
+    "cache_v2": "Prompt caching v2: the clock line after an agent's fixed instructions rather than first, cache breakpoints after the tool schemas, on the thread so far and at the end of the conversation on Claude, and Decibyl's per-person rules after its shared system prompt. Off, prompts are unchanged.",
+    "lean_tools": "Lean tools: a quick Decibyl turn is offered a core set of tools plus those the thread used or the message points at, and a 'more tools' call loads the rest. Off, every turn is offered every tool.",
+    "cheap_routing": "Cheap routing: the smallest model for classifiers and extractors, and Auto's steps / deep word rules tightened so ordinary words do not escalate a message. Off, models and rules are unchanged.",
+    "history_cap": "History cap: Decibyl sends the recent thread whole, older turns as a short digest, and the opening of an attached file with a pointer to the rest. Off, the whole plan window and file are sent.",
 }
 
 

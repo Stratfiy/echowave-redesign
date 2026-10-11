@@ -30,6 +30,7 @@ from typing import Any, Optional
 from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from api import constants
 from api.db import db_client
 from api.schemas.tool import CreateToolRequest
 from api.services.agent_builder.assemble import (
@@ -122,21 +123,9 @@ async def _suggest_roles(
                     for connector in role.required_connectors
                     if connector.required
                 ],
-                # No per-role price. Hiring is included in the plan, which
-                # is a fixed platform charge -- so what the model must say is
-                # what RUNNING it draws on, and whether their plan allows it.
-                #
-                # This used to quote "Rs6,999 a month", a figure nothing in
-                # billing ever charged. Telling a clinic a number we do not
-                # bill is worse than telling them nothing.
-                "costs": (
-                    "Included in your plan. It uses credit by the minute "
-                    "while it is on a call -- call estimate_agent_cost for "
-                    "the per-minute figure on their own voice."
-                    if charging(role)["needs_voice"]
-                    else "Included in your plan. It uses a little credit each "
-                    "time it runs."
-                ),
+                # No cost line at all: no pricing is shown to users
+                # (constants.PRICES_SHOWN), and the model reads this aloud.
+                # It once quoted "Rs6,999 a month", a figure nothing billed.
                 "needs_voice_on_their_plan": charging(role)["needs_voice"],
                 "demo_number": role.demo_number,
                 "template_id": role.template_id,
@@ -149,7 +138,7 @@ async def _suggest_roles(
         # in a word.
         "assumed_about_this_business": pack_industry.sentence(known),
         "note": (
-            "Show these to the user with the price and what each needs "
+            "Show these to the user with what each needs "
             "connected. Offer the demo number so they can interview it before "
             "hiring. Build something custom only if they say none fit.\n\n"
             "If `assumed_about_this_business` is set, say it in one short "
@@ -160,13 +149,27 @@ async def _suggest_roles(
     }
 
 
+#: Tools whose whole answer is a price. Not offered to the model while no
+#: pricing is shown to users (constants.PRICES_SHOWN).
+PRICED_TOOLS = frozenset({"estimate_agent_cost"})
+
+
 def tool_schemas() -> list[dict[str, Any]]:
     """The catalogue, in OpenAI's function shape.
 
     That shape is the one all three vendors can be derived from without loss,
     so it is the form the adapters in `client.py` translate *from* rather than
-    a fourth dialect to keep in sync.
+    a fourth dialect to keep in sync. A priced tool is left out while no
+    pricing is shown to users.
     """
+    return [
+        schema
+        for schema in _all_tool_schemas()
+        if constants.PRICES_SHOWN or schema["name"] not in PRICED_TOOLS
+    ]
+
+
+def _all_tool_schemas() -> list[dict[str, Any]]:
     return [
         {
             "name": "suggest_roles",
@@ -177,7 +180,7 @@ def tool_schemas() -> list[dict[str, Any]]:
                 "listed role has a measured outcome rate across every "
                 "business that hired it; an agent you build from scratch has "
                 "none, so offering the proven one first is better for the "
-                "user. Show the user the roles it returns, with the price and "
+                "user. Show the user the roles it returns, with "
                 "what each one needs connected, and let them pick. Only build "
                 "something custom if they say none of them fit."
             ),
@@ -291,14 +294,12 @@ def tool_schemas() -> list[dict[str, Any]]:
         {
             "name": "list_voice_and_brain",
             "description": (
-                "The voices and the brain tiers on offer, each with what it "
-                "costs a minute. Call this before asking the user how the "
-                "agent should sound or how sharp it should be.\n\n"
+                "The voices and the brain tiers on offer. Call this before "
+                "asking the user how the agent should sound or how sharp it "
+                "should be.\n\n"
                 "Ask in these words. A voice by its name and gender, and a "
-                "brain as Lite, Normal or Smart with the price a minute -- "
-                "never a vendor or a model name. Quote the price without "
-                "being asked: knowing what a call costs before making one is "
-                "something no other platform offers."
+                "brain as Lite, Normal or Smart -- never a vendor or a model "
+                "name."
             ),
             "parameters": {"type": "object", "properties": {}},
         },
@@ -656,6 +657,8 @@ async def dispatch(
         if name == "get_agent_template":
             return _get_template(arguments.get("template_id", ""))
         if name == "estimate_agent_cost":
+            if not constants.PRICES_SHOWN:
+                return {"error": "estimate_agent_cost is not available."}
             return await _estimate(
                 session,
                 organization_id=organization_id,
@@ -1322,22 +1325,24 @@ async def _list_voice_and_brain(
     """
     priced: list[dict[str, Any]] = []
     for brain in agent_options.brains():
-        paise = await agent_options.price_per_minute(
-            session, organization_id=organization_id, brain=brain.tier
-        )
-        priced.append(
-            {
-                "brain": brain.tier,
-                "label": brain.label,
-                "what_it_is_for": brain.blurb,
-                # None rather than zero when a component has no rate on file:
-                # "we cannot price this yet" and "this is free" read the same
-                # in a number and differently in a sentence.
-                "rupees_per_minute": (
-                    round(paise / 100, 2) if paise is not None else None
-                ),
-            }
-        )
+        entry: dict[str, Any] = {
+            "brain": brain.tier,
+            "label": brain.label,
+            "what_it_is_for": brain.blurb,
+        }
+        # No pricing is shown to users (constants.PRICES_SHOWN), and the
+        # model reads this aloud: the tiers, without a figure.
+        if constants.PRICES_SHOWN:
+            paise = await agent_options.price_per_minute(
+                session, organization_id=organization_id, brain=brain.tier
+            )
+            # None rather than zero when a component has no rate on file:
+            # "we cannot price this yet" and "this is free" read the same
+            # in a number and differently in a sentence.
+            entry["rupees_per_minute"] = (
+                round(paise / 100, 2) if paise is not None else None
+            )
+        priced.append(entry)
 
     return {
         "brains": priced,
@@ -1350,10 +1355,7 @@ async def _list_voice_and_brain(
             }
             for voice in agent_options.voices()
         ],
-        "note": (
-            "Every managed voice costs the same, so only the brain changes the "
-            "price. Ask which voice by name and gender, never by vendor."
-        ),
+        "note": "Ask which voice by name and gender, never by vendor.",
     }
 
 

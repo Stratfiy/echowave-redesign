@@ -38,8 +38,8 @@ from loguru import logger
 
 from api.db import db_client
 from api.enums import AgentEventActor, AgentEventKind
-from api.services import acting, features, prompt_budget, reporting_window
-from api.services.billing import model_usage
+from api.services import acting, features, personal, prompt_budget, reporting_window
+from api.services.billing import cache_metrics, model_usage
 from api.services.browser import tool as browser_tool
 from api.services.care import tools as care_tools
 from api.services.documents import tools as procurement
@@ -49,6 +49,9 @@ from api.services.knowledge_graph import personal as personal_memory
 from api.services.knowledge_graph import quiet, recall, teach
 from api.services.organization_preferences import get_organization_preferences
 from api.services.people import tools as people_tools
+from api.services.personal import cards as personal_cards
+from api.services.personal import context_control
+from api.services.personal import preferences as personal_preferences
 from api.services.skills import imports as skill_imports
 from api.services.workflow import (
     actions,
@@ -64,6 +67,8 @@ from api.services.workflow import (
     draft_requests,
     files_search,
     filing,
+    history_cap,
+    lean_tools,
     office,
     organisation_learning,
     prospects,
@@ -142,9 +147,11 @@ RECENT_EVENTS = 40
 KNOWLEDGE_CHUNKS = 4
 
 SYSTEM = (
-    "You are Decibyl, the assistant inside a business's Decibyl workspace. "
-    "The business runs agents (voice and chat agents) that take calls, confirm "
-    "orders, chase payments and answer staff. You know the team's numbers, "
+    "You are Decibyl, an intelligent agent that grows and evolves with the "
+    "person you work for: one assistant for their life and work, inside "
+    "their Decibyl workspace. The workspace can run agents (voice and chat "
+    "agents) that take calls, confirm orders, chase payments and answer "
+    "staff. You know the team's numbers, "
     "the company's documents, what the business has confirmed about itself, "
     "and what the agents did lately. All of it is in the context below.\n\n"
     "Rules:\n"
@@ -241,7 +248,7 @@ SYSTEM = (
     "skipped and why, then end your reply.\n"
     "- run_script: a short Python script in the sandbox for a job over many "
     "rows or many records, with the connected apps reachable by name inside "
-    "it. Four credits a run; offered only on plans that have it.\n"
+    "it.\n"
     "- An identifier -- an id, a uuid, a page, a thread, an account -- is "
     "not something to infer. A true one comes from the context, from this "
     "thread, or from a read you just ran. Never carry one over from another "
@@ -337,11 +344,26 @@ def system_prompt(organization_id: int | None = None) -> str:
     The procurement rules are said only while those tools are offered: a
     rule for a tool the model is not holding is a tool it will describe and
     cannot call (``test_decibyl_knows_what_it_has``)."""
+    before, profile, after = _system_pieces(organization_id)
+    return before + profile + after
+
+
+def system_split(organization_id: int | None = None) -> tuple[str, str]:
+    """The same prompt in two parts, for ``cache_v2``: what every account
+    shares, and what is per person. The person's own settings used to sit in
+    the middle, so one person changing a setting changed the bytes of
+    everything after it; here they come last, and the text is the same
+    words in a different order."""
+    before, profile, after = _system_pieces(organization_id)
+    return before + after, profile
+
+
+def _system_pieces(organization_id: int | None) -> tuple[str, str, str]:
     from api.services.helpers import tools as helper_tools
     from api.services.settings import profile as settings_profile
     from api.services.voice import call_for_me
 
-    return (
+    before = (
         SYSTEM
         + (procurement.RULES if procurement.enabled() else "")
         + (tables.RULES if tables.enabled(organization_id) else "")
@@ -351,14 +373,28 @@ def system_prompt(organization_id: int | None = None) -> str:
         + people_tools.rules(organization_id)
         + image_tools.rules(organization_id)
         + _reach().rules(organization_id)
-        # The person's own choices for this turn (settings stream); "" when
-        # none were set or the switches are off.
-        + settings_profile.turn_block()
+    )
+    # The person's own choices for this turn (settings stream), then their own
+    # kept preferences (services/personal), after the settings so a later
+    # stated preference is the last word; "" when none were set, the switches
+    # are off, nobody is signed in, or Personal is left out.
+    profile = settings_profile.turn_block() + personal_preferences.turn_block()
+    after = (
+        (personal_preferences.RULES if personal.enabled(organization_id) else "")
         + (call_for_me.RULES if call_for_me.enabled(organization_id) else "")
         + (_done_calls().RULES if _done_calls_on(organization_id) else "")
         + (_outreach().RULES if _outreach().enabled(organization_id) else "")
         + (_booking().RULES if _booking().enabled(organization_id) else "")
+        + _evolve().rules(organization_id)
     )
+    return before, profile, after
+
+
+def _evolve():
+    """Skills by chat: use, add to an agent, remember, correct (services/evolve)."""
+    from api.services.evolve import chat_tools
+
+    return chat_tools
 
 
 def _booking():
@@ -410,6 +446,14 @@ def thread_filter(organization_id: int | None = None) -> dict[str, Any]:
             # nobody ever sees.
             AgentEventKind.IMAGE_PROVIDER_OFFERED.value,
             AgentEventKind.IMAGES_MADE.value,
+            # The person's own memory cards (services/personal): what is kept
+            # about them, a preference just saved, one offered. Listed always,
+            # like the cards above; each row is private to its person.
+            AgentEventKind.PERSONAL_MEMORY.value,
+            # Evolving skills: the learning card, a remembered draft, an
+            # add-to-agent card. Listed always, like the cards above: only
+            # written while ``evolve_skills`` is on.
+            AgentEventKind.SKILL_LESSON.value,
             # Stream `reach`: the connect chip and the comparison table.
             *(
                 (
@@ -474,7 +518,7 @@ async def ask(
     asked = [m.workflow_id for m in handed_to]
     subjects = [m.workflow_id for m in who.subjects]
 
-    await agent_timeline.record(
+    line_id = await agent_timeline.record(
         organization_id=organization_id,
         kind=AgentEventKind.MESSAGE.value,
         actor=AgentEventActor.HUMAN.value,
@@ -502,6 +546,23 @@ async def ask(
         organization_id=organization_id, user_id=user_id, thread_id=thread_id
     ):
         return []
+
+    # The person's own preferences (services/personal): "what do you know
+    # about me" is answered with the card and no model; a preference said
+    # outright ("Tamil for calls") is saved now and shown on a card, and the
+    # turn goes on to the model, which reads it from the store. No-op while
+    # ``evolve_personal`` is off.
+    if not handed_to and personal.enabled(organization_id):
+        from api.services.personal import listen
+
+        if await listen.on_line(
+            organization_id=organization_id,
+            user_id=user_id,
+            thread_id=thread_id,
+            text=text,
+            line_id=line_id,
+        ):
+            return []
 
     # "Call me when it's done", said on its own (or the chip's own words):
     # answered here, with no model, so the ask cannot be misread. A longer
@@ -816,7 +877,18 @@ async def build_context(organization_id: int, question: str) -> str:
     # are different spans and reporting the second under the name of the first
     # is what had this function answer "7 calls today" and, minutes later,
     # "15 calls today" -- the window had slid, nothing else had happened.
-    if "week" in question.lower():
+    # "Weekly numbers, not daily" (services/personal): the person's own
+    # cadence decides the span when the question does not name one.
+    asker_id = acting.valid_member(acting.acting_user())
+    cadence = (
+        None
+        if context_control.is_excluded(context_control.PERSONAL)
+        else await personal_preferences.cadence(asker_id, organization_id)
+    )
+    weekly = "week" in question.lower() or (
+        cadence == "weekly" and "today" not in question.lower()
+    )
+    if weekly:
         window = reporting_window.last_days(7)
     else:
         try:
@@ -829,7 +901,7 @@ async def build_context(organization_id: int, question: str) -> str:
 
     # Kept for the callers below that still think in hours; the window is what
     # the counts are actually taken over.
-    hours = 168 if "week" in question.lower() else 24
+    hours = 168 if weekly else 24
     try:
         members = [
             m.model_dump()
@@ -863,6 +935,10 @@ async def build_context(organization_id: int, question: str) -> str:
     except Exception as exc:  # noqa: BLE001
         logger.warning("Decibyl could not read memory: {}", exc)
         memory_rows = []
+    if context_control.is_excluded(context_control.WORKSPACE):
+        # Left out of this conversation: the workspace's facts go, the
+        # person's own (if Personal is still in) stay.
+        memory_rows = [r for r in memory_rows if getattr(r, "user_id", None)]
 
     try:
         recent = await db_client.agent_events(
@@ -890,7 +966,10 @@ async def build_context(organization_id: int, question: str) -> str:
         logger.warning("Decibyl could not read missed calls: {}", exc)
         missed = []
 
-    knowledge = await _knowledge(organization_id, question)
+    if context_control.is_excluded(context_control.KNOWLEDGE):
+        knowledge = {"status": "excluded", "chunks": []}
+    else:
+        knowledge = await _knowledge(organization_id, question)
     # Contacts are part of what the account knows, and were reachable only
     # from a ringing phone. Matched against the question, never dumped.
     #
@@ -916,8 +995,12 @@ async def build_context(organization_id: int, question: str) -> str:
     # The files themselves, not just whether a search of them matched: see
     # documents_block.
     try:
-        documents = await db_client.get_documents_for_organization(
-            organization_id, limit=50
+        documents = (
+            []
+            if context_control.is_excluded(context_control.KNOWLEDGE)
+            else await db_client.get_documents_for_organization(
+                organization_id, limit=50
+            )
         )
     except Exception as exc:  # noqa: BLE001 - a list is a nicety, not a dependency
         logger.warning("Decibyl could not list the documents: {}", exc)
@@ -930,7 +1013,12 @@ async def build_context(organization_id: int, question: str) -> str:
     door = await home_openers.door_answers(organization_id)
     # Which apps are connected, so the model knows what it can reach before
     # it tries. The listing never raises; an empty workspace reads as such.
-    apps = await connected_tools.list_for_organization(organization_id)
+    apps = [
+        a
+        for a in await connected_tools.list_for_organization(organization_id)
+        # An app left out of this conversation (the context control).
+        if context_control.keep_app(connected_tools.toolkit_of(a))
+    ]
     # Apps connected at the vendor whose tool rows have not been made yet.
     # Reading this here also queues them, so somebody who connects an app and
     # comes straight back to the chat gets them without opening any screen.
@@ -1207,12 +1295,27 @@ async def answer(
     person = await settings_profile.block_for_turn(
         organization_id, author_id, memory_off
     )
+    # What the person left out of this conversation (the context control),
+    # and their own kept preferences unless Personal is one of them. Both
+    # empty while ``evolve_personal`` is off.
+    left_out = await context_control.excluded_for(organization_id, author_id, thread_id)
+    kept = (
+        None
+        if context_control.PERSONAL in left_out
+        else await personal_preferences.block_for_turn(organization_id, author_id)
+    )
     with (
         agent_timeline.in_thread(thread_id),
         acting.acting_as(author_id),
         helper_turn.running_as(helper),
         memory_choice.paused(memory_off),
         settings_profile.for_turn(person),
+        context_control.for_turn(left_out),
+        personal_preferences.for_turn(kept),
+        # Every model call of the turn -- routing, tool rounds, retries --
+        # in one conversation for the prompt-cache measurement; the main
+        # thread has no id of its own, so it is named by its account.
+        cache_metrics.conversation(f"thread:{thread_id or f'main:{organization_id}'}"),
     ):
         return await _answer(
             organization_id,
@@ -1268,6 +1371,10 @@ async def _answer(
     # is not sent twice, and add it once with the context in front.
     if history and history[-1]["role"] == "user":
         history = history[:-1]
+    capped = _flag("history_cap", organization_id)
+    if capped:
+        # The recent thread whole, the older part of the window as a digest.
+        history, _ = history_cap.cap(history)
     for turn in history:
         if turn["role"] == "user":
             conversation.add_user(turn["content"])
@@ -1295,13 +1402,26 @@ async def _answer(
     )
     if helper_reading:
         context = f"{context}\n\n{helper_reading}"
-    attached = await attached_block(organization_id, attachments, last_try=last_try)
+    attached = (
+        ""
+        if context_control.is_excluded(context_control.FILES)
+        else await attached_block(
+            organization_id, attachments, last_try=last_try, capped=capped
+        )
+    )
     if attached:
         context = f"{context}\n\n{attached}"
+    if _flag("cache_v2", organization_id):
+        # The messages so far are earlier turns of the thread: the same on the
+        # next message, so the request marks the end of them for the cache.
+        conversation.stable_prefix = len(conversation.messages)
     conversation.add_user(f"{context}\n\n## Question\n{text}{handed}")
 
     #: The backup model's id when it answered any part of this turn.
     backup_model = ""
+    routed = None
+    lean = False
+    more_tools: dict[str, Any] = {"asked": False, "extras": set(), "full": False}
     failed = False
     stopped = False
     # A Stop meant for an earlier reply must not end this one.
@@ -1313,7 +1433,11 @@ async def _answer(
             from api.services.routing import brain
 
             routed = await brain.auto_route(
-                organization_id, text, attachments=len(attachments or [])
+                organization_id,
+                text,
+                attachments=len(attachments or []),
+                feature="decibyl",
+                ref=f"decibyl_thread:{thread_id or 'main'}",
             )
             if routed is not None:
                 preset = routed.preset
@@ -1325,7 +1449,40 @@ async def _answer(
         # Schemas the model has loaded this thread, by tool name. Starts
         # empty: every connected app is a name and a line until asked for.
         loaded: dict[str, dict[str, Any]] = {}
-        tools = await tools_for(organization_id, loaded)
+        lean = _flag("lean_tools", organization_id)
+        # A quick turn is offered a core set (lean_tools); the rest are one
+        # ``more_tools`` call away. What the thread used before stays offered.
+        carried = lean_tools.Carried()
+        quick_turn = False
+        if lean:
+            earlier = await _tools_carried(organization_id, thread_id)
+            # What the thread used could not be read: offer everything rather
+            # than guess which tools it needed.
+            if earlier is not None:
+                carried = earlier
+                quick_turn = await _is_quick(
+                    organization_id, text, routed, len(attachments or [])
+                )
+        #: What this turn's list was, for the reply row: the extras it was
+        #: offered, and whether it was offered everything.
+        more_tools.update(asked=False, extras=set(), full=False)
+
+        async def offered() -> list[dict[str, Any]]:
+            full = await tools_for(organization_id, loaded)
+            # A reply that went out with everything, minutes ago, keeps the
+            # list the same: changing it now would only re-write the cache.
+            if not (lean and quick_turn) or more_tools["asked"] or carried.warm_full:
+                more_tools["full"] = True
+                return full
+            used = carried.used | lean_tools.used_in(conversation.messages)
+            picked = lean_tools.select(
+                full, text=text, used=used, warm_extras=carried.warm_extras
+            )
+            more_tools["extras"].update(picked.extras)
+            more_tools["full"] = not picked.narrowed
+            return picked.tools
+
+        tools = await offered()
         reply = await _speak(model, conversation, organization_id, tools=tools)
         backup_model = reply.fallback_model
         # Up to MAX_TOOL_ROUNDS rounds, not one: a read of a connected app
@@ -1349,6 +1506,17 @@ async def _answer(
             reads_only = True
             asked_for_schema = False
             for call in reply.tool_calls:
+                if call.name == lean_tools.MORE_TOOLS:
+                    # The escape hatch: nothing is lost by a lean turn, the
+                    # rest of the tools arrive on the next round.
+                    more_tools["asked"] = True
+                    asked_for_schema = True
+                    result = {
+                        "status": "success",
+                        "note": "The other tools are loaded now. Carry on.",
+                    }
+                    conversation.add_tool_result(call, result)
+                    continue
                 if call.name == connected_tools.LOAD_TOOL_NAME:
                     result = await _load_tool(organization_id, call, loaded)
                     asked_for_schema = True
@@ -1365,7 +1533,7 @@ async def _answer(
                     reads_only = False
             if asked_for_schema:
                 # The tool it asked about is now offered with its arguments.
-                tools = await tools_for(organization_id, loaded)
+                tools = await offered()
             capped = reads_only and rounds >= MAX_TOOL_ROUNDS
             if capped and decibyl_tasks.enabled():
                 # Mid-plan at the cap, and the board can carry on (D-1a):
@@ -1484,6 +1652,7 @@ async def _answer(
             ),
             **({"backup_model": backup_model} if backup_model else {}),
             **outcome,
+            **_tools_payload(conversation, lean, more_tools),
         },
         in_channel=False,
     )
@@ -1636,8 +1805,12 @@ async def attached_block(
     attachments: list[dict[str, Any]] | None,
     *,
     last_try: bool = False,
+    capped: bool = False,
 ) -> str:
     """The text of the files on this line, as a context block, or empty.
+
+    ``capped`` is ``history_cap``: a smaller share of each file and of the
+    turn, and the size said where a file is clipped.
 
     A file dropped on the thread is filed and read by the knowledge-base
     pipeline; its text is usually there within seconds. A short wait covers
@@ -1648,7 +1821,8 @@ async def attached_block(
     if not attachments:
         return ""
     parts: list[str] = []
-    budget = ATTACHMENTS_CHARS
+    budget = history_cap.ATTACHMENTS_CHARS if capped else ATTACHMENTS_CHARS
+    per_file = history_cap.ATTACHMENT_CHARS if capped else ATTACHMENT_CHARS
     for attachment in attachments[:10]:
         uuid = str(attachment.get("document_uuid") or "")
         name = str(attachment.get("filename") or "file")
@@ -1684,8 +1858,13 @@ async def attached_block(
         if not text:
             parts.append(f"### {name}\n{_why_there_is_no_text(document, last_try)}")
             continue
-        take = min(ATTACHMENT_CHARS, budget)
-        clipped = text[:take] + (" …" if len(text) > take else "")
+        take = min(per_file, budget)
+        if capped:
+            clipped = text[:take] + (
+                history_cap.clipped_note(take, len(text)) if len(text) > take else ""
+            )
+        else:
+            clipped = text[:take] + (" …" if len(text) > take else "")
         budget -= len(clipped)
         parts.append(f"### {name}\n{clipped}")
         if budget <= 0:
@@ -1799,6 +1978,8 @@ def office_tools(organization_id: int | None = None) -> list[dict[str, Any]]:
             else ()
         ),
         *((_done_calls().tool_schema(),) if _done_calls_on(organization_id) else ()),
+        *(personal_cards.tool_schemas() if personal.enabled(organization_id) else ()),
+        *_evolve().schemas(organization_id),
     ]
 
 
@@ -1841,6 +2022,13 @@ async def tools_for(
     loads it, and ``loaded`` carries the schemas this thread has asked for
     so far, so a loaded tool is offered in full on every later round."""
     connected = await connected_tools.list_for_organization(organization_id)
+    if context_control.excluded_apps():
+        # An app left out of this conversation is out of its tools too.
+        connected = [
+            t
+            for t in connected
+            if context_control.keep_app(connected_tools.toolkit_of(t))
+        ]
     own = office_tools(organization_id)
     if web_tools.enabled():
         from api.services.sandbox import code_mode
@@ -1911,6 +2099,10 @@ def _was_a_read(call: Any, result: Any) -> bool:
     if name in people_tools.NAMES:
         # A lookup is answered in the turn; the model may still draft or call.
         return True
+    if name in _evolve().NAMES and isinstance(result, dict):
+        # Reading a skill or noting a correction is answered in the turn; a
+        # draft or an add-to-agent card ends the round like any other card.
+        return name in _evolve().READS or result.get("status") != "proposed"
     if name in image_tools.NAMES:
         # A brief turned back keeps the tools (ask, then try again); the
         # grid or the provider card ends the round like any other card.
@@ -2119,6 +2311,14 @@ async def _tool(
         return await document_fields.confirm_for_thread(organization_id, arguments)
     if call.name == filing.TOOL_NAME:
         return await filing.file_for_thread(organization_id, arguments)
+    if call.name in (personal_cards.SHOW_TOOL, personal_cards.PROPOSE_TOOL):
+        return await personal_cards.for_thread(
+            organization_id,
+            str(call.name),
+            dict(call.arguments or {}),
+            user_id=acting.valid_member(author_id),
+            thread_id=thread_id,
+        )
     if call.name == recall.TOOL_NAME:
         return await recall.for_thread(
             organization_id,
@@ -2165,7 +2365,10 @@ async def _tool(
         from api.services.sandbox import code_mode
 
         if not await code_mode.allowed(organization_id):
-            return {"status": "unavailable", "reason": "scripts are not on this plan"}
+            return {
+                "status": "unavailable",
+                "reason": "scripts are not switched on for this workspace",
+            }
         return await code_mode.run_for_bot(
             organization_id=organization_id,
             code=str(arguments.get("code") or ""),
@@ -2248,6 +2451,14 @@ async def _tool(
         return await _done_calls().run_tool(
             organization_id, arguments, user_id=author_id, thread_id=thread_id
         )
+    if call.name in _evolve().NAMES and _evolve().enabled(organization_id):
+        return await _evolve().run(
+            str(call.name),
+            organization_id=organization_id,
+            user_id=author_id,
+            arguments=arguments,
+            thread_id=thread_id,
+        )
     if call.name == documents.SEND_TOOL_NAME:
         return await documents.send_for_thread(
             organization_id,
@@ -2305,13 +2516,19 @@ async def _speak(
     # becomes the reply (see reply_stop).
     can_stop = features.is_on("chat_shell", organization_id)
     spoken = current_voice_turn()
-    system = system_prompt(organization_id) + _helper_instructions()
+    if _flag("cache_v2", organization_id):
+        # Shared words first, per-person words last, so the cache breakpoint
+        # falls between them (client.SplitSystem).
+        shared, personal = system_split(organization_id)
+        system = client.SplitSystem(shared, personal + _helper_instructions())
+    else:
+        system = system_prompt(organization_id) + _helper_instructions()
     if spoken is not None:
         # Spoken: each new piece goes straight to the voice, unthrottled --
         # the first words are the latency a person hears -- and no draft is
         # written, because the voice session shows its own captions. An
         # interruption cancels the turn instead of a Stop.
-        system = system + VOICE_RULES
+        system = _with_rules(system, VOICE_RULES, client)
         spoken_round = {"seen": 0}
 
         async def on_text(text: str) -> None:
@@ -2363,6 +2580,82 @@ async def _speak(
             on_text=on_text,
             tools=tools,
         )
+
+
+async def _is_quick(
+    organization_id: int, text: str, routed: Any, attachments: int
+) -> bool:
+    """Whether this turn is a quick one: the route Auto chose, or -- where the
+    workspace pinned a brain and Auto chose nothing -- the same rules."""
+    from api.services.routing import brain
+
+    if routed is not None:
+        return routed.kind == "quick"
+    return (
+        brain.by_rules(
+            text,
+            attachments=attachments,
+            tight=brain.tight_rules_on(organization_id),
+        )
+        == "quick"
+    )
+
+
+async def _tools_carried(
+    organization_id: int, thread_id: str | None
+) -> lean_tools.Carried | None:
+    """What earlier replies on this thread hand to this turn's tool list
+    (``lean_tools``), or None when the thread could not be read -- which the
+    caller treats as "offer everything", never as "used nothing"."""
+    try:
+        rows = await db_client.agent_events(
+            organization_id=organization_id,
+            limit=60,
+            thread_id=thread_id,
+            viewer_id=acting.valid_member(acting.acting_user()),
+            **thread_filter(organization_id),
+        )
+    except Exception as exc:  # noqa: BLE001 - fail open, see the docstring
+        logger.warning("Could not read the tools this thread used: {}", exc)
+        return None
+    return lean_tools.carried_from(rows)
+
+
+def _tools_payload(
+    conversation: Any, lean: bool, offered: dict[str, Any]
+) -> dict[str, Any]:
+    """What goes on the reply row so the next lean turn on this thread can
+    keep the list the same: the tools this turn called, the extras it was
+    offered, or that it was offered everything. Nothing while ``lean_tools``
+    is off: the row is as it was."""
+    if not lean:
+        return {}
+    out: dict[str, Any] = {}
+    used = lean_tools.used_in(conversation.messages) - {lean_tools.MORE_TOOLS}
+    if used:
+        out["tools_used"] = sorted(used)
+    if offered["full"]:
+        out["tools_full"] = True
+    else:
+        out["tools_kept"] = sorted(offered["extras"])
+    return out
+
+
+def _flag(name: str, organization_id: int | None) -> bool:
+    """Whether a token-cut flag is on for this account. Unknown is off, so a
+    flag that cannot be read is the request as it was."""
+    try:
+        return features.is_on(name, organization_id)
+    except Exception:  # noqa: BLE001 - see docstring
+        return False
+
+
+def _with_rules(system: str, rules: str, client: Any) -> str:
+    """``system`` plus fixed words, keeping a split system split: the words
+    are the same for every account, so they join the shared half."""
+    if isinstance(system, client.SplitSystem):
+        return client.SplitSystem(system.stable + rules, system.volatile)
+    return system + rules
 
 
 def _helper_instructions() -> str:

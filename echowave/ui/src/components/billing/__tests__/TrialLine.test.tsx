@@ -21,9 +21,10 @@ describe("the trial line (PLAN-1)", () => {
         const line = screen.getByTestId("trial-active");
         expect(line.textContent).toContain("18 October");
         expect(line.textContent).toContain("9 days left");
+        expect(line.textContent).not.toMatch(/plans/i);
     });
 
-    it("after the end, says the data is still there and points at the plans", () => {
+    it("after the end, says the data is still there and points at help, not plans", () => {
         render(
             <TrialLine
                 trial={{ on_trial: true, active: false, starts_at: "2026-10-04T00:00:00Z", ends_at: "2026-10-18T00:00:00Z", days_left: 0, days: 14 }}
@@ -31,6 +32,9 @@ describe("the trial line (PLAN-1)", () => {
         );
         const line = screen.getByTestId("trial-ended");
         expect(line.textContent).toContain("still here");
-        expect(screen.getByText("See plans").getAttribute("href")).toBe("/billing");
+        // No pricing is shown to users (lib/pricing.ts): no plan link.
+        expect(screen.queryByText("See plans")).toBeNull();
+        expect(line.textContent).not.toMatch(/plan/i);
+        expect(screen.getByText("Get help").getAttribute("href")).toBe("/help");
     });
 });

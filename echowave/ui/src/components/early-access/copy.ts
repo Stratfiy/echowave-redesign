@@ -1,11 +1,11 @@
 /**
- * The door's words in one place. The value line is the approved sign-in
- * headline (components/auth/AuthShell.tsx), reused rather than rewritten:
- * new positioning is the founder's to choose.
+ * The door's words in one place. The value line is the founder's
+ * positioning (9 Oct 2026), the same as the sign-in headline
+ * (components/auth/AuthShell.tsx), reused rather than rewritten.
  */
 export const EARLY_ACCESS_COPY = {
     title: "Early access to Decibyl",
-    lead: "An agent for every job nobody has time for. Decibyl is invite-only for now; leave your email and we will review it.",
+    lead: "An intelligent agent that grows and evolves with you. Decibyl is invite-only for now; leave your email and we will review it.",
     email: "Email",
     emailHint: "We send your invitation here.",
     name: "Your name (optional)",
