@@ -350,6 +350,12 @@ class AgentTemplate(BaseModel):
     #: while ``image_generation`` is on; while it is off the template is off
     #: the gallery and its pack off the shelf.
     needs_images: bool = False
+    #: Image generation as a help, not the job: the hire is marked the way
+    #: ``needs_images`` marks it, so the engine offers ``make_images`` while
+    #: ``image_generation`` is on, but the template does not wait on it. A
+    #: marketing plan is still a plan without a poster; its prompt says to
+    #: write the poster's brief when the tool is not in the conversation.
+    offers_images: bool = False
     #: The life stage the shelf files it under (``LIFE_STAGES``), or none
     #: for a role that is only filed by industry and function.
     life_stage: str = ""
