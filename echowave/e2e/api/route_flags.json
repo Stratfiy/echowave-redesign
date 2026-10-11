@@ -631,6 +631,56 @@
    "event_catalogue"
   ]
  },
+ "/api/v1/evolve/cards/settle": {
+  "POST": [
+   "evolve_skills"
+  ]
+ },
+ "/api/v1/evolve/experience": {
+  "GET": [
+   "evolve_skills"
+  ]
+ },
+ "/api/v1/evolve/remember": {
+  "POST": [
+   "evolve_skills"
+  ]
+ },
+ "/api/v1/evolve/skills": {
+  "GET": [
+   "evolve_skills"
+  ]
+ },
+ "/api/v1/evolve/skills/{slug}/agents": {
+  "POST": [
+   "evolve_skills"
+  ]
+ },
+ "/api/v1/evolve/skills/{slug}/rollback": {
+  "POST": [
+   "evolve_skills"
+  ]
+ },
+ "/api/v1/evolve/skills/{slug}/versions": {
+  "GET": [
+   "evolve_skills"
+  ]
+ },
+ "/api/v1/evolve/versions/{version_id}": {
+  "PUT": [
+   "evolve_skills"
+  ]
+ },
+ "/api/v1/evolve/versions/{version_id}/discard": {
+  "POST": [
+   "evolve_skills"
+  ]
+ },
+ "/api/v1/evolve/versions/{version_id}/publish": {
+  "POST": [
+   "evolve_skills"
+  ]
+ },
  "/api/v1/feedback": {
   "POST": [
    "reply_feedback"
@@ -1316,6 +1366,59 @@
    "approvals"
   ]
  },
+ "/api/v1/personal/about-me": {
+  "GET": [
+   "evolve_personal"
+  ]
+ },
+ "/api/v1/personal/cards/{event_id}": {
+  "GET": [
+   "evolve_personal"
+  ]
+ },
+ "/api/v1/personal/cards/{event_id}/answer": {
+  "POST": [
+   "evolve_personal"
+  ]
+ },
+ "/api/v1/personal/context": {
+  "GET": [
+   "evolve_personal"
+  ],
+  "PUT": [
+   "evolve_personal"
+  ]
+ },
+ "/api/v1/personal/learned/{fact_id}": {
+  "DELETE": [
+   "evolve_personal"
+  ]
+ },
+ "/api/v1/personal/learned/{fact_id}/correct": {
+  "POST": [
+   "evolve_personal"
+  ]
+ },
+ "/api/v1/personal/preferences": {
+  "GET": [
+   "evolve_personal"
+  ]
+ },
+ "/api/v1/personal/preferences/{preference_id}": {
+  "DELETE": [
+   "evolve_personal"
+  ]
+ },
+ "/api/v1/personal/preferences/{preference_id}/correct": {
+  "POST": [
+   "evolve_personal"
+  ]
+ },
+ "/api/v1/personal/preferences/{preference_id}/history": {
+  "GET": [
+   "evolve_personal"
+  ]
+ },
  "/api/v1/procurement/documents": {
   "GET": [
    "procurement_docs"
@@ -1537,6 +1640,24 @@
  "/api/v1/today/suggestions/{key}/dismiss": {
   "POST": [
    "today_list"
+  ]
+ },
+ "/api/v1/training-loop/agents/{workflow_id}/summary": {
+  "GET": [
+   "training_loop"
+  ]
+ },
+ "/api/v1/training-loop/export": {
+  "GET": [
+   "training_loop"
+  ]
+ },
+ "/api/v1/training-loop/settings": {
+  "GET": [
+   "training_loop"
+  ],
+  "PUT": [
+   "training_loop"
   ]
  },
  "/api/v1/voice/appointments": {

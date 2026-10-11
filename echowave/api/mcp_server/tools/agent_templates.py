@@ -47,7 +47,7 @@ async def list_agent_templates(query: Optional[str] = None) -> dict[str, Any]:
     Call this FIRST whenever a user asks for an agent for a recognisable kind of
     business — a clinic, a restaurant, property leads, loan reminders, course
     enquiries, COD orders. A template carries prompts written for Indian phone
-    conversations and a provider stack the rate card can price, which is the
+    conversations and a recommended provider stack, which is the
     part that is hard to get right from a one-line request.
 
     If a template fits, fetch it with `get_agent_template` and build from it
@@ -106,9 +106,6 @@ async def get_agent_template(template_id: str) -> dict[str, Any]:
     leave them as `{{name}}` placeholders so an unfilled one is visible in
     testing rather than spoken to a caller.
 
-    After building, call `estimate_agent_cost` with the template's stack so the
-    user sees what the agent costs per minute before it dials anyone.
-
     Args:
         template_id: An `id` from `list_agent_templates`.
 
@@ -148,8 +145,7 @@ async def get_agent_template(template_id: str) -> dict[str, Any]:
         "next_steps": [
             "Ask the user for the template_variables you do not have.",
             "Put the guardrails in a globalNode so they apply on every turn.",
-            "Build with create_workflow, then call estimate_agent_cost with the "
-            "template's stack and tell the user the per-minute price.",
+            "Build with create_workflow.",
             "Numbers: call list_phone_numbers to offer one they already own. If "
             "they have none, use search_available_numbers to show options — but "
             "buying is done by the user in the Telephony screen, not by you.",

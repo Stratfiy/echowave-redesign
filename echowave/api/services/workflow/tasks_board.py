@@ -947,6 +947,8 @@ async def run_task(task_id: int) -> int | None:
             user_text=run_message(
                 title=task["title"], brief=task["brief"], asker=asker, thread=thread
             ),
+            # The task, not the card thread and the reporting instructions.
+            routing_text=f"{task['title']}\n\n{task['brief'] or ''}".strip(),
             expected_revision=text_session.revision,
         )
         text_session = await execute_pending_text_chat_turn(

@@ -40,8 +40,16 @@ def owner() -> Optional[int]:
 
 
 def viewer() -> Optional[int]:
-    """The member whose personal memory a read in this turn may include."""
+    """The member whose personal memory a read in this turn may include.
+
+    None as well when the member left Personal out of this conversation
+    (services/personal/context_control.py): their own memory is then not
+    read for it, the same as with the switch off."""
     if not enabled():
+        return None
+    from api.services.personal import context_control
+
+    if context_control.is_excluded(context_control.PERSONAL):
         return None
     return acting.acting_user()
 

@@ -9,14 +9,14 @@ measured. Nothing reads it to bill anyone.
 Downgrading drops the table.
 
 Revision ID: 20261012llmcallusage
-Revises: 20261011escalations
+Revises: 20261013learningfollowups
 """
 
 import sqlalchemy as sa
 from alembic import op
 
 revision = "20261012llmcallusage"
-down_revision = "20261011escalations"
+down_revision = "20261013learningfollowups"
 branch_labels = None
 depends_on = None
 

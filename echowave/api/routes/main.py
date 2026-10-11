@@ -36,6 +36,7 @@ from api.routes.dialer_connections import router as dialer_connections_router
 from api.routes.do_not_call import router as do_not_call_router
 from api.routes.escalations import router as escalations_router
 from api.routes.evals import router as evals_router
+from api.routes.evolve import router as evolve_router
 from api.routes.extraction_library import router as extraction_library_router
 from api.routes.feature_admin import router as feature_admin_router
 from api.routes.folder import router as folder_router
@@ -69,6 +70,7 @@ from api.routes.partner_admin import router as partner_admin_router
 from api.routes.partners import router as partners_router
 from api.routes.payments import router as payments_router
 from api.routes.people import router as people_router
+from api.routes.personal import router as personal_router
 from api.routes.platform_credentials import router as platform_credentials_router
 from api.routes.privacy import router as privacy_router
 from api.routes.procurement import router as procurement_router
@@ -109,6 +111,8 @@ from api.routes.telephony_admin import router as telephony_admin_router
 from api.routes.today import router as today_router
 from api.routes.tool import router as tool_router
 from api.routes.tool_library import router as tool_library_router
+from api.routes.training_loop import admin_router as training_loop_admin_router
+from api.routes.training_loop import router as training_loop_router
 from api.routes.translate import router as translate_router
 from api.routes.turn_credentials import router as turn_credentials_router
 from api.routes.user import router as user_router
@@ -193,6 +197,7 @@ router.include_router(helpers_router)
 router.include_router(care_router)
 router.include_router(call_when_done_router)
 router.include_router(escalations_router)
+router.include_router(evolve_router)
 router.include_router(controls_admin_router)
 router.include_router(today_router)
 router.include_router(staff_console_router)
@@ -200,6 +205,7 @@ router.include_router(settings_router)
 router.include_router(voice_router)
 router.include_router(voice_admin_router)
 router.include_router(huddle_router)
+router.include_router(personal_router)
 router.include_router(organisation_router)
 router.include_router(organisation_memory_router)
 router.include_router(packs_router)
@@ -235,6 +241,8 @@ router.include_router(people_router)
 router.include_router(images_router)
 router.include_router(learning_router)
 router.include_router(live_calls_router)
+router.include_router(training_loop_router)
+router.include_router(training_loop_admin_router)
 router.include_router(live_calls_ws_router)
 router.include_router(meetings_router)
 router.include_router(support_router)

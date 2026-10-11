@@ -191,11 +191,13 @@ class TestTheChatOffersHiringFirst:
         assert result["roles"]
         first = result["roles"][0]
         assert first["does"]
-        # No monthly figure. Hiring is included in the plan, so what the
-        # model is given is what RUNNING it draws on -- and it used to be
-        # handed "6999", a number nothing in billing ever charged.
-        assert "Included in your plan" in first["costs"]
-        assert "by the minute" in first["costs"]
+        # No cost line at all: no pricing is shown to users (founder,
+        # 9 Oct 2026), and the model reads this aloud. It used to be handed
+        # "6999", then "Included in your plan… credit by the minute".
+        assert "costs" not in first
+        text = str(result)
+        for word in ("credit", "₹", "rupee", "Included in your plan"):
+            assert word not in text, word
         assert first["needs_voice_on_their_plan"] is True
         assert "monthly_price_rupees" not in first
         assert first["needs_connected"]

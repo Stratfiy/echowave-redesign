@@ -5,25 +5,30 @@ import { describe, expect, it } from "vitest";
 import { AuthShell } from "../AuthShell";
 
 describe("the door a stranger arrives at", () => {
-    it("pitches the whole product, not the phone alone", () => {
-        // It read "Decibyl answers your phone" -- true, and a third of what a
-        // customer buys. Somebody who wants a bot that replies on WhatsApp or
-        // files what it finished had no way to tell this does that.
+    it("leads with the founder's positioning, not one channel", () => {
+        // Decided 9 Oct 2026: Decibyl is an intelligent agent that grows and
+        // evolves with you -- one personal assistant for life and work. It
+        // used to read "An agent for every job nobody has time for" over a
+        // pitch about answering the phone.
         render(
             <AuthShell>
                 <p>form</p>
             </AuthShell>,
         );
-        const pitch = screen.getByText(/agents answer the phone/i);
-        expect(pitch.textContent).toMatch(/WhatsApp/);
-        expect(pitch.textContent).toMatch(/hand back what they/i);
-        expect(screen.getByRole("heading").textContent).toMatch(/An agent for every job/);
+        expect(screen.getByRole("heading").textContent).toMatch(
+            /An intelligent agent that grows and evolves with you/,
+        );
+        const pitch = screen.getByText(/personal assistant for life and work/i);
+        expect(pitch.textContent).toMatch(/give it a task/i);
+        expect(pitch.textContent).toMatch(/follow through/i);
+        expect(pitch.textContent).toMatch(/with your approval/i);
+        expect(pitch.textContent).not.toMatch(/answer the phone/i);
     });
 
     it("carries none of the mauve the product dropped", () => {
         // The orb, the tinted byline chip and the accented half-sentence were
         // all the same colour the chat lost. An accent that names no product
-        // idea -- "nobody has time for" -- is colour for its own sake.
+        // idea is colour for its own sake.
         const { container } = render(
             <AuthShell>
                 <p>form</p>
@@ -38,7 +43,7 @@ describe("the door a stranger arrives at", () => {
                 <p>form</p>
             </AuthShell>,
         );
-        const pitch = screen.getByText(/agents answer the phone/i);
+        const pitch = screen.getByText(/personal assistant for life and work/i);
         expect(pitch.textContent).toMatch(/Hindi, Tamil, Telugu/);
     });
 
