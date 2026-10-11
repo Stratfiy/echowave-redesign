@@ -93,7 +93,7 @@ def configurations(
     }
     if template.approve_sends:
         out[send_approval.CONFIG_KEY] = True
-    if template.needs_images:
+    if template.needs_images or template.offers_images:
         # Read by the engine (``_can_make_images``) to offer make_images on
         # this bot's text and channel runs, and on no other bot's.
         from api.services.images.tools import CONFIG_KEY as IMAGES_KEY

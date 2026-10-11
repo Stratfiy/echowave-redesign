@@ -1623,6 +1623,7 @@ def _promoted() -> tuple[AgentTemplate, ...]:
         chat_desks,
         creative,
         life_stages,
+        marketing,
         procurement,
     )
 
@@ -1633,6 +1634,7 @@ def _promoted() -> tuple[AgentTemplate, ...]:
         + procurement.templates()
         + life_stages.templates()
         + creative.templates()
+        + marketing.templates()
     )
 
 

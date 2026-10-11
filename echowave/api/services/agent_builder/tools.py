@@ -953,7 +953,9 @@ async def _create_agent(
         # it (equip.configurations), so the engine offers it make_images
         # whichever door it came in by. Others are left as they were.
         workflow_configurations=(
-            _equip_configurations(template) if template.needs_images else None
+            _equip_configurations(template)
+            if template.needs_images or template.offers_images
+            else None
         ),
         organization_id=organization_id,
     )

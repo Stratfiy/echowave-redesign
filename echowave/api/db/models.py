@@ -7175,3 +7175,54 @@ class InstagramAccountModel(Base):
         server_default=func.now(),
         onupdate=func.now(),
     )
+
+
+class PaymentLinkModel(Base):
+    """A payment link an agent created on the business's own Razorpay
+    account, watched until it is paid (services/workflow/payment_links.py).
+
+    Written when the connected-app call that created the link succeeds, with
+    the conversation it was created in, so the payment can be confirmed back
+    there: to the owner on the agent's thread, and to the customer where the
+    channel lets an agent write back.
+    """
+
+    __tablename__ = "payment_links"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer,
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    workflow_id = Column(
+        Integer, ForeignKey("workflows.id", ondelete="SET NULL"), nullable=True
+    )
+    workflow_run_id = Column(
+        Integer, ForeignKey("workflow_runs.id", ondelete="SET NULL"), nullable=True
+    )
+    provider = Column(String(32), nullable=False, server_default="razorpay")
+    link_id = Column(String(64), nullable=False)
+    short_url = Column(String(512), nullable=False, server_default="")
+    amount_minor = Column(BigInteger, nullable=False, server_default=text("0"))
+    currency = Column(String(8), nullable=False, server_default="INR")
+    description = Column(String(255), nullable=False, server_default="")
+    #: Where the customer is: "instagram" with their Instagram id, or the
+    #: phone number on a call, as the run's context named them.
+    channel = Column(String(32), nullable=True)
+    recipient = Column(String(128), nullable=True)
+    connected_account_id = Column(String(128), nullable=True)
+    acting_user_id = Column(Integer, nullable=True)
+    #: created -> paid | expired | cancelled | unverifiable
+    status = Column(String(16), nullable=False, server_default="created")
+    checked_at = Column(DateTime(timezone=True), nullable=True)
+    paid_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    __table_args__ = (
+        UniqueConstraint("organization_id", "link_id", name="uq_payment_links_link"),
+        Index("ix_payment_links_open", "status", "created_at"),
+    )
