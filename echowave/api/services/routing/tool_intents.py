@@ -188,6 +188,23 @@ INTENTS: dict[str, tuple[re.Pattern[str], tuple[str, ...]]] = {
         re.compile(r"\b(connect|integrate|integration|plug in|hook up)\b", re.I),
         ("connect_outside_tool",),
     ),
+    "skills": (
+        re.compile(
+            r"\b(skills?|use (it|this|that) (skill|way)|add (it|this|that) to|"
+            r"remember (this|that) as my way|my way of|no,? do it (like|this)|"
+            r"not like that|correct(ion)?s?)\b",
+            re.I,
+        ),
+        ("use_skill", "add_skill_to_agent", "remember_my_way", "note_correction"),
+    ),
+    "preferences": (
+        re.compile(
+            r"\b(preferences?|prefer|what do you (know|remember)|"
+            r"know about me|remember (that )?i|from now on|always|never)\b",
+            re.I,
+        ),
+        ("show_what_you_know", "propose_preference"),
+    ),
     "attachments": (
         re.compile(r"\b(attach(ed|ment)s?)\b", re.I),
         ("save_email_attachment", "read_document", "file_document"),
