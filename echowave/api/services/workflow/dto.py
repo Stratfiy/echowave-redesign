@@ -1615,6 +1615,8 @@ class HandoffNodeData(BaseNodeData):
         "send_when_variable",
         "send_when_operator",
         "send_when_value",
+        "only_if_answered",
+        "once_per_contact_days",
     ),
     field_overrides={
         "name": {
@@ -1701,6 +1703,20 @@ class HandoffNodeData(BaseNodeData):
             "display_name": "Only send if — value",
             "description": "Blank for 'is true' and 'is not empty'.",
         },
+        "only_if_answered": {
+            "display_name": "Only after a real conversation",
+            "description": (
+                "Send only when somebody was on the line (or in the chat): "
+                "never after a missed call, a voicemail or a test call."
+            ),
+        },
+        "once_per_contact_days": {
+            "display_name": "At most once per person every (days)",
+            "description": (
+                "Leave blank to send every time. Set it so the same person is "
+                "not sent this message again within that many days."
+            ),
+        },
     },
 )
 class SmsNodeData(BaseNodeData):
@@ -1724,6 +1740,10 @@ class SmsNodeData(BaseNodeData):
     )
     send_when_value: Optional[str] = spec_field(
         default=None, ui_type=PropertyType.string
+    )
+    only_if_answered: bool = spec_field(default=False, ui_type=PropertyType.boolean)
+    once_per_contact_days: Optional[int] = spec_field(
+        default=None, ui_type=PropertyType.number
     )
 
     @model_validator(mode="after")
@@ -1758,6 +1778,13 @@ class SmsNodeData(BaseNodeData):
                 "The 'only send if' condition names a comparison but no "
                 "variable to compare, so it would never hold anything back. "
                 "Add the variable, or clear the condition."
+            )
+        if self.once_per_contact_days is not None and not (
+            1 <= self.once_per_contact_days <= 365
+        ):
+            raise ValueError(
+                "'At most once per person' takes 1 to 365 days; leave it blank "
+                "to send every time."
             )
         return self
 

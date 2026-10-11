@@ -101,3 +101,15 @@ class Sms(TypedNode):
     Blank for 'is true' and 'is not empty'.
     """
 
+    only_if_answered: bool = False
+    """
+    Send only when somebody was on the line (or in the chat): never after a
+    missed call, a voicemail or a test call.
+    """
+
+    once_per_contact_days: Optional[float] = None
+    """
+    Leave blank to send every time. Set it so the same person is not sent
+    this message again within that many days.
+    """
+

@@ -180,6 +180,7 @@ PLACE_CALL = "place_call"
 #: the booking tool, on one card (stream `voice`; services/voice/
 #: booking_setup.py). Internal: reached through set_up_booking.
 SET_UP_BOOKING = "set_up_booking"
+ASK_FOR_REVIEWS = "ask_for_reviews"
 #: Confirm the number Decibyl rings when a task finishes ("call me when it's
 #: done"; services/call_when_done/number.py). Internal: proposed when the
 #: person opts in without a confirmed number, never by a model on its own;
@@ -203,6 +204,7 @@ INTERNAL_ACTIONS = (
     *IDENTITY_ACTIONS,
     PLACE_CALL,
     SET_UP_BOOKING,
+    ASK_FOR_REVIEWS,
     CALL_WHEN_DONE_NUMBER,
 )
 
@@ -778,6 +780,17 @@ async def resolve(
                 organization_id=organization_id, arguments=arguments
             )
         except booking_setup.BookingSetupError as exc:
+            raise ActionError(str(exc)) from exc
+        return {"action": action, "why": why, "state": PROPOSED, **card}
+
+    if action == ASK_FOR_REVIEWS:
+        from api.services.messaging import review_requests
+
+        try:
+            card = await review_requests.resolve(
+                organization_id=organization_id, arguments=arguments
+            )
+        except review_requests.ReviewSetupError as exc:
             raise ActionError(str(exc)) from exc
         return {"action": action, "why": why, "state": PROPOSED, **card}
 
@@ -2067,6 +2080,17 @@ async def _execute(
                 organization_id=organization_id, payload=payload
             )
         except (booking_setup.BookingSetupError, appointments.PolicyInvalid) as exc:
+            raise ActionError(str(exc)) from exc
+    if action == ASK_FOR_REVIEWS:
+        from pydantic import ValidationError
+
+        from api.services.messaging import review_requests
+
+        try:
+            return await review_requests.execute(
+                organization_id=organization_id, payload=payload
+            )
+        except (review_requests.ReviewSetupError, ValidationError) as exc:
             raise ActionError(str(exc)) from exc
     if action == PLACE_CALL:
         from api.services.voice import call_for_me

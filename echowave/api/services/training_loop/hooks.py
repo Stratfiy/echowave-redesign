@@ -46,6 +46,7 @@ RECORDED_ACTIONS = frozenset(
         "track_commitment",
         "create_tracker",
         "set_up_booking",
+        "ask_for_reviews",
         "run_tool",
     }
 )

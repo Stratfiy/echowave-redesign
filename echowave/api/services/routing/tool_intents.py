@@ -50,6 +50,14 @@ INTENTS: dict[str, tuple[re.Pattern[str], tuple[str, ...]]] = {
         re.compile(r"\b(who is|contact details?|phone number of|email of)\b", re.I),
         ("lookup_person",),
     ),
+    "reviews": (
+        re.compile(
+            r"\b(reviews?|ratings?|testimonials?|google (business|profile|maps)|"
+            r"justdial|practo|stars?)\b",
+            re.I,
+        ),
+        ("ask_for_reviews",),
+    ),
     "website": (
         re.compile(
             r"\b(websites?|web ?sites?|web ?pages?|(my|our|this|the|their) site|"
