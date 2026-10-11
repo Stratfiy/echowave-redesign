@@ -24,11 +24,10 @@ Read-only, and held to four rules that are the whole point of it:
   ``MAX_TOKENS`` with the cut said out loud -- a model that is not told the
   list was shortened will report the short list as the whole team.
 
-Usage is read through ``usage_by_agent`` and nothing else, so the day agent
-runs are metered in ``model_usage`` that one function changes and the tool
-does not. Until then credits come from the credit ledger, which stamps every
-debit with the agent that made it, and tokens from
-``workflow_runs.usage_info``.
+Usage is read through ``usage_by_agent`` and nothing else. Credits come from
+the credit ledger, which stamps every debit with the agent that made it, and
+tokens from the run receipts (``call_cost_items``), the same lines the usage
+report reads.
 """
 
 from __future__ import annotations
@@ -46,6 +45,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api.db import db_client
 from api.db.models import (
     AgentEventModel,
+    CallCostItemModel,
     CreditLedgerModel,
     WorkflowModel,
     WorkflowRunModel,
@@ -53,11 +53,13 @@ from api.db.models import (
 from api.enums import (
     AgentEventKind,
     AgentEventVisibility,
+    CostComponent,
     CreditLedgerKind,
     WorkflowStatus,
 )
 from api.services import features, prompt_budget
 from api.services.billing.credits import PAISE_PER_CREDIT
+from api.services.billing.token_report import TOKEN_COMPONENTS
 from api.services.workflow import actions
 from api.services.workflow.outcome_board import codes_on
 
@@ -160,38 +162,14 @@ def window_start(range_name: str, now: datetime) -> datetime:
 # ---------------------------------------------------------------------------
 
 
+#: The receipt lines that are model tokens: the same set the usage report counts.
+_TOKEN_LINES = (*TOKEN_COMPONENTS, CostComponent.LLM.value)
+
+
 @dataclass
 class Usage:
     credits: int = 0
     tokens: int = 0
-    #: True when the run scan hit its cap, so ``tokens`` is a floor.
-    tokens_partial: bool = False
-
-
-def _whole(value: Any) -> int:
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        return 0
-    return max(0, int(value))
-
-
-def tokens_in(usage_info: Any) -> int:
-    """Tokens one run recorded. ``usage_info`` is free-form JSON written by
-    several versions of the pipeline, so anything unreadable is zero for that
-    run and costs nothing else."""
-    if not isinstance(usage_info, Mapping):
-        return 0
-    llm = usage_info.get("llm")
-    if not isinstance(llm, Mapping):
-        return 0
-    total = 0
-    for entry in llm.values():
-        if not isinstance(entry, Mapping):
-            continue
-        counted = _whole(entry.get("total_tokens"))
-        total += counted or (
-            _whole(entry.get("prompt_tokens")) + _whole(entry.get("completion_tokens"))
-        )
-    return total
 
 
 async def usage_by_agent(
@@ -203,10 +181,15 @@ async def usage_by_agent(
 ) -> dict[int, Usage]:
     """Credits and tokens each agent used since ``since``.
 
-    The only place the tool learns about spend. Today: credits from the
-    credit ledger (stamped with the agent that made each debit) and tokens
-    from ``workflow_runs.usage_info``. Agent runs are not metered in
-    ``model_usage`` yet; when they are, this is the function that changes.
+    The only place the tool learns about spend. Credits come from the credit
+    ledger (stamped with the agent that made each debit). Tokens come from the
+    run receipts (``call_cost_items``), the record the metering work made the
+    one place a run's model use is written, summed in SQL by the same
+    ``TOKEN_COMPONENTS`` the usage report reads, so the two cannot disagree.
+    ``model_usage`` and ``llm_call_usage`` are not read: the first records
+    calls made outside a run and carries no agent, and the second repeats a
+    run's tokens in a cache-measurement shape, so adding either would
+    double-count or attribute spend to no one.
     """
     usage: dict[int, Usage] = {wid: Usage() for wid in workflow_ids}
     if not workflow_ids:
@@ -228,24 +211,25 @@ async def usage_by_agent(
     for workflow_id, paise in spent.all():
         usage[int(workflow_id)].credits = max(0, int(paise)) // PAISE_PER_CREDIT
 
-    runs = await session.execute(
-        select(WorkflowRunModel.workflow_id, WorkflowRunModel.usage_info)
+    tokens = await session.execute(
+        select(
+            WorkflowRunModel.workflow_id,
+            func.coalesce(func.sum(CallCostItemModel.units), 0),
+        )
+        .join(
+            WorkflowRunModel, WorkflowRunModel.id == CallCostItemModel.workflow_run_id
+        )
         .join(WorkflowModel, WorkflowModel.id == WorkflowRunModel.workflow_id)
         .where(
             WorkflowModel.organization_id == organization_id,
             WorkflowRunModel.workflow_id.in_(workflow_ids),
             WorkflowRunModel.created_at >= since,
+            CallCostItemModel.component.in_(_TOKEN_LINES),
         )
-        .order_by(WorkflowRunModel.id.desc())
-        .limit(MAX_RUNS_SCANNED + 1)
+        .group_by(WorkflowRunModel.workflow_id)
     )
-    rows = runs.all()
-    partial = len(rows) > MAX_RUNS_SCANNED
-    for workflow_id, usage_info in rows[:MAX_RUNS_SCANNED]:
-        usage[int(workflow_id)].tokens += tokens_in(usage_info)
-    if partial:
-        for entry in usage.values():
-            entry.tokens_partial = True
+    for workflow_id, total in tokens.all():
+        usage[int(workflow_id)].tokens = max(0, int(total or 0))
     return usage
 
 
@@ -534,8 +518,6 @@ def agent_line(row: AgentRow) -> str:
             f"{len(row.approvals)} approval(s) waiting ({_count_label(row.approvals)})"
         )
     spend = f"{row.usage.credits} credits, {_thousands(row.usage.tokens)} tokens"
-    if row.usage.tokens_partial:
-        spend += " (tokens partial)"
     parts.append(spend)
     line = f"- {row.name} [#{row.workflow_id}]: " + " | ".join(parts)
     return prompt_budget.clip(line, MAX_AGENT_LINE_CHARS)

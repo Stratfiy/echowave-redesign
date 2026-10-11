@@ -1009,6 +1009,13 @@ CALL_APPOINTMENT_ENABLED = _flag("CALL_APPOINTMENT_ENABLED")
 # (next person, back to the agent, callback, message, voicemail for the team).
 # Off by default; off means transfers behave exactly as before.
 ESCALATION_V2_ENABLED = _flag("ESCALATION_V2_ENABLED")
+# Prompt caching v2 (services/billing/cache_metrics.py,
+# docs/plans/caching-and-compression.md): the request changes that make a
+# prompt's prefix reusable -- the clock line after the per-bot instructions
+# instead of first, and a second cache breakpoint at the tail of the
+# conversation on Claude. Off by default; off, every prompt and request is
+# byte-for-byte what it was. The measurement itself is not behind this flag.
+CACHE_V2_ENABLED = _flag("CACHE_V2_ENABLED")
 # Outreach (services/outreach): find leads from a lead-data provider, then
 # one send card per lead on the person's own mailbox, with Confirm all.
 OUTREACH_ENABLED = _flag("OUTREACH_ENABLED")

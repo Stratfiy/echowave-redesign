@@ -326,6 +326,7 @@ async def _check(
         findings = await acceptable_use.screen(
             session,
             instructions=acceptable_use.instructions_in(definition),
+            organization_id=organization_id,
         )
     if findings:
         logger.warning(

@@ -1139,6 +1139,17 @@ async def _fold(
     accumulate_token_usage(usage, getattr(llm, "last_inference_usage", None))
     if usage:
         logger.info("Channel fold on run {} used {}", run_id, usage)
+        # Written down as well as logged: the fold runs on the platform key
+        # for every long channel thread and used to leave no trace.
+        from api.services.billing import model_usage
+
+        await model_usage.record_inference(
+            llm,
+            organization_id=await db_client.get_organization_id_by_workflow_run_id(
+                run_id
+            ),
+            feature="channel_fold",
+        )
     return (text or "").strip() or None
 
 

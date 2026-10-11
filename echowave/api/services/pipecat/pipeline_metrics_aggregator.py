@@ -96,6 +96,14 @@ class PipelineMetricsAggregator(FrameProcessor):
         # against the greeting's breakdown, which has no turn behind it.
         self._turn_awaiting_breakdown: bool = False
 
+        # Every model call of this run, one entry each, for the prompt-cache
+        # measurement (services/billing/cache_metrics.py). Buffered here and
+        # written once when the run ends -- never from the frame path, which
+        # a caller is waiting on. Each carries the hashes of the prompt that
+        # was in force when its usage arrived (register_prompt).
+        self._llm_calls: list[dict] = []
+        self._prompt_hashes = None
+
     async def process_frame(self, frame: Frame, direction: FrameDirection):
         await super().process_frame(frame, direction)
 
@@ -172,7 +180,54 @@ class PipelineMetricsAggregator(FrameProcessor):
             "cached_tokens", 0
         ) + (new_usage.cache_read_input_tokens or 0)
 
+        self._bank_llm_call(data.processor, data.model, new_usage)
+
         logger.debug(f"LLM usage metrics: {self._llm_usage_metrics}")
+
+    def _bank_llm_call(
+        self, processor: str, model: Optional[str], usage, feature: Optional[str] = None
+    ) -> None:
+        """One model call, in one shape, with the prompt it was made under."""
+        from api.services.billing.llm_usage import normalise
+        from api.services.billing.usage import provider_from_processor
+
+        provider = provider_from_processor(processor)
+        normalised = normalise(usage, shape="pipeline", provider=provider)
+        if normalised is None or normalised.is_empty:
+            return
+        self._llm_calls.append(
+            {
+                "provider": provider,
+                "model": (model or "").strip().lower(),
+                "usage": normalised,
+                # A side call (a background summary) sends its own prompt,
+                # not the agent's; its hashes would misattribute a break.
+                "hashes": None if feature else self._prompt_hashes,
+                "feature": feature,
+                "key_source": self._key_sources.get("llm"),
+            }
+        )
+
+    def register_prompt(self, hashes) -> None:
+        """The prompt now in force: ``cache_metrics.PromptHashes`` of the
+        system prompt and tools the engine just set. Calls whose usage
+        arrives after this are attributed to it."""
+        self._prompt_hashes = hashes
+
+    def register_side_call(
+        self, *, feature: str, processor: str, model: Optional[str], usage
+    ) -> None:
+        """A model call made outside the frame path, such as the background
+        summary of a long transcript, so the run's cost counts it. Measured
+        only: it is not added to the run's ``usage_info``."""
+        if usage is None:
+            return
+        self._bank_llm_call(processor, model, usage, feature=feature)
+
+    def take_llm_calls(self) -> list[dict]:
+        """The run's model calls so far, handed over once."""
+        calls, self._llm_calls = self._llm_calls, []
+        return calls
 
     async def _handle_tts_usage_metrics(self, data: TTSUsageMetricsData):
         key = f"{data.processor}|||{data.model}"
@@ -458,5 +513,6 @@ class PipelineMetricsAggregator(FrameProcessor):
         self._addons_used.clear()
         self._turn_stage_ttfb.clear()
         self._turns.clear()
+        self._llm_calls.clear()
         self._start_time = None
         self._stop_time = None

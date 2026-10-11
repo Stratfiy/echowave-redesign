@@ -497,6 +497,28 @@ async def voice_latency(
         )
 
 
+@router.get("/operations/caching")
+async def prompt_caching(
+    _: Annotated[Ctx, Depends(roles.require("operations.read"))],
+    days: int = Query(default=7, ge=1, le=30),
+    organization_id: int | None = Query(default=None),
+) -> dict[str, Any]:
+    """Prompt cache hit rate, cold and warm calls, cost per successful
+    outcome and the prefixes that broke, from every model call in the window
+    (services/billing/cache_report.py). Measures; charges nothing."""
+    from datetime import UTC, datetime
+
+    from api.services.billing import cache_report
+
+    async with db_client.async_session() as session:
+        return await cache_report.build(
+            session,
+            end=datetime.now(UTC),
+            days=days,
+            organization_id=organization_id,
+        )
+
+
 _incidents = Depends(features.require("staff_incidents"))
 
 

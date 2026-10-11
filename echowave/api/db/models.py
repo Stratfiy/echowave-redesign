@@ -2913,6 +2913,75 @@ class ModelUsageModel(Base):
     )
 
 
+class LlmCallUsageModel(Base):
+    """One model call and what its prompt cache did, through either door.
+
+    ``model_usage`` records direct calls and ``call_cost_items`` a run's
+    receipt; neither says *which prompt* a call sent, so neither can say
+    whether the cache is being hit, missed or broken. This table can: one row
+    per model call -- a builder-client call or a pipeline inference, a retry,
+    a background summary -- with its usage in one shape
+    (``billing.llm_usage``) and three hashes of what it sent
+    (``billing.cache_metrics``):
+
+    * ``prompt_fingerprint`` -- the prompt *version*: system prompt and tool
+      schemas, deterministically serialised, with the per-call values (the
+      clock line, the caller's answers) masked. Groups calls that are "the
+      same prompt".
+    * ``prefix_hash`` -- exactly what was sent before the conversation, so a
+      change between two calls of one conversation is a cache prefix broken.
+    * ``system_hash`` / ``tools_hash`` -- which half changed.
+
+    Measures only: no cost column (the report prices against the rate book
+    for its window, as ``token_report`` does), no effect on any bill.
+    Written best-effort; a failed write is logged and the call goes on.
+    """
+
+    __tablename__ = "llm_call_usage"
+
+    id = Column(BigInteger, primary_key=True)
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True
+    )
+    #: "direct" (builder client) or "pipeline" (a run's LLM service).
+    source = Column(String(16), nullable=False, default="direct")
+    feature = Column(String(64), nullable=False, default="unattributed")
+    provider = Column(String(64), nullable=False)
+    model = Column(String(128), nullable=False, default="", server_default="")
+    #: What ties calls into one task: ``run:<id>``, ``thread:<id>``, or
+    #: ``None`` for a call nobody grouped.
+    conversation_key = Column(String(96), nullable=True)
+    workflow_run_id = Column(Integer, nullable=True)
+    prompt_fingerprint = Column(String(16), nullable=True)
+    prefix_hash = Column(String(16), nullable=True)
+    system_hash = Column(String(16), nullable=True)
+    tools_hash = Column(String(16), nullable=True)
+    input_tokens = Column(BigInteger, nullable=False, default=0, server_default="0")
+    output_tokens = Column(BigInteger, nullable=False, default=0, server_default="0")
+    cache_read_tokens = Column(
+        BigInteger, nullable=False, default=0, server_default="0"
+    )
+    cache_write_tokens = Column(
+        BigInteger, nullable=False, default=0, server_default="0"
+    )
+    reasoning_tokens = Column(BigInteger, nullable=False, default=0, server_default="0")
+    #: A call made again after a rate limit or on another vendor.
+    is_retry = Column(Boolean, nullable=False, default=False, server_default="false")
+    #: On the account's own key: counted, never priced.
+    byok = Column(Boolean, nullable=False, default=False, server_default="false")
+    created_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        server_default=func.now(),
+    )
+
+    __table_args__ = (
+        Index("ix_llm_call_usage_created_at", "created_at"),
+        Index("ix_llm_call_usage_conversation", "conversation_key", "created_at"),
+    )
+
+
 class DialerConnectionModel(Base):
     """A business's own call-centre dialer, connected so its calls can be read.
 

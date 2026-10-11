@@ -18,6 +18,7 @@ from sqlalchemy import select
 from api import constants
 from api.db.models import (
     AgentEventModel,
+    CallCostItemModel,
     CreditLedgerModel,
     OrganizationModel,
     UserModel,
@@ -28,6 +29,7 @@ from api.enums import (
     AgentEventActor,
     AgentEventKind,
     AgentEventVisibility,
+    CostComponent,
     CreditLedgerKind,
     OrganizationRole,
 )
@@ -83,7 +85,7 @@ async def _run(
     when=RECENT,
     done=True,
     codes=(),
-    llm=None,
+    tokens=(),
 ):
     row = WorkflowRunModel(
         name="run",
@@ -92,9 +94,21 @@ async def _run(
         is_completed=done,
         created_at=when,
         annotations={"disposition": {"dispositions": list(codes)}} if codes else {},
-        usage_info={"llm": llm} if llm else {},
     )
     session.add(row)
+    await session.flush()
+    # Model use is metered on the run's receipt: one line per component.
+    for component, units in tokens:
+        session.add(
+            CallCostItemModel(
+                workflow_run_id=row.id,
+                component=component,
+                provider="a",
+                model="m",
+                units=units,
+                cost_paise=0,
+            )
+        )
     await session.flush()
     return row
 
@@ -258,16 +272,16 @@ class TestTheNumbers:
             s,
             priya,
             codes=["booked"],
-            llm={"a|||m": {"prompt_tokens": 1000, "completion_tokens": 500}},
+            tokens=[(CostComponent.LLM_INPUT.value, 1000), (CostComponent.LLM_OUTPUT.value, 500)],
         )
         await _run(
             s,
             priya,
             codes=["booked", "callback"],
-            llm={"a|||m": {"total_tokens": 2000, "prompt_tokens": 1}},
+            tokens=[(CostComponent.LLM_INPUT.value, 2000)],
         )
         await _run(s, priya, done=False, when=LAST_WEEK)
-        await _run(s, priya, when=LONG_AGO, llm={"a|||m": {"total_tokens": 99_999}})
+        await _run(s, priya, when=LONG_AGO, tokens=[(CostComponent.LLM_INPUT.value, 99_999)])
         # Ledger: 12 + 8 credits in the window, one old, a top-up, and the
         # chief's own spend, none of which are Priya's usage this week.
         await _debit(s, org, priya, 12)
@@ -301,7 +315,7 @@ class TestTheNumbers:
         s = async_session
         org, _, _, priya, _ = await _seed_team(s)
         await _debit(s, org, priya, 4)
-        await _run(s, priya, llm={"m": {"total_tokens": 300}})
+        await _run(s, priya, tokens=[(CostComponent.LLM_INPUT.value, 300)])
         got = await team_activity.usage_by_agent(
             s,
             organization_id=org,
@@ -310,16 +324,24 @@ class TestTheNumbers:
         )
         assert (got[priya].credits, got[priya].tokens) == (4, 300)
 
-    async def test_unreadable_usage_info_costs_that_run_only(self, async_session):
+    async def test_only_model_tokens_count_not_speech_or_fees(self, async_session):
         s = async_session
         org, _, chief, priya, _ = await _seed_team(s)
-        for bad in ("text", [1], {"llm": "x"}, {"llm": {"a": "x", "b": None}}):
-            row = await _run(s, priya)
-            row.usage_info = bad
-        await _run(s, priya, llm={"m": {"total_tokens": 10}})
-        await s.flush()
+        await _run(
+            s,
+            priya,
+            tokens=[
+                (CostComponent.LLM_INPUT.value, 6),
+                (CostComponent.LLM_CACHED.value, 3),
+                (CostComponent.LLM_CACHE_WRITE.value, 1),
+                (CostComponent.LLM_OUTPUT.value, 10),
+                (CostComponent.STT.value, 5_000),
+                (CostComponent.TELEPHONY.value, 7_000),
+            ],
+        )
+        await _run(s, priya)  # a run with no receipt costs nothing else
         text = await _ask(s, org, caller=chief)
-        assert "5 runs" in text and "10 tokens" in text
+        assert "2 runs" in text and "20 tokens" in text
 
     async def test_failures_files_and_waiting_approvals_are_listed(self, async_session):
         s = async_session
@@ -414,7 +436,7 @@ class TestWhatItWillNotShow:
         other = await _org(s, "b")
         user_b = await _user(s, "b")
         spy = await _agent(s, other, user_b, "Spy")
-        await _run(s, spy, codes=["stolen"], llm={"m": {"total_tokens": 424_242}})
+        await _run(s, spy, codes=["stolen"], tokens=[(CostComponent.LLM_INPUT.value, 424_242)])
         await _debit(s, other, spy, 999)
         await _event(s, other, spy, AgentEventKind.COULD_NOT, "Secret failure in B")
         await _event(
