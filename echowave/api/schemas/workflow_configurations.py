@@ -460,18 +460,20 @@ def is_chat(configurations: Any) -> bool:
 #: Keys whose absence in a save means "nobody asked", not "clear this".
 #:
 #: A settings save sends a sparse block and *replaces* the stored one, so a
-#: screen that does not know about a key drops it -- and for these two that
+#: screen that does not know about a key drops it -- and for these keys that
 #: loss is silent in both directions. ``channel`` absent reads as voice, so
 #: a chat bot goes back on the phone and starts thanking a chat window for
 #: calling. ``notify_on`` absent reads as the defaults, so a bot somebody
 #: deliberately quietened starts interrupting them again, or one they asked
-#: to be told about goes quiet.
+#: to be told about goes quiet. ``can_see_team`` absent reads as off, so a
+#: screen that does not know it would silently take an owner's "Can see the
+#: team" away from the chief of staff, which then stops answering.
 #:
 #: Deliberately a named few, not a deep merge of the whole block. A general
 #: merge would also resurrect settings somebody meant to clear. Every key
 #: here has to earn its place by having an absent value that *means*
 #: something other than unset.
-CARRIED_KEYS: tuple[str, ...] = ("channel", "notify_on")
+CARRIED_KEYS: tuple[str, ...] = ("channel", "notify_on", "can_see_team")
 
 
 def preserve_carried_keys(incoming: dict | None, stored: Any) -> dict | None:

@@ -2307,6 +2307,13 @@ IMAGE_BEDROCK_MODEL = (
 IMAGE_TIMEOUT_SECONDS = float(os.getenv("IMAGE_TIMEOUT_SECONDS", "120"))
 
 # ---------------------------------------------------------------------------
+# team_activity: a read-only tool that lets an agent whose owner turned on
+# "Can see the team" see what the other agents in its workspace did, ran and
+# spent (services/workflow/team_activity.py). Off by default.
+# ---------------------------------------------------------------------------
+TEAM_ACTIVITY_ENABLED = _flag("TEAM_ACTIVITY_ENABLED")
+
+# ---------------------------------------------------------------------------
 # Learn a website (services/knowledge_base/website.py): Decibyl reads a site's
 # pages that matter and keeps them as company knowledge every agent answers
 # from. On by default -- it reads only through the web fetcher's own rules

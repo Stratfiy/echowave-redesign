@@ -75,6 +75,7 @@ import {
 import { OutcomeRateCard } from "./OutcomeRateCard";
 import { ReadinessCard } from "./ReadinessCard";
 import { DEFAULT_TAB, isTabId, type TabId, TABS } from "./tabs";
+import { TeamAccessCard } from "./TeamAccessCard";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -1809,6 +1810,11 @@ function WorkflowSettingsInner({
                                 has read this per bot for a while; until now
                                 nothing on any screen let anybody choose it. */}
                             <NoticesCard workflowId={Number(workflowId)} />
+
+                            {/* Whether this agent may read what the rest of
+                                the team did. Absent while team_activity is
+                                off; off for every agent until turned on. */}
+                            <TeamAccessCard workflowId={Number(workflowId)} />
 
                             <VoicemailSection
                                 workflowConfigurations={resolvedWorkflowConfigurationsForRender}

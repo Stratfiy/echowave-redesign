@@ -215,6 +215,8 @@ FLAGS: dict[str, str] = {
     "evolve_skills": "EVOLVE_SKILLS_ENABLED",
     # Posters and ad creatives (services/images/).
     "image_generation": "IMAGE_GENERATION_ENABLED",
+    # A chief-of-staff agent reads what the other agents did and spent.
+    "team_activity": "TEAM_ACTIVITY_ENABLED",
     # Learn a website: a site's pages kept as company knowledge
     # (services/knowledge_base/website.py). On by default.
     "learn_website": "LEARN_WEBSITE_ENABLED",
@@ -353,6 +355,7 @@ DESCRIPTIONS: dict[str, str] = {
     "evolve_personal": "Personal adaptation: a preference a person states (language for calls or email, when to call, how often to report) is kept in their own private store with where it came from, applied to their turns and to calls and reminders that reach them, listed on request with Correct and Forget, and the chat shows what each conversation uses with a way to leave a source out.",
     "evolve_skills": "Skills that get better at your work: lessons from corrections and outcomes, tested on held-out and unrelated cases, offered on a card and published only by a person, with rollback; the Skills tab on Agents.",
     "image_generation": "Posters and ad creatives: images from Chat and two agents, on Gemini, OpenAI or Bedrock, chosen on a card in the thread.",
+    "team_activity": "Team activity: an agent whose owner turned on Can see the team can read, in one compact answer, what the other agents in the workspace ran, drafted, left waiting for approval and spent.",
     "instagram_channel": "Instagram messages: a workspace connects its Instagram professional account from Chat and one of its agents answers the messages, within Instagram's 24-hour reply window.",
     "review_requests": "Review requests: Decibyl adds a message that asks every customer for a review (Google, Justdial, Practo...) after a real conversation, at most once per person every 90 days; never only the happy ones, never for a reward.",
     "learn_website": "Learn a website: Decibyl reads a site's key pages (contact, hours, prices, services, FAQ) into one file in Files; kept for the agents, every agent answers from it.",
