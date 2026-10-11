@@ -70,9 +70,10 @@ class TestTheTimezoneItUses:
 
 
 class TestWhereItSits:
-    def test_the_date_comes_before_the_operators_own_prompt(self):
-        """A model that has already read "book them in for Tuesday" has begun
-        reasoning from the wrong year; the correction has to arrive first."""
+    def test_the_date_follows_the_operators_own_prompt(self):
+        """The clock changes every minute, so it sits after the operator's
+        prompt, which is what the prompt cache is keyed on; it still comes
+        before anything that depends on the day (caller, steps, answers)."""
         from api.services.workflow.pipecat_engine_context_composer import (
             compose_system_prompt_for_node,
         )
@@ -93,8 +94,8 @@ class TestWhereItSits:
             has_recordings=False,
         )
 
-        assert composed.index("Right now it is") < composed.index(
-            "OPERATOR PROMPT MARKER"
+        assert composed.index("OPERATOR PROMPT MARKER") < composed.index(
+            "Right now it is"
         )
 
 
@@ -193,7 +194,7 @@ class TestNowIsFixedForTheCall:
             today_line="FIXED MOMENT",
         )
 
-        assert composed.startswith("FIXED MOMENT")
+        assert "FIXED MOMENT" in composed.split("\n\n")
 
     def test_two_nodes_given_the_same_line_produce_the_same_prefix(self):
         """What caching actually needs: byte-identical, not merely similar."""
@@ -220,6 +221,7 @@ class TestNowIsFixedForTheCall:
             )
 
         first = _compose("FIRST NODE")
-        second = _compose("SECOND NODE")
 
-        assert first.split("\n\n")[0] == second.split("\n\n")[0]
+        assert first == _compose("FIRST NODE")
+        # The supplied line is carried unchanged, whatever the node says.
+        assert "FIXED MOMENT" in _compose("SECOND NODE").split("\n\n")

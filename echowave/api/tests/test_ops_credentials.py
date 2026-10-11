@@ -169,7 +169,11 @@ async def test_the_whole_rotation_and_no_step_returns_a_key(db_session, async_se
     assert keys[0]["health"] == "valid"
     actions = [
         r.action
-        for r in (await async_session.scalars(select(AdminActionLogModel))).all()
+        for r in (
+            await async_session.scalars(
+                select(AdminActionLogModel).order_by(AdminActionLogModel.id)
+            )
+        ).all()
         if r.action.startswith("credential_")
     ]
     assert actions == [
