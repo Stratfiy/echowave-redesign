@@ -195,6 +195,22 @@ Tokens are sealed with `PLATFORM_CREDENTIAL_SECRET`, which must be set.
 Redis holds message dedupe, each customer's conversation for the day and the
 per-customer cap (30 answers an hour).
 
+## 2b-1c. Payments confirmed in the conversation
+
+When an agent sends a payment link from a business's own Razorpay account
+(the connected Razorpay app), the link is kept and checked every two minutes
+through the same connection until it is paid, expires or three days pass
+(`api/services/workflow/payment_links.py`). On payment the owner sees it on
+the agent's thread, and a customer on Instagram is thanked in the
+conversation. Nothing to configure beyond the Razorpay connection itself;
+the action that reads a payment link is found in the connected app's own
+catalogue, and when none is found the owner is told the link cannot be
+confirmed automatically.
+
+```
+PAYMENT_CONFIRMATIONS_ENABLED=true   # kill switch
+```
+
 ## 2b-2. Decibyl in your apps — Telegram, Slack, Teams (DCH-1, KAN-277)
 
 Members talk to Decibyl as themselves from a chat app, after linking with a
