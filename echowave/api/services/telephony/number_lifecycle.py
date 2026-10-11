@@ -33,6 +33,7 @@ from datetime import UTC, datetime
 from loguru import logger
 from sqlalchemy import select
 
+from api import constants
 from api.db import db_client
 from api.db.models import (
     RecurringChargeModel,
@@ -199,6 +200,12 @@ async def release_number(
             if first_failed is not None and first_failed.tzinfo is None:
                 first_failed = first_failed.replace(tzinfo=UTC)
             if not dunning.may_release(first_failed_at=first_failed, now=now):
+                if not constants.RENTAL_SUSPEND_AND_RELEASE_ENABLED:
+                    raise ReleaseNotPermitted(
+                        f"{number.address} is not released for unpaid rent: "
+                        "nothing is charged for numbers, so billing never "
+                        "ends one. Pass force for a release the customer asked for."
+                    )
                 overdue = dunning.days_overdue(first_failed, now=now)
                 raise ReleaseNotPermitted(
                     f"{number.address} has been unpaid for {overdue} day(s). "

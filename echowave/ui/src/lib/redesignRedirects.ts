@@ -24,7 +24,11 @@ export const REDESIGN_REDIRECTS: RedesignRedirect[] = [
     { source: "/reports", destination: "/analytics" },
     { source: "/workflow/:workflowId(\\d+)/evals", destination: "/workflow/:workflowId/settings?tab=analysis" },
     { source: "/workflow/create", destination: "/start" },
-    { source: "/analytics/spend", destination: "/billing/spend" },
+    // There is no spend view for customers, and no checkout (founder, 9 Oct
+    // 2026): the old money screens land on what is left of them.
+    { source: "/analytics/spend", destination: "/usage" },
+    { source: "/billing/spend", destination: "/usage" },
+    { source: "/billing", destination: "/documents" },
     { source: "/verification", destination: "/numbers?verify=1" },
     { source: "/workflow/archived", destination: "/workflow?show=archived" },
 

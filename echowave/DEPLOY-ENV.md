@@ -448,7 +448,7 @@ open sockets on the api drop). The runbook is `docs/deployment/feature-flags.mdx
 
 ```
 INVITE_ONLY_SIGNUP_ENABLED=false      # INVITE-1  KAN-273  signup needs an invite code
-TRIAL_PLAN_ENABLED=false              # PLAN-1    KAN-255  trial replaces Free for new accounts
+# TRIAL_PLAN_ENABLED is no longer read: the trial is off for good (no checkout; api/constants.py)
 BYOK_TEXT_ENABLED=false               # BYOK-1    KAN-254  Decibyl/builder on the account's own key
 MARKETPLACE_PUBLISHING_ENABLED=false  # MKT-1     KAN-256  publish from the platform org
 WHATSAPP_CHANNEL_UI_ENABLED=false     # CH-0      KAN-258  "Put it on WhatsApp" on the bot page

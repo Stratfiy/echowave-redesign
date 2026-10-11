@@ -16,7 +16,6 @@ import { PostHogEvent } from "@/constants/posthog-events";
 import { WORKFLOW_RUN_MODES } from "@/constants/workflowRunModes";
 import { useOnboarding } from "@/context/OnboardingContext";
 import { useAuth } from "@/lib/auth";
-import { announceBalanceChanged } from "@/lib/billing/balanceEvents";
 import { PRICES_SHOWN } from "@/lib/pricing";
 import { cn, getRandomId } from "@/lib/utils";
 
@@ -209,7 +208,6 @@ export function WorkflowTesterPanel({
                                 accessToken={accessToken}
                                 onReset={() => setVoiceRunId(null)}
                                 onNodeTransition={onRuntimeNodeTransition}
-                                onCompleted={announceBalanceChanged}
                             />
                         ) : (
                             <>

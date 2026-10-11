@@ -3,6 +3,7 @@ import {
   Bot,
   CalendarClock,
   Database,
+  FileText,
   Flag,
   Globe,
   Handshake,
@@ -20,7 +21,6 @@ import {
   ShieldCheck,
   ShoppingBag,
   UserCog,
-  Wallet,
   Workflow,
 } from "lucide-react";
 
@@ -323,19 +323,18 @@ export const NAV_SECTIONS: SidebarNavSection[] = [
         ],
       },
       {
-        title: "Billing",
-        url: "/billing",
-        // /billing/spend sits under /billing already; the partner programme
-        // is the third Billing tab.
+        title: "Documents",
+        url: "/documents",
+        // The partner programme is the second tab of this strip.
         activePaths: ["/partner"],
-        icon: Wallet,
+        icon: FileText,
         keywords: [
-          "credit",
-          "top up",
           "invoice",
-          "payment",
-          "balance",
-          "spend",
+          "receipt",
+          "credit note",
+          "tax",
+          "gst",
+          "payment history",
           "partner",
           "reseller",
           "agency",
@@ -551,7 +550,7 @@ export const SHELL_MANAGE: ShellEntry[] = [
       { url: "/deploy/connect", title: "Webhooks & triggers" },
     ],
   },
-  { title: "Billing", icon: Wallet, url: "/billing" },
+  { title: "Documents", icon: FileText, url: "/documents" },
 ];
 
 const bare = (url: string) => url.split("#")[0];

@@ -560,10 +560,9 @@ therefore read zero, and that is the truth rather than a gap.
 Two settings change behaviour the moment this is deployed, so decide both
 before you run it rather than after:
 
-* **`REQUIRE_MANDATE_FOR_NUMBERS` defaults to `true`.** Every number purchase is
-  refused with a 403 until Razorpay Subscriptions is activated and the customer
-  has authorised a mandate. Set it `false` to keep the old prepaid-balance
-  behaviour while you wait for that approval.
+* **`REQUIRE_MANDATE_FOR_NUMBERS` is no longer read.** There is no checkout, so
+  no mandate can be created and none is asked for; a number is bounded by
+  `MAX_MANAGED_NUMBERS_PER_ACCOUNT` instead (api/constants.py).
 * **`MANAGED_PROVIDER_MARKUP_BPS` defaults to `17000`** — a 1.7x markup on STT,
   LLM and TTS bought with our keys, applied to calls from the moment it is
   deployed. `10000` charges at cost, exactly as before. This fallback is meant
@@ -605,10 +604,9 @@ Listed here rather than discovered later:
   unset. Without it the dunning schedule suspends numbers in silence, which is
   the failure the email exists to prevent.
 * **Autopay needs Razorpay Subscriptions activated.** That is their approval,
-  not our configuration, and it can take days. **`REQUIRE_MANDATE_FOR_NUMBERS`
-  defaults to `true`, so until Subscriptions is live every number purchase is
-  refused with a 403.** Set it false to fall back to the prepaid balance and
-  the dunning schedule while you wait.
+  not our configuration, and it can take days. It no longer matters:
+  **`REQUIRE_MANDATE_FOR_NUMBERS` is no longer read** (there is no checkout, so
+  no mandate is created or asked for).
 * **Managed numbers have never run against Plivo's live API.** The endpoint
   shapes match the published Compliance API and the encoding is unit-tested,
   but no compliance application has been filed and no number bought for real.

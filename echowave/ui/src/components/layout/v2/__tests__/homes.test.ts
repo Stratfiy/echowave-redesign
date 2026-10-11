@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import { activeHome, colleagueState, HOMES } from "../homes";
-import { parseTrial } from "../useRailData";
 
 describe("activeHome", () => {
   it("has Chat, Today and Files, and Studio only behind its flag", () => {
@@ -26,7 +25,7 @@ describe("activeHome", () => {
     expect(activeHome(path)).toBe(home);
   });
 
-  it.each(["/settings", "/billing", "/settings/models"])("lights no home on %s: Settings is in the profile menu", (path) => {
+  it.each(["/settings", "/documents", "/settings/models"])("lights no home on %s: Settings is in the profile menu", (path) => {
     expect(activeHome(path)).toBeUndefined();
   });
 
@@ -47,20 +46,3 @@ describe("colleagueState", () => {
   });
 });
 
-describe("parseTrial", () => {
-  it("returns null when the plan has no trial block", () => {
-    expect(parseTrial({ plans: [] })).toBeNull();
-    expect(parseTrial(undefined)).toBeNull();
-  });
-  it("returns null when the account is not on a trial", () => {
-    expect(parseTrial({ trial: { on_trial: false, active: false } })).toBeNull();
-  });
-  it("reads days left from the trial block", () => {
-    expect(parseTrial({ trial: { on_trial: true, active: true, days_left: 11, days: 14 } })).toEqual({
-      onTrial: true,
-      active: true,
-      daysLeft: 11,
-      days: 14,
-    });
-  });
-});

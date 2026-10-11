@@ -206,6 +206,32 @@ async def numbers_on_mandate(session: AsyncSession, *, mandate_id: int) -> int:
     ) or 0
 
 
+async def numbers_rented_by(session: AsyncSession, *, organization_id: int) -> int:
+    """How many numbers Decibyl is renting for this account right now.
+
+    Live meaning not released and not cancelled, so giving a number back frees
+    its place under ``MAX_MANAGED_NUMBERS_PER_ACCOUNT``. Scoped to the
+    organisation in the query itself.
+    """
+    return (
+        await session.scalar(
+            select(func.count())
+            .select_from(RecurringChargeModel)
+            .where(
+                RecurringChargeModel.organization_id == organization_id,
+                RecurringChargeModel.charge_type
+                == RecurringChargeType.NUMBER_RENTAL.value,
+                RecurringChargeModel.status.notin_(
+                    [
+                        RecurringChargeStatus.RELEASED.value,
+                        RecurringChargeStatus.CANCELLED.value,
+                    ]
+                ),
+            )
+        )
+    ) or 0
+
+
 async def _mandate_for_this_number(
     session: AsyncSession, *, organization_id: int, mandate_id: int | None
 ) -> int | None:

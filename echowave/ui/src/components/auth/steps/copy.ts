@@ -105,7 +105,6 @@ export const AUTH_COPY = {
     title: "Check your email",
     sentTo: "We sent a six-digit code to",
     yourAddress: "your address",
-    bonus: "Enter it and your first 150 free credits land.",
     label: "Six-digit verification code",
     submit: "Verify and continue",
     resend: "Send the code again",

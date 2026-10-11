@@ -95,6 +95,13 @@ async def notify_dunning(
     """
     from sqlalchemy.exc import IntegrityError
 
+    from api.services.billing import no_checkout
+
+    if not no_checkout.is_open():
+        # No dunning email while there is no checkout: it tells a customer to
+        # top up, and there is nothing to top up with.
+        return False
+
     from api.constants import UI_APP_URL
     from api.db import db_client
     from api.db.models import NotificationModel

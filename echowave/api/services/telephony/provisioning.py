@@ -39,7 +39,6 @@ from loguru import logger
 
 from api.constants import (
     NUMBER_RENTAL_COST_PAISE,
-    NUMBER_RENTAL_PRICE_PAISE,
     PLATFORM_PLIVO_APPLICATION_ID,
 )
 from api.db import db_client
@@ -79,7 +78,6 @@ class ProvisionedNumber:
     address: str
     carrier_number_id: str | None
     recurring_charge_id: int | None
-    monthly_price_paise: int
 
 
 async def assert_may_provision(organization_id: int) -> str:
@@ -135,6 +133,27 @@ async def _assert_agreements(organization_id: int) -> None:
 
     async with db_client.async_session() as session:
         await agreements.require_accepted(session, organization_id=organization_id)
+
+
+async def _assert_number_cap(organization_id: int) -> None:
+    """Refuse a number beyond the account's cap, and say what the cap is for.
+
+    Numbers cost us carrier rent every month and nothing is charged for them,
+    so the ceiling is a usage limit (``MAX_MANAGED_NUMBERS_PER_ACCOUNT``), not
+    a price. Checked before anything is bought.
+    """
+    from api import constants
+    from api.services.billing import rentals
+
+    async with db_client.async_session() as session:
+        held = await rentals.numbers_rented_by(session, organization_id=organization_id)
+    cap = constants.MAX_MANAGED_NUMBERS_PER_ACCOUNT
+    if held >= cap:
+        raise ProvisioningError(
+            f"This account already has {held} phone numbers from Decibyl, which "
+            f"is the most for one account ({cap}). Give one back to take "
+            "another, or ask us from Help if you need more."
+        )
 
 
 async def _assert_autopay(organization_id: int) -> int | None:
@@ -206,6 +225,8 @@ async def provision(
     # instruction under terms they have not been shown, and because accepting is
     # the cheaper of the two to fix.
     await _assert_agreements(organization_id)
+    # The cap, before a standing instruction or a purchase is even considered.
+    await _assert_number_cap(organization_id)
     # Autopay is checked here and not in `search`, because the purchase flow is
     # documents -> approved -> search -> select -> mandate -> number. Showing a
     # customer the numbers on offer before asking them to authorise a standing
@@ -374,7 +395,6 @@ async def provision(
         address=address,
         carrier_number_id=purchase.carrier_number_id,
         recurring_charge_id=charge.id if charge else None,
-        monthly_price_paise=NUMBER_RENTAL_PRICE_PAISE,
     )
 
 

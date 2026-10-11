@@ -574,7 +574,7 @@ export default function TelephonyConfigurationDetailPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Release {phoneReleaseTarget?.address}?</AlertDialogTitle>
             <AlertDialogDescription>
-              This gives the number back to the carrier and stops its monthly rental.
+              This gives the number back to the carrier.
               It is irreversible — the number can be reissued to someone else, and it
               may still be printed on your signage or invoices.
             </AlertDialogDescription>

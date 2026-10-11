@@ -10,11 +10,11 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  BILLING_TABS,
   CALLS_TABS,
   COMPLIANCE_TABS,
   DESK_TABS,
   DEVELOPER_TABS,
+  DOCUMENTS_TABS,
   KNOWLEDGE_TABS,
   MARKETPLACE_TABS,
   TELEPHONY_TABS,
@@ -24,7 +24,7 @@ const STRIPS = {
   CALLS_TABS,
   KNOWLEDGE_TABS,
   COMPLIANCE_TABS,
-  BILLING_TABS,
+  DOCUMENTS_TABS,
   MARKETPLACE_TABS,
   TELEPHONY_TABS,
   DESK_TABS,
@@ -57,9 +57,10 @@ describe("section tabs", () => {
     ]);
   });
 
-  it("files Spend under Billing, where the balance is", () => {
-    expect(BILLING_TABS.map((tab) => tab.href)).toContain("/billing/spend");
-    expect(CALLS_TABS.some((tab) => tab.href.includes("spend"))).toBe(false);
+  it("has no Spend tab anywhere: customers see usage, not cost", () => {
+    const hrefs = Object.values(STRIPS).flatMap((tabs) => tabs.map((tab) => tab.href));
+    expect(hrefs.some((href) => href.includes("spend") || href.includes("billing"))).toBe(false);
+    expect(DOCUMENTS_TABS.map((tab) => tab.href)).toEqual(["/documents", "/partner"]);
   });
 
   it("files Missed calls with the calls, not with buying a number", () => {
@@ -124,7 +125,7 @@ describe("section tabs", () => {
 
   it("lets /analytics light its tab from a detail page", () => {
     // /analytics carries prefix: true; nothing under it belongs to another
-    // tab since Spend moved to /billing/spend.
+    // tab (there is no Spend tab any more).
     const analytics = CALLS_TABS.find((tab) => tab.href === "/analytics");
     expect(analytics?.prefix).toBe(true);
     expect(CALLS_TABS.some((tab) => tab.href.startsWith("/analytics/"))).toBe(false);

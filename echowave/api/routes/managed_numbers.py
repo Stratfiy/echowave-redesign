@@ -148,8 +148,6 @@ async def search_numbers(
                 "number_type": n.number_type,
                 "city": n.city,
                 "region": n.region,
-                "monthly_rental": n.monthly_rental,
-                "setup_price": n.setup_price,
             }
             for n in results
         ],
@@ -160,7 +158,7 @@ async def search_numbers(
 async def provision_number(
     request: ProvisionRequest, user: UserModel = Depends(require_verified_email)
 ) -> dict[str, Any]:
-    """Buy a number and start its monthly rental."""
+    """Get a number. Provided without charge, up to a per-account cap."""
     organization_id = _organization_id(user)
     await _ensure_config_belongs_to_org(
         request.telephony_configuration_id, organization_id
@@ -219,7 +217,6 @@ async def provision_number(
             "organization_id": organization_id,
             "phone_number_id": result.phone_number_id,
             "country_code": request.country_code,
-            "monthly_price_paise": result.monthly_price_paise,
         },
     )
     return {
@@ -227,7 +224,6 @@ async def provision_number(
         "address": result.address,
         "carrier_number_id": result.carrier_number_id,
         "recurring_charge_id": result.recurring_charge_id,
-        "monthly_price_paise": result.monthly_price_paise,
     }
 
 

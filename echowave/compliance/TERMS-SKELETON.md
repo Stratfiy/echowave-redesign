@@ -14,6 +14,18 @@ Take this to counsel as input. A terms of service is a commercial contract —
 what is sold, what it costs, when it stops — and almost none of that is
 derivable from a repository.
 
+> **NEEDS LAWYER REVIEW — § 4 was rewritten on 9–10 Oct 2026 (founder
+> decision: no pricing is shown, nothing is charged, there is no checkout).**
+> The new § 4 says the Services are provided without charge for now and that
+> pricing will be announced with notice before any charge, and it keeps the
+> refund rights of anyone who has already paid. It has **not** been reviewed by
+> a lawyer, and a change to the terms of a contract needs notice to existing
+> users (§ 10.2). Three consequences for counsel to settle, none of them
+> decided here: the liability cap in § 9.2 is defined by charges paid, which is
+> now nothing for a new customer; § 2.2's suspension for non-payment has
+> nothing to apply to while nothing is charged; and the notice that goes to
+> accounts that accepted the earlier § 4.
+
 ---
 
 # TERMS OF SERVICE
@@ -41,10 +53,12 @@ supplier of a tool.** A call its agent places is the Customer's call.
 2.1 The Customer is responsible for its users, for their credentials, and for
 everything done through its account.
 
-2.2 Decibyl may suspend an account that is materially in breach, that is not
-paid, or whose use presents a legal or security risk to Decibyl or to a third
-party. For non-payment Decibyl gives **seven days' notice** before suspension.
-For a legal or security risk, suspension may be immediate — a platform that must
+2.2 Decibyl may suspend an account that is materially in breach, or whose use
+presents a legal or security risk to Decibyl or to a third party. Where a
+charge applies and is not paid, Decibyl gives **seven days' notice** before
+suspension; while nothing is charged, there is no suspension for non-payment,
+and a phone number is never released because of one. For a legal or security
+risk, suspension may be immediate — a platform that must
 wait a week before stopping a scam campaign is part of the problem.
 
 ## 3. Acceptable use
@@ -119,27 +133,36 @@ on a platform that dials for clinics.
 
 ## 4. Charges
 
-4.1 Charges are as published at https://decibyl.ai/pricing or as agreed in an
-order form.
+4.1 The Services are **provided without charge for now; pricing will be
+announced with notice before any charge.** No charge applies to the Customer
+unless and until Decibyl has published a price and given the Customer that
+notice, and a price announced later does not apply to use made before the
+notice takes effect. `[NEEDS LAWYER REVIEW — how much notice, and whether
+continued use after the notice is acceptance of the price or needs a fresh
+acceptance under § 10.2.]`
 
-4.2 Usage is metered per component in that component's own unit — speech per
-minute, synthesis per character, language models per token, carriage per
-minute — and converted to credits. Credits are consumed as the Services are
-used.
+4.2 Usage is still measured per component in that component's own unit —
+speech per minute, synthesis per character, language models per token,
+carriage per minute — so that the Services can be operated within the daily
+limits and per-account limits that apply, and so that a price can be announced
+later. Measuring is not charging.
 
-4.3 **Credits included in a plan expire at the end of the billing period in
-which they were granted and do not carry over. Credits purchased as a top-up do
-not expire.** Where an account holds both, plan credits are consumed first, so
-the balance that expires is spent before the balance that does not.
+4.3 **Money already paid.** Some Customers paid for credit or a plan before
+charging stopped. Their rights in respect of that money are unchanged by this
+section: where a Customer is entitled to a refund, whether under these terms,
+the terms in force when it paid, or the law, Decibyl refunds it and issues a
+credit note against the original document. The receipts, tax invoices and
+credit notes issued to an account remain available under **Documents** for as
+long as the law requires them to be kept. `[NEEDS LAWYER REVIEW — what happens
+to unspent credit that was paid for: refund or honour. Founder and accountant
+to decide; the earlier terms said purchased credit did not expire and plan
+credit did.]`
 
-4.4 Charges are not refundable, including on termination and for part-periods,
-except where the law requires otherwise or where Decibyl has charged in error.
-Unused credits are not exchangeable for money.
-
-4.5 Taxes are payable in addition. Indian accounts are charged GST at the
-prevailing rate. `[TO CONFIRM — the export-of-services position for accounts
-outside India: a chartered accountant's question, not a drafting one, and the
-answer changes what is invoiced.]`
+4.4 Taxes are payable in addition to any charge announced later. Indian
+accounts are charged GST at the prevailing rate. `[TO CONFIRM — the
+export-of-services position for accounts outside India: a chartered
+accountant's question, not a drafting one, and the answer changes what is
+invoiced.]`
 
 ## 5. Third-party services
 
@@ -201,7 +224,9 @@ platform provides the test call, the transcript, the recording and the timeline
 so the Customer can exercise that responsibility.
 
 9.2 Each party's total liability under these terms is limited to the charges
-paid by the Customer in the twelve months before the claim. **This cap does not
+paid by the Customer in the twelve months before the claim. `[NEEDS LAWYER
+REVIEW — while nothing is charged this figure is nil for a new customer;
+counsel to decide a floor or another measure.]` **This cap does not
 apply** to a breach of confidentiality, a personal data breach caused by that
 party, infringement of the other party's intellectual property, fraud, or any
 liability the law does not permit to be limited.
@@ -273,7 +298,9 @@ treated as agreement to a new document.
 | Clause | Enforced by |
 |---|---|
 | Versioned re-acceptance (10.2) | `compliance/agreements.py` — acceptance rows store the version and are never updated |
+| No charge (4.1) | `constants.CHECKOUT_OPEN` is False and `PRICES_SHOWN` is False; `billing/no_checkout.py` answers 410 to every checkout route; `tests/test_free_mode_guard.py` keeps `free_mode` on |
 | Per-component metering (4.2) | `billing/cost_engine.py`, `enums.RateUnit` |
-| Plan vs top-up credit (4.3) | `CreditLedgerKind.PLAN` / `TOPUP` |
+| Refund rights for money already paid (4.3) | `staff/refunds.py`, `billing/documents.issue_credit_note`; the Documents page keeps every receipt and credit note |
+| No suspension or release for non-payment (2.2) | `constants.RENTAL_SUSPEND_AND_RELEASE_ENABLED` is False (`billing/dunning.py`) |
 | DNC and calling windows (3.2) | `compliance/dnd.py`, `do_not_call_entries` |
 | Deletion on termination (8.3) | retention policies, `DEFAULT_RECORDING_RETENTION_DAYS` |

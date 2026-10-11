@@ -383,16 +383,16 @@ class TestCallingStopsAtTheFloor:
             is True
         )
 
-    async def test_the_message_names_the_floor_and_the_way_back(self):
+    async def test_the_message_is_the_daily_limit_and_quotes_no_price(self):
         from api.services.quota_service import no_credit_message
 
         message = no_credit_message()
 
-        # "Out of credit" to an account showing ₹18 reads as our arithmetic
-        # being wrong rather than as something they can fix.
-        assert "₹20" in message
-        # Free amounts start at ₹1,000 since the 14 Sept decisions (KAN-47).
-        assert "₹1,000" in message
+        # There is no credit to add and no price to quote (founder, 9 Oct
+        # 2026): the wall says what the daily limits say, with no floor and no
+        # top-up amount in it.
+        assert message.startswith("You have used today's ")
+        assert "₹" not in message
 
 
 class TestTopUpsComeInSteps:

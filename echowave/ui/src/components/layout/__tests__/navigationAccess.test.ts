@@ -134,12 +134,12 @@ describe("admin-only destinations are hidden from members", () => {
 });
 
 describe("what stays open to every member", () => {
-    it("leaves billing reachable", () => {
-        // Topping up is deliberately not admin-gated: "a member who cannot top
-        // up when the balance runs out is a member who cannot work, and paying
-        // us more money is not a privilege that needs protecting." Hiding the
-        // screen would gate the payment along with the mandate.
-        expect(urls(MEMBER)).toContain("/billing");
+    it("leaves documents reachable", () => {
+        // The tax documents and payment history are the account's record, and
+        // GST law says they stay available. Editing the details printed on
+        // them is admin-gated inside the screen, so the door stays open.
+        expect(urls(MEMBER)).toContain("/documents");
+        expect(urls(MEMBER)).not.toContain("/billing");
     });
 
     it("leaves the do-not-call list reachable", () => {

@@ -20,8 +20,6 @@ import { type AccessRoles, useAccessRoles } from "@/hooks/useAccessRoles";
 import { useFeature } from "@/lib/features";
 import { cn } from "@/lib/utils";
 
-import { BalanceChip } from "./BalanceChip";
-import { GiftMenu } from "./GiftMenu";
 import { getVisibleNavSections, type SidebarNavItem } from "./navigation";
 import { NotificationBell } from "./NotificationBell";
 
@@ -173,8 +171,6 @@ function GlobalSearch() {
  * account controls in a persistent bar across the top of every board.
  */
 export function TopBar() {
-  // Free while we are early: no balance to watch, no credit to earn.
-  const freeMode = useFeature("free_mode");
   const supportHelp = useFeature("support_help");
   const router = useRouter();
   return (
@@ -189,22 +185,11 @@ export function TopBar() {
       </div>
 
       <div className="flex shrink-0 items-center gap-1">
-        {/* Leftmost of the actions, for the same reason the organization is
-            here: on a prepaid product what is left to spend is context for
-            every screen, not a page you visit. It lived only on Billing, so
-            most people met the number for the first time after a call had
-            already been refused. */}
-        {!freeMode && <BalanceChip />}
-        {/* What adds to that number for free: the credit steps and the
-            referral link, one tap from the chip they feed. */}
-        {!freeMode && <GiftMenu />}
-
         {/* The workspace is named at the head of the panel now, the way
             Slack names it, so it is not said a second time up here. */}
 
-        {/* Notices about the account — low credit, a charge, credits landing
-            — where the person is, not only in an inbox they check twice a
-            day. */}
+        {/* Notices about the account, where the person is, not only in an
+            inbox they check twice a day. */}
         <NotificationBell />
 
         {/* A menu rather than a link straight to the docs. Docs answer "how

@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 from api.db import db_client
 from api.db.models import UserModel
 from api.services.auth.depends import get_user
+from api.services.billing import no_checkout
 from api.services.reports import (
     answer_seizure_ratio,
     cost_by_outcome,
@@ -527,7 +528,11 @@ def _range(days: int) -> tuple[date_cls, date_cls]:
     return end - timedelta(days=max(1, min(days, 365)) - 1), end
 
 
-@router.get("/usage/spend")
+@router.get(
+    "/usage/spend",
+    dependencies=[Depends(no_checkout.costs_hidden)],
+    include_in_schema=False,
+)
 async def get_spend_breakdown(
     days: int = Query(30, ge=1, le=365),
     user: UserModel = Depends(get_user),
@@ -587,6 +592,23 @@ async def get_spend_breakdown(
     }
 
 
+def _without_cost(node: Any) -> Any:
+    """Customers see minutes, runs and chats, never what a run cost.
+
+    Stripped by key at every depth, so a new cost field added to the report
+    one day is removed only if it is named like one (``cost_*``).
+    """
+    if isinstance(node, dict):
+        return {
+            key: _without_cost(value)
+            for key, value in node.items()
+            if not str(key).startswith("cost")
+        }
+    if isinstance(node, list):
+        return [_without_cost(item) for item in node]
+    return node
+
+
 @router.get("/usage/agents")
 async def get_usage_by_agent(
     days: int = Query(30, ge=1, le=365),
@@ -605,12 +627,13 @@ async def get_usage_by_agent(
     end = datetime.now(UTC)
     start = end - timedelta(days=days)
     async with db_client.async_session() as session:
-        return await agent_usage.by_agent(
+        report = await agent_usage.by_agent(
             session,
             organization_id=user.selected_organization_id,
             start=start,
             end=end,
         )
+    return _without_cost(report)
 
 
 @router.get("/usage/calls")

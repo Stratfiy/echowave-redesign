@@ -48,7 +48,7 @@ describe("the navigation", () => {
     });
 
     it("keeps the account menu to what Settings does not hold", () => {
-        expect(SHELL_MANAGE.map((e) => e.title)).toEqual(["Marketplace", "Deploy", "Billing"]);
+        expect(SHELL_MANAGE.map((e) => e.title)).toEqual(["Marketplace", "Deploy", "Documents"]);
     });
 
     it("reaches every page the rail used to hold, through Settings", () => {
@@ -63,7 +63,7 @@ describe("the navigation", () => {
     });
 
     it("drops a page a role hides, and a group left with nothing", () => {
-        const sections = [{ items: [{ title: "Billing", url: "/billing", icon: SHELL_MANAGE[0].icon }] }];
-        expect(visibleShellManage(sections).map((e) => e.title)).toEqual(["Billing"]);
+        const sections = [{ items: [{ title: "Documents", url: "/documents", icon: SHELL_MANAGE[0].icon }] }];
+        expect(visibleShellManage(sections).map((e) => e.title)).toEqual(["Documents"]);
     });
 });

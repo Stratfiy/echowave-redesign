@@ -250,6 +250,9 @@ async def schedule(
     An ``IntegrityError`` means another worker won the race. That is the guard
     doing its job, not an error: it returns None and this sweep does nothing.
     """
+    from api.services.billing.no_checkout import assert_open
+
+    assert_open("An auto top-up")
     attempt = AutoTopupAttemptModel(
         organization_id=org.id,
         status=SCHEDULED,
@@ -290,6 +293,9 @@ async def execute(
     a second way to buy credit. The webhook that follows the charge does the
     crediting, exactly as it does for a customer sitting at a checkout.
     """
+    from api.services.billing.no_checkout import assert_open
+
+    assert_open("An auto top-up")
     token = await payments.active_token(session, organization_id=org.id)
     if token is None:
         await _fail(session, attempt=attempt, reason="no saved instrument on file")

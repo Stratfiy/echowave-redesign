@@ -3,7 +3,7 @@
 /**
  * The tab lists for destinations that share one sidebar entry.
  *
- * The sidebar names a job — Calls, Compliance, Knowledge base, Billing — and
+ * The sidebar names a job — Calls, Compliance, Knowledge base, Documents — and
  * the screens that make up that job sit a tab apart from each other rather
  * than each taking a row in the navigation. The routes are unchanged: every
  * deep link and bookmark still lands where it did.
@@ -35,7 +35,6 @@ export type SectionTab = PageTab;
  *  shape of all of them. Missed calls arrived here from Phone numbers,
  *  where it was filed with the screens for buying one; it is the only
  *  record of a caller we refused, so it belongs beside the calls we took.
- *  Two entries left: Spend went to Billing (a money question), and
  *  Daily reports is linked from the foot of Analytics, because it is one
  *  day in detail -- something you want after the shape tells you which day,
  *  not a peer of it. Five tabs meant guessing again, one level down. */
@@ -65,13 +64,11 @@ export const COMPLIANCE_TABS: PageTab[] = [
   { href: "/do-not-call", label: "Do not call", prefix: true },
 ];
 
-export const BILLING_TABS: PageTab[] = [
-  { href: "/billing", label: "Billing", prefix: true },
-  // Spend used to sit in the call strip, beside Calls and Review. But
-  // "what did this cost" is a money question, and the person asking it is
-  // already on Billing looking at the balance -- they were being sent to a
-  // tab filed under the phone.
-  { href: "/billing/spend", label: "Spend", prefix: true },
+/** Documents is what Billing became: there is no checkout and no spend view
+ *  (founder, 9 Oct 2026), only the record of money already paid. The partner
+ *  programme keeps its tab. */
+export const DOCUMENTS_TABS: PageTab[] = [
+  { href: "/documents", label: "Documents", prefix: true },
   { href: "/partner", label: "Partner programme", prefix: true },
 ];
 

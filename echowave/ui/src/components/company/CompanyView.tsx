@@ -263,9 +263,7 @@ function SpendStat({ spent, limit }: { spent: number; limit: number | null }) {
             {percent !== null ? (
                 <Meter percent={percent} className="mt-2" />
             ) : (
-                <Link href="/billing" className="mt-1 block text-xs text-muted-foreground underline-offset-2 hover:underline">
-                    No budget set
-                </Link>
+                <span className="mt-1 block text-xs text-muted-foreground">No budget set</span>
             )}
         </div>
     );

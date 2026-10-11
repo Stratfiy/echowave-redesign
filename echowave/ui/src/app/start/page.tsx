@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 
-import { TrialNotice } from "@/components/billing/TrialNotice";
 import { FirstAgentJourney } from "@/components/first-agent/FirstAgentJourney";
 import { StartGate } from "@/components/helpers/StartGate";
 
@@ -18,9 +17,6 @@ export const metadata: Metadata = {
 export default function StartPage() {
     return (
         <StartGate>
-            <div className="mx-auto w-full max-w-3xl px-4 pt-4">
-                <TrialNotice />
-            </div>
             <FirstAgentJourney />
         </StartGate>
     );

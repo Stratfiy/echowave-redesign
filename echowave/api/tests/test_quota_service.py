@@ -742,9 +742,9 @@ async def test_run_on_an_unfunded_account_is_denied(monkeypatch):
 
     assert result.has_quota is False
     assert result.error_code == "insufficient_credit"
-    # Names the fix, not the mechanism. The customer has no idea what a
-    # reservation is and should not need to.
-    assert "credit" in result.error_message.lower()
+    # Names the limit and when it resets, not the mechanism. The customer has
+    # no idea what a reservation is and should not need to.
+    assert result.error_message.startswith("You have used today's ")
 
 
 @pytest.mark.asyncio
@@ -877,13 +877,14 @@ async def test_the_credit_check_does_not_run_before_tenant_isolation(monkeypatch
 
 
 # ---------------------------------------------------------------------------
-# The wall is worded for the run that hit it
+# The wall is worded for the run that hit it, in the words of the daily limits
 # ---------------------------------------------------------------------------
 #
 # Seen on a fresh account: "hello" typed into a bot's chat came back as
 # "Calling stops when your balance falls below ₹20. Add credit to start calling
-# again." No call had happened. And the account's 150 free credits were one
-# email verification away, which the sentence never said.
+# again." No call had happened, and a price was quoted. There is no credit to
+# add now (founder, 9 Oct 2026), so a run refused for want of credit says what
+# every other limit says: today's allowance is used, and when it resets.
 
 
 def _text_run(workflow_id: int = 7):
@@ -894,36 +895,34 @@ def _call_run(workflow_id: int = 7):
     return SimpleNamespace(workflow_id=workflow_id, mode="plivo", definition=None)
 
 
-def test_a_text_run_is_told_about_replies_not_calls():
+def test_a_text_run_is_told_about_messages_not_calls():
     message = quota_service.no_credit_message(mode="textchat")
-    assert message.startswith("Replies stop")
+    assert message.startswith("You have used today's ")
+    assert "messages" in message
     assert "call" not in message.lower()
-    assert "₹20" in message and "₹1,000" in message
 
 
-def test_a_call_keeps_its_own_words():
+def test_a_call_is_told_about_voice_minutes():
     message = quota_service.no_credit_message(mode="plivo")
-    assert message.startswith("Calling stops")
+    assert message.startswith("You have used today's ")
+    assert "voice minutes" in message
     assert message == quota_service.no_credit_message()
 
 
-def test_free_credit_one_step_away_is_named_before_money():
-    message = quota_service.no_credit_message(mode="textchat", verify_email_credits=150)
-    assert "Verify your email" in message
-    assert "150 free credits" in message
-    assert message.index("Verify your email") < message.index("₹1,000")
+def test_the_wall_names_no_price_and_no_balance():
+    for mode in (None, "plivo", "textchat"):
+        message = quota_service.no_credit_message(mode=mode)
+        for word in ("₹", "credit", "balance", "Add ", "top up"):
+            assert word not in message, (word, message)
 
 
 @pytest.mark.asyncio
-async def test_refusing_a_text_run_uses_the_text_words(monkeypatch):
+async def test_refusing_a_text_run_uses_the_daily_limit_words(monkeypatch):
     _patch_workflow_context(monkeypatch)
     monkeypatch.setattr(
         quota_service.db_client, "get_workflow_run", AsyncMock(return_value=_text_run())
     )
     monkeypatch.setattr(quota_service, "_has_credit", AsyncMock(return_value=False))
-    monkeypatch.setattr(
-        quota_service, "_verify_email_credits", AsyncMock(return_value=0)
-    )
 
     result = await quota_service.authorize_workflow_run_start(
         workflow_id=7, organization_id=42, workflow_run_id=99
@@ -931,35 +930,20 @@ async def test_refusing_a_text_run_uses_the_text_words(monkeypatch):
 
     assert result.has_quota is False
     assert result.error_code == "insufficient_credit"
-    assert result.error_message.startswith("Replies stop")
+    assert result.error_message.startswith("You have used today's ")
+    assert "messages" in result.error_message
 
 
 @pytest.mark.asyncio
-async def test_refusing_an_unverified_account_names_the_open_door(monkeypatch):
+async def test_refusing_a_call_run_uses_the_daily_limit_words(monkeypatch):
     _patch_workflow_context(monkeypatch)
     monkeypatch.setattr(
         quota_service.db_client, "get_workflow_run", AsyncMock(return_value=_call_run())
     )
     monkeypatch.setattr(quota_service, "_has_credit", AsyncMock(return_value=False))
-    monkeypatch.setattr(
-        quota_service, "_verify_email_credits", AsyncMock(return_value=150)
-    )
 
     result = await quota_service.authorize_workflow_run_start(
         workflow_id=7, organization_id=42, workflow_run_id=99
     )
 
-    assert "Verify your email and 150 free credits land" in result.error_message
-
-
-@pytest.mark.asyncio
-async def test_a_failure_to_read_the_email_step_costs_only_the_sentence(monkeypatch):
-    class _Boom:
-        async def __aenter__(self):
-            raise RuntimeError("db away")
-
-        async def __aexit__(self, *exc):
-            return False
-
-    monkeypatch.setattr(quota_service.db_client, "async_session", lambda: _Boom())
-    assert await quota_service._verify_email_credits(42) == 0
+    assert "voice minutes" in result.error_message

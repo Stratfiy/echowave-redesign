@@ -1,30 +1,25 @@
 "use client";
 
 /**
- * Buying a phone number, in the order the money says it has to happen.
+ * Getting a phone number, in the order the carrier needs it.
  *
- * Documents → approved → search → select → **autopay** → number. The autopay
- * step sits between selecting and issuing on purpose, and it is the one that
- * looks out of place until you follow the money: a number is rent we owe a
- * carrier every month from the day we buy it. Issuing one before the customer
- * has authorised a standing instruction is a bill we pay and cannot collect
- * on. Asking for the mandate before showing them what is available is the
- * opposite mistake — nobody authorises a payment for a thing they have not
- * seen.
+ * Documents -> approved -> search -> select -> number. No price is shown and
+ * nothing is charged for a number (founder, 9 Oct 2026); there is no autopay
+ * step, because there is no checkout to authorise. What bounds the rent
+ * Decibyl carries instead is a per-account cap on numbers, enforced on the
+ * server (`MAX_MANAGED_NUMBERS_PER_ACCOUNT`), whose refusal is shown here in
+ * its own words.
  *
  * The screen never claims a step is done on its own say-so. Verification is
- * the carrier's verdict and autopay is the bank's; both are read back from the
- * server after the fact, because a UI that marks itself complete is a UI that
- * disagrees with the thing that decides.
+ * the carrier's verdict, read back from the server after the fact, because a
+ * UI that marks itself complete is a UI that disagrees with the thing that
+ * decides.
  */
 
 import {
     AlertTriangle,
     CheckCircle2,
-    CreditCard,
-    ExternalLink,
     Loader2,
-    RefreshCw,
     Search,
     ShieldCheck,
 } from "lucide-react";
@@ -34,9 +29,7 @@ import { Suspense, useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import {
-    createMandateApiV1BillingMandatePost,
     getKycApiV1KycGet,
-    getMandateApiV1BillingMandateGet,
     listTelephonyConfigurationsApiV1OrganizationsTelephonyConfigsGet,
     provisionNumberApiV1ManagedNumbersPost,
     searchNumbersApiV1ManagedNumbersSearchPost,
@@ -57,10 +50,8 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useAccessRoles } from "@/hooks/useAccessRoles";
 import { detailFromResult } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
-import { formatPaise } from "@/lib/billing/format";
 import { cn } from "@/lib/utils";
 
 /** The STD codes the carrier actually sells, per country.
@@ -106,28 +97,6 @@ type AvailableNumber = {
     number_type: string;
     city: string | null;
     region: string | null;
-    monthly_rental: string | null;
-    setup_price: string | null;
-};
-
-type Mandate = {
-    id: number;
-    status: string;
-    authorised: boolean;
-    authorisation_url: string | null;
-    price_paise: number;
-    authorised_at: string | null;
-    last_failure_reason: string | null;
-};
-
-type MandateView = {
-    mandate: Mandate | null;
-    required_for_numbers: boolean;
-    configured: boolean;
-    // What the next number costs this account, from the same resolver that
-    // bills it. Optional so a backend that predates the field renders the
-    // number without a price rather than "₹NaN".
-    number_price_paise?: number | null;
 };
 
 type ConfigOption = { id: number; name: string; is_platform_managed: boolean };
@@ -206,7 +175,6 @@ function BuyNumber() {
     const [kycStatus, setKycStatus] = useState<string | null>(null);
     const [configs, setConfigs] = useState<ConfigOption[]>([]);
     const [configId, setConfigId] = useState<string>("");
-    const [mandateView, setMandateView] = useState<MandateView | null>(null);
 
     const [country, setCountry] = useState("IN");
     const [prefix, setPrefix] = useState<string | null>(null);
@@ -219,13 +187,6 @@ function BuyNumber() {
     const [exactMatch, setExactMatch] = useState(true);
     const [selected, setSelected] = useState<string | null>(null);
 
-    const [startingMandate, setStartingMandate] = useState(false);
-    // `POST /api/v1/billing/mandate` requires ADMIN — a standing authority to
-    // debit the account's bank account is not a member's to grant. Without
-    // this, step 3 of the rental flow handed a member a button whose only
-    // possible answer was "Could not start autopay", three steps into a
-    // journey they cannot finish.
-    const { isOrganizationAdmin, loaded: rolesLoaded } = useAccessRoles();
     const [buying, setBuying] = useState(false);
     const [bought, setBought] = useState<string | null>(null);
 
@@ -237,12 +198,6 @@ function BuyNumber() {
     const agreements = useAgreements(ready);
     const [agreementsOpen, setAgreementsOpen] = useState(false);
     const [error, setError] = useState<string | null>(null);
-
-    const refreshMandate = useCallback(async () => {
-        const result = await getMandateApiV1BillingMandateGet();
-        if (result.error) return;
-        setMandateView(result.data as unknown as MandateView);
-    }, []);
 
     useEffect(() => {
         if (!ready) return;
@@ -259,10 +214,8 @@ function BuyNumber() {
             const kyc = await getKycApiV1KycGet();
             if (cancelled) return;
 
-            const [configList, mandate] = await Promise.all([
-                listTelephonyConfigurationsApiV1OrganizationsTelephonyConfigsGet(),
-                getMandateApiV1BillingMandateGet(),
-            ]);
+            const configList =
+                await listTelephonyConfigurationsApiV1OrganizationsTelephonyConfigsGet();
             if (cancelled) return;
 
             if (!kyc.error) {
@@ -284,9 +237,6 @@ function BuyNumber() {
                 setConfigs(managed);
                 if (managed.length === 1) setConfigId(String(managed[0].id));
             }
-            if (!mandate.error) {
-                setMandateView(mandate.data as unknown as MandateView);
-            }
             setLoading(false);
         })();
         return () => {
@@ -295,16 +245,6 @@ function BuyNumber() {
     }, [ready]);
 
     const approved = kycStatus === "carrier_approved";
-    const mandate = mandateView?.mandate ?? null;
-    const mandateRequired = mandateView?.required_for_numbers !== false;
-    // Never a hardcoded figure: this screen quoted ₹349 while every account
-    // was charged ₹559. Undefined until the fetch lands, and the copy below
-    // omits the price rather than inventing one.
-    const numberPrice =
-        typeof mandateView?.number_price_paise === "number"
-            ? formatPaise(mandateView.number_price_paise)
-            : null;
-    const autopayDone = !mandateRequired || Boolean(mandate?.authorised);
 
     const runSearch = useCallback(
         async (filtered: boolean) => {
@@ -354,26 +294,6 @@ function BuyNumber() {
         void runSearch(false);
     }, [configId, results, runSearch]);
 
-    const handleStartAutopay = async () => {
-        setStartingMandate(true);
-        setError(null);
-        const result = await createMandateApiV1BillingMandatePost();
-        setStartingMandate(false);
-        if (result.error) {
-            setError(detailFromResult(result, "Could not start autopay"));
-            return;
-        }
-        const created = (result.data as unknown as { mandate: Mandate }).mandate;
-        setMandateView((current) =>
-            current ? { ...current, mandate: created } : current,
-        );
-        if (created?.authorisation_url) {
-            // The provider's own hosted page. Opened in a new tab rather than
-            // navigated to, so coming back does not lose the number they picked.
-            window.open(created.authorisation_url, "_blank", "noopener");
-        }
-    };
-
     const handleBuy = () => {
         if (agreements.outstanding.length > 0) {
             setAgreementsOpen(true);
@@ -422,8 +342,7 @@ function BuyNumber() {
                         {bought} is yours
                     </h1>
                     <p className="mt-2 text-sm text-muted-foreground">
-                        Point an agent at it to start answering calls. Rent is
-                        collected monthly by autopay.
+                        Point an agent at it to start answering calls.
                     </p>
                     <div className="mt-5 flex justify-center gap-2">
                         <Button asChild>
@@ -445,13 +364,7 @@ function BuyNumber() {
             <PageHeader
                 tabs={TELEPHONY_TABS}
                 title="Get a phone number"
-                description={
-                    <>
-                        An Indian number of your own
-                        {numberPrice ? `, ${numberPrice} a month,` : ","} on our
-                        carrier account.
-                    </>
-                }
+                description="An Indian number of your own, on our carrier account."
             />
             <div className="mx-auto w-full max-w-3xl space-y-4 px-6 pb-6 pt-6">
             {/* Offered before the rental flow, not after it. A clinic whose
@@ -675,11 +588,6 @@ function BuyNumber() {
                                                                 .join(" · ")}
                                                         </span>
                                                     </span>
-                                                    {numberPrice && (
-                                                        <span className="text-xs text-muted-foreground">
-                                                            {numberPrice}/month
-                                                        </span>
-                                                    )}
                                                 </button>
                                             </li>
                                         ))}
@@ -693,120 +601,17 @@ function BuyNumber() {
 
             <Step
                 index={3}
-                title="Set up autopay"
-                description="The rent is monthly and starts the day the number is issued, so it is authorised before the number is handed over — not after."
-                state={
-                    !selected ? "waiting" : autopayDone ? "done" : "current"
-                }
-            >
-                {selected && (
-                    <div className="space-y-3">
-                        {!mandateRequired ? (
-                            <p className="text-sm text-muted-foreground">
-                                Autopay is not required on this deployment. The
-                                monthly rental will be taken from your prepaid
-                                balance.
-                            </p>
-                        ) : mandate?.authorised ? (
-                            <p className="flex items-center gap-2 text-sm text-muted-foreground">
-                                <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                                Authorised — {formatPaise(mandate.price_paise)} a
-                                month.
-                            </p>
-                        ) : mandateView?.configured === false ? (
-                            <p className="text-sm text-muted-foreground">
-                                Autopay is not configured on this deployment yet.
-                                Contact support — this one is ours to fix.
-                            </p>
-                        ) : rolesLoaded && !isOrganizationAdmin ? (
-                            // Named so the member knows the flow is not broken
-                            // and knows exactly what to ask for. The steps
-                            // above stay usable: they can still search and pick
-                            // the number, so the request they make is specific.
-                            <p className="flex items-start gap-2 text-sm text-muted-foreground">
-                                <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
-                                <span>
-                                    Autopay authorises a monthly debit for the whole
-                                    account, so an Owner or Admin has to set it up. Your
-                                    choice above is kept — ask one of them to authorise
-                                    autopay, then come back and issue the number.
-                                </span>
-                            </p>
-                        ) : (
-                            <>
-                                <div className="flex flex-wrap items-center gap-2">
-                                    <Button
-                                        size="sm"
-                                        onClick={handleStartAutopay}
-                                        disabled={startingMandate}
-                                    >
-                                        {startingMandate ? (
-                                            <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
-                                        ) : (
-                                            <CreditCard className="mr-2 h-3.5 w-3.5" />
-                                        )}
-                                        {mandate
-                                            ? "Open the authorisation page"
-                                            : "Set up autopay"}
-                                    </Button>
-                                    {mandate?.authorisation_url && (
-                                        <Button variant="outline" size="sm" asChild>
-                                            <a
-                                                href={mandate.authorisation_url}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                            >
-                                                <ExternalLink className="mr-2 h-3.5 w-3.5" />
-                                                Authorisation page
-                                            </a>
-                                        </Button>
-                                    )}
-                                    {/* The bank tells us, not the browser. There
-                                        is no "I've done it" button for the same
-                                        reason there is no "I've paid" button —
-                                        the only thing that can mark this done is
-                                        the provider's own callback. */}
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={refreshMandate}
-                                    >
-                                        <RefreshCw className="mr-2 h-3.5 w-3.5" />
-                                        Check again
-                                    </Button>
-                                </div>
-                                {mandate && (
-                                    <p className="text-xs text-muted-foreground">
-                                        Status: {mandate.status.replace(/_/g, " ")}.
-                                        Once your bank confirms it, this step
-                                        completes on its own.
-                                    </p>
-                                )}
-                                {mandate?.last_failure_reason && (
-                                    <p className="text-xs text-destructive">
-                                        {mandate.last_failure_reason}
-                                    </p>
-                                )}
-                            </>
-                        )}
-                    </div>
-                )}
-            </Step>
-
-            <Step
-                index={4}
                 title="Issue the number"
                 description="Bought from the carrier and pointed at your account in one step."
-                state={selected && autopayDone ? "current" : "waiting"}
+                state={selected ? "current" : "waiting"}
             >
-                {selected && autopayDone && (
+                {selected && (
                     <div className="space-y-2">
                         <p className="text-sm text-muted-foreground">
                             <span className="font-mono font-medium text-foreground">
                                 {selected}
                             </span>{" "}
-                            {numberPrice ? `— ${numberPrice} a month, charged` : "— charged"}{" "}
-                            from today, prorated for the rest of this month.
+                            will be issued to your account from today.
                         </p>
                         <Button onClick={handleBuy} disabled={buying}>
                             {buying && (
@@ -836,7 +641,7 @@ function BuyNumber() {
                 onOpenChange={setAgreementsOpen}
                 onAccepted={() => void doBuy()}
                 reason={
-                    "Buying a number commits you to rent every month and commits us to a carrier contract in your name, so we need these before we can issue it."
+                    "A number commits us to a carrier contract in your name, so we need these before we can issue it."
                 }
             />
         </div>

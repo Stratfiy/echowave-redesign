@@ -26,6 +26,14 @@ they have ever sent.
 action. :func:`may_release` is a precondition someone else has to satisfy, and
 the release path additionally requires an actor and a reason.
 
+**The ladder is off.** Nothing is charged any more (there is no checkout), so
+a number is never suspended, warned about or made eligible for release because
+billing stopped: ``constants.RENTAL_SUSPEND_AND_RELEASE_ENABLED`` is False and
+:func:`evaluate` reports a failing charge as past due and nothing more. A
+customer who gives a number back still can (``force`` on the release path).
+Everything below describes the ladder as it runs if that constant is ever
+turned back on, which needs the founder, new price copy and a notice first.
+
 **Nothing is released on a first failure.** A failed charge is far more often a
 card that expired or a balance that ran out over a weekend than a customer who
 has left. Forty-five days is chosen to be longer than any plausible billing
@@ -37,6 +45,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
+from api import constants
 from api.enums import RecurringChargeStatus
 
 #: Calls stop. The resource is still held and fully recoverable.
@@ -110,6 +119,18 @@ def evaluate(
 
     overdue = days_overdue(first_failed_at, now=now)
 
+    if not constants.RENTAL_SUSPEND_AND_RELEASE_ENABLED:
+        # Past due, recorded, and nothing else: no suspension, no warning, no
+        # release eligibility. The number keeps working however long it has
+        # been since a charge last collected.
+        return DunningState(
+            status=RecurringChargeStatus.PAST_DUE,
+            days_overdue=overdue,
+            should_suspend=False,
+            should_warn=False,
+            may_release=False,
+        )
+
     if overdue >= RELEASE_ELIGIBLE_AFTER_DAYS:
         return DunningState(
             status=RecurringChargeStatus.PENDING_RELEASE,
@@ -162,6 +183,8 @@ def may_release(*, first_failed_at: datetime | None, now: datetime) -> bool:
     permitted", never "should this happen" — no caller in this codebase treats
     a True here as an instruction.
     """
+    if not constants.RENTAL_SUSPEND_AND_RELEASE_ENABLED:
+        return False
     if first_failed_at is None:
         return False
     return days_overdue(first_failed_at, now=now) >= RELEASE_ELIGIBLE_AFTER_DAYS
