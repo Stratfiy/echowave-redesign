@@ -197,6 +197,8 @@ FLAGS: dict[str, str] = {
     "deepfilternet_filter": "DEEPFILTERNET_FILTER_ENABLED",
     # Listen in on a live call and whisper to the agent (services/live_supervision/).
     "live_supervision": "LIVE_SUPERVISION_ENABLED",
+    # What owners do with an agent's suggestions, kept per workspace as training data (services/training_loop/).
+    "training_loop": "TRAINING_LOOP_ENABLED",
     # Personal adaptation: preferences kept per person and applied, and the
     # context control above the composer (services/personal/).
     "evolve_personal": "EVOLVE_PERSONAL_ENABLED",
@@ -329,6 +331,7 @@ DESCRIPTIONS: dict[str, str] = {
     "caller_voice_lock": "Only the caller can interrupt a phone agent: speech that does not match the caller's voice, learnt in their first seconds, no longer stops the agent.",
     "deepfilternet_filter": "DeepFilterNet3 instead of RNNoise as the noise filter on calls with noise suppression on.",
     "live_supervision": "Live calls: listen in on a customer call (transcript and audio) and whisper instructions the caller never hears.",
+    "training_loop": "Training loop, step 1: records what each agent suggested and what its owner did with it (approved, rejected, edited, undone, thumbs), per workspace and redacted, for later fine-tuning. Records only; applies nothing.",
     "evolve_personal": "Personal adaptation: a preference a person states (language for calls or email, when to call, how often to report) is kept in their own private store with where it came from, applied to their turns and to calls and reminders that reach them, listed on request with Correct and Forget, and the chat shows what each conversation uses with a way to leave a source out.",
     "evolve_skills": "Skills that get better at your work: lessons from corrections and outcomes, tested on held-out and unrelated cases, offered on a card and published only by a person, with rollback; the Skills tab on Agents.",
     "image_generation": "Posters and ad creatives: images from Chat and two agents, on Gemini, OpenAI or Bedrock, chosen on a card in the thread.",

@@ -28,6 +28,7 @@ from api.services.evals import judge as judging
 from api.services.gen_ai.json_parser import parse_llm_json
 from api.services.pipecat.service_factory import create_llm_service_from_provider
 from api.services.quota_service import authorize_workflow_run_start
+from api.services.training_loop import hooks as training_hooks
 from api.services.workflow.qa.llm_config import resolve_user_llm_config
 from api.services.workflow.text_chat_runner import default_text_chat_checkpoint
 from api.services.workflow.text_chat_session_service import (
@@ -92,6 +93,9 @@ async def _finish(
         await session.commit()
         origin = row.origin
         finished = row
+    # A failed case is something an agent can be improved on. After the
+    # commit, like the post below; it never raises.
+    await training_hooks.eval_finished(result_id)
     if origin:
         # A check asked for on Decibyl's thread gets its verdict back there
         # (KAN-140 P1). After the commit, so the row is the record either way.

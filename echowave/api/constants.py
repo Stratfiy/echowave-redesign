@@ -1071,6 +1071,13 @@ DEEPFILTERNET_MODEL_PATH = os.getenv("DEEPFILTERNET_MODEL_PATH", "").strip()
 # Decibyl (services/live_supervision/). Off by default; even when on, each
 # workspace has to switch "Allow live listening" on before anybody listens.
 LIVE_SUPERVISION_ENABLED = _flag("LIVE_SUPERVISION_ENABLED")
+# training_loop: step 1 of the training loop. Records, per workspace and agent,
+# what was suggested and what its owner did with it (approved, rejected,
+# edited, undone, thumbs, eval failures, escalations), as data a model can
+# later be fine-tuned on (services/training_loop/). Records only; nothing
+# learned is applied, and nothing leaves the workspace. Off by default; even
+# when on, the workspace can switch "Use my feedback to improve my agents" off.
+TRAINING_LOOP_ENABLED = _flag("TRAINING_LOOP_ENABLED")
 # evolve_personal: Decibyl keeps what a person says they prefer ("Tamil
 # for calls, English for email", "call me after 10") in their own private
 # store, applies it to their turns and to calls that ring them, shows it on
