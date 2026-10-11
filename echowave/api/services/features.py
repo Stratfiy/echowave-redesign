@@ -215,6 +215,9 @@ FLAGS: dict[str, str] = {
     "evolve_skills": "EVOLVE_SKILLS_ENABLED",
     # Posters and ad creatives (services/images/).
     "image_generation": "IMAGE_GENERATION_ENABLED",
+    # Learn a website: a site's pages kept as company knowledge
+    # (services/knowledge_base/website.py). On by default.
+    "learn_website": "LEARN_WEBSITE_ENABLED",
 }
 
 
@@ -344,6 +347,7 @@ DESCRIPTIONS: dict[str, str] = {
     "evolve_personal": "Personal adaptation: a preference a person states (language for calls or email, when to call, how often to report) is kept in their own private store with where it came from, applied to their turns and to calls and reminders that reach them, listed on request with Correct and Forget, and the chat shows what each conversation uses with a way to leave a source out.",
     "evolve_skills": "Skills that get better at your work: lessons from corrections and outcomes, tested on held-out and unrelated cases, offered on a card and published only by a person, with rollback; the Skills tab on Agents.",
     "image_generation": "Posters and ad creatives: images from Chat and two agents, on Gemini, OpenAI or Bedrock, chosen on a card in the thread.",
+    "learn_website": "Learn a website: Decibyl reads a site's key pages (contact, hours, prices, services, FAQ) into one file in Files; kept for the agents, every agent answers from it.",
     "escalation_v2": "Escalation on calls decided in code from the agent's policy: a handoff card with Accept, Decline and Hand back to AI, spoken hold updates and a no-answer ladder.",
     "cache_v2": "Prompt caching v2: the clock line after an agent's fixed instructions rather than first, cache breakpoints after the tool schemas, on the thread so far and at the end of the conversation on Claude, and Decibyl's per-person rules after its shared system prompt. Off, prompts are unchanged.",
     "lean_tools": "Lean tools: a quick Decibyl turn is offered a core set of tools plus those the thread used or the message points at, and a 'more tools' call loads the rest. Off, every turn is offered every tool.",
