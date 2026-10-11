@@ -38,3 +38,5 @@ class FunctionNames:
     BUILD_PERSONAL_EXPORT = "build_personal_export"
     #: People: one person's contacts from Google or Microsoft (PEOPLE.md).
     SYNC_PEOPLE = "sync_people"
+    #: One Instagram message, answered by the agent the account chose.
+    ANSWER_INSTAGRAM_MESSAGE = "answer_instagram_message"

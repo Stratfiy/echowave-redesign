@@ -164,6 +164,37 @@ with the field `messages` subscribed. Redis holds the 24-hour window and the
 message-id dedupe; without it, receiving still works and senders take
 Meta's word on the window.
 
+## 2b-1b. Instagram messages answered by an agent
+
+A workspace connects its Instagram professional account from Chat ("answer my
+Instagram DMs") and picks the agent that answers
+(`api/services/messaging/instagram.py`). Until the app below is configured,
+Decibyl says Instagram is not set up rather than showing a button.
+
+One Meta app, set up once by Decibyl (not by each customer):
+
+1. developers.facebook.com: create an app (type Business) and add the
+   **Instagram** product, "API setup with Instagram login".
+2. Business login settings: add the redirect URL
+   `https://api.decibyl.ai/api/v1/public/instagram/callback`.
+3. Webhooks: callback `https://api.decibyl.ai/api/v1/public/instagram/webhook`,
+   the verify token below, and subscribe the `messages` field.
+4. Permissions `instagram_business_basic` and
+   `instagram_business_manage_messages`. Until App Review grants Advanced
+   Access, only accounts added as testers on the app can connect.
+
+```
+INSTAGRAM_APP_ID=                 # the Instagram app ID (not the Facebook app ID)
+INSTAGRAM_APP_SECRET=             # signs the webhook and the sign-in state
+INSTAGRAM_WEBHOOK_VERIFY_TOKEN=   # any string; typed into the webhook form too
+INSTAGRAM_GRAPH_VERSION=v23.0
+INSTAGRAM_CHANNEL_ENABLED=true    # kill switch
+```
+
+Tokens are sealed with `PLATFORM_CREDENTIAL_SECRET`, which must be set.
+Redis holds message dedupe, each customer's conversation for the day and the
+per-customer cap (30 answers an hour).
+
 ## 2b-2. Decibyl in your apps — Telegram, Slack, Teams (DCH-1, KAN-277)
 
 Members talk to Decibyl as themselves from a chat app, after linking with a

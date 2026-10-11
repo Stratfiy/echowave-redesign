@@ -10142,6 +10142,38 @@ export type InitiateCallRequest = {
 };
 
 /**
+ * InstagramAccountResponse
+ */
+export type InstagramAccountResponse = {
+    /**
+     * Configured
+     */
+    configured: boolean;
+    /**
+     * Connected
+     */
+    connected: boolean;
+    /**
+     * Username
+     */
+    username?: string | null;
+    /**
+     * Answered By
+     */
+    answered_by?: string | null;
+};
+
+/**
+ * InstagramConnectResponse
+ */
+export type InstagramConnectResponse = {
+    /**
+     * Authorize Url
+     */
+    authorize_url: string;
+};
+
+/**
  * InstallRequest
  */
 export type InstallRequest = {
@@ -57411,6 +57443,250 @@ export type ReceiveApiV1PublicWhatsappWebhookPostResponses = {
 };
 
 export type ReceiveApiV1PublicWhatsappWebhookPostResponse = ReceiveApiV1PublicWhatsappWebhookPostResponses[keyof ReceiveApiV1PublicWhatsappWebhookPostResponses];
+
+export type CallbackApiV1PublicInstagramCallbackGetData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Code
+         */
+        code?: string | null;
+        /**
+         * State
+         */
+        state?: string | null;
+        /**
+         * Error Description
+         */
+        error_description?: string | null;
+    };
+    url: '/api/v1/public/instagram/callback';
+};
+
+export type CallbackApiV1PublicInstagramCallbackGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CallbackApiV1PublicInstagramCallbackGetError = CallbackApiV1PublicInstagramCallbackGetErrors[keyof CallbackApiV1PublicInstagramCallbackGetErrors];
+
+export type CallbackApiV1PublicInstagramCallbackGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: string;
+};
+
+export type CallbackApiV1PublicInstagramCallbackGetResponse = CallbackApiV1PublicInstagramCallbackGetResponses[keyof CallbackApiV1PublicInstagramCallbackGetResponses];
+
+export type VerifyWebhookApiV1PublicInstagramWebhookGetData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Hub.Mode
+         */
+        'hub.mode'?: string | null;
+        /**
+         * Hub.Verify Token
+         */
+        'hub.verify_token'?: string | null;
+        /**
+         * Hub.Challenge
+         */
+        'hub.challenge'?: string | null;
+    };
+    url: '/api/v1/public/instagram/webhook';
+};
+
+export type VerifyWebhookApiV1PublicInstagramWebhookGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type VerifyWebhookApiV1PublicInstagramWebhookGetError = VerifyWebhookApiV1PublicInstagramWebhookGetErrors[keyof VerifyWebhookApiV1PublicInstagramWebhookGetErrors];
+
+export type VerifyWebhookApiV1PublicInstagramWebhookGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: string;
+};
+
+export type VerifyWebhookApiV1PublicInstagramWebhookGetResponse = VerifyWebhookApiV1PublicInstagramWebhookGetResponses[keyof VerifyWebhookApiV1PublicInstagramWebhookGetResponses];
+
+export type ReceiveApiV1PublicInstagramWebhookPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * X-Hub-Signature-256
+         */
+        'X-Hub-Signature-256'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/public/instagram/webhook';
+};
+
+export type ReceiveApiV1PublicInstagramWebhookPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReceiveApiV1PublicInstagramWebhookPostError = ReceiveApiV1PublicInstagramWebhookPostErrors[keyof ReceiveApiV1PublicInstagramWebhookPostErrors];
+
+export type ReceiveApiV1PublicInstagramWebhookPostResponses = {
+    /**
+     * Response Receive Api V1 Public Instagram Webhook Post
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type ReceiveApiV1PublicInstagramWebhookPostResponse = ReceiveApiV1PublicInstagramWebhookPostResponses[keyof ReceiveApiV1PublicInstagramWebhookPostResponses];
+
+export type DisconnectApiV1InstagramAccountDeleteData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/instagram/account';
+};
+
+export type DisconnectApiV1InstagramAccountDeleteErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DisconnectApiV1InstagramAccountDeleteError = DisconnectApiV1InstagramAccountDeleteErrors[keyof DisconnectApiV1InstagramAccountDeleteErrors];
+
+export type DisconnectApiV1InstagramAccountDeleteResponses = {
+    /**
+     * Response Disconnect Api V1 Instagram Account Delete
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: string;
+    };
+};
+
+export type DisconnectApiV1InstagramAccountDeleteResponse = DisconnectApiV1InstagramAccountDeleteResponses[keyof DisconnectApiV1InstagramAccountDeleteResponses];
+
+export type GetAccountApiV1InstagramAccountGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/instagram/account';
+};
+
+export type GetAccountApiV1InstagramAccountGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetAccountApiV1InstagramAccountGetError = GetAccountApiV1InstagramAccountGetErrors[keyof GetAccountApiV1InstagramAccountGetErrors];
+
+export type GetAccountApiV1InstagramAccountGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: InstagramAccountResponse;
+};
+
+export type GetAccountApiV1InstagramAccountGetResponse = GetAccountApiV1InstagramAccountGetResponses[keyof GetAccountApiV1InstagramAccountGetResponses];
+
+export type ConnectApiV1InstagramConnectPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/instagram/connect';
+};
+
+export type ConnectApiV1InstagramConnectPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ConnectApiV1InstagramConnectPostError = ConnectApiV1InstagramConnectPostErrors[keyof ConnectApiV1InstagramConnectPostErrors];
+
+export type ConnectApiV1InstagramConnectPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: InstagramConnectResponse;
+};
+
+export type ConnectApiV1InstagramConnectPostResponse = ConnectApiV1InstagramConnectPostResponses[keyof ConnectApiV1InstagramConnectPostResponses];
 
 export type TelegramWebhookApiV1PublicTelegramWebhookPostData = {
     body?: never;

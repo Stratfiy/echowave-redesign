@@ -47,6 +47,7 @@ RECORDED_ACTIONS = frozenset(
         "create_tracker",
         "set_up_booking",
         "ask_for_reviews",
+        "answer_instagram",
         "run_tool",
     }
 )

@@ -47,6 +47,7 @@ from api.tasks.evolve_skills import evolve_skills_tick
 from api.tasks.fx import refresh_exchange_rate
 from api.tasks.heartbeat import record_worker_heartbeat
 from api.tasks.identity import reconcile_unknown_outcomes
+from api.tasks.instagram import answer_instagram_message
 from api.tasks.knowledge_base_processing import process_knowledge_base_document
 from api.tasks.knowledge_base_translation import translate_knowledge_base_document
 from api.tasks.low_balance import notify_low_balances
@@ -136,6 +137,7 @@ class WorkerSettings:
         run_bot_trigger,
         answer_channel_message,
         answer_decibyl_message,
+        answer_instagram_message,
         extract_document_fields,
         export_memory,
         remind_due_tasks,
