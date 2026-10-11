@@ -272,7 +272,10 @@ class TestTheNumbers:
             s,
             priya,
             codes=["booked"],
-            tokens=[(CostComponent.LLM_INPUT.value, 1000), (CostComponent.LLM_OUTPUT.value, 500)],
+            tokens=[
+                (CostComponent.LLM_INPUT.value, 1000),
+                (CostComponent.LLM_OUTPUT.value, 500),
+            ],
         )
         await _run(
             s,
@@ -281,7 +284,9 @@ class TestTheNumbers:
             tokens=[(CostComponent.LLM_INPUT.value, 2000)],
         )
         await _run(s, priya, done=False, when=LAST_WEEK)
-        await _run(s, priya, when=LONG_AGO, tokens=[(CostComponent.LLM_INPUT.value, 99_999)])
+        await _run(
+            s, priya, when=LONG_AGO, tokens=[(CostComponent.LLM_INPUT.value, 99_999)]
+        )
         # Ledger: 12 + 8 credits in the window, one old, a top-up, and the
         # chief's own spend, none of which are Priya's usage this week.
         await _debit(s, org, priya, 12)
@@ -436,7 +441,9 @@ class TestWhatItWillNotShow:
         other = await _org(s, "b")
         user_b = await _user(s, "b")
         spy = await _agent(s, other, user_b, "Spy")
-        await _run(s, spy, codes=["stolen"], tokens=[(CostComponent.LLM_INPUT.value, 424_242)])
+        await _run(
+            s, spy, codes=["stolen"], tokens=[(CostComponent.LLM_INPUT.value, 424_242)]
+        )
         await _debit(s, other, spy, 999)
         await _event(s, other, spy, AgentEventKind.COULD_NOT, "Secret failure in B")
         await _event(

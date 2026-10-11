@@ -137,6 +137,10 @@ export type Feature =
     | "escalation_v2"
     // Prompt-cache prefix fixes (the measurement itself is unflagged).
     | "cache_v2"
+    // Token cuts, one lever each.
+    | "lean_tools"
+    | "cheap_routing"
+    | "history_cap"
     // The huddle: talk to an agent as a teammate, in its thread.
     | "huddle"
     // People: synced contacts with context (PEOPLE.md).

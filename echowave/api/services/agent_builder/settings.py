@@ -140,6 +140,27 @@ async def available_providers(session: AsyncSession) -> list[str]:
     return found
 
 
+#: The chat preset that names the smallest tier (Everyday). ``cheap_routing``
+#: asks for it by preset, not by model, so the tier table stays the one place
+#: that says which model that is.
+CHEAP_PRESET = "everyday"
+
+
+def cheap_choice(organization_id: int | None) -> str | None:
+    """The preset for a call that is a classifier or an extractor, not a
+    conversation: the cheap tier while ``cheap_routing`` is on, else ``None``,
+    which every resolver below reads as "the builder's own model" -- exactly
+    what these calls used before. Unknown is off."""
+    from api.services import features
+
+    try:
+        return (
+            CHEAP_PRESET if features.is_on("cheap_routing", organization_id) else None
+        )
+    except Exception:  # noqa: BLE001 - unknown is off: the model as before
+        return None
+
+
 async def resolve_choice(session: AsyncSession, choice: str | None) -> BuilderModel:
     """The model for one Decibyl turn, honouring the picker when it can.
 

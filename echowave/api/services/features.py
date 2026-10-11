@@ -185,6 +185,10 @@ FLAGS: dict[str, str] = {
     "escalation_v2": "ESCALATION_V2_ENABLED",
     # Prompt-cache prefix fixes, measured before they are on anywhere.
     "cache_v2": "CACHE_V2_ENABLED",
+    # Token cuts, one lever each (docs/plans/caching-and-compression.md).
+    "lean_tools": "LEAN_TOOLS_ENABLED",
+    "cheap_routing": "CHEAP_ROUTING_ENABLED",
+    "history_cap": "HISTORY_CAP_ENABLED",
     # The huddle: talk to an agent as a teammate, in its thread
     # (services/huddle/).
     "huddle": "HUDDLE_ENABLED",
@@ -213,6 +217,9 @@ FLAGS: dict[str, str] = {
     "image_generation": "IMAGE_GENERATION_ENABLED",
     # A chief-of-staff agent reads what the other agents did and spent.
     "team_activity": "TEAM_ACTIVITY_ENABLED",
+    # Learn a website: a site's pages kept as company knowledge
+    # (services/knowledge_base/website.py). On by default.
+    "learn_website": "LEARN_WEBSITE_ENABLED",
 }
 
 
@@ -343,8 +350,12 @@ DESCRIPTIONS: dict[str, str] = {
     "evolve_skills": "Skills that get better at your work: lessons from corrections and outcomes, tested on held-out and unrelated cases, offered on a card and published only by a person, with rollback; the Skills tab on Agents.",
     "image_generation": "Posters and ad creatives: images from Chat and two agents, on Gemini, OpenAI or Bedrock, chosen on a card in the thread.",
     "team_activity": "Team activity: an agent whose owner turned on Can see the team can read, in one compact answer, what the other agents in the workspace ran, drafted, left waiting for approval and spent.",
+    "learn_website": "Learn a website: Decibyl reads a site's key pages (contact, hours, prices, services, FAQ) into one file in Files; kept for the agents, every agent answers from it.",
     "escalation_v2": "Escalation on calls decided in code from the agent's policy: a handoff card with Accept, Decline and Hand back to AI, spoken hold updates and a no-answer ladder.",
-    "cache_v2": "Prompt caching v2: the clock line after an agent's fixed instructions rather than first, and a cache breakpoint at the end of the conversation on Claude. Off, prompts are unchanged.",
+    "cache_v2": "Prompt caching v2: the clock line after an agent's fixed instructions rather than first, cache breakpoints after the tool schemas, on the thread so far and at the end of the conversation on Claude, and Decibyl's per-person rules after its shared system prompt. Off, prompts are unchanged.",
+    "lean_tools": "Lean tools: a quick Decibyl turn is offered a core set of tools plus those the thread used or the message points at, and a 'more tools' call loads the rest. Off, every turn is offered every tool.",
+    "cheap_routing": "Cheap routing: the smallest model for classifiers and extractors, and Auto's steps / deep word rules tightened so ordinary words do not escalate a message. Off, models and rules are unchanged.",
+    "history_cap": "History cap: Decibyl sends the recent thread whole, older turns as a short digest, and the opening of an attached file with a pointer to the rest. Off, the whole plan window and file are sent.",
 }
 
 
