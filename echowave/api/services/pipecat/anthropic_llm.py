@@ -39,11 +39,10 @@ from __future__ import annotations
 
 from typing import Any
 
+from api.services.pipecat.system_clock import split_clock
 from pipecat.adapters.services.anthropic_adapter import AnthropicLLMAdapter
 from pipecat.processors.aggregators.llm_context import LLMContext
 from pipecat.services.anthropic.llm import AnthropicLLMService
-
-from api.services.pipecat.system_clock import split_clock
 
 _EPHEMERAL = {"type": "ephemeral"}
 
