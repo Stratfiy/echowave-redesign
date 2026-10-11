@@ -104,6 +104,23 @@ class OrganizationCredential:
     updated_at: str | None
 
 
+def seal(secret: str) -> str:
+    """Encrypt a secret with the platform key, for a table of its own (an
+    Instagram token). Raises OrganizationCredentialError when no key is set."""
+    return _cipher().encrypt(secret.encode()).decode()
+
+
+def unseal(sealed: str) -> str:
+    """The secret ``seal`` encrypted. Raises OrganizationCredentialError when
+    it cannot be read with the current key."""
+    try:
+        return _cipher().decrypt(sealed.encode()).decode()
+    except InvalidToken as exc:
+        raise OrganizationCredentialError(
+            "A stored secret could not be read with the current key."
+        ) from exc
+
+
 def _mask(last_four: str) -> str:
     return f"••••{last_four}"
 

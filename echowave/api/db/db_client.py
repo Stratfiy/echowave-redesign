@@ -16,6 +16,7 @@ from api.db.escalation_client import EscalationClient
 from api.db.evolve_client import EvolveClient
 from api.db.file_folder_client import FileFolderClient
 from api.db.folder_client import FolderClient
+from api.db.instagram_client import InstagramClient
 from api.db.integration_client import IntegrationClient
 from api.db.knowledge_base_client import KnowledgeBaseClient
 from api.db.kyc_client import KycClient
@@ -66,6 +67,7 @@ class DBClient(
     EmailVerificationClient,
     PasswordResetClient,
     VerifiedNumberClient,
+    InstagramClient,
     WorkflowClient,
     WorkflowRunClient,
     WorkflowRunTextSessionClient,

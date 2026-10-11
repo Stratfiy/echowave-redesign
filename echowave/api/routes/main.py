@@ -45,6 +45,8 @@ from api.routes.huddle import router as huddle_router
 from api.routes.identity import router as identity_router
 from api.routes.images import router as images_router
 from api.routes.impersonation import router as impersonation_router
+from api.routes.instagram import public_router as public_instagram_router
+from api.routes.instagram import router as instagram_router
 from api.routes.invite_requests import router as public_invite_requests_router
 from api.routes.knowledge_base import router as knowledge_base_router
 from api.routes.kyc import router as kyc_router
@@ -228,6 +230,8 @@ router.include_router(public_agent_router)
 router.include_router(public_triggers_router)
 router.include_router(public_email_router)
 router.include_router(public_whatsapp_router)
+router.include_router(public_instagram_router)
+router.include_router(instagram_router)
 router.include_router(public_decibyl_channels_router)
 router.include_router(channel_links_router)
 router.include_router(public_download_router)

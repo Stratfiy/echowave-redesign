@@ -181,6 +181,10 @@ PLACE_CALL = "place_call"
 #: booking_setup.py). Internal: reached through set_up_booking.
 SET_UP_BOOKING = "set_up_booking"
 ASK_FOR_REVIEWS = "ask_for_reviews"
+#: Which agent answers the workspace's Instagram messages
+#: (services/messaging/instagram.py). Internal: reached through
+#: connect_instagram.
+ANSWER_INSTAGRAM = "answer_instagram"
 #: Confirm the number Decibyl rings when a task finishes ("call me when it's
 #: done"; services/call_when_done/number.py). Internal: proposed when the
 #: person opts in without a confirmed number, never by a model on its own;
@@ -205,6 +209,7 @@ INTERNAL_ACTIONS = (
     PLACE_CALL,
     SET_UP_BOOKING,
     ASK_FOR_REVIEWS,
+    ANSWER_INSTAGRAM,
     CALL_WHEN_DONE_NUMBER,
 )
 
@@ -780,6 +785,17 @@ async def resolve(
                 organization_id=organization_id, arguments=arguments
             )
         except booking_setup.BookingSetupError as exc:
+            raise ActionError(str(exc)) from exc
+        return {"action": action, "why": why, "state": PROPOSED, **card}
+
+    if action == ANSWER_INSTAGRAM:
+        from api.services.messaging import instagram
+
+        try:
+            card = await instagram.resolve_card(
+                organization_id=organization_id, arguments=arguments
+            )
+        except instagram.InstagramError as exc:
             raise ActionError(str(exc)) from exc
         return {"action": action, "why": why, "state": PROPOSED, **card}
 
@@ -2081,6 +2097,15 @@ async def _execute(
             )
         except (booking_setup.BookingSetupError, appointments.PolicyInvalid) as exc:
             raise ActionError(str(exc)) from exc
+    if action == ANSWER_INSTAGRAM:
+        from api.services.messaging import instagram
+
+        try:
+            return await instagram.execute_card(
+                organization_id=organization_id, payload=payload
+            )
+        except instagram.InstagramError as exc:
+            raise ActionError(str(exc)) from exc
     if action == ASK_FOR_REVIEWS:
         from pydantic import ValidationError
 
@@ -2510,6 +2535,11 @@ async def _reverse(organization_id: int, payload: dict[str, Any]) -> None:
         from api.services.call_when_done import number
 
         await number.reverse(organization_id, payload)
+        return
+    if action == ANSWER_INSTAGRAM:
+        from api.services.messaging import instagram
+
+        await instagram.undo_card(organization_id=organization_id, payload=payload)
         return
     if action == MEETING_FOLLOW_UP:
         from api.services.meetings import follow_ups

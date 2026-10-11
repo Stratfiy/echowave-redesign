@@ -2320,3 +2320,20 @@ LEARN_WEBSITE_ENABLED = os.getenv("LEARN_WEBSITE_ENABLED", "true").lower() == "t
 # sent until a person confirms the card and publishes the agent -- so this is
 # a kill switch rather than an opt-in.
 REVIEW_REQUESTS_ENABLED = os.getenv("REVIEW_REQUESTS_ENABLED", "true").lower() == "true"
+
+# ---------------------------------------------------------------------------
+# Instagram messages (services/messaging/instagram.py): a workspace connects
+# its Instagram professional account with Instagram's own sign-in, and one
+# of its agents answers the messages. Needs a Meta app with the Instagram
+# product ("Instagram API with Instagram Login") and the
+# instagram_business_manage_messages permission; until the app ID and secret
+# are set the feature says it is not set up rather than offering a button.
+# ---------------------------------------------------------------------------
+INSTAGRAM_APP_ID = os.getenv("INSTAGRAM_APP_ID", "")
+INSTAGRAM_APP_SECRET = os.getenv("INSTAGRAM_APP_SECRET", "")
+INSTAGRAM_WEBHOOK_VERIFY_TOKEN = os.getenv("INSTAGRAM_WEBHOOK_VERIFY_TOKEN", "")
+INSTAGRAM_GRAPH_VERSION = os.getenv("INSTAGRAM_GRAPH_VERSION", "v23.0")
+# Kill switch (on by default; inert until the app above is configured).
+INSTAGRAM_CHANNEL_ENABLED = (
+    os.getenv("INSTAGRAM_CHANNEL_ENABLED", "true").lower() == "true"
+)

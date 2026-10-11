@@ -7128,3 +7128,50 @@ from api.db.voice_models import (  # noqa: E402,F401
     VoiceSessionModel,
     VoiceTurnModel,
 )
+
+
+class InstagramAccountModel(Base):
+    """An Instagram professional account a workspace connected, and the agent
+    that answers its messages (services/messaging/instagram.py).
+
+    One account belongs to one workspace: ``ig_user_id`` is unique, because
+    Instagram sends every message to the account's id and that id has to
+    name exactly one workspace to answer it. Connecting the same account
+    from a second workspace moves it there.
+
+    The token is the long-lived Instagram user token, sealed with the
+    platform credential key like every other secret a workspace gives us;
+    it is never returned to the screen.
+    """
+
+    __tablename__ = "instagram_accounts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer,
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    ig_user_id = Column(String(64), nullable=False, unique=True)
+    username = Column(String(128), nullable=False, server_default="")
+    encrypted_token = Column(Text, nullable=False)
+    token_expires_at = Column(DateTime(timezone=True), nullable=True)
+    #: The agent that answers; none means messages are received and left for
+    #: a person (and the owner is told once).
+    workflow_id = Column(
+        Integer, ForeignKey("workflows.id", ondelete="SET NULL"), nullable=True
+    )
+    is_active = Column(Boolean, nullable=False, server_default=text("true"))
+    connected_by = Column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at = Column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
