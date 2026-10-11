@@ -8,14 +8,14 @@ existing changes.
 Downgrading drops the table.
 
 Revision ID: 20261012learningevents
-Revises: 20261011escalations
+Revises: 20261014personalprefs
 """
 
 import sqlalchemy as sa
 from alembic import op
 
 revision = "20261012learningevents"
-down_revision = "20261011escalations"
+down_revision = "20261014personalprefs"
 branch_labels = None
 depends_on = None
 

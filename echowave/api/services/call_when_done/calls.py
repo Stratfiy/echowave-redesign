@@ -155,6 +155,19 @@ def next_opening(timezone_name: str | None, now: datetime) -> datetime:
     return candidate.astimezone(UTC)
 
 
+async def _their_hours(
+    organization_id: int, user_id: int, tz: str | None, due: datetime
+) -> datetime:
+    """``due``, or later when the person asked not to be rung then
+    (services/personal, ``evolve_personal``). Never earlier: their hours
+    narrow the calling window, they cannot widen it."""
+    from api.services.personal import preferences as personal_preferences
+
+    window = await personal_preferences.call_window(user_id, organization_id)
+    later = personal_preferences.held_until(window, tz, due)
+    return later if later is not None and later > due else due
+
+
 def when_line(due: datetime, timezone_name: str | None) -> str:
     """ "9:00" -- a due time as the person reads it, in the window's zone."""
     local = due.astimezone(dnd.resolve_zone(timezone_name))
@@ -200,6 +213,7 @@ async def queue(
     outside = not dnd.within_calling_hours(timezone_name=tz, now=due)
     if outside:
         due = next_opening(tz, now)
+    due = await _their_hours(organization_id, user_id, tz, due)
     # The allowance of the day the call will ring: a finish at 23:30 rings
     # at 09:00 tomorrow, on tomorrow's five.
     if reason is None and await over_cap(user_id, tz, due):
@@ -610,6 +624,12 @@ async def place(call_id: int, *, now: datetime | None = None) -> None:
         # for a deployment, and the window for these calls is not optional.
         await _requeue(call, next_opening(tz, now), tz)
         return
+    # The hours the person asked for ("call me after 10"), inside the
+    # window above: it can only hold a call later, never ring one earlier.
+    later = await _their_hours(organization_id, user_id, tz, now)
+    if later > now:
+        await _requeue(call, later, tz)
+        return
     try:
         # The hard rule, asked immediately before dialling: the calling
         # window (enforced, never dropped) and the do-not-call list.
@@ -735,6 +755,13 @@ async def _dial(call: Any, dialable: str, *, on_run_created=None) -> int:
     if not config:
         raise _Refused("needs_setup")
     prefs = await member_preferences.get(call.user_id)
+    # "Tamil for calls" (services/personal): the person's own call language,
+    # read here, not remembered by a model. Falls back to their language.
+    from api.services.personal import preferences as personal_preferences
+
+    language = await personal_preferences.language_for(
+        call.user_id, "calls", call.organization_id
+    ) or prefs.get("language")
     items = await items_of_call(call.organization_id, call.id)
     workflow = await agent.ensure_workflow(call.organization_id, user_id=call.user_id)
     provider = await get_telephony_provider_by_id(config.id, call.organization_id)
@@ -751,7 +778,7 @@ async def _dial(call: Any, dialable: str, *, on_run_created=None) -> int:
                 "done_call_id": call.id,
                 **agent.call_context(
                     items=items,
-                    language=prefs.get("language"),
+                    language=language,
                     person=prefs.get("preferred_name") or "",
                 ),
             },

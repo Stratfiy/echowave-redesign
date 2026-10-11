@@ -194,7 +194,9 @@ async def prompt_for_workflow(
     for slug in slugs[:MAX_PER_BOT]:
         skill = catalogue.get(slug)
         if skill is not None:
-            blocks.append(prompt_block(skill.skill))
+            blocks.append(
+                prompt_block(await _evolved(organization_id, slug, skill.skill))
+            )
             continue
         # One of the workspace's own: written on the agent's page, or
         # imported. Only a reviewed one reaches a prompt -- an import waits
@@ -206,8 +208,12 @@ async def prompt_for_workflow(
         if own is not None and own.reviewed_at is not None:
             blocks.append(
                 prompt_block(
-                    PortableSkill(
-                        name=own.title, description=own.description, body=own.body
+                    await _evolved(
+                        organization_id,
+                        slug,
+                        PortableSkill(
+                            name=own.title, description=own.description, body=own.body
+                        ),
                     )
                 )
             )
@@ -217,6 +223,16 @@ async def prompt_for_workflow(
         "The procedures this agent has been taught. Follow them when the "
         "situation they describe comes up.\n\n" + "\n\n".join(blocks)
     )
+
+
+async def _evolved(
+    organization_id: int, slug: str, skill: PortableSkill
+) -> PortableSkill:
+    """The workspace's published version of a skill, where it has one
+    (services/evolve). The same object while ``evolve_skills`` is off."""
+    from api.services.evolve import versions
+
+    return await versions.overlay(organization_id, slug, skill)
 
 
 # --- skills a person writes on the agent's page ------------------------------
