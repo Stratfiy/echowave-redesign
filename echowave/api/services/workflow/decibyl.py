@@ -229,6 +229,13 @@ SYSTEM = (
     "want read and remembered -- set for_agents to false. Say which pages "
     "were read and which were skipped; learning the same site again updates "
     "the file.\n"
+    "- ask_for_reviews: when the person wants more reviews, propose this "
+    "one card: an agent (or 'all') sends every customer it really spoke with "
+    "a short thank-you with their review link, at most once per person every "
+    "90 days. Ask for the review link if you do not have it (Google: Business "
+    "Profile, 'Ask for reviews', copy the link). Never ask only happy "
+    "customers and never offer anything for a review -- Google takes reviews "
+    "down for both; say so if they ask.\n"
     "- web_search and web_fetch: the web, on Decibyl's own key. A search "
     "costs a tool call plus the search; a page read costs a tool call. Use "
     "them for what is outside the workspace and say where a fact came "
@@ -402,6 +409,13 @@ def _booking():
     from api.services.voice import booking_setup
 
     return booking_setup
+
+
+def _reviews():
+    """Review requests (services/messaging/review_requests)."""
+    from api.services.messaging import review_requests
+
+    return review_requests
 
 
 def _outreach():
@@ -1970,6 +1984,7 @@ def office_tools(organization_id: int | None = None) -> list[dict[str, Any]]:
         *care_tools.schemas(organization_id),
         *_outreach().schemas(organization_id),
         *((_booking().tool_schema(),) if _booking().enabled(organization_id) else ()),
+        *((_reviews().tool_schema(),) if _reviews().enabled(organization_id) else ()),
         *people_tools.schemas(organization_id),
         *image_tools.schemas(organization_id),
         *(
@@ -2385,6 +2400,14 @@ async def _tool(
             author_id=author_id,
             request=request,
             thread_id=thread_id,
+        )
+    if call.name == _reviews().TOOL_NAME and _reviews().enabled(organization_id):
+        return await actions.propose(
+            organization_id=organization_id,
+            workflow_id=None,
+            workflow_run_id=None,
+            arguments={**arguments, "action": actions.ASK_FOR_REVIEWS},
+            in_channel=False,
         )
     if call.name == _booking().TOOL_NAME and _booking().enabled(organization_id):
         return await actions.propose(

@@ -784,6 +784,14 @@ async def _send_follow_up_messages(
         "",
     )
 
+    try:
+        conversation = follow_up.real_conversation(workflow_run)
+    except Exception as exc:  # noqa: BLE001 - unknown reads as "no conversation"
+        logger.warning(
+            "Could not tell whether run {} was answered: {}", workflow_run_id, exc
+        )
+        conversation = None
+
     results: list[dict] = []
     for node in sms_nodes:
         node_id = node.get("id", "unknown")
@@ -798,6 +806,9 @@ async def _send_follow_up_messages(
             result = await follow_up.deliver(
                 sms_node.data,
                 variables=render_context,
+                answered=conversation,
+                organization_id=organization_id,
+                workflow_id=workflow_run.workflow_id,
                 provider=platform_whatsapp.PROVIDER
                 if on_platform
                 else telephony_config.provider,

@@ -146,6 +146,17 @@ WHATSAPP_WEBHOOK_VERIFY_TOKEN=
 # {{1}}") that offers a file when the 24-hour window has closed. Unset, a
 # send outside the window is refused with the reason.
 WHATSAPP_FILE_OFFER_TEMPLATE=
+
+# Optional. An approved template for review requests ("ask_for_reviews"),
+# category Marketing, two placeholders -- {{1}} the business's name, {{2}}
+# the review link -- e.g. "Thank you for choosing {{1}}. If you have a
+# minute, we would be grateful for your review: {{2}}". Unset, review
+# requests go by SMS on the account's own carrier, and the card says so.
+WHATSAPP_REVIEW_TEMPLATE=
+WHATSAPP_REVIEW_TEMPLATE_LANGUAGE=en
+
+# Kill switch for review requests from Chat (on by default).
+REVIEW_REQUESTS_ENABLED=true
 ```
 
 Register the webhook at `https://api.decibyl.ai/api/v1/public/whatsapp/webhook`
