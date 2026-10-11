@@ -123,6 +123,10 @@ TAG_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "event-webhooks",
             "public-email",
             "public-whatsapp",
+            # Instagram messages answered by an agent: connecting the account
+            # and Meta's webhook (services/messaging/instagram.py).
+            "instagram",
+            "public-instagram",
             "routines",
             "tasks",
             # Today, reminders and the daily brief (launch stream today).
