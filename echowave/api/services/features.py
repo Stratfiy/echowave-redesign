@@ -223,6 +223,9 @@ FLAGS: dict[str, str] = {
     # Review requests: a "Review request" message on an agent, from Chat
     # (services/messaging/review_requests.py). On by default.
     "review_requests": "REVIEW_REQUESTS_ENABLED",
+    # Instagram messages answered by an agent (services/messaging/
+    # instagram.py). On by default; inert until the Meta app is configured.
+    "instagram_channel": "INSTAGRAM_CHANNEL_ENABLED",
 }
 
 
@@ -353,6 +356,7 @@ DESCRIPTIONS: dict[str, str] = {
     "evolve_skills": "Skills that get better at your work: lessons from corrections and outcomes, tested on held-out and unrelated cases, offered on a card and published only by a person, with rollback; the Skills tab on Agents.",
     "image_generation": "Posters and ad creatives: images from Chat and two agents, on Gemini, OpenAI or Bedrock, chosen on a card in the thread.",
     "team_activity": "Team activity: an agent whose owner turned on Can see the team can read, in one compact answer, what the other agents in the workspace ran, drafted, left waiting for approval and spent.",
+    "instagram_channel": "Instagram messages: a workspace connects its Instagram professional account from Chat and one of its agents answers the messages, within Instagram's 24-hour reply window.",
     "review_requests": "Review requests: Decibyl adds a message that asks every customer for a review (Google, Justdial, Practo...) after a real conversation, at most once per person every 90 days; never only the happy ones, never for a reward.",
     "learn_website": "Learn a website: Decibyl reads a site's key pages (contact, hours, prices, services, FAQ) into one file in Files; kept for the agents, every agent answers from it.",
     "escalation_v2": "Escalation on calls decided in code from the agent's policy: a handoff card with Accept, Decline and Hand back to AI, spoken hold updates and a no-answer ladder.",

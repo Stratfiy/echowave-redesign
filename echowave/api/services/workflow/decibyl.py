@@ -229,6 +229,12 @@ SYSTEM = (
     "want read and remembered -- set for_agents to false. Say which pages "
     "were read and which were skipped; learning the same site again updates "
     "the file.\n"
+    "- connect_instagram: when the person wants an agent to answer their "
+    "Instagram messages (DMs). Called without an agent it puts a 'Connect "
+    "Instagram' button on the thread, or says which account is connected and "
+    "who answers; with an agent, once connected, it proposes the card that "
+    "makes that agent answer. The agent only ever replies to a customer who "
+    "wrote, within Instagram's 24 hours; it never writes first.\n"
     "- ask_for_reviews: when the person wants more reviews, propose this "
     "one card: an agent (or 'all') sends every customer it really spoke with "
     "a short thank-you with their review link, at most once per person every "
@@ -411,6 +417,13 @@ def _booking():
     return booking_setup
 
 
+def _instagram():
+    """Instagram messages answered by an agent (services/messaging/instagram)."""
+    from api.services.messaging import instagram
+
+    return instagram
+
+
 def _reviews():
     """Review requests (services/messaging/review_requests)."""
     from api.services.messaging import review_requests
@@ -468,6 +481,8 @@ def thread_filter(organization_id: int | None = None) -> dict[str, Any]:
             # add-to-agent card. Listed always, like the cards above: only
             # written while ``evolve_skills`` is on.
             AgentEventKind.SKILL_LESSON.value,
+            # The Instagram connect button (services/messaging/instagram.py).
+            AgentEventKind.INSTAGRAM_CONNECT_OFFERED.value,
             # Stream `reach`: the connect chip and the comparison table.
             *(
                 (
@@ -1985,6 +2000,11 @@ def office_tools(organization_id: int | None = None) -> list[dict[str, Any]]:
         *_outreach().schemas(organization_id),
         *((_booking().tool_schema(),) if _booking().enabled(organization_id) else ()),
         *((_reviews().tool_schema(),) if _reviews().enabled(organization_id) else ()),
+        *(
+            (_instagram().tool_schema(),)
+            if _instagram().enabled(organization_id)
+            else ()
+        ),
         *people_tools.schemas(organization_id),
         *image_tools.schemas(organization_id),
         *(
@@ -2111,6 +2131,10 @@ def _was_a_read(call: Any, result: Any) -> bool:
         if name in _outreach().READS:
             return result.get("status") in ("success", "error")
         return result.get("status") in ("error", "nothing_to_send", "not_proposed")
+    if name == "connect_instagram" and isinstance(result, dict):
+        # Saying it is connected, or that it is not set up, is a read: the
+        # model may still propose the agent. The button ends the round.
+        return result.get("status") in ("connected", "unavailable", "not_proposed")
     if name in people_tools.NAMES:
         # A lookup is answered in the turn; the model may still draft or call.
         return True
@@ -2401,6 +2425,8 @@ async def _tool(
             request=request,
             thread_id=thread_id,
         )
+    if call.name == _instagram().TOOL_NAME and _instagram().enabled(organization_id):
+        return await _instagram().for_thread(organization_id, arguments)
     if call.name == _reviews().TOOL_NAME and _reviews().enabled(organization_id):
         return await actions.propose(
             organization_id=organization_id,

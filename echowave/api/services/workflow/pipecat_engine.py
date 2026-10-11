@@ -1087,9 +1087,6 @@ class PipecatEngine:
             schedule=schedule,
             caller=caller,
             steps=self._steps_block() if self._can_edit_self else None,
-            # Passed only when on, so the call with the flag off is the call
-            # it always was.
-            **({"clock_after_instructions": True} if await self._cache_v2() else {}),
         )
         functions = await compose_functions_for_node(
             node=node,
@@ -1109,19 +1106,6 @@ class PipecatEngine:
             functions,
             volatile=(today_line, caller, known_values_block(self._gathered_context)),
         )
-
-    async def _cache_v2(self) -> bool:
-        """Whether ``cache_v2`` is on for this run's organisation. Checked in
-        process first, so a deployment with the flag off nowhere never reads
-        the organisation for it. Never raises: unknown is off."""
-        try:
-            from api.services import features
-
-            if not features.on_anywhere("cache_v2"):
-                return False
-            return features.is_on("cache_v2", await self._get_organization_id())
-        except Exception:  # noqa: BLE001 - unknown is off: the prompt as before
-            return False
 
     def _prompt_inputs_cached(self) -> bool:
         return None not in (

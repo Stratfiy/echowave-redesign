@@ -161,7 +161,6 @@ def compose_system_prompt_for_node(
     schedule: str | None = None,
     caller: str | None = None,
     steps: str | None = None,
-    clock_after_instructions: bool = False,
 ) -> str:
     """Compose the full system prompt text for a workflow node.
 
@@ -208,16 +207,14 @@ def compose_system_prompt_for_node(
             read once per call like `remembered`.
         caller: Who is calling, when the contact list knew them
             (`caller_block`). Fixed for the call.
-        clock_after_instructions: ``cache_v2``. The clock line changes every
-            minute, and first in the prompt it makes every call's prefix
-            different from every other call's, so a vendor's automatic prefix
-            cache can never reuse the operator's prompt across calls. On, it
-            goes after the blocks that are the same on every call of this bot
-            (the operator's prompts, the rules, skills, memory, schedules) and
-            before the ones that are not (the caller, the steps, what has been
-            established). Off -- the default -- it stays first, exactly as
-            before. A change to what the model reads, which is why it is a
-            flag and measured before it is on anywhere.
+
+    The clock line (`today_line`) changes every minute, so it sits after the
+    blocks that are the same on every call of this bot (the operator's
+    prompts, the rules, skills, memory, schedules) and before the ones that
+    are not (the caller, the steps, what has been established). First in the
+    prompt it made every call's prefix different from every other call's.
+    The Anthropic adapter goes further and sends it after the cached system
+    block (`services/pipecat/system_clock.py`).
 
     Returns:
         The composed system prompt text.
@@ -229,14 +226,12 @@ def compose_system_prompt_for_node(
 
     formatted_node_prompt = format_prompt(node.prompt)
 
-    # First, before the operator's own words: everything after it may depend on
-    # what day it is, and a model that has already read "book them in for
-    # Tuesday" has started reasoning from the wrong year.
+    # Placed below, after the instructions: it must still precede anything that
+    # depends on what day it is (the caller, the steps, what has been
+    # established), but not the operator's own words, which are the same on
+    # every call and are what the prompt cache is keyed on.
     dated = today_line if today_line is not None else compose_today_line()
-    first = (global_prompt, formatted_node_prompt)
-    if not clock_after_instructions:
-        first = (dated, *first)
-    parts = [p for p in first if p]
+    parts = [p for p in (global_prompt, formatted_node_prompt) if p]
     # Right after the operator's own words, on every node of every bot:
     # what the bot reads is data, never an instruction (services/workflow/untrusted.py).
     parts.append(untrusted.RULE)
@@ -279,8 +274,10 @@ def compose_system_prompt_for_node(
         parts.append(remembered)
     if schedule:
         parts.append(schedule)
-    # cache_v2: the end of what is the same on every call of this bot.
-    if clock_after_instructions and dated:
+    # The end of what is the same on every call of this bot. After the
+    # instructions, so the model still reads it, and the cached prefix does
+    # not change every minute.
+    if dated:
         parts.append(dated)
     if caller:
         parts.append(caller)

@@ -175,6 +175,8 @@ TIMELINE_PRICES: dict[str, str] = {
     # the app's, paid there.
     AgentEventKind.REACH_CONNECT_OFFERED.value: INCLUDED,
     AgentEventKind.REACH_COMPARISON.value: INCLUDED,
+    # The Instagram connect button: an offer on the thread, like the others.
+    AgentEventKind.INSTAGRAM_CONNECT_OFFERED.value: INCLUDED,
     # Image generation, free while it is tried: the provider card is an
     # offer, and the images' vendor cost is recorded beside each image at a
     # customer rate of zero (services/images/metering.py). Not a price.

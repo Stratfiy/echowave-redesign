@@ -45,6 +45,7 @@ import { BlockedCard } from '@/components/channel/BlockedCard';
 import { CallWhenDoneNotice,callWhenDoneOf } from '@/components/channel/CallWhenDoneNotice';
 import { tagTokens } from '@/components/channel/ChannelComposer';
 import { emphasisTokens } from '@/components/channel/emphasis';
+import { InstagramConnectChip } from '@/components/channel/InstagramConnectChip';
 import { isJudgeableReply, ReplyFeedback, useMyFeedback } from '@/components/channel/ReplyFeedback';
 import { HandoffCard, type HandoffCardData } from '@/components/escalation/HandoffCard';
 import { LearningCard } from '@/components/evolve/LearningCard';
@@ -157,6 +158,8 @@ const CARDS = new Set([
     'connector_offered',
     'needs_secret',
     'needs_decision',
+    // The Instagram connect button (api/services/messaging/instagram.py).
+    'instagram_connect_offered',
     // Stream `reach`: the connect chip and the comparison table.
     'reach_connect_offered',
     'reach_comparison',
@@ -1501,6 +1504,28 @@ export function ChannelStream({
                                         </span>
                                     </p>
                                     <ConnectorCard event={event} />
+                                </div>
+                            </li>
+                            </React.Fragment>
+                        );
+                    }
+                    if (event.kind === 'instagram_connect_offered') {
+                        // Connect Instagram, in the thread that asked for it.
+                        const asker =
+                            (event.workflow_id != null && botNames[event.workflow_id]) || fallbackName;
+                        return (
+                            <React.Fragment key={event.id}>
+                            {divider}
+                            <li className="flex gap-3">
+                                {face(event)}
+                                <div className="min-w-0 flex-1">
+                                    <p className="mb-1 text-sm">
+                                        <span className="font-medium">{asker}</span>
+                                        <span className="ml-2 text-xs text-muted-foreground">
+                                            <time dateTime={event.at}>{when(event.at)}</time>
+                                        </span>
+                                    </p>
+                                    <InstagramConnectChip event={event} />
                                 </div>
                             </li>
                             </React.Fragment>

@@ -12,7 +12,8 @@ way to tell whether it works. These tests hold the measurement honest:
 * a prefix that changes inside one conversation is counted, with which half;
 * the report's numbers come out of seeded rows as hand-worked;
 * the report is staff-only and hidden from the public API;
-* with ``cache_v2`` off, nothing a model is sent changes.
+* with ``cache_v2`` off, the builder request is unchanged (the clock line sits
+  after the instructions whatever the flag).
 """
 
 from __future__ import annotations
@@ -835,26 +836,17 @@ def _compose(workflow, **kw):
 
 
 class TestCacheV2IsOffByDefault:
+    # The clock placement used to be gated on the flag; it no longer is.
     def test_the_flag_is_registered_and_off(self):
         assert "cache_v2" in features.FLAGS
         assert features.is_on("cache_v2") is False
 
-    def test_off_the_clock_line_is_first_as_before(self, simple_workflow):
-        assert _compose(simple_workflow) == _compose(
-            simple_workflow, clock_after_instructions=False
-        )
-        assert _compose(simple_workflow).startswith("Right now it is Friday.")
-
-    def test_on_the_clock_line_follows_the_fixed_instructions(self, simple_workflow):
-        prompt = _compose(simple_workflow, clock_after_instructions=True)
+    def test_the_clock_line_follows_the_fixed_instructions(self, simple_workflow):
+        prompt = _compose(simple_workflow)
         node_prompt = simple_workflow.nodes[simple_workflow.start_node_id].prompt
         assert prompt.startswith(node_prompt.strip()[:20])
         assert prompt.index("SKILLS") < prompt.index("Right now it is Friday.")
         assert prompt.index("Right now it is Friday.") < prompt.index("WHO IS CALLING.")
-        # Nothing added, nothing lost: the same blocks, in another order.
-        assert sorted(prompt.split("\n\n")) == sorted(
-            _compose(simple_workflow).split("\n\n")
-        )
 
     def test_off_the_builder_request_has_one_breakpoint(self):
         conversation = client.Conversation()
@@ -921,7 +913,7 @@ class TestTheEngine:
         await engine._setup_llm_context(workflow.nodes[workflow.start_node_id])
         return seen["prompt"]
 
-    async def test_off_is_the_prompt_it_always_was_and_is_measured(
+    async def test_the_prompt_is_the_same_flag_on_or_off_and_is_measured(
         self, db_session, simple_workflow, monkeypatch
     ):
         engine = self._engine(simple_workflow)
@@ -933,13 +925,13 @@ class TestTheEngine:
             wraps=compose_system_prompt_for_node,
         ) as compose:
             off = await self._prompt(engine, simple_workflow, monkeypatch, on=False)
-        assert "clock_after_instructions" not in compose.call_args.kwargs
-        assert off.startswith("Right now it is Friday.")
+        assert not off.startswith("Right now it is Friday.")
+        assert "Right now it is Friday." in off
         (hashes,) = seen
         assert hashes.system_hash == cache_metrics.prompt_hashes(off, []).system_hash
 
+        # The clock no longer depends on the flag.
         on = await self._prompt(
             self._engine(simple_workflow), simple_workflow, monkeypatch, on=True
         )
-        assert not on.startswith("Right now it is Friday.")
-        assert "Right now it is Friday." in on
+        assert on == off

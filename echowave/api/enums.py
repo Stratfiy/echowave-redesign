@@ -904,6 +904,10 @@ class AgentEventKind(str, Enum):
     #: A connect chip for an outside tool or an ordering app (stream `reach`).
     #: The person connects it in the thread; it is theirs alone.
     REACH_CONNECT_OFFERED = "reach_connect_offered"
+    #: The "Connect Instagram" button on Decibyl's thread: the workspace's
+    #: Instagram account, signed in on Instagram's own screen
+    #: (services/messaging/instagram.py).
+    INSTAGRAM_CONNECT_OFFERED = "instagram_connect_offered"
     #: Prices and coupons compared across the apps a person connected,
     #: naming which apps and when (stream `reach`).
     REACH_COMPARISON = "reach_comparison"
