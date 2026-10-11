@@ -6,7 +6,8 @@ request. Everything here is a 404 while ``training_loop`` is off for the
 workspace.
 
 * ``PUT /training-loop/settings`` -- "Use my feedback to improve my agents"
-  (workspace admins and owners).
+  (workspace admins and owners). Off is one of two choices: "Stop collecting"
+  (keeps the past) or "Stop and delete" (``delete_past``: archives the past).
 * ``GET /training-loop/settings`` -- what it is now (any member).
 * ``GET /training-loop/agents/{workflow_id}/summary`` -- the Learning line.
   The agent is read through the workspace; another workspace's is a 404.
@@ -31,7 +32,13 @@ from api.services.auth.depends import (
     get_user_with_selected_organization,
     require_organization_role,
 )
-from api.services.training_loop import FLAG, consent, export, summary
+from api.services.training_loop import (
+    ARCHIVE_RETENTION_DAYS,
+    FLAG,
+    consent,
+    export,
+    summary,
+)
 
 router = APIRouter(
     prefix="/training-loop",
@@ -47,10 +54,17 @@ NDJSON = "application/x-ndjson"
 
 class TrainingLoopSettings(BaseModel):
     use_feedback: bool
+    #: Rows archived by "Stop and delete", kept only as the law requires.
+    archived: int = 0
+    #: How long archived rows are kept, in days.
+    retention_days: int = ARCHIVE_RETENTION_DAYS
 
 
 class TrainingLoopSettingsUpdate(BaseModel):
     use_feedback: bool
+    #: "Stop and delete": archive the rows already kept. Only with
+    #: ``use_feedback`` off; "Stop collecting" leaves them as they are.
+    delete_past: bool = False
 
 
 class TrainingLoopSummary(BaseModel):
@@ -67,8 +81,10 @@ def _organization_id(user: UserModel) -> int:
 async def get_settings(
     user: Annotated[UserModel, Depends(get_user_with_selected_organization)],
 ):
+    organization_id = _organization_id(user)
     return TrainingLoopSettings(
-        use_feedback=await consent.use_feedback(_organization_id(user))
+        use_feedback=await consent.use_feedback(organization_id),
+        archived=await db_client.count_archived_learning_events(organization_id),
     )
 
 
@@ -80,11 +96,24 @@ async def set_settings(
     ],
 ):
     """Switch "Use my feedback to improve my agents". Off, nothing new is
-    kept beyond the facts, and the words already kept are cleared."""
-    result = await consent.set_use_feedback(
-        organization_id=_organization_id(user), user=user, allowed=body.use_feedback
+    kept. "Stop collecting" leaves what was kept; ``delete_past`` ("Stop and
+    delete") archives it: out of export and training, kept only as the law
+    requires, never hard-deleted."""
+    if body.use_feedback and body.delete_past:
+        raise HTTPException(
+            status_code=422, detail="Only turning it off can delete what was kept."
+        )
+    organization_id = _organization_id(user)
+    await consent.set_use_feedback(
+        organization_id=organization_id,
+        user=user,
+        allowed=body.use_feedback,
+        delete_past=body.delete_past,
     )
-    return TrainingLoopSettings(use_feedback=result["use_feedback"])
+    return TrainingLoopSettings(
+        use_feedback=body.use_feedback,
+        archived=await db_client.count_archived_learning_events(organization_id),
+    )
 
 
 @router.get("/agents/{workflow_id}/summary", response_model=TrainingLoopSummary)
@@ -125,13 +154,15 @@ async def export_mine(
     user: Annotated[
         UserModel, Depends(require_organization_role(OrganizationRole.OWNER))
     ],
-    shape: Annotated[str, Query(description="sft or preference")] = export.SFT,
+    shape: Annotated[str, Query(description="sft, preference or kto")] = export.SFT,
     agent_id: Annotated[int | None, Query()] = None,
 ):
-    """The workspace's training data as JSONL, in one of two shapes."""
+    """The workspace's training data as JSONL, in one of three shapes."""
     organization_id = _organization_id(user)
     if shape not in export.SHAPES:
-        raise HTTPException(status_code=422, detail="shape must be sft or preference")
+        raise HTTPException(
+            status_code=422, detail="shape must be sft, preference or kto"
+        )
     if agent_id is not None and (
         await db_client.get_workflow(agent_id, organization_id=organization_id) is None
     ):
@@ -146,7 +177,7 @@ async def export_mine(
 async def export_for_staff(
     organization_id: int,
     staff: Annotated[UserModel, Depends(get_superuser)],
-    shape: Annotated[str, Query(description="sft or preference")] = export.SFT,
+    shape: Annotated[str, Query(description="sft, preference or kto")] = export.SFT,
     agent_id: Annotated[int | None, Query()] = None,
 ):
     """One workspace's training data, for staff. The workspace's own switch
@@ -155,7 +186,9 @@ async def export_for_staff(
     if not features.is_on(FLAG, organization_id):
         raise HTTPException(status_code=404, detail="Not Found")
     if shape not in export.SHAPES:
-        raise HTTPException(status_code=422, detail="shape must be sft or preference")
+        raise HTTPException(
+            status_code=422, detail="shape must be sft, preference or kto"
+        )
     if await db_client.get_organization_by_id(organization_id) is None:
         raise HTTPException(status_code=404, detail="Workspace not found")
     if agent_id is not None and (

@@ -29,10 +29,8 @@ SPEND_SHARE_PERCENT = 2
 SPEND_WINDOW_DAYS = 28
 
 #: The most any one agent's weekly loop may spend, whatever its spend, in
-#: rupees. A constant by the founder's decision.
-#:
-#: PLACEHOLDER VALUE: the founder has not given the number yet. Change this
-#: one line when they do; nothing else reads a different figure.
+#: rupees. A constant by the founder's decision: Rs 500, approved 10 Oct 2026.
+#: Nothing else reads a different figure.
 WEEKLY_LOOP_CEILING_RUPEES = 500
 
 PAISE_PER_RUPEE = 100
@@ -46,6 +44,19 @@ def weekly_cap_paise(model_spend_last_4_weeks_paise: int | None) -> int:
     spend = max(int(model_spend_last_4_weeks_paise or 0), 0)
     share = spend * SPEND_SHARE_PERCENT // 100
     return min(share, WEEKLY_LOOP_CEILING_PAISE)
+
+
+async def weekly_cap_for_scope(
+    *, organization_id: int, workflow_id: int | None, now: datetime | None = None
+) -> int:
+    """The cap for an agent, or (``workflow_id`` None) for a workspace's
+    agent-less work such as Decibyl's own: the same rule on the workspace's
+    whole model spend."""
+    since = (now or datetime.now(UTC)) - timedelta(days=SPEND_WINDOW_DAYS)
+    spend = await db_client.agent_model_spend_paise(
+        organization_id=organization_id, workflow_id=workflow_id, since=since
+    )
+    return weekly_cap_paise(spend)
 
 
 async def weekly_cap_for_agent(

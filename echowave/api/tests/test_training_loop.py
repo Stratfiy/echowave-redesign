@@ -7,7 +7,8 @@ things tested:
 
 * off by default, and off records nothing at all;
 * "Use my feedback to improve my agents": on for the workspace by default;
-  off, rows hold no words, and the words already kept are cleared;
+  off, nothing new is written. "Stop collecting" keeps the past; "Stop and
+  delete" archives it (out of export, counts and training, never deleted);
 * phone numbers, emails, Aadhaar and PAN are gone before anything is stored;
 * every existing point reports in: edit card publish and discard, action card
   confirm / edit / decline / undo, thumbs, failed evals, escalations;
@@ -263,11 +264,11 @@ class TestConsent:
     async def test_on_by_default_for_the_workspace(self, on, a):
         assert await consent.use_feedback(a.org) is True
 
-    async def test_off_keeps_the_facts_and_no_words(self, on, a):
+    async def test_stop_collecting_writes_nothing_new(self, on, a):
         await consent.set_use_feedback(
             organization_id=a.org, user=a.user, allowed=False
         )
-        await loop_record.record(
+        assert not await loop_record.record(
             organization_id=a.org,
             event_type=loop.REJECTED,
             source=loop.EDIT_CARD,
@@ -276,39 +277,98 @@ class TestConsent:
             input_text="the prompt 9876543210",
             model_output="the answer",
             owner_final="the owner's",
-            detail="reason",
             model="some-model",
-            prompt_tokens=10,
-            completion_tokens=5,
         )
-        (row,) = await _rows(a.org)
-        assert row.consent_state == loop.DECLINED
-        assert (row.input_text, row.model_output, row.owner_final, row.detail) == (
-            None,
-            None,
-            None,
-            None,
-        )
-        # What happened is still true, and countable.
-        assert (row.event_type, row.workflow_id, row.model) == (
-            loop.REJECTED,
-            a.workflow,
-            "some-model",
-        )
-        assert (row.prompt_tokens, row.completion_tokens) == (10, 5)
+        # Not the words, and not a row of facts either.
+        assert await _rows(a.org) == []
 
-    async def test_switching_off_clears_the_words_already_kept(self, on, a):
-        await _keep(a, loop.APPROVED, input_text="p", owner_final="q")
-        assert (await _rows(a.org))[0].input_text == "p"
+    async def test_stop_collecting_keeps_the_past_exactly_as_it_was(self, on, a):
+        await _decided(a, 1, prompt="P", shown="x", final="owner")
         result = await consent.set_use_feedback(
             organization_id=a.org, user=a.user, allowed=False
         )
-        assert result == {"use_feedback": False, "cleared": 1}
-        (row,) = await _rows(a.org)
-        assert (row.input_text, row.owner_final) == (None, None)
-        assert row.consent_state == loop.DECLINED
-        # ... and nothing of it is exportable.
-        assert (await export.build(organization_id=a.org, shape=export.SFT)).lines == []
+        assert result == {"use_feedback": False, "archived": 0}
+        rows = await _rows(a.org)
+        assert rows and all(r.archived_at is None for r in rows)
+        assert any(r.owner_final == "owner" for r in rows)
+        assert all(r.consent_state == loop.GRANTED for r in rows)
+        # ... and it is still exportable and counted.
+        assert (
+            len((await export.build(organization_id=a.org, shape=export.SFT)).lines)
+            == 1
+        )
+        counts = await summary.agent_summary(
+            organization_id=a.org, workflow_id=a.workflow
+        )
+        assert counts["approved_this_week"] == 1
+
+    async def test_stop_and_delete_archives_the_past(self, on, a):
+        await _decided(a, 1, prompt="P", shown="x", final="owner")
+        await _decided(a, 2, prompt="P", shown="y", how="rejected")
+        before = await _rows(a.org)
+        result = await consent.set_use_feedback(
+            organization_id=a.org, user=a.user, allowed=False, delete_past=True
+        )
+        assert result == {"use_feedback": False, "archived": len(before)}
+        after = await _rows(a.org)
+        # Never hard-deleted: every row is still there, flagged, words intact
+        # (kept only as the law requires).
+        assert [r.id for r in after] == [r.id for r in before]
+        assert all(r.archived_at is not None for r in after)
+        assert any(r.owner_final == "owner" for r in after)
+        # Excluded from export, from the counts, and from being read back.
+        for shape in export.SHAPES:
+            assert (await export.build(organization_id=a.org, shape=shape)).lines == []
+        counts = await summary.agent_summary(
+            organization_id=a.org, workflow_id=a.workflow
+        )
+        assert (counts["approved_this_week"], counts["rejected_this_week"]) == (0, 0)
+        assert (
+            await db_client.get_learning_event(
+                organization_id=a.org,
+                event_type=after[0].event_type,
+                subject_key=after[0].subject_key,
+            )
+            is None
+        )
+        assert await db_client.count_archived_learning_events(a.org) == len(before)
+
+    async def test_stop_and_delete_after_stop_collecting_still_archives(self, on, a):
+        await _decided(a, 1, prompt="P", shown="x", final="owner")
+        await consent.set_use_feedback(
+            organization_id=a.org, user=a.user, allowed=False
+        )
+        result = await consent.set_use_feedback(
+            organization_id=a.org, user=a.user, allowed=False, delete_past=True
+        )
+        assert result["archived"] >= 1
+        # Again is a no-op: nothing left to archive.
+        again = await consent.set_use_feedback(
+            organization_id=a.org, user=a.user, allowed=False, delete_past=True
+        )
+        assert again["archived"] == 0
+
+    async def test_turning_back_on_does_not_unarchive(self, on, a):
+        await _decided(a, 1, prompt="P", shown="x", final="owner")
+        await consent.set_use_feedback(
+            organization_id=a.org, user=a.user, allowed=False, delete_past=True
+        )
+        await consent.set_use_feedback(organization_id=a.org, user=a.user, allowed=True)
+        await _decided(a, 2, prompt="P2", shown="x2", final="owner2")
+        rows = await _rows(a.org)
+        assert {r.archived_at is None for r in rows} == {True, False}
+        lines = (await export.build(organization_id=a.org, shape=export.SFT)).lines
+        assert [json.loads(x)["prompt"] for x in lines] == ["P2"]
+
+    async def test_deleting_while_turning_on_is_refused(self, on, a):
+        with pytest.raises(ValueError):
+            await consent.set_use_feedback(
+                organization_id=a.org, user=a.user, allowed=True, delete_past=True
+            )
+
+    async def test_the_retention_period_is_a_constant(self):
+        assert isinstance(loop.ARCHIVE_RETENTION_DAYS, int)
+        assert loop.ARCHIVE_RETENTION_DAYS > 0
 
     async def test_switching_back_on_keeps_words_from_then_on(self, on, a):
         await consent.set_use_feedback(
@@ -344,6 +404,30 @@ class TestConsent:
         )
         assert len(rows) == 1
         assert rows[0].subject == "Use my feedback to improve my agents"
+        assert rows[0].after["choice"] == "stop_collecting"
+
+    async def test_stop_and_delete_is_in_the_audit_log_with_the_count(
+        self, on, a, async_session
+    ):
+        await _decided(a, 1, prompt="P", shown="x", final="owner")
+        await consent.set_use_feedback(
+            organization_id=a.org, user=a.user, allowed=False, delete_past=True
+        )
+        (row,) = (
+            (
+                await async_session.execute(
+                    select(AuditEntryModel).where(
+                        AuditEntryModel.organization_id == a.org,
+                        AuditEntryModel.action == "training_loop_consent",
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert row.after["choice"] == "stop_and_delete"
+        assert row.after["archived"] >= 1
+        assert row.after["retention_days"] == loop.ARCHIVE_RETENTION_DAYS
 
 
 # --- the existing points ----------------------------------------------------------
@@ -443,6 +527,236 @@ class TestEditCards:
             organization_id=a.org, event_id=card, action="discard", user_id=a.user.id
         )
         assert await _rows(a.org) == []
+
+
+OWNERS = "Greet the caller by name, then ask how you can help."
+
+
+def _edit(text=OWNERS, field="prompt", node_id="1"):
+    return [{"node_id": node_id, "field": field, "new": text}]
+
+
+async def _live(a):
+    live = await db_client.get_published_definition(a.workflow, a.org)
+    return live.workflow_json
+
+
+class TestEditBeforeApprove:
+    async def _publish_edited(self, a, card, edits):
+        with _screen():
+            return await self_edit.settle(
+                organization_id=a.org,
+                event_id=card,
+                action="publish",
+                user_id=a.user.id,
+                edits=edits,
+            )
+
+    async def test_the_owners_text_goes_live_not_the_bots(self, on, a):
+        card = await _card(a)
+        payload = await self._publish_edited(a, card, _edit())
+        graph = await _live(a)
+        assert graph["nodes"][0]["data"]["prompt"] == OWNERS
+        assert payload["decided"]["action"] == "publish"
+        # The card now shows what went live, and keeps the bot's proposal.
+        assert payload["new"] == OWNERS
+        assert OWNERS in payload["diff"]
+        assert payload["original"]["new"] == PROPOSED
+        assert payload["changes"][0]["new"] == OWNERS
+
+    async def test_it_is_recorded_as_a_preference_pair(self, on, a):
+        card = await _card(a)
+        await self._publish_edited(a, card, _edit())
+        (row,) = await _rows(a.org, event_type=loop.EDITED_THEN_APPROVED)
+        assert row.model_output == PROPOSED
+        assert row.owner_final == OWNERS
+        assert row.user_id == a.user.id
+        assert row.input_ref == f"agent_event:{card}"
+        assert START in row.input_text and "Be warmer" in row.input_text
+        assert await _rows(a.org, event_type=loop.APPROVED) == []
+        # The same subject as the card was shown with.
+        (shown,) = await _rows(a.org, event_type=loop.SUGGESTION_SHOWN)
+        assert shown.subject_key == row.subject_key
+        pairs = await export.build(organization_id=a.org, shape=export.PREFERENCE)
+        (pair,) = [json.loads(x) for x in pairs.lines]
+        assert (pair["chosen"], pair["rejected"]) == (OWNERS, PROPOSED)
+        sft = await export.build(organization_id=a.org, shape=export.SFT)
+        assert [json.loads(x)["completion"] for x in sft.lines] == [OWNERS]
+
+    async def test_the_owners_text_is_redacted_like_any_other(self, on, a):
+        card = await _card(a)
+        await self._publish_edited(
+            a, card, _edit("Greet the caller, then say call 9876543210.")
+        )
+        (row,) = await _rows(a.org, event_type=loop.EDITED_THEN_APPROVED)
+        assert "9876543210" not in row.owner_final
+        # What went live is what the owner wrote: redaction is for the record.
+        assert "9876543210" in (await _live(a))["nodes"][0]["data"]["prompt"]
+
+    async def test_an_unchanged_edit_is_a_plain_approval(self, on, a):
+        card = await _card(a)
+        await self._publish_edited(a, card, _edit(PROPOSED))
+        assert (await _live(a))["nodes"][0]["data"]["prompt"] == PROPOSED
+        assert len(await _rows(a.org, event_type=loop.APPROVED)) == 1
+        assert await _rows(a.org, event_type=loop.EDITED_THEN_APPROVED) == []
+
+    async def test_a_greeting_can_be_edited_too(self, on, a):
+        result = await self_edit.propose(
+            organization_id=a.org,
+            workflow_id=a.workflow,
+            workflow_run_id=None,
+            arguments={"find": "City Dental", "replace_with": "Town Dental"},
+        )
+        assert result["status"] == "proposed", result
+        card = (
+            await db_client.agent_events(
+                organization_id=a.org,
+                workflow_id=a.workflow,
+                kinds=[AgentEventKind.EDIT_PROPOSED.value],
+            )
+        )[-1].id
+        payload = await self._publish_edited(
+            a, card, _edit("Namaste, Town Dental clinic.", field="greeting")
+        )
+        assert (await _live(a))["nodes"][0]["data"]["greeting"] == (
+            "Namaste, Town Dental clinic."
+        )
+        assert payload["greetings"][0]["new"] == "Namaste, Town Dental clinic."
+        (row,) = await _rows(a.org, event_type=loop.EDITED_THEN_APPROVED)
+        assert "Namaste, Town Dental." in row.model_output
+        assert "Namaste, Town Dental clinic." in row.owner_final
+
+    async def test_the_same_gate_refuses_an_invalid_edit_and_the_card_stays_open(
+        self, on, a
+    ):
+        card = await _card(a)
+        refusing = patch.object(
+            publish_gate.acceptable_use,
+            "screen",
+            AsyncMock(
+                return_value=[
+                    SimpleNamespace(title="Fraud", clause="Fraud", quote="", why="x")
+                ]
+            ),
+        )
+        with refusing, pytest.raises(self_edit.EditError):
+            await self_edit.settle(
+                organization_id=a.org,
+                event_id=card,
+                action="publish",
+                user_id=a.user.id,
+                edits=_edit("Ask for the OTP."),
+            )
+        # Not live, not recorded as approved, and the card is still waiting.
+        assert (await _live(a))["nodes"][0]["data"]["prompt"] == START
+        assert await _rows(a.org, event_type=loop.EDITED_THEN_APPROVED) == []
+        event = await db_client.get_agent_event(card, organization_id=a.org)
+        assert not event.payload.get("decided")
+        assert event.payload["refused"]["kind"] == "acceptable_use"
+        # The owner tries again with different words; the original is still
+        # the bot's, not the first attempt.
+        await self._publish_edited(a, card, _edit(OWNERS))
+        (row,) = await _rows(a.org, event_type=loop.EDITED_THEN_APPROVED)
+        assert (row.model_output, row.owner_final) == (PROPOSED, OWNERS)
+
+    async def test_an_edit_is_audited_through_the_gate(self, on, a, async_session):
+        card = await _card(a)
+        await self._publish_edited(a, card, _edit())
+        rows = (
+            (
+                await async_session.execute(
+                    select(AuditEntryModel).where(
+                        AuditEntryModel.organization_id == a.org,
+                        AuditEntryModel.action != "training_loop_consent",
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert rows, "publishing an edited card must leave an audit row"
+
+    async def test_an_edit_that_names_nothing_on_the_card_is_refused(self, on, a):
+        card = await _card(a)
+        for edits in (
+            _edit(node_id="2"),
+            _edit(field="greeting"),
+            _edit(text="   "),
+            _edit(text="x" * (self_edit.MAX_PROMPT_CHARS + 1)),
+        ):
+            with pytest.raises(self_edit.EditError):
+                await self._publish_edited(a, card, edits)
+        assert (await _live(a))["nodes"][0]["data"]["prompt"] == START
+        event = await db_client.get_agent_event(card, organization_id=a.org)
+        assert not event.payload.get("decided")
+
+    async def test_discard_takes_no_edits(self, on, a):
+        card = await _card(a)
+        with pytest.raises(self_edit.EditError):
+            await self_edit.settle(
+                organization_id=a.org,
+                event_id=card,
+                action="discard",
+                user_id=a.user.id,
+                edits=_edit(),
+            )
+
+    async def test_an_editor_save_since_is_a_conflict_and_is_not_overwritten(
+        self, on, a
+    ):
+        card = await _card(a)
+        draft = copy.deepcopy(GRAPH)
+        draft["nodes"][0]["data"]["prompt"] = "Somebody else's wording."
+        await db_client.save_workflow_draft(a.workflow, workflow_definition=draft)
+        with _screen(), pytest.raises(self_edit.EditError):
+            await self_edit.settle(
+                organization_id=a.org,
+                event_id=card,
+                action="publish",
+                user_id=a.user.id,
+                edits=_edit(),
+            )
+        current = await db_client.get_draft_version(a.workflow)
+        assert current.workflow_json["nodes"][0]["data"]["prompt"] == (
+            "Somebody else's wording."
+        )
+        assert (await _live(a))["nodes"][0]["data"]["prompt"] == START
+
+    async def test_another_workspace_cannot_edit_or_publish_the_card(self, on, a, b):
+        card = await _card(a)
+        with pytest.raises(self_edit.EditError):
+            await self._publish_edited(b, card, _edit())
+        assert (await _live(a))["nodes"][0]["data"]["prompt"] == START
+
+    async def test_without_consent_it_still_publishes_and_records_nothing(self, on, a):
+        await consent.set_use_feedback(
+            organization_id=a.org, user=a.user, allowed=False
+        )
+        card = await _card(a)
+        await self._publish_edited(a, card, _edit())
+        assert (await _live(a))["nodes"][0]["data"]["prompt"] == OWNERS
+        assert await _rows(a.org) == []
+
+    async def test_over_http_the_edit_goes_through(self, on, a):
+        card = await _card(a)
+        async with _as(a.as_user) as client:
+            with _screen():
+                response = await client.post(
+                    "/api/v1/timeline/edits/settle",
+                    json={"event_id": card, "action": "publish", "edits": _edit()},
+                )
+            assert response.status_code == 200, response.text
+            assert response.json()["payload"]["new"] == OWNERS
+            bad = await client.post(
+                "/api/v1/timeline/edits/settle",
+                json={
+                    "event_id": card,
+                    "action": "publish",
+                    "edits": _edit(field="not_a_field"),
+                },
+            )
+            assert bad.status_code in (409, 422)
+        assert (await _live(a))["nodes"][0]["data"]["prompt"] == OWNERS
 
 
 def _run_tool_card(args: dict, **extra) -> dict:
@@ -640,7 +954,96 @@ class TestThumbs:
         )
         assert len(await _rows(a.org, event_type=loop.THUMBS_UP)) == 1
 
-    async def test_decibyls_own_thread_is_not_an_agent_and_is_not_kept(
+    async def test_decibyls_own_thread_is_kept_with_no_agent_in_scope_decibyl(
+        self, on, a, monkeypatch
+    ):
+        monkeypatch.setattr(constants, "REPLY_FEEDBACK_ENABLED", True)
+        reply = await self._reply(a, workflow_id=None)
+        await feedback.submit(
+            organization_id=a.org,
+            user_id=a.user.id,
+            subject_kind="reply",
+            subject_id=getattr(reply, "id", reply),
+            verdict="not_quite",
+            reasons=["too_long"],
+        )
+        (row,) = await _rows(a.org)
+        assert row.event_type == loop.THUMBS_DOWN
+        assert row.workflow_id is None
+        assert row.scope == loop.SCOPE_DECIBYL
+        assert row.user_id == a.user.id
+        assert row.detail == "too_long"
+        # The same redaction as an agent's reply.
+        assert "9876543210" not in row.model_output
+        assert "5 pm" in row.model_output
+
+    async def test_an_agents_thumb_is_scope_agent(self, on, a, monkeypatch):
+        monkeypatch.setattr(constants, "REPLY_FEEDBACK_ENABLED", True)
+        reply = await self._reply(a, workflow_id=a.workflow)
+        await feedback.submit(
+            organization_id=a.org,
+            user_id=a.user.id,
+            subject_kind="reply",
+            subject_id=getattr(reply, "id", reply),
+            verdict="yes",
+        )
+        (row,) = await _rows(a.org)
+        assert (row.scope, row.workflow_id) == (loop.SCOPE_AGENT, a.workflow)
+
+    async def test_decibyls_thumbs_follow_the_same_consent(self, on, a, monkeypatch):
+        monkeypatch.setattr(constants, "REPLY_FEEDBACK_ENABLED", True)
+        reply = await self._reply(a, workflow_id=None)
+        reply_id = getattr(reply, "id", reply)
+        await consent.set_use_feedback(
+            organization_id=a.org, user=a.user, allowed=False
+        )
+        await feedback.submit(
+            organization_id=a.org,
+            user_id=a.user.id,
+            subject_kind="reply",
+            subject_id=reply_id,
+            verdict="yes",
+        )
+        assert await _rows(a.org) == []
+
+    async def test_decibyls_thumbs_follow_the_flag(self, a, monkeypatch):
+        monkeypatch.setattr(constants, "REPLY_FEEDBACK_ENABLED", True)
+        reply = await self._reply(a, workflow_id=None)
+        await feedback.submit(
+            organization_id=a.org,
+            user_id=a.user.id,
+            subject_kind="reply",
+            subject_id=getattr(reply, "id", reply),
+            verdict="yes",
+        )
+        assert await _rows(a.org) == []
+
+    async def test_a_decibyl_row_cannot_name_an_agent(self, on, a):
+        assert not await loop_record.record(
+            organization_id=a.org,
+            event_type=loop.THUMBS_UP,
+            source=loop.REPLY,
+            subject_key="x",
+            workflow_id=a.workflow,
+            scope=loop.SCOPE_DECIBYL,
+        )
+        assert await _rows(a.org) == []
+
+    async def test_a_folder_reply_is_neither_an_agents_nor_decibyls(self, on, a):
+        await hooks.reply_thumb(
+            organization_id=a.org,
+            user_id=a.user.id,
+            reply_event_id=1,
+            workflow_id=None,
+            folder_id=5,
+            verdict="yes",
+            reasons=[],
+            reply_text="Hello",
+            model=None,
+        )
+        assert await _rows(a.org) == []
+
+    async def test_decibyl_rows_do_not_count_on_an_agent_and_archive_with_the_rest(
         self, on, a, monkeypatch
     ):
         monkeypatch.setattr(constants, "REPLY_FEEDBACK_ENABLED", True)
@@ -652,7 +1055,11 @@ class TestThumbs:
             subject_id=getattr(reply, "id", reply),
             verdict="yes",
         )
-        assert await _rows(a.org) == []
+        await consent.set_use_feedback(
+            organization_id=a.org, user=a.user, allowed=False, delete_past=True
+        )
+        (row,) = await _rows(a.org)
+        assert row.archived_at is not None and row.scope == loop.SCOPE_DECIBYL
 
 
 class TestEvalsAndEscalations:
@@ -920,12 +1327,13 @@ class TestOneWorkspaceNeverSeesAnothers:
         )
         assert (wrong["approved_this_week"], wrong["rejected_this_week"]) == (0, 0)
 
-    async def test_switching_off_clears_only_that_workspace(self, on, a, b):
+    async def test_stop_and_delete_archives_only_that_workspace(self, on, a, b):
         await _decided(a, 1, prompt="P", shown="x", final="x")
         await _decided(b, 1, prompt="P", shown="x", final="x")
         await consent.set_use_feedback(
-            organization_id=a.org, user=a.user, allowed=False
+            organization_id=a.org, user=a.user, allowed=False, delete_past=True
         )
+        assert all(r.archived_at is None for r in await _rows(b.org))
         assert (await export.build(organization_id=a.org, shape=export.SFT)).lines == []
         assert (
             len((await export.build(organization_id=b.org, shape=export.SFT)).lines)
@@ -1118,7 +1526,11 @@ class TestRoutes:
         ws = await _workspace(db_session, async_session, "m1", role="member")
         async with _as(ws.as_user) as client:
             got = await client.get("/api/v1/training-loop/settings")
-            assert got.json() == {"use_feedback": True}
+            assert got.json() == {
+                "use_feedback": True,
+                "archived": 0,
+                "retention_days": loop.ARCHIVE_RETENTION_DAYS,
+            }
             denied = await client.put(
                 "/api/v1/training-loop/settings", json={"use_feedback": False}
             )
@@ -1131,8 +1543,32 @@ class TestRoutes:
                 "/api/v1/training-loop/settings", json={"use_feedback": False}
             )
             assert changed.status_code == 200
-            assert changed.json() == {"use_feedback": False}
+            assert changed.json()["use_feedback"] is False
+            assert changed.json()["archived"] == 0
         assert await consent.use_feedback(admin.org) is False
+
+    async def test_stop_and_delete_over_http(self, on, a):
+        await _decided(a, 1, prompt="P", shown="x", final="owner")
+        async with _as(a.as_user) as client:
+            changed = await client.put(
+                "/api/v1/training-loop/settings",
+                json={"use_feedback": False, "delete_past": True},
+            )
+            assert changed.status_code == 200
+            assert changed.json()["use_feedback"] is False
+            assert changed.json()["archived"] >= 1
+            got = await client.get("/api/v1/training-loop/settings")
+            assert got.json()["archived"] >= 1
+            export_after = await client.get("/api/v1/training-loop/export")
+            assert export_after.text == ""
+            # Turning on and deleting at once makes no sense: refused, and
+            # the setting is left as it was.
+            refused = await client.put(
+                "/api/v1/training-loop/settings",
+                json={"use_feedback": True, "delete_past": True},
+            )
+            assert refused.status_code == 422
+        assert await consent.use_feedback(a.org) is False
 
     async def test_the_summary_for_the_agent_page(self, on, a, b):
         await _decided(a, 1, prompt="P", shown="x", final="x")

@@ -6721,6 +6721,24 @@ export type EditProposalRequest = {
 };
 
 /**
+ * EditedField
+ */
+export type EditedField = {
+    /**
+     * Node Id
+     */
+    node_id: string;
+    /**
+     * Field
+     */
+    field: string;
+    /**
+     * New
+     */
+    new: string;
+};
+
+/**
  * ElevenLabs
  */
 export type ElevenlabsSttConfiguration = {
@@ -19347,6 +19365,10 @@ export type SettleEditRequest = {
      * Action
      */
     action: string;
+    /**
+     * Edits
+     */
+    edits?: Array<EditedField>;
 };
 
 /**
@@ -22164,6 +22186,14 @@ export type TrainingLoopSettings = {
      * Use Feedback
      */
     use_feedback: boolean;
+    /**
+     * Archived
+     */
+    archived?: number;
+    /**
+     * Retention Days
+     */
+    retention_days?: number;
 };
 
 /**
@@ -22174,6 +22204,10 @@ export type TrainingLoopSettingsUpdate = {
      * Use Feedback
      */
     use_feedback: boolean;
+    /**
+     * Delete Past
+     */
+    delete_past?: boolean;
 };
 
 /**
@@ -60555,7 +60589,7 @@ export type ExportMineApiV1TrainingLoopExportGetData = {
         /**
          * Shape
          *
-         * sft or preference
+         * sft, preference or kto
          */
         shape?: string;
         /**
@@ -60608,7 +60642,7 @@ export type ExportForStaffApiV1AdminTrainingLoopOrganizationIdExportGetData = {
         /**
          * Shape
          *
-         * sft or preference
+         * sft, preference or kto
          */
         shape?: string;
         /**

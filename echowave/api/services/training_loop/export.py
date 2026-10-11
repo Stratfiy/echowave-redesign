@@ -1,6 +1,6 @@
 """A workspace's training data, as JSONL it can take away.
 
-Two shapes, one workspace per file:
+Three shapes, one workspace per file:
 
 ``sft``
     One line per suggestion the owner ended up with:
@@ -21,10 +21,29 @@ Two shapes, one workspace per file:
 
     A suggestion approved with nothing to set against it makes no pair.
 
+``kto``
+    One line per *output*, not per pair: ``{"prompt", "completion", "label",
+    "meta"}`` with ``label`` true for an output the owner or a user wanted and
+    false for one they did not. It needs no pairing, which is why a thumb is
+    enough on its own:
+
+    * desirable: the owner's final version of a suggestion (approved, or
+      edited), and a reply that got a "Yes";
+    * undesirable: a suggestion that was rejected or undone, the model's
+      original where the owner edited it, a reply that got "Not quite", and
+      an agent's answer in a failed eval.
+
+    A row needs its prompt, so a thumb kept before the prompt was recorded
+    with it (``reply_thumb`` now does) has nothing to make a line of. The
+    same output with the same label twice is one line.
+
 What is left out, and why:
 
-* Rows without words (``declined`` consent, or events that carry none: a
-  thumb, an escalation with no model output).
+* Rows without words (``declined`` rows from before "Stop collecting" wrote
+  nothing, or events that carry none: a thumb, an escalation with no model
+  output).
+* Archived rows (a workspace's "Stop and delete"): never exported, by
+  anyone, staff included.
 * Anything the owner undid or rejected *last*: the final word on a card is
   the one that counts, so an approved-then-undone suggestion is not a good
   example.
@@ -48,7 +67,8 @@ from api.services.workflow import audit_log
 
 SFT = "sft"
 PREFERENCE = "preference"
-SHAPES = (SFT, PREFERENCE)
+KTO = "kto"
+SHAPES = (SFT, PREFERENCE, KTO)
 
 #: The most events one export reads. Past it the file says so
 #: (``Export.truncated``) rather than silently stopping.
@@ -72,6 +92,7 @@ def _meta(row: Any) -> dict[str, Any]:
     return {
         "organization_id": row.organization_id,
         "agent_id": row.workflow_id,
+        "scope": row.scope,
         "event_id": row.id,
         "event_type": row.event_type,
         "source": row.source,
@@ -137,6 +158,45 @@ def _pairs(rows: list[Any], chosen: list[Any]) -> list[dict[str, Any]]:
     return out
 
 
+def _kto(rows: list[Any]) -> list[dict[str, Any]]:
+    seen: set[tuple[str, str, bool]] = set()
+    out: list[dict[str, Any]] = []
+
+    def add(row: Any, completion: str | None, label: bool) -> None:
+        if not row.input_text or not completion:
+            return
+        key = (row.input_text, completion, label)
+        if key in seen:
+            return
+        seen.add(key)
+        out.append(
+            {
+                "prompt": row.input_text,
+                "completion": completion,
+                "label": label,
+                "meta": _meta(row),
+            }
+        )
+
+    last: dict[Any, Any] = {}
+    for row in rows:  # ordered by id
+        if row.event_type in _DECISIVE:
+            last[row.input_ref or ("row", row.id)] = row
+    for row in last.values():
+        if row.event_type in loop.OWNER_VERSION_TYPES:
+            add(row, row.owner_final, True)
+            if row.model_output != row.owner_final:
+                add(row, row.model_output, False)
+        else:
+            add(row, row.model_output, False)
+    for row in rows:
+        if row.event_type == loop.THUMBS_UP:
+            add(row, row.model_output, True)
+        elif row.event_type in (loop.THUMBS_DOWN, loop.EVAL_FAIL):
+            add(row, row.model_output, False)
+    return out
+
+
 async def build(
     *,
     organization_id: int,
@@ -152,6 +212,9 @@ async def build(
     )
     export = Export(shape=shape, truncated=len(rows) > limit)
     rows = rows[:limit]
+    if shape == KTO:
+        export.lines = [_line(x) for x in _kto(rows)]
+        return export
     chosen = _final_choices(rows)
     if shape == SFT:
         export.lines = [

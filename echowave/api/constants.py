@@ -1078,6 +1078,11 @@ LIVE_SUPERVISION_ENABLED = _flag("LIVE_SUPERVISION_ENABLED")
 # learned is applied, and nothing leaves the workspace. Off by default; even
 # when on, the workspace can switch "Use my feedback to improve my agents" off.
 TRAINING_LOOP_ENABLED = _flag("TRAINING_LOOP_ENABLED")
+# routing_explore: on a small sample of safe calls (classifiers, extraction;
+# never a customer-facing or side-effecting one), also run the next-best model
+# in the background and keep its answer and cost as training data for Auto's
+# router (services/routing/explore.py). Needs training_loop. Off by default.
+ROUTING_EXPLORE_ENABLED = _flag("ROUTING_EXPLORE_ENABLED")
 # evolve_personal: Decibyl keeps what a person says they prefer ("Tamil
 # for calls, English for email", "call me after 10") in their own private
 # store, applies it to their turns and to calls that ring them, shows it on

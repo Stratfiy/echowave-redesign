@@ -71,15 +71,56 @@ describe("the consent switch", () => {
     const toggle = await screen.findByRole("switch", { name: "Use my feedback to improve my agents" });
     expect(toggle.getAttribute("aria-checked")).toBe("true");
     fireEvent.click(toggle);
-    await waitFor(() => expect(api.setting).toHaveBeenCalledWith({ body: { use_feedback: false } }));
+    // Off is a choice, never a default: nothing is sent until one is picked.
+    expect(api.setting).not.toHaveBeenCalled();
+    expect(screen.getByTestId("learning-choice")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Stop collecting" }));
+    await waitFor(() =>
+      expect(api.setting).toHaveBeenCalledWith({ body: { use_feedback: false, delete_past: false } }),
+    );
     await waitFor(() => expect(toggle.getAttribute("aria-checked")).toBe("false"));
+    expect(screen.queryByTestId("learning-choice")).toBeNull();
   });
 
-  it("says what turning it off does", async () => {
+  it("archives what was kept on Stop and delete", async () => {
+    api.summary.mockResolvedValue(counts(0, 0, true));
+    api.setting.mockResolvedValue({ data: { use_feedback: false, archived: 4 } });
+    render(<AgentLearning workflowId={7} />);
+    fireEvent.click(await screen.findByRole("switch"));
+    fireEvent.click(screen.getByRole("button", { name: "Stop and delete" }));
+    await waitFor(() =>
+      expect(api.setting).toHaveBeenCalledWith({ body: { use_feedback: false, delete_past: true } }),
+    );
+    expect((await screen.findByTestId("learning-off")).textContent).toContain("4 kept earlier are archived");
+  });
+
+  it("can be cancelled without changing anything", async () => {
+    api.summary.mockResolvedValue(counts(0, 0, true));
+    render(<AgentLearning workflowId={7} />);
+    const toggle = await screen.findByRole("switch");
+    fireEvent.click(toggle);
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(api.setting).not.toHaveBeenCalled();
+    expect(toggle.getAttribute("aria-checked")).toBe("true");
+  });
+
+  it("turns back on in one click", async () => {
+    api.summary.mockResolvedValue(counts(0, 0, false));
+    api.setting.mockResolvedValue({ data: { use_feedback: true, archived: 0 } });
+    render(<AgentLearning workflowId={7} />);
+    fireEvent.click(await screen.findByRole("switch"));
+    await waitFor(() => expect(api.setting).toHaveBeenCalledWith({ body: { use_feedback: true } }));
+  });
+
+  it("says what each way of turning it off does", async () => {
     api.summary.mockResolvedValue(counts(0, 0));
     render(<AgentLearning workflowId={7} />);
     expect((await screen.findByTestId("agent-learning")).textContent).toContain("never shared");
-    expect(screen.getByTestId("agent-learning").textContent).toContain("clears what was kept");
+    fireEvent.click(screen.getByRole("switch"));
+    const text = screen.getByTestId("learning-choice").textContent ?? "";
+    expect(text).toContain("keeps what was kept");
+    expect(text).toContain("archives what was kept");
+    expect(text).toContain("law requires");
   });
 
   it("stays as it was, and says why, when someone who cannot change it tries", async () => {
@@ -88,6 +129,7 @@ describe("the consent switch", () => {
     render(<AgentLearning workflowId={7} />);
     const toggle = await screen.findByRole("switch");
     fireEvent.click(toggle);
+    fireEvent.click(screen.getByRole("button", { name: "Stop collecting" }));
     await waitFor(() => expect(api.toastError).toHaveBeenCalled());
     expect(api.toastError.mock.calls[0][0]).toContain("Admin role required");
     expect(toggle.getAttribute("aria-checked")).toBe("true");
