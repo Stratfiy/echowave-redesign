@@ -1,7 +1,8 @@
 # Contributing to Decibyl
 
-Decibyl is a voice agent platform: a drag-and-drop workflow builder on top of a
-real-time speech pipeline, with telephony and WebRTC.
+Decibyl is an intelligent agent that grows and evolves with you: one personal
+assistant for life and work. Underneath it are a workflow builder, a real-time
+speech pipeline, telephony and WebRTC.
 
 Decibyl is **not open source**. This repository is private, so there is no fork
 step and no public issue tracker — clone it directly and branch.

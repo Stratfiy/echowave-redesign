@@ -29,6 +29,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { detailFromError } from "@/lib/apiError";
 import { useAuth } from "@/lib/auth";
+import { PRICES_SHOWN } from "@/lib/pricing";
 
 interface Turn {
     role: "user" | "assistant";
@@ -304,7 +305,9 @@ export function AgentBuilderPanel({
                             }
                         >
                             {config.usage.past_allowance
-                                ? `${config.usage.per_message_credits ?? 5} credits a message`
+                                ? PRICES_SHOWN
+                                    ? `${config.usage.per_message_credits ?? 5} credits a message`
+                                    : `0 / ${config.usage.limit} left this month`
                                 : `${config.usage.remaining} / ${config.usage.limit} left this month`}
                         </span>
                     ) : null}
@@ -402,7 +405,9 @@ export function AgentBuilderPanel({
                         aria-label="Describe the agent you want"
                         placeholder={
                             pastAllowance
-                                ? `Past this month's included messages — ${config.usage.per_message_credits ?? 5} credits each from here`
+                                ? PRICES_SHOWN
+                                    ? `Past this month's included messages — ${config.usage.per_message_credits ?? 5} credits each from here`
+                                    : "Past this month's included messages"
                                 : "e.g. I run a dental clinic in Bengaluru and want the phone answered"
                         }
                         className="pr-12 resize-none"

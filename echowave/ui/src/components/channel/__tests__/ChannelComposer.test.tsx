@@ -390,7 +390,7 @@ describe('the brain menu', () => {
         expect(post.mock.calls[0][0].body.preset).toBe('model:anthropic/claude-sonnet-5');
     });
 
-    it('says what a reply costs on each choice under the charge rule', async () => {
+    it('shows no reply cost on any choice, even under the charge rule', async () => {
         flags.charge_rule = true;
         brains.mockResolvedValue({
             data: {
@@ -407,8 +407,11 @@ describe('the brain menu', () => {
             composer();
             await waitFor(() => expect(brains).toHaveBeenCalled());
             fireEvent.keyDown(screen.getByRole('button', { name: 'Brain for this message' }), { key: 'Enter' });
-            expect(await screen.findByText('1 cr/reply')).toBeTruthy();
-            expect(screen.getByText('≈5 cr/reply')).toBeTruthy();
+            // No pricing is shown to users (lib/pricing.ts): the picker
+            // opens with its choices and no credit rate beside them.
+            expect(await screen.findByText('Deep')).toBeTruthy();
+            expect(screen.queryByText('1 cr/reply')).toBeNull();
+            expect(screen.queryByText('≈5 cr/reply')).toBeNull();
         } finally {
             flags.charge_rule = false;
         }
@@ -433,8 +436,9 @@ describe('the memory meter', () => {
         composer();
         expect(await screen.findByText('3.2k / 16k')).toBeTruthy();
         const meter = screen.getByRole('img', { name: 'Memory: 3.2k of 16k tokens' });
-        expect(meter.getAttribute('title')).toContain('everyday plan');
-        expect(meter.getAttribute('title')).toContain('business plan keeps more');
+        // No plan names are shown to users (lib/pricing.ts).
+        expect(meter.getAttribute('title')).toContain('3.2k tokens of 16k in mind');
+        expect(meter.getAttribute('title')).not.toMatch(/plan/i);
         expect(memory).toHaveBeenCalledWith({ query: { workflow_id: undefined, folder_id: 9, assistant: false } });
         const box = screen.getByRole('textbox') as HTMLTextAreaElement;
         fireEvent.change(box, { target: { value: 'hello' } });

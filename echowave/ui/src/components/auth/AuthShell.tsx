@@ -12,12 +12,10 @@
 // signed-in app stands on, and the only colour is the logo and one accented
 // phrase.
 //
-// **The pitch is the whole product, not one channel.** It read "Decibyl
-// answers your phone" -- true, and a third of what a customer buys. The
-// same bot replies on WhatsApp and email, looks things up in the tools the
-// business already runs, and files what it did. A visitor who only wants
-// the phone still reads it in the first line; one who wants a bot that
-// finishes a job no longer has to guess whether this does that.
+// **The pitch is the founder's sentence.** Decided 9 Oct 2026: Decibyl is
+// an intelligent agent that grows and evolves with you -- one personal
+// assistant for life and work, not a phone line and not a bot shelf. Voice
+// is one channel, so the pitch names none.
 
 import type { ReactNode } from "react";
 
@@ -43,13 +41,13 @@ export function AuthShell({
       {/* Headline. 400 weight, tight leading, one accented phrase. */}
       <div className="relative z-10 mt-8 max-w-xl text-center">
         <h1 className="text-balance text-[28px] font-normal leading-[1.1] tracking-[-0.01em] text-brand-heading sm:text-[34px]">
-          An agent for every job nobody has time for.
+          An intelligent agent that grows and evolves with you.
         </h1>
         <p className="mx-auto mt-3 max-w-md text-[15px] leading-relaxed text-brand-body">
-          Decibyl&rsquo;s agents answer the phone, reply on WhatsApp and email,
-          look things up in the tools you already run, and hand back what they
-          finished. In Hindi, Tamil, Telugu and eight more. Set one up yourself
-          in ten minutes.
+          One personal assistant for life and work. Talk in your language
+          &mdash; Hindi, Tamil, Telugu and eight more &mdash; give it a task,
+          and let it help you follow through. It learns your preferences and,
+          with your approval, gets better at your work over time.
         </p>
       </div>
 

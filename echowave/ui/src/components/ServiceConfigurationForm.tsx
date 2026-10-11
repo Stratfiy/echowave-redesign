@@ -44,6 +44,7 @@ import { LANGUAGE_DISPLAY_NAMES } from "@/constants/languages";
 import { useUnsavedChanges } from "@/context/UnsavedChangesContext";
 import { useUserConfig } from "@/context/UserConfigContext";
 import { pricedStack } from "@/lib/billing/pricedStack";
+import { PRICES_SHOWN } from "@/lib/pricing";
 import type { RangeSchema } from "@/lib/schemaRange";
 import { sliderRangeFor } from "@/lib/schemaRange";
 import type { ModelOverrides } from "@/types/workflow-configurations";
@@ -1223,9 +1224,7 @@ export function ServiceConfigurationForm({
                     <p className="text-xs text-muted-foreground">
                         {runsOnOurKey ? (
                             <>
-                                Decibyl provides this model and bills it to your account —
-                                no key needed. The price is per minute of this slot; the
-                                bar below prices the whole call.
+                                Decibyl provides this model — no key needed.
                             </>
                         ) : (
                             <>
@@ -1657,6 +1656,7 @@ export function ServiceConfigurationForm({
             {/* What this stack costs, before the first call rather than on
                 the first invoice. Reads the live selection, so switching model
                 moves the number immediately. */}
+            {PRICES_SHOWN && (
             <CostPerMinuteBar
                 className="mb-4"
                 carriageNote={carriageNote}
@@ -1671,6 +1671,7 @@ export function ServiceConfigurationForm({
                     telephonyProvider,
                 )}
             />
+            )}
 
             <Card>
                 <CardContent className="pt-6">

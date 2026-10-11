@@ -160,3 +160,13 @@ export const MARKETPLACE_TABS: PageTab[] = [
   { href: "/marketplace/skills", label: "Skills" },
   { href: "/marketplace/integrations", label: "Integrations" },
 ];
+
+/** Agents, with the skills they use a tab apart (skills-and-context.md: "Inside
+ *  Agents, use two tabs: My agents · Skills"). Shown only while
+ *  `evolve_skills` is on; the Marketplace's own Skills tab stays the place to
+ *  browse the whole shelf. Prefix on both: an agent's own page keeps My
+ *  agents lit, and /workflow/skills is the longer match. */
+export const AGENTS_TABS: PageTab[] = [
+  { href: "/workflow", label: "My agents", prefix: true },
+  { href: "/workflow/skills", label: "Skills", prefix: true },
+];

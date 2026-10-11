@@ -192,6 +192,7 @@ class TestSettling:
             id=9,
             kind=AgentEventKind.EDIT_PROPOSED.value,
             workflow_id=3,
+            workflow_run_id=None,
             payload={
                 "step": "Find a slot",
                 "decided": decided,

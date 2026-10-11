@@ -217,11 +217,9 @@ export function KeepYourNumber({ agentNumber }: { agentNumber?: string | null })
                         </p>
 
                         <p className="text-xs text-muted-foreground">
-                            Your operator charges you for forwarding the call to us, on
-                            your own plan. We charge for the call the agent answers. A
-                            forwarded call therefore costs a little more than a call
-                            straight to a Decibyl number — worth knowing before the
-                            first bill.
+                            Your operator may charge you for forwarding the call to us,
+                            on your own plan with them — worth knowing before your next
+                            phone bill.
                         </p>
                     </div>
                 )}

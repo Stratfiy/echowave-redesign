@@ -7016,6 +7016,10 @@ from api.db.escalation_models import (  # noqa: E402,F401
     CallEscalationOutcomeModel,
     EscalationModel,
 )
+from api.db.evolve_models import (  # noqa: E402,F401
+    ExperienceRecordModel,
+    SkillVersionModel,
+)
 from api.db.feature_override_models import (  # noqa: E402,F401
     FeatureOverrideModel,
 )
@@ -7067,6 +7071,10 @@ from api.db.people_models import (  # noqa: E402,F401
     PersonShareModel,
     PersonSourceModel,
 )
+from api.db.personal_models import (  # noqa: E402,F401
+    ConversationContextChoiceModel,
+    PersonalPreferenceModel,
+)
 from api.db.reach_models import (  # noqa: E402,F401
     ReachConnectionModel,
     ReachOrderDraftModel,
@@ -7113,6 +7121,7 @@ from api.db.today_models import (  # noqa: E402,F401
     TodayEventModel,
     TodayReminderModel,
 )
+from api.db.training_loop_models import LearningEventModel  # noqa: E402,F401
 from api.db.voice_models import (  # noqa: E402,F401
     AppointmentModel,
     AppointmentPolicyModel,

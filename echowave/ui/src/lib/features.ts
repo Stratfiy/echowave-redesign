@@ -146,8 +146,15 @@ export type Feature =
     | "deepfilternet_filter"
     // Listen in on a live call and whisper to its agent.
     | "live_supervision"
+    // Records what owners did with an agent's suggestions, per workspace.
+    | "training_loop"
+    // Skills that learn from corrections, evaluated and approved first.
+    | "evolve_skills"
     // Posters and ad creatives: images on a provider chosen in the thread.
-    | "image_generation";
+    | "image_generation"
+    // Personal adaptation: kept preferences, "what you know about me", the
+    // context control above the composer.
+    | "evolve_personal";
 
 export function useFeature(name: Feature): boolean {
     const { config } = useAppConfig();

@@ -237,8 +237,11 @@ class TestTheReplyCarriesTheThread:
 
         captured = {}
 
-        async def fake_append(*, run_id, text_session, user_text, expected_revision):
+        async def fake_append(
+            *, run_id, text_session, user_text, expected_revision, routing_text=None
+        ):
             captured["text"] = user_text
+            captured["routing_text"] = routing_text
             return text_session
 
         session = N(
@@ -292,3 +295,5 @@ class TestTheReplyCarriesTheThread:
 
         assert captured["text"].startswith("THREAD")
         assert captured["text"].endswith("are we open?")
+        # Auto sorts by the message, never by the thread in front of it.
+        assert captured["routing_text"] == "are we open?"

@@ -1,6 +1,6 @@
 # Decibyl
 
-Decibyl is a voice AI platform for building, testing and operating conversational agents.
+Decibyl is an intelligent agent that grows and evolves with you: one personal assistant for life and work.
 The production application lives in [`echowave/`](echowave/), not the top-level preview scaffolding.
 
 ## Start here

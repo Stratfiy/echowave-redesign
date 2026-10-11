@@ -71,9 +71,15 @@ TAG_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             # Talking to an agent as a teammate, in its thread
             # (services/huddle/).
             "huddle",
+            # Skills that learn: versions, the learning card, rollback, the
+            # Skills tab and "remember this as my way" (services/evolve/).
+            "evolve",
             "workflow-recordings",
             "workflow-outcomes",
             "evals",
+            # What owners did with an agent's suggestions, kept per workspace
+            # as training data, and its export (services/training_loop/).
+            "training-loop",
             "cost-estimate",
             "node-types",
             "extraction-library",
@@ -174,6 +180,10 @@ TAG_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             # A person's own preferences, allowances, personal space, and
             # their feedback on replies (launch stream controls).
             "controls",
+            # What Decibyl keeps about a person -- their stated preferences
+            # and what it learned -- and what a conversation uses
+            # (services/personal).
+            "personal",
             # The door before an account exists (screen 01): the waitlist
             # and what an invitation link says.
             "public-early-access",

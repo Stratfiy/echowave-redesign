@@ -1078,6 +1078,31 @@ DEEPFILTERNET_MODEL_PATH = os.getenv("DEEPFILTERNET_MODEL_PATH", "").strip()
 # Decibyl (services/live_supervision/). Off by default; even when on, each
 # workspace has to switch "Allow live listening" on before anybody listens.
 LIVE_SUPERVISION_ENABLED = _flag("LIVE_SUPERVISION_ENABLED")
+# training_loop: step 1 of the training loop. Records, per workspace and agent,
+# what was suggested and what its owner did with it (approved, rejected,
+# edited, undone, thumbs, eval failures, escalations), as data a model can
+# later be fine-tuned on (services/training_loop/). Records only; nothing
+# learned is applied, and nothing leaves the workspace. Off by default; even
+# when on, the workspace can switch "Use my feedback to improve my agents" off.
+TRAINING_LOOP_ENABLED = _flag("TRAINING_LOOP_ENABLED")
+# routing_explore: on a small sample of safe calls (classifiers, extraction;
+# never a customer-facing or side-effecting one), also run the next-best model
+# in the background and keep its answer and cost as training data for Auto's
+# router (services/routing/explore.py). Needs training_loop. Off by default.
+ROUTING_EXPLORE_ENABLED = _flag("ROUTING_EXPLORE_ENABLED")
+# evolve_personal: Decibyl keeps what a person says they prefer ("Tamil
+# for calls, English for email", "call me after 10") in their own private
+# store, applies it to their turns and to calls that ring them, shows it on
+# request with Correct and Forget, and shows what a conversation uses above
+# the composer (services/personal/). Off: nothing is captured or applied.
+EVOLVE_PERSONAL_ENABLED = _flag("EVOLVE_PERSONAL_ENABLED")
+# evolve_skills (services/evolve/): skills that get better at the person's
+# work without ever changing themselves silently. A ledger of task attempts
+# with outcome evidence from persisted records, small lesson deltas proposed
+# offline from corrections and failures, an evaluation gate on held-out and
+# unrelated cases, and an approval card before anything is published, with
+# one-click rollback. Off by default; off means skills read exactly as before.
+EVOLVE_SKILLS_ENABLED = _flag("EVOLVE_SKILLS_ENABLED")
 EXPO_PUSH_URL = os.getenv(
     "EXPO_PUSH_URL", "https://exp.host/--/api/v2/push/send"
 ).strip()
@@ -1087,6 +1112,12 @@ EXPO_ACCESS_TOKEN = os.getenv("EXPO_ACCESS_TOKEN", "").strip()
 # locked. On by default -- the one launch switch that is -- and reversible
 # from the environment or the staff console. See services/billing/free_mode.py.
 FREE_MODE_ENABLED = os.getenv("FREE_MODE_ENABLED", "true").strip().lower() == "true"
+
+# Whether a price reaches a user, including through what a model says aloud.
+# The founder decided on 9 Oct 2026: no pricing is shown to users (AGENTS.md).
+# The server-side twin of ui/src/lib/pricing.ts; a constant, not a flag,
+# because turning it back on needs new price copy from the founder first.
+PRICES_SHOWN = False
 
 # Per-organisation overrides: "feature:org_id,org_id;feature2:org_id". A
 # feature listed here is on for those organisations even while its global
@@ -1119,6 +1150,14 @@ SCRIPT_EXTERNAL_SPEND_CAP_CREDITS = int(
 
 # Which LLM the builder talks to, and in what order of preference.
 #
+#: The Claude model behind each managed LLM tier: Everyday (``default``, and
+#: Auto where no router ran), Smart (``accurate``) and Deep (``advanced``).
+#: ``managed_tiers`` maps the tiers onto these; anything else that should run
+#: on "the Smart Claude" names the constant rather than a second literal.
+CLAUDE_HAIKU_MODEL = "claude-haiku-4-5"
+CLAUDE_SONNET_MODEL = "claude-sonnet-5-5"
+CLAUDE_OPUS_MODEL = "claude-opus-5-5"
+
 # The builder uses the first of these for which a platform LLM key is installed
 # at /superadmin/provider-keys, so the choice of model is made by installing a
 # key rather than by editing a setting. Pin one explicitly with
@@ -1138,9 +1177,9 @@ AGENT_BUILDER_PROVIDER = (os.getenv("AGENT_BUILDER_PROVIDER") or "").strip().low
 # models do poorly, and it runs a handful of times per account rather than per
 # call.
 AGENT_BUILDER_MODELS = {
-    # Sonnet 5 since KAN-58: newer than 4.5 and a third cheaper ($2/$10 against
-    # $3/$15 per million), so there is no reason left to build on the old one.
-    "anthropic": os.getenv("AGENT_BUILDER_MODEL_ANTHROPIC", "claude-sonnet-5"),
+    # The Smart tier's Claude (Sonnet 5.5): the builder builds on the same
+    # model the workspace's "Smart" brain runs, so there is one place to move.
+    "anthropic": os.getenv("AGENT_BUILDER_MODEL_ANTHROPIC", CLAUDE_SONNET_MODEL),
     "openai": os.getenv("AGENT_BUILDER_MODEL_OPENAI", "gpt-4.1"),
     "google": os.getenv("AGENT_BUILDER_MODEL_GOOGLE", "gemini-2.5-flash"),
 }
@@ -1199,7 +1238,7 @@ BROWSER_BOX_PYTHON = os.getenv("BROWSER_BOX_PYTHON") or None
 #: Chromium for the ``local`` driver; the box image carries its own.
 BROWSER_CHROMIUM_PATH = os.getenv("BROWSER_CHROMIUM_PATH") or None
 #: The model the browser thinks with, on the platform's Anthropic key.
-BROWSER_MODEL = os.getenv("BROWSER_MODEL", "claude-sonnet-5-5")
+BROWSER_MODEL = os.getenv("BROWSER_MODEL", CLAUDE_SONNET_MODEL)
 #: Per-task limits. The defaults are what a task gets when nobody asks for
 #: less; the ceilings are what nobody can ask past.
 BROWSER_DEFAULT_STEPS = int(os.getenv("BROWSER_DEFAULT_STEPS", "25"))

@@ -296,8 +296,12 @@ class TestEverydayIsTextOnly:
                 async_session, organization_id=org.id
             )
         assert caught.value.plan_code == "everyday"
+        # The rung stays on the exception for the checkout; the sentence a
+        # person reads names no plan (founder, 9 Oct 2026).
         assert caught.value.upgrade_to == "business"
-        assert "Business" in str(caught.value)
+        assert "Phone calls are not switched on" in str(caught.value)
+        assert "Business" not in str(caught.value)
+        assert "plan" not in str(caught.value).lower()
 
     async def test_business_can(self, db_session, async_session):
         await subscription_plans.ensure_seeded(async_session)
