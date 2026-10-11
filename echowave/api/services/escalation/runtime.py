@@ -504,10 +504,16 @@ class EscalationRuntime:
         context.set_messages(
             [{"role": "user", "content": handoff_card.summary_prompt(transcript)}]
         )
-        return await llm.run_inference(
+        summary = await llm.run_inference(
             context,
             system_instruction="You write two-sentence call summaries for colleagues.",
         )
+        from api.services.billing import model_usage
+
+        await model_usage.record_inference(
+            llm, organization_id=self.organization_id, feature="handoff_summary"
+        )
+        return summary
 
     def _consent(self) -> dict[str, Any]:
         start = self.engine.workflow.start_node_id

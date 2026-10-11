@@ -39,7 +39,7 @@ from loguru import logger
 from api.db import db_client
 from api.enums import AgentEventActor, AgentEventKind
 from api.services import acting, features, personal, prompt_budget, reporting_window
-from api.services.billing import model_usage
+from api.services.billing import cache_metrics, model_usage
 from api.services.browser import tool as browser_tool
 from api.services.care import tools as care_tools
 from api.services.documents import tools as procurement
@@ -1284,6 +1284,10 @@ async def answer(
         settings_profile.for_turn(person),
         context_control.for_turn(left_out),
         personal_preferences.for_turn(kept),
+        # Every model call of the turn -- routing, tool rounds, retries --
+        # in one conversation for the prompt-cache measurement; the main
+        # thread has no id of its own, so it is named by its account.
+        cache_metrics.conversation(f"thread:{thread_id or f'main:{organization_id}'}"),
     ):
         return await _answer(
             organization_id,
