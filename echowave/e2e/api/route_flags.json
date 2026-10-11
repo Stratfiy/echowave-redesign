@@ -185,6 +185,11 @@
    "staff_console"
   ]
  },
+ "/api/v1/admin/staff/operations/caching": {
+  "GET": [
+   "staff_console"
+  ]
+ },
  "/api/v1/admin/staff/operations/latency": {
   "GET": [
    "staff_console"

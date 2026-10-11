@@ -183,6 +183,8 @@ FLAGS: dict[str, str] = {
     "call_when_done": "CALL_WHEN_DONE_ENABLED",
     # Escalation rules, handoff card and the no-answer ladder on calls.
     "escalation_v2": "ESCALATION_V2_ENABLED",
+    # Prompt-cache prefix fixes, measured before they are on anywhere.
+    "cache_v2": "CACHE_V2_ENABLED",
     # The huddle: talk to an agent as a teammate, in its thread
     # (services/huddle/).
     "huddle": "HUDDLE_ENABLED",
@@ -339,6 +341,7 @@ DESCRIPTIONS: dict[str, str] = {
     "evolve_skills": "Skills that get better at your work: lessons from corrections and outcomes, tested on held-out and unrelated cases, offered on a card and published only by a person, with rollback; the Skills tab on Agents.",
     "image_generation": "Posters and ad creatives: images from Chat and two agents, on Gemini, OpenAI or Bedrock, chosen on a card in the thread.",
     "escalation_v2": "Escalation on calls decided in code from the agent's policy: a handoff card with Accept, Decline and Hand back to AI, spoken hold updates and a no-answer ladder.",
+    "cache_v2": "Prompt caching v2: the clock line after an agent's fixed instructions rather than first, and a cache breakpoint at the end of the conversation on Claude. Off, prompts are unchanged.",
 }
 
 

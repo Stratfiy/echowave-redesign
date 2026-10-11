@@ -1,306 +1,271 @@
-"""Every model call outside a pipeline leaves a line saying what it used.
+"""A model call that records nowhere is a bill nobody can explain.
 
-Found on 22 September 2026, auditing where tokens are recorded before
-deciding how credits charge for models. Pipeline runs -- calls, text
-replies, routines -- and post-call QA and classification all put their
-tokens on the run's receipt. The builder client did not record anything.
-It is the one door every *other* model call goes through, over raw HTTP
-to Anthropic, OpenAI and Google: Decibyl's own assistant, the builder,
-triggers, Decibyl's tasks, document fields, the acceptable-use check and
-the knowledge-graph reviews. Probably the largest spend we have, and
-invisible.
+Model calls reach a vendor through two doors, and each has its own record:
 
-So the client now reads each vendor's usage block into the same shape the
-pipeline writes (``prompt_tokens``, ``completion_tokens``,
-``cache_read_input_tokens``, ``cache_creation_input_tokens``), so the one
-vendor rule in ``billing/usage.llm_split_items`` splits both, and records
-it -- every call, whether or not the caller said who it was for. A call
-nobody attributed is written as ``unattributed``, never dropped: an absence
-cannot be reviewed.
+* a **run's own turns** (a call, a text reply, a routine, a trigger, a task)
+  write their tokens onto the run -- ``usage_info`` and the receipt
+  (``call_cost_items``);
+* **everything else** -- the builder client, and one-shot ``run_inference``
+  calls that go round the frame path -- writes ``model_usage``.
+
+The gap this file closes: five one-shot ``run_inference`` callers (the channel
+fold, the in-call variable extractor, the in-call summary, the handoff summary,
+and the eval simulator and judge) and the acceptable-use screen spent tokens on
+the platform key and left either nothing or a row with no organisation. The
+first test is the guard: it fails on the pull request that adds a call site
+with no record, which is the one place anyone will see it.
 """
 
 from __future__ import annotations
 
-import json
+import ast
+from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
-import httpx
 import pytest
-from sqlalchemy import select
+from pipecat.metrics.metrics import LLMTokenUsage
 
-from api.db.models import ModelUsageModel
-from api.services.agent_builder import client
 from api.services.billing import model_usage
-from api.services.billing.usage import llm_split_items
+from api.services.compliance import acceptable_use
+from api.services.workflow import text_chat_session_service as text_session_service
 
-ANTHROPIC_BODY = {
-    "content": [{"type": "text", "text": "Done."}],
-    "usage": {
-        "input_tokens": 120,
-        "output_tokens": 40,
-        "cache_read_input_tokens": 900,
-        "cache_creation_input_tokens": 60,
-    },
-}
-OPENAI_BODY = {
-    "choices": [{"message": {"content": "Done.", "role": "assistant"}}],
-    "usage": {
-        "prompt_tokens": 1000,
-        "completion_tokens": 40,
-        "prompt_tokens_details": {"cached_tokens": 800},
-    },
-}
-GEMINI_BODY = {
-    "candidates": [{"content": {"parts": [{"text": "Done."}]}}],
-    "usageMetadata": {
-        "promptTokenCount": 1000,
-        "candidatesTokenCount": 30,
-        "thoughtsTokenCount": 10,
-        "cachedContentTokenCount": 700,
-    },
+API_ROOT = Path(__file__).resolve().parents[1]
+SCANNED = ("services", "routes", "tasks")
+
+#: Modules that call a model and are recorded some way other than
+#: ``model_usage``. Each says how; an entry with no reason is not allowed.
+RECORDED_ELSEWHERE = {
+    "services/pipecat/run_pipeline.py": "the run's own LLM is metered onto the run; the warm-up is listed in token_report.NOT_METERED",
+    "services/pipecat/service_factory.py": "the factory builds services for callers; each caller is listed here or records itself",
+    "services/workflow/text_chat_runner.py": "a text turn's tokens are returned as execution.usage and merged onto the run",
+    "services/workflow/disposition_run.py": "usage returned to the caller, which puts it on usage_info",
+    "services/workflow/qa/analysis.py": "tokens added to the run's usage_info",
+    "services/workflow/qa/node_summary.py": "tokens added to the caller's usage_total",
 }
 
-
-class TestEachVendorsUsageIsRead:
-    def test_anthropic(self):
-        reply = client._anthropic_parse(ANTHROPIC_BODY)
-        assert reply.usage == {
-            "prompt_tokens": 120,
-            "completion_tokens": 40,
-            "cache_read_input_tokens": 900,
-            "cache_creation_input_tokens": 60,
-        }
-
-    def test_openai(self):
-        reply = client._openai_parse(OPENAI_BODY)
-        assert reply.usage == {
-            "prompt_tokens": 1000,
-            "completion_tokens": 40,
-            "cache_read_input_tokens": 800,
-        }
-
-    def test_gemini_counts_thinking_as_output(self):
-        # Google bills thinking tokens at the output rate and reports them
-        # beside the candidates, not inside them.
-        reply = client._gemini_parse(GEMINI_BODY)
-        assert reply.usage == {
-            "prompt_tokens": 1000,
-            "completion_tokens": 40,
-            "cache_read_input_tokens": 700,
-        }
-
-    def test_no_usage_block_is_none_not_zero(self):
-        # "The vendor did not say" and "the vendor said nothing was used"
-        # are different facts; only the second is a zero.
-        body = {"content": [{"type": "text", "text": "x"}]}
-        assert client._anthropic_parse(body).usage is None
-
-    def test_the_split_rule_reads_it_the_same_way_as_the_pipeline(self):
-        # Anthropic reports input net of the cache, OpenAI includes it; the
-        # one rule in usage.py must see the same four numbers both ways.
-        a = {
-            i.component: i.quantity
-            for i in llm_split_items(
-                client._anthropic_parse(ANTHROPIC_BODY).usage,
-                provider="anthropic",
-                model="m",
-            )
-        }
-        o = {
-            i.component: i.quantity
-            for i in llm_split_items(
-                client._openai_parse(OPENAI_BODY).usage, provider="openai", model="m"
-            )
-        }
-        assert a == {
-            "llm_input": 120,
-            "llm_cached": 900,
-            "llm_cache_write": 60,
-            "llm_output": 40,
-        }
-        assert o == {"llm_input": 200, "llm_cached": 800, "llm_output": 40}
+#: What a module must mention to record through ``model_usage``. Not
+#: ``accumulate_token_usage``: the channel fold called that and then only
+#: logged the total, which is exactly the gap this guard exists for.
+RECORDERS = ("model_usage",)
 
 
-class TestStreamedUsageIsRead:
-    def test_anthropic_usage_arrives_in_two_events(self):
-        state = client._StreamState()
-        state.anthropic(
-            {
-                "type": "message_start",
-                "message": {
-                    "usage": {
-                        "input_tokens": 50,
-                        "cache_read_input_tokens": 400,
-                        "cache_creation_input_tokens": 0,
-                        "output_tokens": 1,
-                    }
-                },
-            }
-        )
-        state.anthropic({"type": "message_delta", "usage": {"output_tokens": 77}})
-        assert state.usage() == {
-            "prompt_tokens": 50,
-            "completion_tokens": 77,
-            "cache_read_input_tokens": 400,
-        }
-
-    def test_openai_usage_is_the_last_chunk_with_no_choices(self):
-        state = client._StreamState()
-        state.openai({"choices": [{"delta": {"content": "hi"}}]})
-        state.openai(
-            {
-                "choices": [],
-                "usage": {
-                    "prompt_tokens": 300,
-                    "completion_tokens": 9,
-                    "prompt_tokens_details": {"cached_tokens": 256},
-                },
-            }
-        )
-        assert state.text() == "hi"
-        assert state.usage() == {
-            "prompt_tokens": 300,
-            "completion_tokens": 9,
-            "cache_read_input_tokens": 256,
-        }
-
-    def test_an_openai_stream_asks_for_its_usage(self):
-        # Without stream_options OpenAI never sends the usage chunk.
-        payload = client._stream_payload(
-            client.OPENAI, {"model": "gpt", "messages": []}
-        )
-        assert payload["stream"] is True
-        assert payload["stream_options"] == {"include_usage": True}
+_BUILDERS = {"create_llm_service", "create_llm_service_from_provider"}
 
 
-def _response(body: dict) -> httpx.Response:
-    return httpx.Response(200, content=json.dumps(body).encode())
+def _calls_a_model(tree: ast.AST) -> bool:
+    """``x.run_inference(...)`` (a one-shot call round the frame path), or a
+    module that builds an LLM service for itself."""
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        func = node.func
+        if isinstance(func, ast.Attribute) and func.attr == "run_inference":
+            return True
+        if isinstance(func, ast.Name) and func.id in _BUILDERS:
+            return True
+    return False
 
 
-@pytest.mark.asyncio
-class TestEveryCallIsRecorded:
-    async def _complete(self, body):
-        with patch.object(
-            httpx.AsyncClient, "post", AsyncMock(return_value=_response(body))
-        ):
-            return await client.complete(
-                provider=client.ANTHROPIC,
-                model="claude-x",
-                api_key="k",
-                system="s",
-                conversation=client.Conversation(),
-                tools=[],
-            )
-
-    async def test_a_scoped_call_is_attributed(self):
-        with patch.object(model_usage, "_write", AsyncMock()) as write:
-            with model_usage.scope(organization_id=7, feature="decibyl"):
-                await self._complete(ANTHROPIC_BODY)
-        row = write.await_args.args[0]
-        assert row["organization_id"] == 7 and row["feature"] == "decibyl"
-        assert row["provider"] == "anthropic" and row["model"] == "claude-x"
-        assert row["cache_read_input_tokens"] == 900
-
-    async def test_an_unscoped_call_is_recorded_as_unattributed(self):
-        with patch.object(model_usage, "_write", AsyncMock()) as write:
-            await self._complete(ANTHROPIC_BODY)
-        row = write.await_args.args[0]
-        assert row["organization_id"] is None
-        assert row["feature"] == model_usage.UNATTRIBUTED
-
-    async def test_the_scope_ends_with_its_block(self):
-        with model_usage.scope(organization_id=7, feature="builder"):
-            pass
-        assert model_usage.current() == (None, model_usage.UNATTRIBUTED)
-
-    async def test_a_recording_failure_never_costs_the_reply(self):
-        with patch.object(
-            model_usage, "_write", AsyncMock(side_effect=RuntimeError("db down"))
-        ):
-            reply = await self._complete(ANTHROPIC_BODY)
-        assert reply.text == "Done."
-
-    async def test_a_reply_without_usage_writes_nothing(self):
-        with patch.object(model_usage, "_write", AsyncMock()) as write:
-            await self._complete({"content": [{"type": "text", "text": "x"}]})
-        write.assert_not_awaited()
+def _sites() -> dict[str, str]:
+    found: dict[str, str] = {}
+    for top in SCANNED:
+        for path in sorted((API_ROOT / top).rglob("*.py")):
+            source = path.read_text()
+            if "run_inference" not in source and "create_llm_service" not in source:
+                continue
+            if _calls_a_model(ast.parse(source)):
+                found[path.relative_to(API_ROOT).as_posix()] = source
+    return found
 
 
-@pytest.mark.asyncio
-async def test_the_row_lands_in_the_table(db_session, async_session):
-    await model_usage.record(
-        provider="openai",
-        model="gpt-5",
-        usage={"prompt_tokens": 10, "completion_tokens": 2},
-    )
-    rows = (await async_session.execute(select(ModelUsageModel))).scalars().all()
-    assert len(rows) == 1
-    row = rows[0]
-    assert (row.provider, row.model, row.feature) == ("openai", "gpt-5", "unattributed")
-    assert (row.prompt_tokens, row.completion_tokens, row.cache_read_input_tokens) == (
-        10,
-        2,
-        0,
+def test_a_new_model_call_site_must_say_where_it_is_recorded():
+    """Every module that makes a one-shot model call records it or is listed
+    with the reason it is recorded elsewhere."""
+    sites = _sites()
+    assert sites, "the scan found no run_inference call at all; the guard is blind"
+    unrecorded = [
+        name
+        for name, source in sites.items()
+        if name not in RECORDED_ELSEWHERE
+        and not any(word in source for word in RECORDERS)
+    ]
+    assert not unrecorded, (
+        f"{unrecorded} call a model with run_inference and record the tokens "
+        "nowhere. Call model_usage.record_inference(llm, organization_id=..., "
+        "feature=...) straight after the call, or add the module to "
+        "RECORDED_ELSEWHERE with the reason."
     )
 
 
-class TestEveryCallerSaysWhatItIs:
-    """An unlabelled call is still recorded, as ``unattributed``; this keeps
-    the unattributed share at zero for the code we own, so a non-zero figure
-    on the report means something new, not something forgotten."""
+def test_the_exemptions_still_exist_and_say_why():
+    sites = _sites()
+    for name, reason in RECORDED_ELSEWHERE.items():
+        assert reason.strip(), f"{name} is exempt without a reason"
+        assert name in sites, (
+            f"{name} no longer calls run_inference; drop it from RECORDED_ELSEWHERE"
+        )
 
-    def test_every_call_into_the_builder_client_is_inside_a_scope(self):
-        import ast
-        from pathlib import Path
 
-        root = Path(__file__).resolve().parents[1]
-        offenders: list[str] = []
-        for path in (root / "services").rglob("*.py"):
-            if path.name == "client.py" and path.parent.name == "agent_builder":
-                continue
-            source = path.read_text(encoding="utf-8")
-            if "agent_builder" not in source:
-                continue
-            tree = ast.parse(source)
-            parents: dict[ast.AST, ast.AST] = {}
-            for node in ast.walk(tree):
-                for child in ast.iter_child_nodes(node):
-                    parents[child] = node
-            for node in ast.walk(tree):
-                if not isinstance(node, ast.Call):
-                    continue
-                fn = node.func
-                name = (
-                    fn.attr
-                    if isinstance(fn, ast.Attribute)
-                    else fn.id
-                    if isinstance(fn, ast.Name)
-                    else ""
-                )
-                owner = (
-                    fn.value.id
-                    if isinstance(fn, ast.Attribute) and isinstance(fn.value, ast.Name)
-                    else ""
-                )
-                is_builder = (
-                    owner in ("client", "builder_client")
-                    and name in ("complete", "stream")
-                ) or (
-                    isinstance(fn, ast.Name)
-                    and name == "complete"
-                    and "from api.services.agent_builder.client import" in source
-                )
-                if not is_builder:
-                    continue
-                cursor, scoped = node, False
-                while cursor in parents:
-                    cursor = parents[cursor]
-                    if isinstance(cursor, (ast.With, ast.AsyncWith)) and any(
-                        "model_usage" in ast.unparse(item.context_expr)
-                        for item in cursor.items
-                    ):
-                        scoped = True
-                        break
-                if not scoped:
-                    offenders.append(f"{path.relative_to(root)}:{node.lineno}")
-        assert offenders == [], offenders
+@pytest.fixture
+def rows():
+    """The rows ``model_usage`` would write, without a database."""
+    captured: list[dict] = []
+
+    async def fake_write(row):
+        captured.append(row)
+
+    with patch.object(model_usage, "_write", fake_write):
+        yield captured
+
+
+def _llm(model="claude-test"):
+    class AnthropicLLMService:
+        model_name = model
+        last_inference_usage = LLMTokenUsage(
+            prompt_tokens=120,
+            completion_tokens=30,
+            total_tokens=150,
+            cache_read_input_tokens=40,
+            cache_creation_input_tokens=10,
+        )
+
+    return AnthropicLLMService()
+
+
+@pytest.mark.asyncio
+class TestOneShotInferenceIsRecorded:
+    async def test_it_writes_a_row_for_the_organisation_and_the_feature(self, rows):
+        await model_usage.record_inference(
+            _llm(), organization_id=34, feature="channel_fold"
+        )
+        assert len(rows) == 1
+        row = rows[0]
+        assert row["organization_id"] == 34
+        assert row["feature"] == "channel_fold"
+        assert row["provider"] == "anthropic"
+        assert row["model"] == "claude-test"
+        # Claude reports input net of its cache, so the cache is not inside it.
+        assert row["prompt_tokens"] == 120
+        assert row["completion_tokens"] == 30
+        assert row["cache_read_input_tokens"] == 40
+        assert row["cache_creation_input_tokens"] == 10
+
+    async def test_a_service_that_reported_nothing_writes_nothing(self, rows):
+        llm = _llm()
+        llm.last_inference_usage = None
+        await model_usage.record_inference(llm, organization_id=1, feature="x")
+        assert rows == []
+
+    async def test_a_failed_write_never_costs_the_reply(self):
+        with patch.object(model_usage, "_write", AsyncMock(side_effect=OSError("db"))):
+            await model_usage.record_inference(
+                _llm(), organization_id=1, feature="channel_fold"
+            )
+
+    async def test_the_eval_simulator_and_judge_are_recorded_for_the_org(self, rows):
+        from api.services.evals import runner
+
+        llm = _llm()
+        llm.run_inference = AsyncMock(return_value=" hello ")
+        said = await runner._say(
+            llm,
+            "sys",
+            [{"role": "user", "content": "hi"}],
+            organization_id=34,
+            feature="eval_caller",
+        )
+        assert said == "hello"
+        assert [(r["organization_id"], r["feature"]) for r in rows] == [
+            (34, "eval_caller")
+        ]
+
+
+@pytest.mark.asyncio
+class TestTheAcceptableUseScreenBelongsToAnOrganisation:
+    async def test_the_screen_is_recorded_against_the_org_it_screened(self, rows):
+        model = SimpleNamespace(provider="anthropic", model="m", api_key="k")
+
+        async def complete(**_):
+            # What the real client does after the vendor answers.
+            await model_usage.record(
+                provider="anthropic", model="m", usage={"prompt_tokens": 9}
+            )
+            return SimpleNamespace(tool_calls=())
+
+        with (
+            patch.object(
+                acceptable_use.settings, "resolve_model", AsyncMock(return_value=model)
+            ),
+            patch.object(acceptable_use, "complete", complete),
+        ):
+            await acceptable_use.screen(
+                None, instructions="Book appointments.", organization_id=34
+            )
+        assert [(r["organization_id"], r["feature"]) for r in rows] == [
+            (34, "acceptable_use")
+        ]
+
+
+@pytest.mark.asyncio
+async def test_an_agent_turn_writes_its_tokens_onto_the_run(monkeypatch):
+    """A run's own model calls are metered on the run, not in ``model_usage``:
+    the turn's usage reaches ``usage_info`` and the receipt is written. This is
+    the door a routine, a channel reply and a chat on an agent all use."""
+    session = SimpleNamespace(
+        session_data={"turns": [{"id": "t1", "status": "pending"}]},
+        checkpoint=None,
+        revision=1,
+        workflow_run=SimpleNamespace(usage_info={}),
+    )
+    usage = {
+        "llm": {
+            "AnthropicLLMService#0|claude-test": {
+                "prompt_tokens": 500,
+                "completion_tokens": 40,
+                "total_tokens": 540,
+                "cache_read_input_tokens": 100,
+                "cache_creation_input_tokens": 0,
+            }
+        }
+    }
+    execution = SimpleNamespace(
+        assistant_text="done",
+        assistant_created_at="2026-10-10T00:00:00Z",
+        events=[],
+        usage=usage,
+        checkpoint={},
+        initial_context={},
+        gathered_context={},
+        state={},
+        is_completed=False,
+    )
+    update_run = AsyncMock()
+    receipt = AsyncMock()
+    monkeypatch.setattr(
+        text_session_service,
+        "execute_text_chat_pending_turn",
+        AsyncMock(return_value=execution),
+    )
+    monkeypatch.setattr(
+        text_session_service.db_client, "update_workflow_run_text_session", AsyncMock()
+    )
+    monkeypatch.setattr(
+        text_session_service.db_client, "update_workflow_run", update_run
+    )
+    monkeypatch.setattr(
+        text_session_service,
+        "_reload_text_chat_session",
+        AsyncMock(return_value=session),
+    )
+    monkeypatch.setattr("api.services.billing.tasks.record_text_run_cost", receipt)
+
+    await text_session_service.execute_pending_text_chat_turn(
+        workflow_id=1, run_id=99, text_session=session
+    )
+
+    written = update_run.await_args.kwargs["usage_info"]["llm"]
+    only = next(iter(written.values()))
+    assert only["prompt_tokens"] == 500
+    assert only["cache_read_input_tokens"] == 100
+    receipt.assert_awaited_once_with(99)
