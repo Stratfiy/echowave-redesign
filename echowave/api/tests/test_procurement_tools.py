@@ -364,6 +364,160 @@ class TestDraftDocument:
         assert [n[-4:] for n in numbers] == ["0001", "0002"]
 
 
+async def _draft(org, run, *, vendor="Bharat Building Supplies", ref="t", **extra):
+    values = {**_complete_values(), "vendor_name": vendor, **extra.pop("values", {})}
+    return await tools.run(
+        tools.DRAFT,
+        organization_id=org,
+        arguments={
+            "kind": "purchase_order",
+            "template": "purchase_order",
+            "values": values,
+            "items": extra.pop("items", _items()),
+        },
+        ref_id=ref,
+        workflow_id=None,
+        workflow_run_id=run,
+    )
+
+
+async def _rows(db_session, org):
+    async with db_session.async_session() as session:
+        return (
+            await session.scalars(
+                select(ProcurementDocumentModel)
+                .where(ProcurementDocumentModel.organization_id == org)
+                .order_by(ProcurementDocumentModel.id)
+            )
+        ).all()
+
+
+@pytest.mark.asyncio
+class TestDraftingIsIdempotentWithinARun:
+    """Agents 53 and 51 made 6 and 3 drafts in one request, each using up a
+    register number. The same template to the same recipient in the same run
+    is one draft, updated."""
+
+    async def test_the_same_template_and_recipient_updates_the_draft(
+        self, flag_on, db_session, storage, converter, timeline, charges
+    ):
+        org = await _org(db_session)
+        first = await _draft(org, 501, ref="a:1")
+        second = await _draft(org, 501, ref="a:2", vendor="  bharat BUILDING supplies ")
+        third = await _draft(
+            org,
+            501,
+            ref="a:3",
+            items=[{**_items()[0], "qty": 10}],
+            values={"reference": "Q-2291 rev 2"},
+        )
+        assert first["status"] == second["status"] == third["status"] == "drafted"
+        assert first["updated_existing"] is False
+        assert second["updated_existing"] is third["updated_existing"] is True
+        assert first["number"] == second["number"] == third["number"]
+        assert first["register_id"] == third["register_id"]
+
+        rows = await _rows(db_session, org)
+        assert len(rows) == 1
+        row = rows[0]
+        # The row follows the latest particulars; the number is the first one.
+        assert row.number == first["number"]
+        assert row.reference == "Q-2291 rev 2"
+        assert row.amount_paise == 10 * 380 * 128  # 10 bags + 28% GST
+        assert row.status == "awaiting_approval"
+        assert row.data["revisions"] == 2
+        assert third["total"] != first["total"]
+
+        # No number was spent on the repeats: the next vendor takes 0002.
+        other = await _draft(org, 501, ref="a:4", vendor="Kaveri Traders")
+        assert other["number"].endswith("/0002")
+        assert len(await _rows(db_session, org)) == 2
+
+    async def test_the_repeat_is_handed_over_as_an_update(
+        self, flag_on, db_session, storage, converter, timeline, charges
+    ):
+        org = await _org(db_session)
+        await _draft(org, 502, ref="b:1")
+        await _draft(org, 502, ref="b:2")
+        summaries = [c.kwargs["summary"] for c in timeline.await_args_list]
+        assert summaries[0].startswith("Drafted purchase order")
+        assert summaries[1].startswith("Updated purchase order")
+
+    async def test_another_recipient_another_template_or_another_run_is_a_new_draft(
+        self, flag_on, db_session, storage, converter, timeline, charges
+    ):
+        org = await _org(db_session)
+        base = await _draft(org, 503, ref="c:1")
+        other_vendor = await _draft(org, 503, ref="c:2", vendor="Kaveri Traders")
+        other_run = await _draft(org, 504, ref="c:3")
+        no_run = await _draft(org, None, ref="c:4")
+        no_run_again = await _draft(org, None, ref="c:5")
+        numbers = [
+            r["number"] for r in (base, other_vendor, other_run, no_run, no_run_again)
+        ]
+        assert len(set(numbers)) == 5
+        assert [n[-4:] for n in numbers] == ["0001", "0002", "0003", "0004", "0005"]
+
+    async def test_workspaces_do_not_share_drafts(
+        self, flag_on, db_session, storage, converter, timeline, charges
+    ):
+        one, two = await _org(db_session), await _org(db_session)
+        a = await _draft(one, 505, ref="d:1")
+        b = await _draft(two, 505, ref="d:2")
+        assert a["register_id"] != b["register_id"]
+        assert a["number"].endswith("/0001") and b["number"].endswith("/0001")
+
+    async def test_a_draft_a_person_has_issued_is_not_rewritten(
+        self, flag_on, db_session, storage, converter, timeline, charges
+    ):
+        org = await _org(db_session)
+        first = await _draft(org, 506, ref="e:1")
+        async with db_session.async_session() as session:
+            row = await session.scalar(
+                select(ProcurementDocumentModel).where(
+                    ProcurementDocumentModel.id == first["register_id"]
+                )
+            )
+            row.status = "issued"
+            await session.commit()
+        again = await _draft(org, 506, ref="e:2", items=[{**_items()[0], "qty": 1}])
+        assert again["status"] == "unchanged"
+        assert again["number"] == first["number"]
+        assert "no new number was used" in again["note"]
+        (row,) = await _rows(db_session, org)
+        assert row.status == "issued" and row.amount_paise == 22217120
+
+    async def test_a_cancelled_draft_is_not_the_one_updated(
+        self, flag_on, db_session, storage, converter, timeline, charges
+    ):
+        org = await _org(db_session)
+        first = await _draft(org, 507, ref="f:1")
+        async with db_session.async_session() as session:
+            row = await session.scalar(
+                select(ProcurementDocumentModel).where(
+                    ProcurementDocumentModel.id == first["register_id"]
+                )
+            )
+            row.status = "cancelled"
+            await session.commit()
+        again = await _draft(org, 507, ref="f:2")
+        assert again["updated_existing"] is False
+        assert again["number"] != first["number"]
+
+    async def test_a_failed_refresh_leaves_the_earlier_draft_alone(
+        self, flag_on, db_session, storage, converter, timeline, charges
+    ):
+        org = await _org(db_session)
+        first = await _draft(org, 508, ref="g:1")
+        converter.side_effect = RuntimeError("converter down")
+        failed = await _draft(org, 508, ref="g:2", items=[{**_items()[0], "qty": 1}])
+        assert failed["status"] == "error"
+        assert first["number"] in failed["error"]
+        (row,) = await _rows(db_session, org)
+        assert row.status == "awaiting_approval"
+        assert row.amount_paise == 22217120
+
+
 @pytest.mark.asyncio
 class TestOtherTools:
     async def test_list_template_fields(self, flag_on, charges):
