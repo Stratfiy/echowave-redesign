@@ -19,8 +19,20 @@ Until the parser tracks blocks by index, requests that carry tools ask for one
 call at a time (``disable_parallel_tool_use`` with ``auto``, which every
 current model accepts; forced tool choice is refused by the 5.5 models).
 
-Both belong upstream in the pipecat fork; this subclass keeps them in the app
-until they land there.
+**Prompt cache breakpoints.** Pipecat marks only the last two user messages.
+A one-shot agent chat has a single user message, so the one marker covered
+tools + system + the user's own words, and no later call could ever match that
+prefix: every turn wrote ~12k tokens to the cache and read none. The system
+prompt is now sent as a text block with a breakpoint, and the last tool
+definition carries one, so the stable prefix is read on the next call. That is
+at most four breakpoints (tools, system, two user messages), Anthropic's limit.
+The clock line changes every minute, so it is lifted out of the cached block
+and sent after it, unmarked (``system_clock.py``); the model still reads it.
+
+All of these belong upstream in the pipecat fork; this subclass keeps them in
+the app until they land there. The fork is a submodule pinned by commit, and
+earlier changes to it have only ever been pointer bumps from a separate
+repository, so the fix lives here rather than in a second PR.
 """
 
 from __future__ import annotations
@@ -30,6 +42,10 @@ from typing import Any
 from pipecat.adapters.services.anthropic_adapter import AnthropicLLMAdapter
 from pipecat.processors.aggregators.llm_context import LLMContext
 from pipecat.services.anthropic.llm import AnthropicLLMService
+
+from api.services.pipecat.system_clock import split_clock
+
+_EPHEMERAL = {"type": "ephemeral"}
 
 
 class DecibylAnthropicLLMAdapter(AnthropicLLMAdapter):
@@ -41,8 +57,12 @@ class DecibylAnthropicLLMAdapter(AnthropicLLMAdapter):
             return {"role": "assistant", "content": []}
         return super()._from_anthropic_specific_message(message)
 
-    def get_llm_invocation_params(self, *args, **kwargs):
-        params = super().get_llm_invocation_params(*args, **kwargs)
+    def get_llm_invocation_params(
+        self, context, enable_prompt_caching: bool, system_instruction=None
+    ):
+        params = super().get_llm_invocation_params(
+            context, enable_prompt_caching, system_instruction=system_instruction
+        )
         # An assistant turn that was only a thought is empty and,
         # if nothing merged into it, not a legal message.
         params["messages"] = [
@@ -53,7 +73,31 @@ class DecibylAnthropicLLMAdapter(AnthropicLLMAdapter):
             # graph has no greeting): Claude refuses a request with no
             # message at all, so the turn starts with one.
             params["messages"] = [{"role": "user", "content": "Begin."}]
+        self._mark_stable_prefix(params, enable_prompt_caching)
         return params
+
+    @staticmethod
+    def _mark_stable_prefix(params: dict, enable_prompt_caching: bool) -> None:
+        """Breakpoints on the system prompt and the last tool (see module note)."""
+        if not enable_prompt_caching:
+            return
+        system = params.get("system")
+        if isinstance(system, str) and system:
+            stable, clock = split_clock(system)
+            blocks = []
+            if stable:
+                blocks.append(
+                    {"type": "text", "text": stable, "cache_control": dict(_EPHEMERAL)}
+                )
+            if clock:
+                blocks.append({"type": "text", "text": clock})
+            params["system"] = blocks
+        tools = params.get("tools")
+        if tools:
+            params["tools"] = [
+                *tools[:-1],
+                {**tools[-1], "cache_control": dict(_EPHEMERAL)},
+            ]
 
 
 class DecibylAnthropicLLMService(AnthropicLLMService):
