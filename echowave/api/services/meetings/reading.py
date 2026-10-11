@@ -75,8 +75,12 @@ async def ask_model(organization_id: int, system: str, text: str) -> str:
 
     try:
         async with db_client.async_session() as session:
+            # Reading a meeting into fields is extraction, not conversation:
+            # the cheap tier while ``cheap_routing`` is on.
             model = await settings.resolve_for_organization(
-                session, None, organization_id=organization_id
+                session,
+                settings.cheap_choice(organization_id),
+                organization_id=organization_id,
             )
     except settings.BuilderUnavailable as exc:
         raise ReadingUnavailable(str(exc)) from exc
