@@ -2236,3 +2236,12 @@ IMAGE_BEDROCK_MODEL = (
 #: Seconds one provider request may take. Generation is slow; a request is
 #: never retried, because a retry would spend the person's key twice.
 IMAGE_TIMEOUT_SECONDS = float(os.getenv("IMAGE_TIMEOUT_SECONDS", "120"))
+
+# ---------------------------------------------------------------------------
+# Learn a website (services/knowledge_base/website.py): Decibyl reads a site's
+# pages that matter and keeps them as company knowledge every agent answers
+# from. On by default -- it reads only through the web fetcher's own rules
+# (robots, no social networks, no private addresses, per-domain rate) -- so
+# this is a kill switch rather than an opt-in.
+# ---------------------------------------------------------------------------
+LEARN_WEBSITE_ENABLED = os.getenv("LEARN_WEBSITE_ENABLED", "true").lower() == "true"

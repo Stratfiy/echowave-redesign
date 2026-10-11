@@ -44,6 +44,7 @@ from api.services.browser import tool as browser_tool
 from api.services.care import tools as care_tools
 from api.services.documents import tools as procurement
 from api.services.images import tools as image_tools
+from api.services.knowledge_base import website
 from api.services.knowledge_graph import personal as personal_memory
 from api.services.knowledge_graph import quiet, recall, teach
 from api.services.organization_preferences import get_organization_preferences
@@ -212,6 +213,15 @@ SYSTEM = (
     "email into the workspace's Drive, once the person has said what it is "
     "or whose it is. For an identity document use the owner's name as the "
     "person gave it, never a name read off the document.\n"
+    f"- {website.TOOL_NAME}: learn a whole website -- its contact, hours, "
+    "prices, services and FAQ pages -- into one file in Files. When someone "
+    "gives their business's website, or asks for an agent and has one, learn "
+    "it first: every agent then answers from it, and what it says fills the "
+    "agent's answers (name, hours, address, phone, services) instead of "
+    "asking for them. For a site that is not their business -- one they just "
+    "want read and remembered -- set for_agents to false. Say which pages "
+    "were read and which were skipped; learning the same site again updates "
+    "the file.\n"
     "- web_search and web_fetch: the web, on Decibyl's own key. A search "
     "costs a tool call plus the search; a page read costs a tool call. Use "
     "them for what is outside the workspace and say where a fact came "
@@ -1758,6 +1768,7 @@ def office_tools(organization_id: int | None = None) -> list[dict[str, Any]]:
         recall.tool_schema(),
         teach.tool_schema(),
         quiet.tool_schema(),
+        *((website.tool_schema(),) if website.enabled(organization_id) else ()),
         *(
             (
                 web_tools.search_tool_schema(),
@@ -1935,6 +1946,7 @@ def _was_a_read(call: Any, result: Any) -> bool:
                 connected_tools.LOAD_TOOL_NAME,
                 web_tools.SEARCH_TOOL_NAME,
                 web_tools.FETCH_TOOL_NAME,
+                website.TOOL_NAME,
                 prospects.TOOL_NAME,
                 records.TOOL_NAME,
                 "run_script",
@@ -2121,6 +2133,13 @@ async def _tool(
         )
     if call.name == quiet.TOOL_NAME:
         return await quiet.for_thread(organization_id, author_id, arguments)
+    if call.name == website.TOOL_NAME and website.enabled(organization_id):
+        return await website.learn_for_thread(
+            organization_id,
+            arguments,
+            ref_id=f"decibyl:{organization_id}:{call.id or call.name}",
+            author_id=author_id,
+        )
     if call.name == web_tools.SEARCH_TOOL_NAME and web_tools.enabled():
         return await web_tools.search(
             organization_id,

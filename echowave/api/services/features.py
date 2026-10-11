@@ -199,6 +199,9 @@ FLAGS: dict[str, str] = {
     "live_supervision": "LIVE_SUPERVISION_ENABLED",
     # Posters and ad creatives (services/images/).
     "image_generation": "IMAGE_GENERATION_ENABLED",
+    # Learn a website: a site's pages kept as company knowledge
+    # (services/knowledge_base/website.py). On by default.
+    "learn_website": "LEARN_WEBSITE_ENABLED",
 }
 
 
@@ -324,6 +327,7 @@ DESCRIPTIONS: dict[str, str] = {
     "deepfilternet_filter": "DeepFilterNet3 instead of RNNoise as the noise filter on calls with noise suppression on.",
     "live_supervision": "Live calls: listen in on a customer call (transcript and audio) and whisper instructions the caller never hears.",
     "image_generation": "Posters and ad creatives: images from Chat and two agents, on Gemini, OpenAI or Bedrock, chosen on a card in the thread.",
+    "learn_website": "Learn a website: Decibyl reads a site's key pages (contact, hours, prices, services, FAQ) into one file in Files; kept for the agents, every agent answers from it.",
     "escalation_v2": "Escalation on calls decided in code from the agent's policy: a handoff card with Accept, Decline and Hand back to AI, spoken hold updates and a no-answer ladder.",
 }
 
