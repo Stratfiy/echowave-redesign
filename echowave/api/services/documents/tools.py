@@ -161,7 +161,9 @@ def schemas() -> list[dict[str, Any]]:
                 "Draft a procurement document (Word or Excel, plus PDF) from a template, "
                 "number it, and put it in the register awaiting approval. Does NOT "
                 "send it. If anything is missing it drafts nothing and answers "
-                "status missing with a question per field: ask them all at once."
+                "status missing with a question per field: ask them all at once. "
+                "Calling it again in the same run for the same template and "
+                "recipient updates that draft and keeps its number."
             ),
             "parameters": {
                 "type": "object",
@@ -471,6 +473,13 @@ def prepare(
     def check_ids(mapping: dict[str, Any], where: str) -> None:
         for name, value in list(mapping.items()):
             if _blank(value):
+                continue
+            if money.is_tax_id_placeholder(value) and (
+                name.endswith(("gstin", "_pan")) or name == "pan"
+            ):
+                # A draft can be made before the details are known; the
+                # register refuses to issue a tax invoice while this remains.
+                mapping[name] = money.TAX_ID_PLACEHOLDER
                 continue
             try:
                 if name.endswith("gstin"):
@@ -905,31 +914,78 @@ async def draft_document(
         or None,
     }
 
+    # What the register row says about this draft, for a new row and for the
+    # revision of an existing one alike.
+    particulars = {
+        "counterparty_name": counterparty_name or None,
+        "counterparty_gstin": (
+            counterparty_gstin
+            if counterparty_gstin and counterparty_gstin != "Unregistered"
+            else None
+        ),
+        "reference": (prepared.values.get("reference") or None),
+        "amount_paise": None
+        if prepared.total is None
+        else money.paise_int(prepared.total),
+        "currency": prepared.currency,
+        "due_date": register.parse_date(given.get(due_field)) if due_field else None,
+    }
+
+    # One draft per template and recipient within a run. An agent that calls
+    # this again for the same vendor -- a retried turn, a second pass, two
+    # tools in one round -- gets that draft back updated, not a second
+    # document that uses up another number in a gapless series.
+    key = register.draft_key(
+        workflow_run_id=workflow_run_id,
+        template=found.label,
+        recipient=(
+            counterparty_name or counterparty_gstin or data["counterparty_email"] or ""
+        ),
+    )
+    if key:
+        data["draft_key"] = key
+
     # The number and the row, in one short transaction: the series row is
     # locked only while the number is taken, not while files are made.
+    revising = False
     async with db_client.async_session() as session:
-        row = await register.create(
-            session,
-            organization_id=organization_id,
-            kind=kind,
-            issue_date=prepared.issue_date,
-            prefix=arguments.get("prefix"),
-            workflow_id=workflow_id,
-            counterparty_name=counterparty_name or None,
-            counterparty_gstin=(
-                counterparty_gstin
-                if counterparty_gstin and counterparty_gstin != "Unregistered"
-                else None
-            ),
-            reference=(prepared.values.get("reference") or None),
-            amount_paise=None
-            if prepared.total is None
-            else money.paise_int(prepared.total),
-            currency=prepared.currency,
-            due_date=register.parse_date(given.get(due_field)) if due_field else None,
-            status="draft",
-            data=data,
-        )
+        existing = None
+        if key:
+            await register.lock_run_drafts(
+                session,
+                organization_id=organization_id,
+                workflow_run_id=workflow_run_id,
+            )
+            existing = await register.find_draft(
+                session, organization_id=organization_id, key=key, kind=kind
+            )
+        if existing is not None and existing.status not in register.REVISABLE:
+            return {
+                "status": "unchanged",
+                "number": existing.number,
+                "register_id": existing.id,
+                "note": (
+                    f"{existing.number} was already drafted for this in this run and "
+                    f"is now {existing.status}, so it was not changed and no new "
+                    "number was used. Tell the person; a changed document needs a "
+                    "new request."
+                ),
+            }
+        if existing is not None:
+            revising = True
+            row = existing
+        else:
+            row = await register.create(
+                session,
+                organization_id=organization_id,
+                kind=kind,
+                issue_date=prepared.issue_date,
+                prefix=arguments.get("prefix"),
+                workflow_id=workflow_id,
+                status="draft",
+                data=data,
+                **particulars,
+            )
         await session.commit()
         row_id, number = row.id, row.number
 
@@ -947,6 +1003,15 @@ async def draft_document(
         logger.error(
             "Could not produce files for {} (org {}): {}", number, organization_id, exc
         )
+        if revising:
+            # The earlier draft and its files are untouched; nothing was lost.
+            return {
+                "status": "error",
+                "error": (
+                    f"{number} was drafted earlier in this run and could not be "
+                    "updated just now; the earlier draft stands. Try again."
+                ),
+            }
         async with db_client.async_session() as session:
             failed = await register.get(
                 session, organization_id=organization_id, register_id=row_id
@@ -967,6 +1032,14 @@ async def draft_document(
         row = await register.get(
             session, organization_id=organization_id, register_id=row_id
         )
+        if revising:
+            # Same number, new particulars: the row follows its files.
+            for name, value in particulars.items():
+                setattr(row, name, value)
+            row.data = {
+                **data,
+                "revisions": int((row.data or {}).get("revisions") or 0) + 1,
+            }
         # A filled workbook is the register's spreadsheet file, not its Word file.
         if ext == "xlsx":
             row.xlsx_key = docx_key
@@ -987,7 +1060,7 @@ async def draft_document(
         else ""
     )
     summary = (
-        f"Drafted {label.lower()} {number}"
+        f"{'Updated' if revising else 'Drafted'} {label.lower()} {number}"
         + (f" for {vendor}" if vendor else "")
         + amount
     )
@@ -1009,6 +1082,7 @@ async def draft_document(
     )
     out: dict[str, Any] = {
         "status": "drafted",
+        "updated_existing": revising,
         "number": number,
         "register_id": row_id,
         "files": files,

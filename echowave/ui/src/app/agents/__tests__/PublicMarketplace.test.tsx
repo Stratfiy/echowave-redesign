@@ -50,7 +50,7 @@ describe("the public role page", () => {
         expect(screen.getByText("What are you offering them?")).toBeTruthy();
         expect(screen.getByText("Gmail")).toBeTruthy();
         expect(screen.getByText("Never invent a number.")).toBeTruthy();
-        expect(screen.getByRole("link", { name: /Hire Outbound Prospecting/ }).getAttribute("href")).toBe("/auth/signup");
+        expect(screen.getByRole("link", { name: /Add Outbound Prospecting/ }).getAttribute("href")).toBe("/auth/signup");
     });
 });
 

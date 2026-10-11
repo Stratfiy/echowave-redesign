@@ -20,5 +20,5 @@ src = [".."]
 [project]
 name = "decibyl-api"
 version = "1.42.0"
-description = "Backend API for Decibyl voice AI platform"
+description = "Backend API for Decibyl, an intelligent agent that grows and evolves with you"
 requires-python = ">=3.13,<3.14"

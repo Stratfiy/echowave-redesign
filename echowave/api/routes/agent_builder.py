@@ -153,7 +153,6 @@ async def meter_builder_message(
     # Past the plan's allowance a message is five credits (KAN-56), taken
     # before the model runs. Refused, with the way out named, when the
     # balance cannot cover it.
-    from api.services.billing import credits as credit_units
     from api.services.billing import events as billing_events
     from api.services.billing.payments import current_balance_paise
 
@@ -163,11 +162,8 @@ async def meter_builder_message(
         raise HTTPException(
             status_code=402,
             detail=(
-                f"You have used this month's {allowance} included builder "
-                f"messages. Each further message is "
-                f"{limits.PAST_ALLOWANCE_CREDITS} credits; you have "
-                f"{credit_units.credits_of_balance(balance)}. Add credit, "
-                "or upgrade for a larger allowance."
+                f"You have used this month's {allowance} builder messages. "
+                "The allowance resets at the start of next month."
             ),
         )
     await billing_events.charge(

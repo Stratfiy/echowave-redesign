@@ -86,7 +86,7 @@ function InstallSharedRole() {
                         <CardContent className="space-y-4">
                             <p className="text-sm text-muted-foreground">
                                 {preview.steps === 1 ? "1 step" : `${preview.steps} steps`}. It is added to this
-                                workspace&apos;s roles, and you hire it from there.
+                                workspace&apos;s roles, and you add it from there.
                             </p>
                             {preview.needs.length > 0 && (
                                 <div className="rounded-md bg-muted/50 p-3 text-sm">

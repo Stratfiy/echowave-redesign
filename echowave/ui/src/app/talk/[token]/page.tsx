@@ -394,7 +394,7 @@ function Footer() {
       <a href="https://decibyl.ai" className="font-medium text-foreground underline-offset-4 hover:underline">
         Decibyl
       </a>
-      . Voice agents for Indian businesses.{" "}
+      , an intelligent agent that grows and evolves with you.{" "}
       <a href="/auth/signup" className="font-medium text-foreground underline-offset-4 hover:underline">
         Make your own
       </a>

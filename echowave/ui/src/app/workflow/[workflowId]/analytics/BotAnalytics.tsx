@@ -36,6 +36,8 @@ import {
     useAuthReady,
     useChartMode,
 } from "@/components/charts/primitives";
+import { formatPaise } from "@/lib/billing/format";
+import { PRICES_SHOWN } from "@/lib/pricing";
 import { cn } from "@/lib/utils";
 
 type DailyRun = {
@@ -74,11 +76,6 @@ const RANGES = [
 ] as const;
 
 const count = (value: number) => value.toLocaleString();
-
-/** Paise are what the API speaks; rupees are what a person reads. */
-function rupees(paise: number): string {
-    return `₹${(paise / 100).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
-}
 
 function minutes(seconds: number): string {
     if (seconds < 60) return `${seconds}s`;
@@ -172,7 +169,8 @@ export function BotAnalytics({ workflowId }: { workflowId: number }) {
                             : undefined
                     }
                 />
-                <StatTile label="Spent" value={rupees(totals?.charged_paise ?? 0)} />
+                {/* No pricing is shown to users (lib/pricing.ts). */}
+                {PRICES_SHOWN && <StatTile label="Spent" value={formatPaise(totals?.charged_paise ?? 0)} />}
             </div>
 
             <ChartCard

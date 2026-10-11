@@ -50,7 +50,7 @@ export function SaveAsRoleDialog({
             setError(detailFromResult(result, "Could not save this agent as a role"));
             return;
         }
-        toast.success("Saved as one of your workspace's roles. Hire it again from Marketplace → Agents.");
+        toast.success("Saved as one of your workspace's roles. Add it again from Marketplace → Agents.");
         onOpenChange(false);
     };
 
@@ -60,7 +60,7 @@ export function SaveAsRoleDialog({
                 <DialogHeader>
                     <DialogTitle>Save as a workspace role</DialogTitle>
                     <DialogDescription>
-                        Its steps, prompts and settings as they are now. Anyone in this workspace can hire it
+                        Its steps, prompts and settings as they are now. Anyone in this workspace can add it
                         again without answering anything twice.
                     </DialogDescription>
                 </DialogHeader>

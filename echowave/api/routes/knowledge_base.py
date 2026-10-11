@@ -124,8 +124,8 @@ async def _assert_room_to_ingest(organization_id: int):
         raise HTTPException(
             status_code=402,
             detail=(
-                "The knowledge base is part of a subscription. Choose a plan to "
-                "upload documents your agents can answer from."
+                "The knowledge base is not switched on for this workspace yet. "
+                "Ask us and we will turn it on."
             ),
         )
     used = await db_client.get_knowledge_base_bytes_used(organization_id)
@@ -135,7 +135,7 @@ async def _assert_room_to_ingest(organization_id: int):
             detail=(
                 "Your knowledge base is full "
                 f"({_mb(used)} of {_mb(allowance.total_bytes)} MB used). "
-                "Delete a document to make room, or choose a plan for a larger one."
+                "Delete a document to make room."
             ),
         )
     return allowance

@@ -54,20 +54,20 @@ export type ShelfKind = "bots" | "tools" | "integrations" | "skills";
 
 const HERO: Record<ShelfKind, { title: string; blurb: string }> = {
     skills: {
-        title: "Teach an agent how your business does it.",
+        title: "Teach Decibyl how you like it done.",
         blurb: "A skill is a procedure, not a button: how to chase an invoice, what to check before promising a date.",
     },
     bots: {
-        title: "An agent for every job, ready the day you add it.",
-        blurb: "Pick one for your industry or for the job, hear it on a call, then put it on a number.",
+        title: "An agent for the work you hand over, ready the day you add it.",
+        blurb: "Pick one for the job, try it, then let it follow through.",
     },
     tools: {
         title: "The things an agent can do, ready to hand it.",
         blurb: "A tool is one action during a call or a chat: look up an order, book a slot, raise a ticket.",
     },
     integrations: {
-        title: "Every system you already run, in your agents' hands.",
-        blurb: "Connect the apps your business lives in and every agent can read from and write to them.",
+        title: "The apps you already use, in your agents' hands.",
+        blurb: "Connect the apps you already use and your agents can read from and write to them.",
     },
 };
 

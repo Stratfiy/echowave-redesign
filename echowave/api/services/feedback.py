@@ -35,6 +35,7 @@ from api.enums import (
     OrganizationRole,
 )
 from api.services import events, features
+from api.services.training_loop import hooks as training_hooks
 
 FLAG = "reply_feedback"
 
@@ -111,6 +112,19 @@ async def _reply_subject(
         "task_version": None,
         "thread_id": getattr(event, "thread_id", None),
         "workflow_id": event.workflow_id,
+        "folder_id": event.folder_id,
+        "workflow_run_id": event.workflow_run_id,
+        # What the reply replied to: the other half of a thumb as training
+        # data. Read here, once the reader was allowed to see the reply.
+        "prompt_text": await db_client.message_before(
+            organization_id=organization_id,
+            event=event,
+            actor=AgentEventActor.HUMAN.value,
+        ),
+        # Not stored here (this table keeps the verdict, never the words);
+        # handed on to the training loop, which keeps them under the
+        # workspace's own consent.
+        "reply_text": body,
     }
 
 
@@ -217,6 +231,39 @@ async def submit(
             },
         )
         await session.commit()
+    if subject_kind == REPLY:
+        await training_hooks.reply_thumb(
+            organization_id=organization_id,
+            user_id=user_id,
+            reply_event_id=subject_id,
+            workflow_id=found.get("workflow_id"),
+            folder_id=found.get("folder_id"),
+            prompt_text=found.get("prompt_text"),
+            workflow_run_id=found.get("workflow_run_id"),
+            thread_id=found.get("thread_id"),
+            verdict=verdict,
+            reasons=reasons,
+            reply_text=found.get("reply_text"),
+            model=found.get("model"),
+        )
+    if subject_kind == REPLY and verdict == NOT_QUITE and reasons:
+        # A reason about the person's taste (too long, wrong language) may
+        # point at a preference: offered as a card they accept or not, never
+        # kept silently (services/personal, ``evolve_personal``). The rating
+        # itself stays what it was -- evaluation, not training.
+        try:
+            from api.services.personal import cards as personal_cards
+
+            await personal_cards.from_feedback(
+                organization_id=organization_id,
+                user_id=user_id,
+                reply_event_id=subject_id,
+                reasons=reasons,
+            )
+        except Exception as exc:  # noqa: BLE001 - the feedback is saved
+            from loguru import logger
+
+            logger.warning("No preference offered from feedback: {}", exc)
     return {
         "id": row_id,
         "subject_kind": subject_kind,

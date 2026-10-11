@@ -32,6 +32,7 @@ from dataclasses import dataclass
 
 from loguru import logger
 
+from api import constants
 from api.enums import CostComponent
 
 #: The tiers a customer can choose. Deliberately small and behavioural — adding
@@ -50,6 +51,25 @@ LLM_TIERS = ("auto", "lite", "default", "accurate", "advanced")
 #: routes -- a call, which keeps one model for its whole length -- it serves
 #: what Everyday serves.
 AUTO_LLM_TIER = "auto"
+
+#: The managed LLM tier each of Auto's three kinds of work runs on, Claude
+#: first. The same mapping as ``chat_presets`` (everyday / smart / deep).
+AUTO_KIND_TIERS = {"quick": "default", "steps": "accurate", "deep": "advanced"}
+
+#: OpenAI's model for each kind of work, offered by Auto *beside* Claude's and
+#: never ahead of it: the default within a tier stays Claude, and one of these
+#: runs only when Claude cannot (no usable key, out of credit) or a rule names
+#: OpenAI (services/routing/models.py). All are in the chat catalogue
+#: (``chat_presets.CATALOGUE``) and each has its own row in the rate card --
+#: ``test_auto_models`` fails if either stops being true, because a model with
+#: no row of its own would be billed at the provider-wide floor. gpt-5-mini is
+#: the newer middle model but has no rate row yet, so Smart takes gpt-4.1.
+AUTO_OPENAI_PROVIDER = "openai"
+AUTO_OPENAI_MODELS = {
+    "quick": "gpt-4.1-mini",
+    "steps": "gpt-4.1",
+    "deep": "gpt-5",
+}
 
 #: Names no longer offered, mapped to what they always were. Resolving them to
 #: ``default`` instead would move an account from the cheapest model to the
@@ -348,11 +368,19 @@ def _defaults() -> dict[tuple[str, str], ManagedUpstream]:
         # a call), and it takes tools. Sonnet and Opus are there for the
         # workspace that chooses to pay for more; the agent's reasoning-effort
         # setting keeps them at ``low`` on a call unless somebody raises it.
-        ("llm", "default"): _tier("llm", "default", "anthropic", "claude-haiku-4-5"),
+        ("llm", "default"): _tier(
+            "llm", "default", "anthropic", constants.CLAUDE_HAIKU_MODEL
+        ),
         # Auto, where no router ran: the Everyday model.
-        ("llm", "auto"): _tier("llm", "auto", "anthropic", "claude-haiku-4-5"),
-        ("llm", "accurate"): _tier("llm", "accurate", "anthropic", "claude-sonnet-5-5"),
-        ("llm", "advanced"): _tier("llm", "advanced", "anthropic", "claude-opus-5-5"),
+        ("llm", "auto"): _tier(
+            "llm", "auto", "anthropic", constants.CLAUDE_HAIKU_MODEL
+        ),
+        ("llm", "accurate"): _tier(
+            "llm", "accurate", "anthropic", constants.CLAUDE_SONNET_MODEL
+        ),
+        ("llm", "advanced"): _tier(
+            "llm", "advanced", "anthropic", constants.CLAUDE_OPUS_MODEL
+        ),
         # Retired names, kept resolving to the model they always served.
         ("llm", "fast"): _tier("llm", "fast", "sarvam", "sarvam-105b-conversations"),
         ("llm", "zen"): _tier("llm", "zen", "sarvam", "sarvam-105b-conversations"),

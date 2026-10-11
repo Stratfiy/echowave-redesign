@@ -39,6 +39,7 @@ import {
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { PRICES_SHOWN } from "@/lib/pricing";
 import { cn } from "@/lib/utils";
 
 import {
@@ -181,8 +182,11 @@ function save(value: Saved) {
 
 function usageLabel(usage: StudioUsage | null): string | null {
     if (!usage || usage.limit <= 0) return null;
+    // No pricing is shown to users (lib/pricing.ts).
     return usage.past_allowance
-        ? `${usage.per_message_credits ?? 5} credits a message`
+        ? PRICES_SHOWN
+            ? `${usage.per_message_credits ?? 5} credits a message`
+            : `0 of ${usage.limit} messages left`
         : `${usage.remaining} of ${usage.limit} messages left`;
 }
 
