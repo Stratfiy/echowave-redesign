@@ -66,6 +66,14 @@ export interface Sms {
      * Blank for 'is true' and 'is not empty'.
      */
     send_when_value?: string;
+    /**
+     * Send only when somebody was on the line (or in the chat): never after a missed call, a voicemail or a test call.
+     */
+    only_if_answered?: boolean;
+    /**
+     * Leave blank to send every time. Set it so the same person is not sent this message again within that many days.
+     */
+    once_per_contact_days?: number;
 }
 
 /** Factory — sets `type` for you so you don't repeat the discriminator. */
