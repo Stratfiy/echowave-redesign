@@ -1068,6 +1068,7 @@ def _content_planner() -> AgentTemplate:
         industry="Creators",
         function="Make content",
         life_stage=CREATORS,
+        offers_images=True,
         direction=CallDirection.scheduled,
         summary=(
             "Plans your week of posts per platform from your niche and goals, "
@@ -1125,6 +1126,7 @@ def _caption_writer() -> AgentTemplate:
         industry="Creators",
         function="Make content",
         life_stage=CREATORS,
+        offers_images=True,
         summary=(
             "Writes captions and opening hooks for each platform in your own "
             "language and voice, learned from examples you paste."

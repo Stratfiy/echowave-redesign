@@ -931,9 +931,21 @@ async def _create_agent(
         logger.exception("Assembled template {} did not validate", template_id)
         return {"error": f"The assembled agent did not validate: {exc}"}
 
+    # The template's tools -- the web, the connected apps it names -- on its
+    # nodes, the way the shelf's hire puts them there. Hired from Chat it had
+    # none: an inventory agent was made with no way to read its sheet or
+    # send its email.
+    from api.services.agent_templates import equip
+
+    definition = await equip.for_template(
+        built.definition,
+        template=template,
+        organization_id=organization_id,
+        user_id=user_id,
+    )
     workflow = await db_client.create_workflow(
         name=built.name,
-        workflow_definition=built.definition,
+        workflow_definition=definition,
         user_id=user_id,
         organization_id=organization_id,
     )
@@ -949,16 +961,14 @@ async def _create_agent(
             PROVENANCE_TEMPLATE_KEY: template_id,
             **variables,
         },
-        # An image template's bot is marked the way the gallery's hire marks
-        # it (equip.configurations), so the engine offers it make_images
-        # whichever door it came in by. Others are left as they were.
-        workflow_configurations=(
-            _equip_configurations(template) if template.needs_images else None
-        ),
+        # Marked the way the shelf's hire marks it (equip.configurations):
+        # its channel, approval cards, images and unattended sends, whichever
+        # door it came in by.
+        workflow_configurations=_equip_configurations(template),
         organization_id=organization_id,
     )
 
-    schedule = await _schedule_from_template(
+    schedule = await schedule_from_template(
         template, organization_id=organization_id, workflow_id=workflow.id
     )
     from api.services.agent_templates._base import CALLING_DIRECTIONS
@@ -992,7 +1002,7 @@ async def _create_agent(
 SCHEDULED_RUN_INSTRUCTION = "Start today's run, as your steps describe."
 
 
-async def _schedule_from_template(
+async def schedule_from_template(
     template: Any, *, organization_id: int, workflow_id: int
 ) -> Optional[str]:
     """Give an agent that only ever runs on the clock the schedule its

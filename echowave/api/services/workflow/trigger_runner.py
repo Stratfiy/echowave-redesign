@@ -20,7 +20,7 @@ from api.enums import AgentEventActor, AgentEventKind, WorkflowRunMode
 from api.services.billing import events as billing_events
 from api.services.quota_service import authorize_workflow_run_start
 from api.services.workflow import agent_timeline, bot_triggers, one_shot_run
-from api.services.workflow.routine_runner import MAX_DELIVERABLE
+from api.services.workflow.routine_runner import MAX_DELIVERABLE, MAX_REPORT
 from api.services.workflow.text_chat_runner import default_text_chat_checkpoint
 from api.services.workflow.text_chat_session_service import (
     append_text_chat_user_message,
@@ -162,6 +162,7 @@ async def run_trigger(
             workflow_id=workflow_id,
             workflow_run_id=run_id,
             payload={
+                "body": answer[:MAX_REPORT],
                 "trigger_id": trigger_id,
                 "trigger": trigger["name"],
                 "event_id": event_id,

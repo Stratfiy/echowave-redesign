@@ -57,6 +57,7 @@ from api.tasks.memory_export import export_memory
 from api.tasks.memory_notices import notice_connections, resurface_asked
 from api.tasks.missed_call_tasks import place_missed_call_callback
 from api.tasks.ops import run_ops_command, sweep_ops
+from api.tasks.payment_links import watch_payment_links
 from api.tasks.people import resync_people, sync_people, write_due_briefs
 from api.tasks.plan_expiry import expire_lapsed_plan_balance
 from api.tasks.provider_balances import check_provider_balances
@@ -200,6 +201,13 @@ class WorkerSettings:
         # hours and DND checked right before each dial), and calls that never
         # reported back marked not answered. No-ops while off.
         cron(call_when_done_tick, second=20, run_at_startup=False),
+        # Payment links agents sent, checked until paid (payment_links).
+        cron(
+            watch_payment_links,
+            minute=set(range(1, 60, 2)),
+            second=35,
+            run_at_startup=False,
+        ),
         # Evolving skills: hourly at 41 past, away from the hourly ledger
         # snapshot (20) and balance check (37). Offline only; a no-op while
         # evolve_skills is off everywhere.

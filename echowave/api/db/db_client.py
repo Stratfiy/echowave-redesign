@@ -29,6 +29,7 @@ from api.db.organization_client import OrganizationClient
 from api.db.organization_configuration_client import OrganizationConfigurationClient
 from api.db.organization_usage_client import OrganizationUsageClient
 from api.db.password_reset_client import PasswordResetClient
+from api.db.payment_link_client import PaymentLinkClient
 from api.db.reports_client import ReportsClient
 from api.db.routine_client import RoutineClient
 from api.db.sandbox_job_client import SandboxJobClient
@@ -68,6 +69,7 @@ class DBClient(
     PasswordResetClient,
     VerifiedNumberClient,
     InstagramClient,
+    PaymentLinkClient,
     WorkflowClient,
     WorkflowRunClient,
     WorkflowRunTextSessionClient,

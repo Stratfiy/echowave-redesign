@@ -47,6 +47,11 @@ from api.services.workflow.text_chat_session_service import (
 #: What the deliverable carries of the bot's reply. Long enough for a morning
 #: summary, short enough that the card is a card.
 MAX_DELIVERABLE = 2_000
+#: What the thread shows of a run's report. The row's summary stops at 500
+#: characters (``agent_event_client.MAX_SUMMARY``); the whole report rides
+#: in ``payload.body``, which the thread reads first. A weekly marketing
+#: plan or a long morning report was cut mid-line before this.
+MAX_REPORT = 12_000
 
 
 def _last_assistant_text(text_session: Any) -> Optional[str]:
@@ -212,6 +217,7 @@ async def run_routine(routine_id: int) -> Optional[int]:
             workflow_id=workflow_id,
             workflow_run_id=run_id,
             payload={
+                "body": answer[:MAX_REPORT],
                 "routine_id": routine_id,
                 "routine": routine["name"],
                 "credits": billing_events.credits_for(billing_events.ROUTINE_RUN),
@@ -261,7 +267,7 @@ async def _load(routine_id: int) -> Optional[dict[str, Any]]:
         }
 
 
-__all__ = ["MAX_DELIVERABLE", "run_routine"]
+__all__ = ["MAX_DELIVERABLE", "MAX_REPORT", "run_routine"]
 
 
 async def _first_routine_run_is_free(organization_id: int | None) -> bool:
@@ -357,5 +363,9 @@ async def _run_decibyl_turn(
         kind=AgentEventKind.DELIVERABLE.value,
         summary=answer[:MAX_DELIVERABLE],
         workflow_id=None,
-        payload={"routine_id": routine_id, "routine": routine["name"]},
+        payload={
+            "body": answer[:MAX_REPORT],
+            "routine_id": routine_id,
+            "routine": routine["name"],
+        },
     )

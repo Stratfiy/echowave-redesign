@@ -2344,3 +2344,11 @@ INSTAGRAM_GRAPH_VERSION = os.getenv("INSTAGRAM_GRAPH_VERSION", "v23.0")
 INSTAGRAM_CHANNEL_ENABLED = (
     os.getenv("INSTAGRAM_CHANNEL_ENABLED", "true").lower() == "true"
 )
+
+# Payment links confirmed in the conversation (services/workflow/
+# payment_links.py): a Razorpay link an agent creates is watched until paid,
+# and the payment is confirmed on the agent's thread and to the customer
+# where the channel allows. On by default; a kill switch.
+PAYMENT_CONFIRMATIONS_ENABLED = (
+    os.getenv("PAYMENT_CONFIRMATIONS_ENABLED", "true").lower() == "true"
+)

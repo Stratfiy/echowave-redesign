@@ -194,6 +194,13 @@ async def execute_pending_text_chat_turn(
     session_data = normalize_text_chat_session_data(text_session.session_data)
     checkpoint = normalize_text_chat_checkpoint(text_session.checkpoint)
 
+    # The run this turn serves, as a call's pipeline sets it, so what the
+    # turn does (a payment link it creates, a log line) knows its
+    # conversation. Put back afterwards: the caller may serve others.
+    from pipecat.utils.run_context import get_current_run_id, set_current_run_id
+
+    previous_run_id = get_current_run_id()
+    set_current_run_id(run_id)
     try:
         execution = await execute_text_chat_pending_turn(
             workflow_run_id=run_id,
@@ -210,6 +217,8 @@ async def execute_pending_text_chat_turn(
         raise TextChatSessionExecutionError(
             f"Failed to execute text chat assistant turn: {e}"
         ) from e
+    finally:
+        set_current_run_id(previous_run_id)
 
     completed_session_data = normalize_text_chat_session_data(text_session.session_data)
     completed_turns = list(completed_session_data.get("turns") or [])

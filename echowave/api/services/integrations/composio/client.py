@@ -221,7 +221,20 @@ async def execute_tool(
         logger.warning("Composio tool {} reported failure: {}", tool_slug, message)
         return {"status": "error", "error": message}
 
-    return {"status": "success", "data": body.get("data", body)}
+    data = body.get("data", body)
+    if tool_slug == "RAZORPAY_CREATE_PAYMENT_LINK":
+        # Watched until paid, so the payment is confirmed back in the
+        # conversation that asked for it (services/workflow/payment_links).
+        from api.services.workflow import payment_links
+
+        await payment_links.record_created(
+            organization_id=organization_id,
+            arguments=arguments or {},
+            data=data,
+            connected_account_id=connected_account_id,
+            user_id=user_id,
+        )
+    return {"status": "success", "data": data}
 
 
 def _error_message(body: Any) -> Optional[str]:
