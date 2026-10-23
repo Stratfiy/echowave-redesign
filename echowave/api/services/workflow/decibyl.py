@@ -2082,7 +2082,14 @@ async def tools_for(
         tools = helper_turn.narrow(
             helper_turn.current(), tools, app_toolkits=_toolkits_by_name(connected)
         )
-    return tools
+    # Two tools by one name and the provider refuses the whole turn ("The
+    # assistant hit an error"), seen on 23 Oct 2026 right after a workspace
+    # connected Google Sheets. Each name once, the first kept.
+    from api.services.workflow.pipecat_engine_context_composer import (
+        unique_by_name,
+    )
+
+    return unique_by_name(tools)
 
 
 def _toolkits_by_name(connected: list[Any]) -> dict[str, str | None]:

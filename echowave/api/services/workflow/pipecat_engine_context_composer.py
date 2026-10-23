@@ -5,8 +5,10 @@ reusable functions. Defines recording response mode markers and instructions.
 """
 
 from datetime import datetime
-from typing import TYPE_CHECKING, Callable, Optional
+from typing import TYPE_CHECKING, Any, Callable, Optional
 from zoneinfo import ZoneInfo
+
+from loguru import logger
 
 from api.services.pipecat import agent_end_call
 
@@ -534,4 +536,30 @@ async def compose_functions_for_node(
         )
         functions.append(function_schema)
 
-    return functions
+    return unique_by_name(functions)
+
+
+def unique_by_name(functions: list[Any]) -> list[Any]:
+    """The functions with each name once, the first kept.
+
+    Every model provider refuses a request that offers two tools by one
+    name, and refuses the whole turn, not the tool. Two connected-app rows
+    can name the same way -- an app connected twice, or two of its actions
+    whose display names sanitise alike -- and nothing upstream stops it, so
+    it is stopped here, where the list leaves for the provider.
+    """
+    seen: set[str] = set()
+    kept: list[Any] = []
+    for function in functions:
+        name = (
+            function.get("name")
+            if isinstance(function, dict)
+            else getattr(function, "name", None)
+        )
+        if name in seen:
+            logger.warning("Dropped a second tool named {} from one request", name)
+            continue
+        if name:
+            seen.add(name)
+        kept.append(function)
+    return kept
