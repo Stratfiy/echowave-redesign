@@ -1622,6 +1622,7 @@ def _promoted() -> tuple[AgentTemplate, ...]:
         call_coach,
         chat_desks,
         creative,
+        inventory,
         life_stages,
         marketing,
         procurement,
@@ -1635,6 +1636,7 @@ def _promoted() -> tuple[AgentTemplate, ...]:
         + life_stages.templates()
         + creative.templates()
         + marketing.templates()
+        + inventory.templates()
     )
 
 

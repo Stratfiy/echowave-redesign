@@ -335,6 +335,11 @@ class AgentTemplate(BaseModel):
     needs_team_calls: bool = False
     apps: list[str] = Field(default_factory=list)
     approve_sends: bool = False
+    #: Sends on its own scheduled runs, without a card: the hire turns on
+    #: ``unattended.CONFIG_KEY``. Only for a role whose every send goes to
+    #: the business's own people (an internal alert), never to a customer;
+    #: anything else keeps ``approve_sends`` or the default, read-only runs.
+    sends_unattended: bool = False
     #: The document engine (``services/documents``): drafting a PO or an
     #: RFQ, reading a quotation, the register. Offered by the engine to
     #: every text and channel run while ``procurement_docs`` is on, so
