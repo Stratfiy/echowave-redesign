@@ -158,7 +158,9 @@ export type Feature =
     | "image_generation"
     // Personal adaptation: kept preferences, "what you know about me", the
     // context control above the composer.
-    | "evolve_personal";
+    | "evolve_personal"
+    // An agent that can see what the other agents in the workspace did.
+    | "team_activity";
 
 export function useFeature(name: Feature): boolean {
     const { config } = useAppConfig();

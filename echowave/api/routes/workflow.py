@@ -66,6 +66,7 @@ from api.services.workflow import (
     bot_notices,
     publish_gate,
     setup_progress,
+    team_activity,
     visibility,
 )
 from api.services.workflow.agent_brief import (
@@ -1691,6 +1692,74 @@ async def set_bot_notices(
         offered=[NoticeOption(**entry) for entry in bot_notices.catalogue()],
         selected=bot_notices.store(request.kinds),
     )
+
+
+class TeamAccessResponse(BaseModel):
+    """Whether this agent may see what the rest of the team did."""
+
+    enabled: bool
+
+
+class SetTeamAccessRequest(BaseModel):
+    enabled: bool
+
+
+async def _team_access_workflow(workflow_id: int, user: UserModel):
+    workflow = await db_client.get_workflow(
+        workflow_id, organization_id=user.selected_organization_id
+    )
+    if workflow is None:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+    return workflow
+
+
+@router.get(
+    "/{workflow_id}/team-access",
+    response_model=TeamAccessResponse,
+    dependencies=[
+        Depends(features.require(team_activity.FEATURE, per_organization=True))
+    ],
+)
+async def get_team_access(
+    workflow_id: int,
+    user: UserModel = Depends(get_user),
+) -> TeamAccessResponse:
+    """Whether "Can see the team" is on for this agent (off by default)."""
+    workflow = await _team_access_workflow(workflow_id, user)
+    return TeamAccessResponse(
+        enabled=team_activity.wants_team(workflow.workflow_configurations)
+    )
+
+
+@router.put(
+    "/{workflow_id}/team-access",
+    response_model=TeamAccessResponse,
+    dependencies=[
+        Depends(features.require(team_activity.FEATURE, per_organization=True))
+    ],
+)
+async def set_team_access(
+    workflow_id: int,
+    request: SetTeamAccessRequest,
+    user: UserModel = Depends(get_user),
+) -> TeamAccessResponse:
+    """Let this agent read what the other agents in the workspace did.
+
+    Writes only its own key, as the notices route does: the configuration
+    block holds the voice stack and the channel, and replacing it from a
+    screen about one switch is how a save silently changes something else.
+    """
+    workflow = await _team_access_workflow(workflow_id, user)
+    draft = await db_client.get_draft_version(workflow_id)
+    source = draft or workflow.released_definition
+    existing = dict(
+        (source.workflow_configurations if source else None)
+        or workflow.workflow_configurations
+        or {}
+    )
+    existing[team_activity.CONFIG_KEY] = bool(request.enabled)
+    await db_client.save_workflow_draft(workflow_id, workflow_configurations=existing)
+    return TeamAccessResponse(enabled=bool(request.enabled))
 
 
 @router.put("/{workflow_id}/status")
