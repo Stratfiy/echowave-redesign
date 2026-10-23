@@ -12,6 +12,7 @@ import re
 from datetime import date, datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
+from uuid import uuid4
 
 import pytest
 
@@ -210,3 +211,94 @@ async def test_the_whole_plan_reaches_the_thread_not_its_first_500_characters():
     assert kwargs["kind"] == "deliverable"
     assert kwargs["payload"]["body"] == plan
     assert kwargs["payload"]["routine"] == "Marketing manager"
+
+
+ANSWERS = {
+    "business_name": "Narayani Sweets",
+    "what_you_sell": "Sweets and namkeen",
+    "customers": "Families in Anna Nagar, Chennai",
+    "channels": "Instagram, WhatsApp status",
+    "post_language": "Tamil and English",
+}
+
+
+@pytest.fixture
+async def people(test_engine, monkeypatch):
+    from api.tests.support.voice import all_on, clean, make_people
+
+    all_on(monkeypatch)
+    p = await make_people(f"mkt-{uuid4().hex[:6]}")
+    yield p
+    await clean(p)
+
+
+@pytest.mark.asyncio
+class TestHiredFromTheShelf:
+    """The shelf's door (``POST /agent-templates/{id}/create``), which had
+    neither the schedule nor the optional-blank rule the Chat door has."""
+
+    async def _hire(self, people, variables=ANSWERS):
+        from api.db import db_client
+        from api.routes.agent_templates import (
+            CreateFromTemplateRequest,
+            create_from_template,
+        )
+
+        made = await create_from_template(
+            "marketing_manager",
+            CreateFromTemplateRequest(variables=variables),
+            user=people.as_a,
+        )
+        workflow = await db_client.get_workflow(made["id"], organization_id=people.org)
+        routines = await db_client.routines_for_workflow(
+            made["id"], organization_id=people.org
+        )
+        return made, workflow, routines
+
+    async def test_it_gets_its_monday_schedule_switched_off_until_tested(self, people):
+        made, _, routines = await self._hire(people)
+        assert made["schedule"] == "every Monday at 09:30"
+        [routine] = routines
+        assert (routine.weekday, routine.at_minute) == (0, 9 * 60 + 30)
+        assert not routine.is_active
+
+    async def test_a_blank_optional_sheet_does_not_keep_it_switched_off(self, people):
+        made, workflow, _ = await self._hire(people)
+        assert made["unanswered"] == []
+        assert made["is_live"]
+        prompt = next(
+            node["data"]["prompt"]
+            for node in workflow.workflow_definition["nodes"]
+            if node["type"] == "startCall"
+        )
+        assert "{{plan_sheet}}" not in prompt
+        assert "Narayani Sweets" in prompt
+
+    async def test_a_missing_required_answer_still_does(self, people):
+        made, _, _ = await self._hire(
+            people, {k: v for k, v in ANSWERS.items() if k != "customers"}
+        )
+        assert made["unanswered"] == ["customers"]
+        assert not made["is_live"]
+
+    async def test_the_hire_is_marked_for_approvals_and_images(self, people):
+        _, workflow, _ = await self._hire(people)
+        configurations = workflow.workflow_configurations
+        assert configurations["channel"] == "chat"
+        assert configurations["approve_sends"] is True
+        assert image_tools.wants_images(configurations)
+
+    async def test_an_agent_that_does_not_run_on_the_clock_gets_no_schedule(
+        self, people
+    ):
+        from api.routes.agent_templates import (
+            CreateFromTemplateRequest,
+            create_from_template,
+        )
+
+        made = await create_from_template(
+            "caption_hook_writer",
+            CreateFromTemplateRequest(variables={}),
+            user=people.as_a,
+        )
+        assert made["schedule"] is None

@@ -960,7 +960,7 @@ async def _create_agent(
         organization_id=organization_id,
     )
 
-    schedule = await _schedule_from_template(
+    schedule = await schedule_from_template(
         template, organization_id=organization_id, workflow_id=workflow.id
     )
     from api.services.agent_templates._base import CALLING_DIRECTIONS
@@ -994,7 +994,7 @@ async def _create_agent(
 SCHEDULED_RUN_INSTRUCTION = "Start today's run, as your steps describe."
 
 
-async def _schedule_from_template(
+async def schedule_from_template(
     template: Any, *, organization_id: int, workflow_id: int
 ) -> Optional[str]:
     """Give an agent that only ever runs on the clock the schedule its

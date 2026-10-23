@@ -20,6 +20,7 @@ from api.db import db_client
 from api.db.models import UserModel
 from api.enums import PostHogEvent
 from api.services.agent_builder.assemble import fill_placeholders, required_variables
+from api.services.agent_builder.tools import schedule_from_template
 from api.services.agent_templates import (
     AgentTemplate,
     equip,
@@ -220,6 +221,14 @@ async def create_from_template(
 
     if request is not None:
         definition = _personalise(definition, request)
+    # An optional answer left blank is filled with nothing, never left as
+    # braces -- the same rule as a hire from Chat (``assemble``). Left as
+    # braces it counted as a gap, and an agent whose only blank was an
+    # optional Google Sheet was made switched off.
+    if template.optional_variables:
+        definition = fill_placeholders(
+            definition, {key: "" for key in template.optional_variables}
+        )
 
     definition = await equip.for_template(
         definition,
@@ -258,6 +267,17 @@ async def create_from_template(
         ),
     )
 
+    # An agent that only runs on the clock gets the schedule its template
+    # names ("every Monday at 9:30am"), switched off until a test run -- the
+    # same as a hire from Chat. Hired from the shelf it had none, so a
+    # marketing plan or a morning report never came until somebody found
+    # Triggers and typed the schedule in by hand.
+    schedule = await schedule_from_template(
+        template,
+        organization_id=user.selected_organization_id,
+        workflow_id=workflow.id,
+    )
+
     # The third door into an agent, and the only one that was silent. The
     # wizard and the blank canvas both report themselves, so a funnel built on
     # workflow_created undercounted exactly the path we are steering people to.
@@ -291,6 +311,9 @@ async def create_from_template(
         # still empty instead of "something is missing". Empty on a hire that
         # answered everything, which is the ordinary case.
         "unanswered": sorted(unfilled.names_in(definition)),
+        # The schedule it was given, in words, or null for an agent that
+        # does not run on the clock (or whose schedule could not be made).
+        "schedule": schedule,
     }
 
 

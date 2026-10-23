@@ -37,7 +37,9 @@ test("a member's first message from Chat's start screen is theirs and answered",
     // member has nothing of their own here yet, so it greets; off, it is the
     // conversation everyone shares, as before.
     if (privateThreads) {
-        await expect(page.getByText("Hi, I'm Decibyl!")).toBeVisible();
+        // The greeting the home has said since the design handoff
+        // (HomeAboveTheFold); "Hi, I'm Decibyl!" went with the big mark.
+        await expect(page.getByText(/^What can I do for you/)).toBeVisible();
         // Nor is the owner's conversation measured beside B's empty box.
         await expect(page.getByLabel(/^Memory:/)).toHaveCount(0);
     }
@@ -145,7 +147,7 @@ test("a conversation that cannot load says so, with a way to try again", async (
     await dismissPrompts(page);
     await expect(page.getByText("Could not load this conversation")).toBeVisible();
     await expect(page.getByRole("button", { name: /try again/i })).toBeVisible();
-    await expect(page.getByText("Hi, I'm Decibyl!")).toHaveCount(0);
+    await expect(page.getByText(/^What can I do for you/)).toHaveCount(0);
     await page.unroute(/\/api\/v1\/timeline\?.*assistant=true/);
     await page.getByRole("button", { name: /try again/i }).click();
     await expect(page.getByText("Could not load this conversation")).toHaveCount(0);
