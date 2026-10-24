@@ -1,0 +1,27 @@
+{
+  "id": "S01",
+  "title": "Clinic morning",
+  "aspect": "9:16",
+  "music": "story",
+  "poster": 10.2,
+  "share": "Before her clinic opens, Dr. Meera asks Decibyl what's on today. It already answered the clinic line, booked a new patient within her hours, and told her what changed. Join the free early access list at app.decibyl.ai",
+  "scenes": [
+    { "type": "ask", "dur": 3.0, "name": "Meera", "time": "8:05", "ask": "What's on today?", "starters": ["Plan my week", "Call the lab"] },
+    { "type": "phones", "dur": 4.8, "caption": "Before the clinic opens.",
+      "phones": [ { "screen": "today", "time": "8:05", "date": "Thursday, 8 October", "rows": [
+        { "color": "pink", "title": "4 appointments", "sub": "First at 10:00 · Ananya R., cleaning" },
+        { "color": "green", "title": "2 missed calls", "sub": "Both called back, booked for Saturday", "status": "Handled" },
+        { "color": "yellow", "title": "Gloves running low", "sub": "Reorder drafted for you to check", "status": "Needs your OK", "wait": true },
+        { "color": "pink", "title": "Lab report · Mr. Iyer", "sub": "Arrived 7:40 am, saved to his file", "status": "Saved" } ] } ] },
+    { "type": "phones", "dur": 5.6, "caption": "Answers the clinic line,|books within your hours.",
+      "phones": [ { "screen": "call", "time": "11:20", "who": "New patient", "sub": "Decibyl, answering for Smile Dental", "color": "green", "lines": [
+        { "who": "Caller", "text": "Hi, can I get a check-up this week?", "at": 0.5 },
+        { "who": "Decibyl", "text": "Yes. Thursday at 4:30, or Saturday at 11. Which suits you?", "at": 2.0 },
+        { "who": "Caller", "text": "Saturday, please.", "at": 4.0 } ] } ] },
+    { "type": "phones", "dur": 4.0, "caption": "And tells you|what changed.",
+      "phones": [ { "screen": "lock", "time": "11:22", "clock": "11:22", "date": "Thursday, 8 October", "notifs": [
+        { "title": "New booking", "text": "Saturday 11:00 · Kavya M., check-up. Confirmation sent on WhatsApp.", "at": 0.5 },
+        { "title": "Gloves reorder", "text": "Still waiting for your OK. Tap to check the order.", "at": 1.3, "when": "2h ago" } ] } ] },
+    { "type": "outro", "dur": 3.3, "line": "Talk to Decibyl. Get everyday things done." }
+  ]
+}

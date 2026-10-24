@@ -1,0 +1,136 @@
+{
+  "id": "T01",
+  "title": "Getting started",
+  "aspect": "16:9",
+  "music": "tutorial",
+  "poster": 26.6,
+  "share": "New to Decibyl? Open your invitation, choose your language, ask for one real task and say \"Do it\" when the preview looks right. No apps to connect first. Join the free early access list at app.decibyl.ai",
+  "scenes": [
+    {
+      "type": "title",
+      "dur": 3.6,
+      "text": "Getting started|with Decibyl",
+      "sub": "From your invitation to your first finished task."
+    },
+    {
+      "type": "step",
+      "dur": 6.0,
+      "n": 1,
+      "of": 4,
+      "title": "Open your invitation",
+      "sub": "Sign in from the link in your invite. Early access is free, with usage limits.",
+      "focus": "continue",
+      "callout": "Continue",
+      "focusAt": 1.4,
+      "tapAt": 4.6,
+      "ui": {
+        "kind": "onboard",
+        "url": "app.decibyl.ai/invite",
+        "heading": "You're invited to Decibyl",
+        "sub": "Priya Sharma invited you to early access.",
+        "field": "riya.k@example.com",
+        "button": "Continue"
+      }
+    },
+    {
+      "type": "step",
+      "dur": 6.6,
+      "n": 2,
+      "of": 4,
+      "title": "Choose your language",
+      "sub": "Decibyl replies and speaks in it. Confirm your time zone while you're here.",
+      "focus": "choice",
+      "callout": "Pick yours",
+      "focusAt": 0.9,
+      "tapAt": 2.2,
+      "ui": {
+        "kind": "onboard",
+        "url": "app.decibyl.ai/start",
+        "heading": "Which language should Decibyl use?",
+        "options": [
+          {
+            "label": "English"
+          },
+          {
+            "label": "हिन्दी",
+            "sub": "Hindi"
+          },
+          {
+            "label": "தமிழ்",
+            "sub": "Tamil"
+          },
+          {
+            "label": "తెలుగు",
+            "sub": "Telugu"
+          },
+          {
+            "label": "বাংলা",
+            "sub": "Bengali"
+          },
+          {
+            "label": "मराठी",
+            "sub": "Marathi"
+          }
+        ],
+        "select": 1,
+        "selectAt": 1.9,
+        "field": "Time zone: India (Asia/Kolkata), detected",
+        "button": "Continue"
+      }
+    },
+    {
+      "type": "step",
+      "dur": 7.0,
+      "n": 3,
+      "of": 4,
+      "title": "Ask for one real task",
+      "sub": "Type it, or tap Talk and say it. No apps to connect first.",
+      "focus": "composer",
+      "callout": "Type or talk",
+      "focusAt": 0.6,
+      "ui": {
+        "kind": "home",
+        "url": "app.decibyl.ai/overview",
+        "name": "Riya",
+        "typeAt": 1.2,
+        "ask": "Remind me to pay the electricity bill on the 5th, every month",
+        "starters": [
+          "Plan my week",
+          "Teach me Excel",
+          "Call the bank for me"
+        ]
+      }
+    },
+    {
+      "type": "step",
+      "dur": 8.6,
+      "n": 4,
+      "of": 4,
+      "title": "Check it, then say Do it",
+      "sub": "Anything that sends, books or pays waits for your OK.",
+      "focus": "doit",
+      "callout": "Nothing happens until you tap",
+      "ui": {
+        "kind": "chat",
+        "url": "app.decibyl.ai/chat",
+        "agent": "Decibyl",
+        "color": "pink",
+        "user": "Remind me to pay the electricity bill on the 5th, every month",
+        "reply": "Sure. I'll remind you on the 5th of every month at 9 am, here and on WhatsApp.",
+        "approval": {
+          "wants": "Set a monthly reminder: pay the electricity bill",
+          "detail": "5th of every month, 9:00 am · in Chat and on WhatsApp",
+          "hold": 2.6
+        },
+        "done": [
+          "Will do, every month on the 5th at 9:00."
+        ]
+      }
+    },
+    {
+      "type": "outro",
+      "dur": 3.6,
+      "line": "Talk to Decibyl. Get everyday things done."
+    }
+  ]
+}

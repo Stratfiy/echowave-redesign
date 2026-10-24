@@ -1,0 +1,27 @@
+{
+  "id": "S03",
+  "title": "Freelancer follow-ups",
+  "aspect": "9:16",
+  "music": "story",
+  "poster": 7.3,
+  "share": "Arjun designs for a living, not chases invoices. He asked Decibyl who owes him; it drafted three polite reminders, sent them only when he said \"Do it\", and one client paid by evening. Join the free early access list at app.decibyl.ai",
+  "scenes": [
+    { "type": "ask", "dur": 3.4, "name": "Arjun", "time": "7:08", "ask": "Who still owes me money?", "starters": ["Plan my week", "Draft a proposal"] },
+    { "type": "chat", "dur": 6.8, "caption": "Always asks|before it acts.", "time": "7:09", "agent": "Follow-up", "agentSub": "Invoices and reminders", "color": "yellow",
+      "user": "Who still owes me money?",
+      "reply": "Three clients haven't paid: Studio Kalam ₹18,000 (12 days late), Bloom Cafe ₹9,500 (5 days), Nexa Labs ₹24,000 (due today). I've drafted a polite reminder for each.",
+      "approval": { "wants": "Send 3 payment reminders on WhatsApp", "detail": "Studio Kalam, Bloom Cafe, Nexa Labs · with invoice links" },
+      "done": ["Sent · 3 reminders, 7:10 pm", "Next nudge Monday, only if still unpaid"] },
+    { "type": "phones", "dur": 4.6, "caption": "Three reminders sent.|One paid by evening.",
+      "phones": [{ "screen": "messages", "time": "8:42", "contact": "Bloom Cafe", "color": "green", "messages": [
+        { "dir": "out", "text": "Hi Rohan, a gentle reminder that invoice #0412 for ₹9,500 is 5 days past due. Here's the link to pay. Thank you!", "time": "7:10 pm", "at": 0.5 },
+        { "dir": "in", "text": "So sorry, it slipped. Paying now 🙏", "time": "8:40 pm", "at": 1.5 },
+        { "dir": "in", "text": "Done. Thanks for the nudge!", "time": "8:42 pm", "at": 2.3 } ] }] },
+    { "type": "phones", "dur": 3.8, "caption": "Who owes you,|always in Today.",
+      "phones": [{ "screen": "today", "time": "8:45", "date": "Thursday, 8 October", "rows": [
+        { "color": "green", "title": "Bloom Cafe · ₹9,500", "sub": "Paid at 8:42 pm", "status": "Paid" },
+        { "color": "pink", "title": "Studio Kalam · ₹18,000", "sub": "Reminder sent · next nudge Monday", "status": "Waiting", "wait": true },
+        { "color": "yellow", "title": "Nexa Labs · ₹24,000", "sub": "Due today · reminder sent", "status": "Waiting", "wait": true } ] }] },
+    { "type": "outro", "dur": 3.3, "line": "Talk to Decibyl. Get everyday things done." }
+  ]
+}
