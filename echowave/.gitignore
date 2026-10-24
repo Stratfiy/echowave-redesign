@@ -30,3 +30,6 @@ node_modules/
 .superpowers/
 docs/superpowers/
 .gstack/
+
+# /brag launch-video renders (see launch-videos/README.md)
+brag-output*/
