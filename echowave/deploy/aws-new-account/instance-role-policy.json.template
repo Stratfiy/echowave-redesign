@@ -1,0 +1,66 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ReadDecibylProdConfig",
+      "Effect": "Allow",
+      "Action": ["ssm:GetParametersByPath", "ssm:GetParameters"],
+      "Resource": [
+        "arn:aws:ssm:ap-south-1:NEW_ACCOUNT_ID:parameter/decibyl/prod",
+        "arn:aws:ssm:ap-south-1:NEW_ACCOUNT_ID:parameter/decibyl/prod/*"
+      ]
+    },
+    {
+      "Sid": "ImportDecibylProdConfigOnce",
+      "Effect": "Allow",
+      "Action": "ssm:PutParameter",
+      "Resource": "arn:aws:ssm:ap-south-1:NEW_ACCOUNT_ID:parameter/decibyl/prod/*"
+    },
+    {
+      "Sid": "UseTheSsmManagedKmsKey",
+      "Effect": "Allow",
+      "Action": ["kms:Decrypt", "kms:Encrypt"],
+      "Resource": "arn:aws:kms:ap-south-1:NEW_ACCOUNT_ID:key/*",
+      "Condition": {
+        "StringEquals": { "kms:ViaService": "ssm.ap-south-1.amazonaws.com" }
+      }
+    },
+    {
+      "Sid": "ObjectStorage",
+      "Effect": "Allow",
+      "Action": ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"],
+      "Resource": [
+        "arn:aws:s3:::NEW_S3_BUCKET/*",
+        "arn:aws:s3:::NEW_KYC_BUCKET/*",
+        "arn:aws:s3:::NEW_BACKUP_MIRROR_BUCKET/*"
+      ]
+    },
+    {
+      "Sid": "ObjectStorageListing",
+      "Effect": "Allow",
+      "Action": ["s3:ListBucket", "s3:GetBucketLocation"],
+      "Resource": [
+        "arn:aws:s3:::NEW_S3_BUCKET",
+        "arn:aws:s3:::NEW_KYC_BUCKET",
+        "arn:aws:s3:::NEW_BACKUP_MIRROR_BUCKET"
+      ]
+    },
+    {
+      "Sid": "ProviderKeyMirrorOnlyIfOpsSecretBackendIsSecretsManager",
+      "Effect": "Allow",
+      "Action": ["secretsmanager:PutSecretValue", "secretsmanager:CreateSecret"],
+      "Resource": "arn:aws:secretsmanager:ap-south-1:NEW_ACCOUNT_ID:secret:OPS_SECRET_NAMESPACE*"
+    },
+    {
+      "Sid": "BedrockModels",
+      "Effect": "Allow",
+      "Action": ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream"],
+      "Resource": [
+        "arn:aws:bedrock:ap-south-1::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0",
+        "arn:aws:bedrock:ap-south-1::foundation-model/FALLBACK_MODEL_ID",
+        "arn:aws:bedrock:ap-south-1::foundation-model/CHEAP_MODEL_ID",
+        "arn:aws:bedrock:ap-south-1::foundation-model/EMBEDDING_MODEL_ID"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "SendTheDeployToOneInstance",
+      "Effect": "Allow",
+      "Action": "ssm:SendCommand",
+      "Resource": [
+        "arn:aws:ssm:*:*:document/AWS-RunShellScript",
+        "arn:aws:ec2:*:*:instance/NEW_INSTANCE_ID"
+      ]
+    },
+    {
+      "Sid": "ReadBackTheResult",
+      "Effect": "Allow",
+      "Action": ["ssm:GetCommandInvocation", "ssm:ListCommandInvocations"],
+      "Resource": "*"
+    }
+  ]
+}
